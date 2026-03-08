@@ -164,7 +164,7 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Integration test with warmup sets (re-run generation) | High | Verifies warmup prescription in output |
+| Integration test with warmup sets (re-run generation) | ✅ Done | program_id=4, $0.49, warmups confirmed at 55–65% before working sets |
 | Live test `feedback.py` (mark program complete, promote maxes) | Medium | Needs logged sessions first |
 | Tesseract OCR → Laputin ingestion | Low | `winget install UB-Mannheim.TesseractOCR` |
 | Takano ingestion | Low | File not yet available; use `programming` profile |
