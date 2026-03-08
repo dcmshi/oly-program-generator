@@ -1,0 +1,31 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{% block title %}Oly Agent{% endblock %}</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <style>
+    [x-cloak] { display: none; }
+    .htmx-indicator { display: none; }
+    .htmx-request .htmx-indicator { display: inline; }
+  </style>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen">
+
+  <!-- Nav -->
+  <nav class="bg-gray-900 text-white px-6 py-3 flex items-center gap-6 shadow">
+    <a href="/" class="font-bold text-lg tracking-tight">⚡ Oly Agent</a>
+    <a href="/" class="text-gray-300 hover:text-white text-sm">Dashboard</a>
+    <a href="/program" class="text-gray-300 hover:text-white text-sm">Programs</a>
+    <a href="/generate" class="text-gray-300 hover:text-white text-sm">Generate</a>
+  </nav>
+
+  <!-- Content -->
+  <main class="max-w-5xl mx-auto px-4 py-8">
+    {% block content %}{% endblock %}
+  </main>
+
+</body>
+</html>

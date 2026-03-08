@@ -1,0 +1,118 @@
+{% extends "base.html" %}
+{% block title %}{{ program.name }} — Oly Agent{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="flex items-start justify-between mb-2">
+  <div>
+    <a href="/program" class="text-sm text-gray-400 hover:text-gray-700">← Programs</a>
+    <h1 class="text-2xl font-bold mt-1">{{ program.name }}</h1>
+    <div class="flex items-center gap-2 mt-1">
+      <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ program.phase | phase_color }}">
+        {{ program.phase | upper }}
+      </span>
+      <span id="status-badge"
+            class="text-xs px-2 py-0.5 rounded-full font-medium {{ program.status | status_color }}">
+        {{ program.status }}
+      </span>
+      <span class="text-gray-400 text-sm">
+        {{ program.duration_weeks }} wks · {{ program.sessions_per_week }} days/wk · starts {{ program.start_date }}
+      </span>
+    </div>
+  </div>
+
+  {% if program.status == 'draft' %}
+  <button hx-post="/program/{{ program.id }}/activate"
+          hx-target="#status-badge"
+          hx-swap="outerHTML"
+          class="bg-green-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-green-700">
+    Activate program
+  </button>
+  {% endif %}
+</div>
+
+<!-- Rationale accordion -->
+{% if program.rationale %}
+<details class="bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 mt-4">
+  <summary class="cursor-pointer text-sm font-medium text-blue-800">Program rationale</summary>
+  <p class="mt-3 text-sm text-blue-900 whitespace-pre-line leading-relaxed">{{ program.rationale }}</p>
+</details>
+{% endif %}
+
+<!-- Week accordions -->
+{% for week in weeks %}
+<details class="bg-white border border-gray-200 rounded-xl mb-3 shadow-sm" {% if loop.first %}open{% endif %}>
+  <summary class="cursor-pointer px-5 py-4 flex items-center justify-between">
+    <div class="flex items-center gap-3">
+      <span class="font-semibold">Week {{ week.week_number }}</span>
+      {% set first_session = week.sessions[0] %}
+      {% if first_session %}
+      <span class="text-xs text-gray-500">
+        {{ first_session.exercises[0].intensity_pct | fmt_pct if first_session.exercises else '' }}
+        — {{ first_session.exercises[-1].intensity_pct | fmt_pct if first_session.exercises else '' }}
+      </span>
+      {% endif %}
+    </div>
+    <span class="text-xs text-gray-400">{{ week.sessions | length }} sessions</span>
+  </summary>
+
+  <div class="px-5 pb-5 space-y-5">
+    {% for session in week.sessions %}
+    <div>
+      <!-- Session header -->
+      <div class="flex items-center justify-between mb-2">
+        <div>
+          <span class="text-xs text-gray-400 uppercase tracking-wide">Day {{ session.day_number }}</span>
+          <h3 class="font-semibold">{{ session.session_label }}</h3>
+          <span class="text-xs text-gray-500">~{{ session.estimated_duration_minutes }} min · {{ session.focus_area }}</span>
+        </div>
+        {% if session.log_id %}
+          <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✓ Logged</span>
+        {% else %}
+          <a href="/log/{{ session.id }}"
+             class="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700">
+            Log session
+          </a>
+        {% endif %}
+      </div>
+
+      <!-- Exercise table -->
+      {% if session.exercises %}
+      <div class="overflow-x-auto">
+        <table class="w-full text-sm">
+          <thead>
+            <tr class="text-xs text-gray-400 border-b border-gray-100">
+              <th class="text-left py-1 pr-3 font-medium w-6">#</th>
+              <th class="text-left py-1 pr-3 font-medium">Exercise</th>
+              <th class="text-right py-1 pr-3 font-medium">Sets×Reps</th>
+              <th class="text-right py-1 pr-3 font-medium">Weight</th>
+              <th class="text-right py-1 pr-3 font-medium">Intensity</th>
+              <th class="text-right py-1 pr-3 font-medium">RPE</th>
+              <th class="text-right py-1 font-medium">Rest</th>
+            </tr>
+          </thead>
+          <tbody class="divide-y divide-gray-50">
+            {% for ex in session.exercises %}
+            <tr class="hover:bg-gray-50">
+              <td class="py-1.5 pr-3 text-gray-400 text-xs">{{ ex.exercise_order }}</td>
+              <td class="py-1.5 pr-3 font-medium">{{ ex.exercise_name }}</td>
+              <td class="py-1.5 pr-3 text-right text-gray-600">{{ ex.sets }}×{{ ex.reps }}</td>
+              <td class="py-1.5 pr-3 text-right font-medium">{{ ex.absolute_weight_kg | fmt_weight }}</td>
+              <td class="py-1.5 pr-3 text-right text-gray-500">{{ ex.intensity_pct | fmt_pct }}</td>
+              <td class="py-1.5 pr-3 text-right text-gray-500">{{ ex.rpe_target | fmt_rpe }}</td>
+              <td class="py-1.5 text-right text-gray-400 text-xs">{{ ex.rest_seconds }}s</td>
+            </tr>
+            {% endfor %}
+          </tbody>
+        </table>
+      </div>
+      {% endif %}
+    </div>
+    {% if not loop.last %}<hr class="border-gray-100">{% endif %}
+    {% endfor %}
+  </div>
+</details>
+{% endfor %}
+
+{% endblock %}

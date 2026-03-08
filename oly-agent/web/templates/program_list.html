@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Programs — Oly Agent{% endblock %}
+
+{% block content %}
+<div class="flex items-center justify-between mb-6">
+  <h1 class="text-2xl font-bold">Programs</h1>
+  <a href="/generate" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700">
+    + Generate new
+  </a>
+</div>
+
+{% if not programs %}
+  <p class="text-gray-500">No programs yet. <a href="/generate" class="text-blue-600 hover:underline">Generate one.</a></p>
+{% else %}
+  <div class="space-y-3">
+    {% for p in programs %}
+    <a href="/program/{{ p.id }}" class="block bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+      <div class="flex items-center justify-between">
+        <div>
+          <p class="font-semibold">{{ p.name }}</p>
+          <p class="text-sm text-gray-500 mt-0.5">
+            {{ p.duration_weeks }} weeks · {{ p.sessions_per_week }} days/week ·
+            starts {{ p.start_date }}
+          </p>
+        </div>
+        <div class="flex items-center gap-2">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ p.phase | phase_color }}">
+            {{ p.phase | upper }}
+          </span>
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ p.status | status_color }}">
+            {{ p.status }}
+          </span>
+        </div>
+      </div>
+    </a>
+    {% endfor %}
+  </div>
+{% endif %}
+{% endblock %}

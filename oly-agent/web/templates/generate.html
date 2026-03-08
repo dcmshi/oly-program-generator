@@ -1,0 +1,46 @@
+{% extends "base.html" %}
+{% block title %}Generate Program — Oly Agent{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-2">Generate Program</h1>
+<p class="text-gray-500 text-sm mb-6">
+  Runs ASSESS → PLAN → RETRIEVE → GENERATE (16 LLM calls) → EXPLAIN.
+  Takes ~5 minutes and costs ~$0.50.
+</p>
+
+<!-- Last program summary -->
+{% if last_program %}
+<div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 text-sm">
+  <p class="text-gray-500 mb-1">Last generated</p>
+  <p class="font-semibold">{{ last_program.name }}</p>
+  <div class="flex items-center gap-2 mt-1">
+    <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ last_program.phase | phase_color }}">
+      {{ last_program.phase | upper }}
+    </span>
+    <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ last_program.status | status_color }}">
+      {{ last_program.status }}
+    </span>
+    <a href="/program/{{ last_program.id }}" class="text-blue-600 hover:underline text-xs">View →</a>
+  </div>
+</div>
+{% endif %}
+
+<!-- Generate form -->
+<div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+  <form hx-post="/generate/run"
+        hx-target="#gen-output"
+        hx-swap="innerHTML">
+    <label class="flex items-center gap-2 text-sm mb-4 cursor-pointer">
+      <input type="checkbox" name="dry_run" class="rounded">
+      Dry run (ASSESS + PLAN only, no LLM calls)
+    </label>
+    <button type="submit"
+            class="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm hover:bg-gray-700">
+      Generate program
+    </button>
+  </form>
+</div>
+
+<div id="gen-output" class="mt-6"></div>
+
+{% endblock %}

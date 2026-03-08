@@ -1,0 +1,112 @@
+<div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+  <h2 class="font-semibold mb-1">Log exercises</h2>
+  {% if log %}
+  <p class="text-xs text-gray-400 mb-4">log_id={{ log.id }} · {{ log.log_date }} · RPE {{ log.overall_rpe }}</p>
+  {% endif %}
+
+  <!-- Already logged exercises -->
+  <div id="logged-exercises" class="space-y-2 mb-4">
+    {% for tle in logged_exercises %}
+    <div class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+      <span class="font-medium flex-1">{{ tle.exercise_name }}</span>
+      <span class="text-gray-500">{{ tle.reps_per_set | reps_list }}</span>
+      <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
+      <span class="text-gray-400">{{ tle.rpe | fmt_rpe }}</span>
+      {% if tle.make_rate %}
+      <span class="text-xs {% if tle.make_rate < 0.7 %}text-red-500{% else %}text-green-600{% endif %}">
+        {{ (tle.make_rate * 100) | round | int }}% makes
+      </span>
+      {% endif %}
+    </div>
+    {% endfor %}
+  </div>
+
+  <!-- Add exercise form -->
+  <details class="border border-gray-200 rounded-xl" {% if not logged_exercises %}open{% endif %}>
+    <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700">+ Add exercise</summary>
+    <div class="px-4 pb-4 pt-2">
+
+      <!-- Quick-add prescribed exercises -->
+      {% if session and session.exercises %}
+      <div class="mb-3">
+        <p class="text-xs text-gray-400 mb-2">Prescribed exercises (click to pre-fill)</p>
+        <div class="flex flex-wrap gap-1">
+          {% for ex in session.exercises %}
+          <button type="button"
+                  onclick="prefillExercise('{{ ex.exercise_name }}', '{{ ex.id }}', '{{ ex.absolute_weight_kg or '' }}', '{{ ex.rpe_target or '' }}')"
+                  class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md">
+            {{ ex.exercise_order }}. {{ ex.exercise_name }}
+            {% if ex.absolute_weight_kg %}@{{ ex.absolute_weight_kg }}kg{% endif %}
+          </button>
+          {% endfor %}
+        </div>
+      </div>
+      {% endif %}
+
+      <form hx-post="/log/{{ log_id }}/exercise"
+            hx-target="#logged-exercises"
+            hx-swap="beforeend"
+            hx-on::after-request="this.reset()"
+            class="grid grid-cols-2 gap-3">
+
+        <input type="hidden" name="session_exercise_id" id="se_id">
+        <input type="hidden" name="prescribed_weight_kg" id="prescribed_weight">
+        <input type="hidden" name="prescribed_rpe" id="prescribed_rpe">
+
+        <div class="col-span-2">
+          <label class="block text-xs text-gray-500 mb-1">Exercise name</label>
+          <input type="text" name="exercise_name" id="exercise_name_input" required
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Sets completed</label>
+          <input type="number" name="sets_completed" min="1"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Reps per set (e.g. 3,3,3)</label>
+          <input type="text" name="reps_per_set" placeholder="3,3,3"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Weight (kg)</label>
+          <input type="number" name="weight_kg" step="0.5" id="weight_input"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">RPE</label>
+          <input type="number" name="rpe" min="1" max="10" step="0.5" id="rpe_input"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Make rate %</label>
+          <input type="number" name="make_rate" min="0" max="100" placeholder="100"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+        <div>
+          <label class="block text-xs text-gray-500 mb-1">Technical notes</label>
+          <input type="text" name="technical_notes" placeholder="Optional"
+                 class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+        </div>
+
+        <div class="col-span-2">
+          <button type="submit"
+                  class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700">
+            Save exercise
+          </button>
+        </div>
+      </form>
+    </div>
+  </details>
+</div>
+
+<script>
+function prefillExercise(name, seId, weight, rpe) {
+  document.getElementById('exercise_name_input').value = name;
+  document.getElementById('se_id').value = seId;
+  document.getElementById('prescribed_weight').value = weight;
+  document.getElementById('prescribed_rpe').value = rpe;
+  if (weight) document.getElementById('weight_input').value = weight;
+  if (rpe) document.getElementById('rpe_input').value = rpe;
+}
+</script>

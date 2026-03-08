@@ -1,0 +1,89 @@
+{% extends "base.html" %}
+{% block title %}Dashboard — Oly Agent{% endblock %}
+
+{% block content %}
+
+{% if not program %}
+  <div class="text-center py-20">
+    <p class="text-gray-500 text-lg mb-4">No program found.</p>
+    <a href="/generate" class="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm hover:bg-gray-700">
+      Generate a Program
+    </a>
+  </div>
+
+{% else %}
+
+  <!-- Program header -->
+  <div class="flex items-start justify-between mb-6">
+    <div>
+      <h1 class="text-2xl font-bold">{{ program.name }}</h1>
+      <div class="flex items-center gap-2 mt-1">
+        <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ program.phase | phase_color }}">
+          {{ program.phase | upper }}
+        </span>
+        <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ program.status | status_color }}">
+          {{ program.status }}
+        </span>
+        <span class="text-gray-500 text-sm">Week {{ current_week }} of {{ program.duration_weeks }}</span>
+      </div>
+    </div>
+    <a href="/program/{{ program.id }}" class="text-sm text-blue-600 hover:underline">View full program →</a>
+  </div>
+
+  <!-- Warnings -->
+  {% if warnings %}
+  <div class="mb-6 bg-amber-50 border border-amber-200 rounded-xl p-4">
+    <p class="text-sm font-semibold text-amber-800 mb-2">⚠ Warnings</p>
+    <ul class="space-y-1">
+      {% for w in warnings %}
+      <li class="text-sm text-amber-700">• {{ w }}</li>
+      {% endfor %}
+    </ul>
+  </div>
+  {% endif %}
+
+  <!-- Adherence -->
+  {% if adherence.prescribed %}
+  <div class="mb-6">
+    <div class="flex items-center justify-between text-sm mb-1">
+      <span class="text-gray-600">Adherence through week {{ current_week }}</span>
+      <span class="font-medium">{{ adherence.logged }}/{{ adherence.prescribed }} sessions ({{ adherence.pct }}%)</span>
+    </div>
+    <div class="w-full bg-gray-200 rounded-full h-2">
+      <div class="bg-gray-900 h-2 rounded-full" style="width: {{ adherence.pct }}%"></div>
+    </div>
+  </div>
+  {% endif %}
+
+  <!-- This week's sessions -->
+  <h2 class="text-lg font-semibold mb-3">Week {{ current_week }} Sessions</h2>
+  <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
+    {% for s in sessions %}
+    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+      <div class="flex items-start justify-between">
+        <div>
+          <p class="text-xs text-gray-400 uppercase tracking-wide">Day {{ s.day_number }}</p>
+          <p class="font-semibold text-base">{{ s.session_label }}</p>
+          <p class="text-xs text-gray-500 mt-0.5">~{{ s.estimated_duration_minutes }} min · {{ s.focus_area }}</p>
+        </div>
+        {% if s.log_id %}
+          <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+            ✓ Logged{% if s.overall_rpe %} · RPE {{ s.overall_rpe }}{% endif %}
+          </span>
+        {% else %}
+          <a href="/log/{{ s.id }}"
+             class="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700">
+            Log session
+          </a>
+        {% endif %}
+      </div>
+    </div>
+    {% endfor %}
+  </div>
+
+  {% if sessions | length == 0 %}
+  <p class="text-gray-400 text-sm">No sessions scheduled for this week.</p>
+  {% endif %}
+
+{% endif %}
+{% endblock %}

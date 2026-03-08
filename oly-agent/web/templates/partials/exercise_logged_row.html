@@ -1,0 +1,6 @@
+<div class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+  <span class="font-medium flex-1">{{ exercise_name }}</span>
+  <span class="text-gray-600 font-medium">{% if weight_kg %}{{ weight_kg }} kg{% else %}—{% endif %}</span>
+  <span class="text-gray-400">{% if rpe %}RPE {{ rpe }}{% else %}—{% endif %}</span>
+  <span class="text-xs text-green-600">✓ saved</span>
+</div>

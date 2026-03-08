@@ -168,7 +168,15 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 | Live test `feedback.py` (mark program complete, promote maxes) | Medium | Needs logged sessions first |
 | Tesseract OCR → Laputin ingestion | Low | `winget install UB-Mannheim.TesseractOCR` |
 | Takano ingestion | Low | File not yet available; use `programming` profile |
-| Web UI | Future | CLI is the current interface |
+| Web UI | ✅ Done | FastAPI + HTMX + Jinja2 in `oly-agent/web/` — dashboard, program view, session logging, generation |
+
+**Running the web UI:**
+```bash
+cd oly-agent
+uv sync --extra web
+PYTHONUTF8=1 uv run uvicorn web.app:app --reload --port 8080
+# Open http://localhost:8080
+```
 
 **Running the agent:**
 ```bash
