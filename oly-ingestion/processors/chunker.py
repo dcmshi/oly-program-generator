@@ -272,6 +272,45 @@ KEYWORD_TO_TOPIC: dict[str, list[str]] = {
     "loading scheme": ["volume_management", "intensity_prescription"],
     "exercise classification": ["periodization_models"],
     "coordination structure": ["snatch_technique", "clean_technique"],
+    # RPE / auto-regulation
+    "rate of perceived exertion": ["intensity_prescription", "fatigue_management"],
+    "rpe scale": ["intensity_prescription", "fatigue_management"],
+    "rpe-based": ["intensity_prescription", "fatigue_management"],
+    "autoregulation": ["intensity_prescription", "fatigue_management"],
+    "auto-regulation": ["intensity_prescription", "fatigue_management"],
+    # Rest and recovery timing
+    "rest between sets": ["recovery_protocols", "periodization_models"],
+    "inter-set rest": ["recovery_protocols"],
+    "rest interval": ["recovery_protocols"],
+    "between sets": ["recovery_protocols"],
+    # Exercise complexity and motor learning
+    "technical difficulty": ["exercise_selection_rationale"],
+    "motor learning": ["beginner_development", "exercise_selection_rationale"],
+    "movement pattern": ["exercise_selection_rationale"],
+    "skill acquisition": ["beginner_development", "exercise_selection_rationale"],
+    "learning curve": ["beginner_development", "exercise_selection_rationale"],
+    "technical proficiency": ["exercise_selection_rationale"],
+    # Accessory / supplemental exercise selection
+    "accessory": ["exercise_selection_rationale"],
+    "supplemental": ["exercise_selection_rationale"],
+    "auxiliary": ["exercise_selection_rationale"],
+    "good morning": ["exercise_selection_rationale", "pull_programming"],
+    "nordic": ["exercise_selection_rationale"],
+    "glute-ham": ["exercise_selection_rationale"],
+}
+
+
+# Ensures chunk_type-derived topics are always present regardless of keyword coverage.
+# When pipeline.py sets chunk_type via metadata, these baseline topics are guaranteed
+# even if keyword_tag() misses them (sparse content, unusual phrasing, etc.).
+CHUNK_TYPE_DEFAULT_TOPICS: dict[str, list[str]] = {
+    "fault_correction":      ["fault_correction"],
+    "biomechanics":          ["biomechanics"],
+    "competition_strategy":  ["competition_strategy"],
+    "recovery_adaptation":   ["recovery_protocols", "adaptation_theory"],
+    "nutrition_bodyweight":  ["nutrition_bodyweight"],
+    "periodization":         ["periodization_models"],
+    "programming_rationale": ["periodization_models"],
 }
 
 
@@ -458,6 +497,11 @@ class SemanticChunker:
 
                 # Step 5: Topic tagging (keyword pass)
                 topics = sorted(keyword_tag(raw_text))
+
+                # Guarantee chunk_type's baseline topics are always present
+                chunk_type = metadata.get("chunk_type", "")
+                if chunk_type in CHUNK_TYPE_DEFAULT_TOPICS:
+                    topics = sorted(set(topics) | set(CHUNK_TYPE_DEFAULT_TOPICS[chunk_type]))
 
                 chunk = Chunk(
                     content=full_content,

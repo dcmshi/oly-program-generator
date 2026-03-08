@@ -17,6 +17,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from shared.constants import (
+    DEFAULT_SESSION_DURATION_MINUTES,
+    PRILEPIN_HARD_CAP_MULTIPLIER,
+    SESSION_DURATION_TOLERANCE,
+)
+from shared.exercise_mapping import COMP_LIFT_REFS
 from shared.prilepin import get_prilepin_zone, get_prilepin_data
 from models import ValidationResult
 
@@ -68,7 +74,6 @@ def validate_session(
     # The weekly total is managed via session_volume_share and volume_modifier
     # in the plan step; here we only enforce the per-session ceiling.
     comp_lift_reps: dict[str, int] = {}
-    COMP_LIFT_REFS = {"snatch", "clean_and_jerk", "clean"}
 
     for ex in session_exercises:
         if ex.get("intensity_reference") not in COMP_LIFT_REFS:
@@ -91,7 +96,7 @@ def validate_session(
         # all reference the same max (pause snatch, hang snatch, etc. each contribute
         # to the zone total). Prilepin's original chart counts the main competition
         # lift only; variations shift the effective ceiling upward.
-        hard_cap = round(zone_data["total_reps_range_high"] * 1.5)
+        hard_cap = round(zone_data["total_reps_range_high"] * PRILEPIN_HARD_CAP_MULTIPLIER)
         if session_total > hard_cap:
             errors.append(
                 f"Prilepin session volume excessive: {session_total} reps "
@@ -168,12 +173,12 @@ def validate_session(
                 )
 
     # ── Check 6: Estimated session duration ───────────────────
-    available_minutes = athlete.get("session_duration_minutes") or 90
+    available_minutes = athlete.get("session_duration_minutes") or DEFAULT_SESSION_DURATION_MINUTES
     estimated_minutes = sum(
         (ex.get("sets") or 0) * (30 + (ex.get("rest_seconds") or 90))
         for ex in session_exercises
     ) / 60
-    if estimated_minutes > available_minutes * 1.2:
+    if estimated_minutes > available_minutes * SESSION_DURATION_TOLERANCE:
         warnings.append(
             f"Estimated duration {estimated_minutes:.0f} min exceeds "
             f"available {available_minutes} min"

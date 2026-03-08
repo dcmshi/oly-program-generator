@@ -9,25 +9,14 @@ These functions bridge that gap.
 """
 
 import logging
+import sys
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF  # noqa: F401 (re-exported)
 
 logger = logging.getLogger(__name__)
-
-# Maps exercise names (from DB) to intensity_reference strings used by the agent.
-# The LLM uses intensity_reference to look up the athlete's max for % calculations.
-EXERCISE_NAME_TO_INTENSITY_REF = {
-    "Snatch":            "snatch",
-    "Clean & Jerk":      "clean_and_jerk",
-    "Clean":             "clean",
-    "Back Squat":        "back_squat",
-    "Front Squat":       "front_squat",
-    "Snatch Pull":       "snatch_pull",
-    "Clean Pull":        "clean_pull",
-    "Snatch Deadlift":   "snatch_deadlift",
-    "Clean Deadlift":    "clean_deadlift",
-    "Push Press":        "push_press",
-    "Overhead Squat":    "overhead_squat",
-    "Jerk":              "jerk",
-}
 
 
 def build_maxes_dict(db_maxes: list[dict]) -> dict[str, float]:

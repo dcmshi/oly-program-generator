@@ -272,8 +272,8 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
                 try:
                     vl.conn.rollback()
                     sl.conn.rollback()
-                except Exception:
-                    pass
+                except Exception as rb_err:
+                    logger.debug(f"Rollback failed (non-fatal): {rb_err}")
 
         sl.complete_run(run_id, {
             "chunks_loaded": chunks_loaded,

@@ -211,7 +211,7 @@ Identified via codebase audit. Grouped by priority.
 
 | Item | File | Notes |
 |------|------|-------|
-| `test_assess.py` | `oly-agent/tests/test_assess.py` | ✅ 15 tests — max estimation (pure), assess() with mocked DB (3 fetch_one + 2 fetch_all calls) |
+| `test_assess.py` | `oly-agent/tests/test_assess.py` | ✅ 16 tests — max estimation (pure), assess() with mocked DB (3 fetch_one + 2 fetch_all calls); includes estimated-max merge test |
 | `test_plan.py` | `oly-agent/tests/test_plan.py` | ✅ 20 tests — phase selection (pure), cold-start overrides, plan shape |
 | `test_retrieve.py` | `oly-agent/tests/test_retrieve.py` | ✅ 10 tests — fault lookup, substitutions, Prilepin targets, vector_loader=None path |
 | `test_explain.py` | `oly-agent/tests/test_explain.py` | ✅ 13 tests — prompt structure (pure), mocked LLM success + failure |
@@ -237,28 +237,28 @@ Identified via codebase audit. Grouped by priority.
 | ~~Fix retry prompt growth~~ | `oly-agent/generate.py` | Not a bug — each retry resets to `original_prompt + one feedback block` |
 | ~~Null check `week_cumulative_reps`~~ | `oly-agent/validate.py` | Parameter accepted but unused in function body — no change needed |
 | Strengthen deload week guidance | `oly-agent/generate.py` | ✅ Done — adds explicit MUST NOT constraint to prompt for deload sessions |
-| Validate `session_exercises` non-empty | `oly-agent/validate.py` | ✅ Done — early return with `is_valid=False` + error message if list is empty |
+| Validate `session_exercises` non-empty | `oly-agent/validate.py` | ✅ Done — early return with `is_valid=False` + error message if list is empty; test_validate.py now 26 tests |
 
-### 8d — Retrieval / Knowledge Improvements
-
-| Item | File | Notes |
-|------|------|-------|
-| Unify `CHUNK_TYPE_KEYWORDS` + `KEYWORD_TO_TOPIC` | `oly-ingestion/processors/chunker.py` / `oly-ingestion/pipeline.py` | Two separate dicts — a chunk can have `chunk_type='fault_correction'` but no fault-related topics |
-| Add missing keyword categories | `oly-ingestion/processors/chunker.py` | Accessory exercise selection, RPE progression, rest/recovery timing, exercise complexity/learning curve |
-| Enrich vector queries with athlete context | `oly-agent/retrieve.py:100` | Queries are generic; should include athlete level, faults, and recent RPE trend |
-| Wire substitutions into LLM prompt | `oly-agent/retrieve.py` / `oly-agent/generate.py` | Substitutions fetched from DB but never passed to `build_session_prompt()` |
-| Increase context snippet length | `oly-agent/generate.py` | Snippets capped at ~400 chars; nuance lost for longer principles |
-| Make vector `top_k` configurable | `oly-agent/retrieve.py:100` | Hardcoded to `3`; should come from `Settings` |
-
-### 8e — Refactoring / Maintainability
+### 8d — Retrieval / Knowledge Improvements ✅ COMPLETE
 
 | Item | File | Notes |
 |------|------|-------|
-| Extract exercise → intensity_reference mapping | New: `shared/exercise_mapping.py` | Duplicated across `assess.py`, `weight_resolver.py`, `retrieve.py` |
-| Define all Prilepin zones exhaustively | `shared/prilepin.py` | Odd intensities (e.g. 72%) can miss a zone — add full range coverage |
-| Extract magic numbers to constants | New: `shared/constants.py` | `1.5×` Prilepin cap, `0.5kg` rounding, `top_k=3`, snippet char limit |
-| Replace bare `except Exception: pass` | `oly-agent/generate.py`, `oly-agent/orchestrator.py`, `oly-ingestion/ingest_web.py` | Silent swallowing of errors; replace with specific exception + logging |
-| Unify transaction management | `oly-ingestion/pipeline.py:249–259` | Two separate DB connections rolled back independently; can diverge on partial failure |
+| Unify `CHUNK_TYPE_KEYWORDS` + `KEYWORD_TO_TOPIC` | `oly-ingestion/processors/chunker.py` | ✅ Done — `CHUNK_TYPE_DEFAULT_TOPICS` dict added; applied in `chunk()` so chunk_type always seeds its own topics regardless of keyword coverage |
+| Add missing keyword categories | `oly-ingestion/processors/chunker.py` | ✅ Done — RPE/auto-regulation, rest timing, exercise complexity/motor learning, accessory exercise selection |
+| Enrich vector queries with athlete context | `oly-agent/retrieve.py` | ✅ Done — queries include athlete level + technical faults |
+| Wire substitutions into LLM prompt | `oly-agent/generate.py` | ✅ Done — `## Injury Substitutions` block added to `build_session_prompt()` |
+| Increase context snippet length | `oly-agent/generate.py` | ✅ Done — 400 → 600 chars (`SNIPPET_MAX_CHARS` constant) |
+| Make vector `top_k` configurable | `oly-agent/retrieve.py` | ✅ Done — reads `settings.vector_search_top_k` (default `VECTOR_SEARCH_DEFAULT_TOP_K = 5`) |
+
+### 8e — Refactoring / Maintainability ✅ COMPLETE
+
+| Item | File | Notes |
+|------|------|-------|
+| Extract exercise → intensity_reference mapping | `shared/exercise_mapping.py` (new) | ✅ Done — `EXERCISE_NAME_TO_INTENSITY_REF` + `COMP_LIFT_REFS` moved here; imported by `weight_resolver.py` and `validate.py` |
+| Define all Prilepin zones exhaustively | `shared/prilepin.py` | ✅ Done — added `65-70%` zone (optimal 20, range 15-26) to close the gap; `compute_session_rep_target` fallback comment updated |
+| Extract magic numbers to constants | `shared/constants.py` (new) | ✅ Done — `PRILEPIN_HARD_CAP_MULTIPLIER`, `DEFAULT_SESSION_DURATION_MINUTES`, `SESSION_DURATION_TOLERANCE`, `VECTOR_SEARCH_DEFAULT_TOP_K`, `SNIPPET_MAX_CHARS`, `MAX_PRINCIPLES_IN_PROMPT`, `WEIGHT_ROUND_INCREMENT`; wired into `validate.py`, `generate.py`, `retrieve.py` |
+| Replace bare `except Exception: pass` | `orchestrator.py`, `pipeline.py`, `ingest_web.py` | ✅ Done — all three now log at DEBUG level with `logger.debug(f"... (non-fatal): {e}")` |
+| Unify transaction management | `oly-ingestion/pipeline.py` | ✅ Done — `_rollback_connections()` helper method extracted; section error handler calls it instead of inlining the try/except block |
 
 **Running the web UI:**
 ```bash
@@ -280,10 +280,14 @@ PYTHONUTF8=1 uv run python log.py session --athlete-id 1
 PYTHONUTF8=1 uv run python log.py status  --athlete-id 1
 
 # Tests (no DB or API keys needed)
-PYTHONUTF8=1 uv run python tests/test_validate.py        # 25 tests
+PYTHONUTF8=1 uv run python tests/test_validate.py        # 26 tests
 PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
 PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
+PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
+PYTHONUTF8=1 uv run python tests/test_plan.py            # 20 tests
+PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 10 tests
+PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
 ```
 
 **Note:** Run all commands with `PYTHONUTF8=1` on Windows to avoid cp1252 encoding errors.

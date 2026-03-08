@@ -15,9 +15,11 @@ D:\oly-program-generator\
 │
 ├── shared/                          # shared modules (used by both subsystems)
 │   ├── config.py                    # unified Settings dataclass — reads .env from multiple locations
+│   ├── constants.py                 # project-wide numeric constants (Prilepin cap, top_k, snippet length, etc.)
 │   ├── db.py                        # get_connection, fetch_one, fetch_all, execute, execute_returning
+│   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS (single source of truth)
 │   ├── llm.py                       # create_llm_client, estimate_cost
-│   └── prilepin.py                  # get_prilepin_zone, get_prilepin_data, compute_session_rep_target
+│   └── prilepin.py                  # get_prilepin_zone, get_prilepin_data, compute_session_rep_target (5 zones: 55-65, 65-70, 70-80, 80-90, 90-100)
 │
 ├── oly-agent/                       # programming agent (Phase 6)
 │   ├── orchestrator.py              # main pipeline: --athlete-id N [--dry-run]
@@ -132,10 +134,14 @@ PYTHONUTF8=1 uv run python log.py status   --athlete-id 1            # RPE + mak
 PYTHONUTF8=1 uv run python log.py history  --athlete-id 1 --weeks 2  # recent history
 
 # ── Agent Tests (no DB or API keys needed) ───────────────────────────────
-PYTHONUTF8=1 uv run python tests/test_validate.py        # 25 tests
+PYTHONUTF8=1 uv run python tests/test_validate.py        # 26 tests
 PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
 PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
+PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
+PYTHONUTF8=1 uv run python tests/test_plan.py            # 20 tests
+PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 10 tests
+PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
 ```
 
 ## Docker / Database
@@ -190,13 +196,6 @@ Content is **routed before chunking** — the classifier sends each section to e
 Chunk dedup uses SHA-256 of `raw_content` (without preamble) stored in `content_hash`.
 Re-running pipeline on the same source skips already-ingested chunks before the embedding API call.
 
-## Stubbed / Incomplete
-
-| File | What's stubbed | Phase to implement |
-|---|---|---|
-| `pipeline.py` | `_parse_program_template()` returns shell dict | Phase 4–5 |
-| `pipeline.py` | `_parse_exercise()` returns empty dict — exercises always fail to insert | Phase 4–5 |
-
 ## Known Pipeline Behaviours & Gotchas
 
 - **EPUB chapters are processed individually** — do NOT join all pages into one string before classifying. Each EPUB document item is already a logical section. `pipeline.py` now iterates `pages` and classifies each one separately.
@@ -208,6 +207,10 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **classifier `chunk_type` is a Postgres enum** — filter with `chunk_type::text = ANY(...)` not `chunk_type = ANY(...)`.
 - **PDF extractor fallback chain** — PyMuPDF → pdfplumber → Claude vision OCR. pdfplumber is tried when PyMuPDF extracts <100 total chars. Vision OCR is tried when pdfplumber also returns <100 chars AND `--vision` flag was passed (opt-in to avoid accidental API costs). Pass `--max-pages N` to limit OCR to the first N pages during testing.
 - **Web scraper progress** — `ingest_web.py` saves ingested URLs to `sources/catalyst_progress.json`. Safe to interrupt and re-run; already-ingested URLs are skipped. Catalyst-specific selector is `div.sub_page_main_area_half_container_left`.
+- **`COMP_LIFT_REFS` lives in `shared/exercise_mapping.py`** — do not redefine inline. `validate.py` and any module that needs to identify competition lifts should import from there.
+- **Prilepin zones cover 55-100%** including the 65-70% transition band — `get_prilepin_zone()` returns `None` only below 55%. The fallback in `compute_session_rep_target` handles the sub-55% deload case only.
+- **`_rollback_connections()` in pipeline** — call this method (not inline try/except) whenever a section-level error requires cleaning up both loader connections. `ingest_web.py` has its own inline equivalent (no class structure).
+- **Magic numbers live in `shared/constants.py`** — do not hardcode Prilepin cap multiplier (1.5), session duration (90 min), top_k (5), snippet length (600), or rounding increment (0.5 kg) in agent modules.
 
 ## Source Ingestion Order
 

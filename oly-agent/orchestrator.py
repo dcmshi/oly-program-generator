@@ -263,8 +263,8 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
         if vector_loader:
             try:
                 vector_loader.close()
-            except Exception:
-                pass
+            except Exception as e:
+                logger.debug(f"vector_loader.close() failed (non-fatal): {e}")
 
 
 # ── DB helpers ─────────────────────────────────────────────────

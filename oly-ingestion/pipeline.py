@@ -321,12 +321,7 @@ class IngestionPipeline:
                     logger.error(
                         f"Error processing section '{section.metadata.get('title', 'unknown')}': {e}"
                     )
-                    # Rollback any aborted transaction so the next section can proceed
-                    try:
-                        self.vector_loader.conn.rollback()
-                        self.structured_loader.conn.rollback()
-                    except Exception:
-                        pass
+                    self._rollback_connections()
                     continue
 
             # ── Step 6: Mark complete ──────────────────────────
@@ -376,6 +371,18 @@ class IngestionPipeline:
             return "programming_rationale"
 
         return "concept"
+
+    def _rollback_connections(self) -> None:
+        """Roll back both loader connections after a section-level error.
+
+        Keeps the pipeline alive so the next section can proceed on a clean
+        transaction state. Logs at DEBUG level if rollback itself fails.
+        """
+        try:
+            self.vector_loader.conn.rollback()
+            self.structured_loader.conn.rollback()
+        except Exception as rb_err:
+            logger.debug(f"Rollback failed (non-fatal): {rb_err}")
 
     def _process_prose(self, section, chunker, source, source_id, stats, run_id=None):
         """Chunk prose content, validate, tag, and load into vector store."""

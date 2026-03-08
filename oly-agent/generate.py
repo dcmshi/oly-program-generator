@@ -19,6 +19,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from shared.constants import (
+    DEFAULT_SESSION_DURATION_MINUTES,
+    MAX_PRINCIPLES_IN_PROMPT,
+    SNIPPET_MAX_CHARS,
+)
 from shared.llm import estimate_cost
 from models import (
     AthleteContext, ProgramPlan, RetrievalContext,
@@ -151,9 +156,18 @@ def build_session_prompt(
             )
     fault_block = "\n".join(fault_lines) if fault_lines else "  None"
 
+    # ── Substitutions (injury modifications) ──────────────────
+    sub_lines = []
+    for orig_name, subs in retrieval_context.available_substitutions.items():
+        for s in subs[:2]:
+            sub_lines.append(
+                f"  {orig_name} → {s['substitute_name']}: {s.get('notes', '')}".strip()
+            )
+    substitutions_block = "\n".join(sub_lines) if sub_lines else "  None"
+
     # ── Principles ────────────────────────────────────────────
     principle_lines = []
-    for p in retrieval_context.active_principles[:8]:
+    for p in retrieval_context.active_principles[:MAX_PRINCIPLES_IN_PROMPT]:
         rec = p.get("recommendation", {})
         rec_str = json.dumps(rec) if isinstance(rec, dict) else str(rec)
         principle_lines.append(f"  [{p['id']}] {p['principle_name']}: {rec_str}")
@@ -162,7 +176,7 @@ def build_session_prompt(
     # ── Programming context (retrieved chunks) ─────────────────
     chunk_lines = []
     for c in retrieval_context.programming_rationale[:4]:
-        excerpt = c.get("raw_content", c.get("content", ""))[:400]
+        excerpt = c.get("raw_content", c.get("content", ""))[:SNIPPET_MAX_CHARS]
         chunk_lines.append(f"  [{c.get('chunk_type', '?')}] {excerpt}...")
     context_block = "\n".join(chunk_lines) if chunk_lines else "  (none retrieved)"
 
@@ -212,7 +226,7 @@ You MUST NOT:
 Name: {athlete_context.athlete['name']}
 Level: {athlete_context.level}
 Sessions/week: {athlete_context.sessions_per_week}
-Session duration: {athlete_context.athlete.get('session_duration_minutes', 90)} min
+Session duration: {athlete_context.athlete.get('session_duration_minutes', DEFAULT_SESSION_DURATION_MINUTES)} min
 Technical faults: {faults_str}
 Injuries: {injuries_str}
 
@@ -249,6 +263,9 @@ Remaining session rep budget: {remaining_reps}
 
 ## Exercises to Avoid
 {avoid_str}
+
+## Injury Substitutions
+{substitutions_block}
 
 ## Active Principles
 {principles_block}

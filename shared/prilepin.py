@@ -7,10 +7,13 @@ Used by the PLAN step (setting rep targets) and VALIDATE step (checking complian
 # Prilepin's zones — mirrors the prilepin_chart table for in-memory use.
 # Loaded from DB at startup; hardcoded here as a reliable fallback.
 PRILEPIN_ZONES = [
-    {"zone": "55-65", "low": 55, "high": 65, "reps_per_set": (3, 6), "optimal": 24, "range": (18, 30)},
-    {"zone": "70-80", "low": 70, "high": 80, "reps_per_set": (3, 6), "optimal": 18, "range": (12, 24)},
-    {"zone": "80-90", "low": 80, "high": 90, "reps_per_set": (2, 4), "optimal": 15, "range": (10, 20)},
-    {"zone": "90-100", "low": 90, "high": 100, "reps_per_set": (1, 2), "optimal": 7, "range": (4, 10)},
+    {"zone": "55-65",  "low": 55,  "high": 65,  "reps_per_set": (3, 6), "optimal": 24, "range": (18, 30)},
+    # 65-70% is a transition zone not explicitly in Prilepin's original table;
+    # treat it as a lighter accumulation band with slightly lower volume than 55-65.
+    {"zone": "65-70",  "low": 65,  "high": 70,  "reps_per_set": (3, 6), "optimal": 20, "range": (15, 26)},
+    {"zone": "70-80",  "low": 70,  "high": 80,  "reps_per_set": (3, 6), "optimal": 18, "range": (12, 24)},
+    {"zone": "80-90",  "low": 80,  "high": 90,  "reps_per_set": (2, 4), "optimal": 15, "range": (10, 20)},
+    {"zone": "90-100", "low": 90,  "high": 100, "reps_per_set": (1, 2), "optimal": 7,  "range": (4, 10)},
 ]
 
 
@@ -21,6 +24,7 @@ def get_prilepin_zone(intensity_pct: float) -> str | None:
     Intensities above 100% (pulls) map to the 90-100 zone.
 
     Examples:
+        get_prilepin_zone(67)  -> "65-70"
         get_prilepin_zone(73)  -> "70-80"
         get_prilepin_zone(85)  -> "80-90"
         get_prilepin_zone(95)  -> "90-100"
@@ -71,8 +75,7 @@ def compute_session_rep_target(
     midpoint = (intensity_floor + intensity_ceiling) / 2
     zone_key = get_prilepin_zone(midpoint)
     if not zone_key:
-        # Gap between 65-70% or below 55%: use the 55-65 zone as proxy,
-        # scaled by volume modifier, so deload rep targets stay proportional.
+        # Below 55%: use the 55-65 zone as proxy so deload rep targets stay proportional.
         fallback_optimal = 24  # 55-65% optimal
         return max(3, round(fallback_optimal * session_volume_share * volume_modifier))
 

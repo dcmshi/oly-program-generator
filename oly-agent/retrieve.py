@@ -16,6 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from shared.constants import VECTOR_SEARCH_DEFAULT_TOP_K
 from shared.db import fetch_all
 from shared.prilepin import get_prilepin_zone, get_prilepin_data
 from models import AthleteContext, ProgramPlan, RetrievalContext
@@ -28,6 +29,7 @@ def retrieve(
     plan: ProgramPlan,
     conn,
     vector_loader=None,
+    settings=None,
 ) -> RetrievalContext:
     """Gather all knowledge the LLM needs to generate sessions.
 
@@ -37,7 +39,9 @@ def retrieve(
         conn: Open psycopg2 connection
         vector_loader: VectorLoader instance from oly-ingestion (optional).
                        If None, vector search is skipped — useful for testing.
+        settings: Optional settings object. Reads ``vector_search_top_k`` (default 5).
     """
+    top_k = getattr(settings, "vector_search_top_k", VECTOR_SEARCH_DEFAULT_TOP_K)
     # ── Path A: Fault-based exercise lookup ──────────────────
     fault_exercises: dict[str, list[dict]] = {}
     if athlete_context.technical_faults:
@@ -90,14 +94,21 @@ def retrieve(
     if vector_loader is not None:
         # One query per session template (limit to first 2 to control context size)
         seen_chunk_ids: set[int] = set()
+        level_context = f"{athlete_context.level} athlete"
+        faults_context = (
+            f", addressing faults: {', '.join(athlete_context.technical_faults)}"
+            if athlete_context.technical_faults
+            else ""
+        )
+
         for session_tmpl in plan.session_templates[:2]:
             try:
                 chunks = vector_loader.similarity_search(
                     query=(
                         f"exercise selection for {session_tmpl.primary_movement} "
-                        f"during {plan.phase} phase"
+                        f"during {plan.phase} phase, {level_context}{faults_context}"
                     ),
-                    top_k=3,
+                    top_k=top_k,
                     chunk_types=["programming_rationale", "periodization"],
                 )
                 for c in chunks:
@@ -112,8 +123,8 @@ def retrieve(
             for fault in athlete_context.technical_faults[:2]:
                 try:
                     chunks = vector_loader.similarity_search(
-                        query=f"correcting {fault} in weightlifting",
-                        top_k=3,
+                        query=f"correcting {fault} in weightlifting, {level_context}",
+                        top_k=top_k,
                         chunk_types=["fault_correction"],
                     )
                     for c in chunks:
