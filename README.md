@@ -164,6 +164,9 @@ docker compose up -d
 ```bash
 cd oly-ingestion
 uv sync --extra dev
+
+cd ../oly-agent
+uv sync --extra dev
 ```
 
 ### 3. Configure API keys
@@ -194,23 +197,30 @@ PYTHONUTF8=1 uv run python ingest_web.py
 cd oly-agent
 
 # Dry run (ASSESS + PLAN only, no LLM calls)
-PYTHONUTF8=1 "D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe" \
-  orchestrator.py --athlete-id 1 --dry-run
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run
 
 # Full generation
-PYTHONUTF8=1 "D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe" \
-  orchestrator.py --athlete-id 1
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1
 ```
 
 ### 6. Log training sessions
 
 ```bash
 cd oly-agent
-PYTHONUTF8=1 "D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe" \
-  log.py show --athlete-id 1        # view current week
-  log.py session --athlete-id 1     # log a session (interactive)
-  log.py status --athlete-id 1      # RPE / make-rate warnings
-  log.py history --athlete-id 1     # recent session history
+PYTHONUTF8=1 uv run python log.py show    --athlete-id 1   # view current week
+PYTHONUTF8=1 uv run python log.py session --athlete-id 1   # log a session (interactive)
+PYTHONUTF8=1 uv run python log.py status  --athlete-id 1   # RPE / make-rate warnings
+PYTHONUTF8=1 uv run python log.py history --athlete-id 1   # recent session history
+```
+
+### 7. Run agent tests
+
+```bash
+cd oly-agent
+PYTHONUTF8=1 uv run python tests/test_validate.py        # 25 tests
+PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
+PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
+PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
 ```
 
 > **Windows note:** Always prefix commands with `PYTHONUTF8=1` to avoid cp1252 encoding errors.

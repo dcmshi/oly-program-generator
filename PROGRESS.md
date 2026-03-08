@@ -173,13 +173,19 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 **Running the agent:**
 ```bash
 cd oly-agent
-PYTHONUTF8=1 "D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe" orchestrator.py --athlete-id 1 --dry-run
-PYTHONUTF8=1 "D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe" orchestrator.py --athlete-id 1
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1
 
 # Training log
-PYTHONUTF8=1 "D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe" log.py show --athlete-id 1
-PYTHONUTF8=1 "D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe" log.py session --athlete-id 1
-PYTHONUTF8=1 "D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe" log.py status --athlete-id 1
+PYTHONUTF8=1 uv run python log.py show    --athlete-id 1
+PYTHONUTF8=1 uv run python log.py session --athlete-id 1
+PYTHONUTF8=1 uv run python log.py status  --athlete-id 1
+
+# Tests (no DB or API keys needed)
+PYTHONUTF8=1 uv run python tests/test_validate.py        # 25 tests
+PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
+PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
+PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
 ```
 
 **Note:** Run all commands with `PYTHONUTF8=1` on Windows to avoid cp1252 encoding errors.

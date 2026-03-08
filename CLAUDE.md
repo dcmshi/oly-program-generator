@@ -69,12 +69,12 @@ D:\oly-program-generator\
 
 **Always prefix with `PYTHONUTF8=1` on Windows** to avoid cp1252 encoding errors with Unicode output.
 
-The venv lives in `oly-ingestion/.venv/`. Use `uv run` from `oly-ingestion/`, or call the interpreter directly from `oly-agent/`.
+Each subsystem manages its own venv via `uv`. Use `uv run` from the respective directory — never call the interpreter directly by path.
 
 ```bash
 # ── Install / sync dependencies ──────────────────────────────────────────
-cd oly-ingestion
-uv sync --extra dev
+cd oly-ingestion && uv sync --extra dev
+cd oly-agent    && uv sync --extra dev
 
 # ── Tests (no API keys needed) ──────────────────────────────────────────
 cd oly-ingestion
@@ -106,18 +106,23 @@ PYTHONUTF8=1 uv run python ingest_web.py --dry-run                # collect URLs
 # Progress tracked in sources/catalyst_progress.json — re-run resumes from where it left off
 
 # ── Programming Agent ────────────────────────────────────────────────────
-VENV="D:/oly-program-generator/oly-ingestion/.venv/Scripts/python.exe"
 cd oly-agent
 
-PYTHONUTF8=1 "$VENV" orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
-PYTHONUTF8=1 "$VENV" orchestrator.py --athlete-id 1            # full generation
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1            # full generation
 
 # ── Training Log CLI ─────────────────────────────────────────────────────
-PYTHONUTF8=1 "$VENV" log.py show     --athlete-id 1            # current week's sessions
-PYTHONUTF8=1 "$VENV" log.py session  --athlete-id 1            # log a session (interactive)
-PYTHONUTF8=1 "$VENV" log.py exercise --log-id 5                # add exercise details
-PYTHONUTF8=1 "$VENV" log.py status   --athlete-id 1            # RPE + make-rate warnings
-PYTHONUTF8=1 "$VENV" log.py history  --athlete-id 1 --weeks 2  # recent history
+PYTHONUTF8=1 uv run python log.py show     --athlete-id 1            # current week's sessions
+PYTHONUTF8=1 uv run python log.py session  --athlete-id 1            # log a session (interactive)
+PYTHONUTF8=1 uv run python log.py exercise --log-id 5                # add exercise details
+PYTHONUTF8=1 uv run python log.py status   --athlete-id 1            # RPE + make-rate warnings
+PYTHONUTF8=1 uv run python log.py history  --athlete-id 1 --weeks 2  # recent history
+
+# ── Agent Tests (no DB or API keys needed) ───────────────────────────────
+PYTHONUTF8=1 uv run python tests/test_validate.py        # 25 tests
+PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
+PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
+PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
 ```
 
 ## Docker / Database
