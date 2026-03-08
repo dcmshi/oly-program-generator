@@ -218,6 +218,34 @@ KEYWORD_TO_TOPIC: dict[str, list[str]] = {
     "fatigue": ["fatigue_management"],
     "sleep": ["recovery_protocols"],
     "nutrition": ["nutrition_bodyweight"],
+
+    # Soviet / Eastern-bloc terminology (Laputin, Medvedev, Verkhoshansky)
+    "sporting form": ["competition_peaking", "periodization_models"],
+    "sports form": ["competition_peaking", "periodization_models"],
+    "trainability": ["adaptation_theory", "load_progression"],
+    "training load": ["volume_management", "fatigue_management"],
+    "educational-training": ["periodization_models"],
+    "training preparation": ["periodization_models"],
+    "special preparatory": ["periodization_models"],
+    "general preparatory": ["periodization_models"],
+    "preparatory period": ["periodization_models", "accumulation_phase"],
+    "competitive period": ["competition_peaking", "periodization_models"],
+    "transitional period": ["deload_strategy", "recovery_protocols"],
+    "recuperation": ["recovery_protocols"],
+    "rehabilitation": ["recovery_protocols"],
+    "pharmacological": ["recovery_protocols"],
+    "food supplement": ["nutrition_bodyweight", "recovery_protocols"],
+    "bioenergetics": ["adaptation_theory"],
+    "triathlon": ["competition_strategy"],   # old Soviet 3-lift format (press + snatch + C&J)
+    "biathlon": ["competition_strategy"],    # modern 2-lift format (snatch + C&J)
+    "tonnage": ["volume_management"],
+    "number of lifts": ["volume_management"],
+    "lifting total": ["competition_strategy"],
+    "total result": ["competition_strategy"],
+    "world record": ["competition_strategy"],
+    "national team": ["competition_strategy"],
+    "master of sport": ["advanced_development"],
+    "candidate master": ["intermediate_development"],
 }
 
 
