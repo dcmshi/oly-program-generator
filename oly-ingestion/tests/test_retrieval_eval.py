@@ -44,6 +44,49 @@ RETRIEVAL_EVAL_QUERIES = [
         "expected_topics": ["squat_programming", "clean_programming"],
         "expected_chunk_type": ["concept", "biomechanics"],
     },
+    # Jerk faults
+    {
+        "query": "What causes an athlete to press out on the jerk and how do I fix it?",
+        "expected_topics": ["fault_correction", "jerk_technique"],
+        "expected_chunk_type": ["fault_correction", "methodology"],
+    },
+    # Clean technique
+    {
+        "query": "How should I coach the catch position in the clean for an athlete with poor thoracic mobility?",
+        "expected_topics": ["clean_technique", "fault_correction"],
+        "expected_chunk_type": ["fault_correction", "methodology", "concept"],
+    },
+    # Recovery / fatigue management
+    {
+        "query": "How much recovery time is needed between heavy sessions and how do I manage fatigue across a training week?",
+        "expected_topics": ["fatigue_management", "recovery_protocols"],
+        "expected_chunk_type": ["periodization", "concept"],
+    },
+    # Competition attempt selection
+    {
+        "query": "How should an athlete select opening attempts and second attempts at a competition?",
+        "expected_topics": ["competition_strategy"],
+        "expected_chunk_type": ["methodology", "concept"],
+    },
+    # Long-term athlete development (Medvedev's specialty)
+    {
+        "query": "How should multi-year training be structured from beginner to elite weightlifter?",
+        "expected_topics": ["beginner_development", "periodization_models", "annual_planning"],
+        "expected_chunk_type": ["periodization", "methodology"],
+    },
+    # Training frequency / session structure
+    {
+        "query": "How many training sessions per week should an intermediate weightlifter do?",
+        "expected_topics": ["periodization_models", "intermediate_development"],
+        "expected_chunk_type": ["periodization", "methodology", "concept"],
+    },
+    # Prilepin / intensity zones
+    {
+        "query": "What does Prilepin's chart say about optimal sets and reps at 80 to 90 percent intensity?",
+        "expected_topics": ["intensity_prescription", "volume_management"],
+        "expected_chunk_type": ["periodization", "concept"],
+        "should_contain_numbers": True,
+    },
     # Negative / edge cases
     {
         "query": "How to do a barbell curl",
