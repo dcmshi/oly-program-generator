@@ -179,6 +179,9 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 | 8 | Medvedev ingested via vision OCR — 146 pages, 617 chunks, 1 program template | ✅ Done (source_id=501) |
 | 9 | Add Medvedev abbreviation keywords (P. Sn., B. Sq., C+J, etc.) — 540 chunks retagged | ✅ Done |
 | 10 | `test_feedback.py` — 19 tests + live smoke test against program 4 | ✅ Done |
+| 11 | Everett *Olympic Weightlifting for Sports* ingested — 172 chunks, 11 exercises | ✅ Done (source_id=502) |
+| 12 | Retrieval eval expanded from 7 to 14 queries (jerk, clean, recovery, attempt selection, multi-year, frequency, Prilepin) | ✅ Done |
+| 13 | All .md files and memory updated to reflect final corpus state | ✅ Done |
 
 ---
 
@@ -186,8 +189,7 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Takano ingestion | ❌ Skipped | File not available online and unlikely to be found. Programming gap addressed instead by adding *Olympic Weightlifting for Sports* (Everett). |
-| Olympic Weightlifting for Sports (Everett) ingestion | ✅ Done | 259 pages, 172 chunks, 11 exercises parsed, source_id=502. Text-based PDF, `programming` profile. |
+| Takano ingestion | ❌ Permanently skipped | File unavailable online. Programming gap closed by *Olympic Weightlifting for Sports* (Everett) + Catalyst. |
 
 **Running the web UI:**
 ```bash
