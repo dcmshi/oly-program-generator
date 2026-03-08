@@ -92,7 +92,7 @@ Reference: implementation order in `oly-programming-pipeline.md` § Implementati
 | 21 | Ingest Laputin — OCR pipeline | ✅ Done — 110 chunks, 3 principles, source_id=499 (Claude vision OCR) |
 | 22 | Ingest web content — Catalyst Athletics articles | ✅ Done — 418 articles, 446 chunks, 22 principles |
 
-**Final corpus:** 1,787 chunks, 434 sources, 82 principles. Retrieval eval completed — results in `memory/CHUNKING.md`.
+**Final corpus:** 2,404 chunks, 435 sources, 82 principles. Retrieval eval completed — results in `memory/CHUNKING.md`.
 
 **Notes:**
 - Laputin is an image-only scanned PDF — implemented Claude vision API as third-stage OCR fallback in `pdf_extractor.py` instead of Tesseract (no local install required, handles unusual typefaces)
@@ -185,7 +185,7 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 |------|----------|-------|
 | Live test `feedback.py` (mark program complete, promote maxes) | Medium | Needs logged sessions first |
 | Takano ingestion | Low | File not available online — substituted with Drechsler (theory-heavy). Coverage is acceptable: programming queries surface Catalyst articles + Everett + Drechsler (sim 0.51–0.64). If obtained, use `programming` profile. |
-| Medvedev ingestion | Low | Soviet data-heavy; use `soviet` profile (700 tokens, 150 overlap) + `--vision` if scanned |
+| Medvedev ingestion | ✅ Done | 146 pages vision OCR, 617 chunks, 1 program template, source_id=501. Added Medvedev exercise abbreviations (P. Sn., B. Sq., C+J, etc.) to KEYWORD_TO_TOPIC; 540 chunks retagged. |
 
 **Running the web UI:**
 ```bash

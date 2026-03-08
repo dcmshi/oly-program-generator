@@ -217,9 +217,9 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 4. Catalyst Athletics articles (web) — ✅ Done (418 articles, 446 chunks, 22 principles)
 5. Laputin (PDF, vision OCR) — ✅ Done (110 chunks, 3 principles, source_id=499, soviet profile, `--vision` flag)
 6. Takano — ⏳ File not available yet; use `programming` profile when obtained
-7. Medvedev — ⏳ Soviet data-heavy; use `soviet` profile (700 tokens, 150 overlap) + `--vision` if scanned
+7. Medvedev — ✅ Done (617 chunks, 0 principles, source_id=501, soviet profile + vision OCR)
 
-**Total corpus:** 1,787 chunks · 82 principles · 434 sources
+**Total corpus:** 2,404 chunks · 82 principles · 435 sources
 
 ## Chunk Sizing Reference
 

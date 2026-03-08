@@ -283,7 +283,8 @@ The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** �
 | Drechsler — *Weightlifting Encyclopedia* | PDF | 603 | 6 |
 | Catalyst Athletics articles | Web (HTML) | 446 | 22 |
 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 110 | 3 |
-| **Total** | | **1,787** | **82** |
+| Medvedev — *A Program of Multi-Year Training in Weightlifting* | PDF (vision OCR) | 617 | 0 |
+| **Total** | | **2,404** | **82** |
 
 ---
 

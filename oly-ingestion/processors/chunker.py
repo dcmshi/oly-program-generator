@@ -246,6 +246,32 @@ KEYWORD_TO_TOPIC: dict[str, list[str]] = {
     "national team": ["competition_strategy"],
     "master of sport": ["advanced_development"],
     "candidate master": ["intermediate_development"],
+
+    # Medvedev exercise abbreviations (A Program of Multi-Year Training)
+    # These appear in workout listings as abbreviated notation
+    "p. sn": ["snatch_programming"],          # Power Snatch
+    "cl. sn": ["snatch_programming"],          # Classic Snatch
+    "sn. pu": ["pull_programming", "snatch_programming"],  # Snatch Pull
+    "p. cl": ["clean_programming"],            # Power Clean
+    "sq. cl": ["clean_programming"],           # Squat Clean
+    "cl. pu": ["pull_programming", "clean_programming"],   # Clean Pull
+    "pu. j": ["jerk_programming"],             # Push Jerk
+    "c + j": ["clean_programming", "jerk_programming"],    # Clean + Jerk
+    "fr. sq": ["squat_programming"],           # Front Squat
+    "b. sq": ["squat_programming"],            # Back Squat
+    "ov. sq": ["snatch_technique", "squat_programming"],   # Overhead Squat
+    "be. pr": ["jerk_programming"],            # Behind Press
+    "hyper": ["squat_programming"],            # Hyperextension
+    "multi-year": ["beginner_development", "periodization_models"],
+    "year of training": ["beginner_development", "periodization_models", "load_progression"],
+    "class iii": ["beginner_development"],
+    "class ii": ["intermediate_development"],
+    "class i": ["intermediate_development"],
+    "candidate master of sport": ["advanced_development"],
+    "training block": ["periodization_models"],
+    "loading scheme": ["volume_management", "intensity_prescription"],
+    "exercise classification": ["periodization_models"],
+    "coordination structure": ["snatch_technique", "clean_technique"],
 }
 
 
