@@ -89,10 +89,15 @@ Reference: implementation order in `oly-programming-pipeline.md` § Implementati
 | 19 | Ingest Zatsiorsky — theory-heavy profile | ✅ Done — 430 chunks, 7 principles, source_id=51 |
 | 20 | Ingest Takano — principles extraction focus | ⏳ File not available; substituted Drechsler |
 | 20b | Ingest Drechsler (Weightlifting Encyclopedia) — theory-heavy profile | ✅ Done — 603 chunks, 6 principles, source_id=52 |
-| 21 | Ingest Laputin — OCR pipeline, table parsing | ⚠️ Skipped — image-only PDF, needs Tesseract OCR |
+| 21 | Ingest Laputin — OCR pipeline | ✅ Done — 110 chunks, 3 principles, source_id=499 (Claude vision OCR) |
 | 22 | Ingest web content — Catalyst Athletics articles | ✅ Done — 418 articles, 446 chunks, 22 principles |
 
-**Final corpus:** 1,681 chunks, 433 sources. Retrieval eval completed — results in `memory/CHUNKING.md`.
+**Final corpus:** 1,787 chunks, 434 sources, 82 principles. Retrieval eval completed — results in `memory/CHUNKING.md`.
+
+**Notes:**
+- Laputin is an image-only scanned PDF — implemented Claude vision API as third-stage OCR fallback in `pdf_extractor.py` instead of Tesseract (no local install required, handles unusual typefaces)
+- `--vision` CLI flag added to `pipeline.py` to opt-in to vision OCR (off by default to avoid accidental API costs)
+- `--max-pages N` flag added for test runs (limits pages at extraction time, not after)
 
 ---
 

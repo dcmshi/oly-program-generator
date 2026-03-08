@@ -282,7 +282,8 @@ The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** �
 | Zatsiorsky — *Science and Practice of Strength Training* | PDF | 430 | 7 |
 | Drechsler — *Weightlifting Encyclopedia* | PDF | 603 | 6 |
 | Catalyst Athletics articles | Web (HTML) | 446 | 22 |
-| **Total** | | **1,677** | **79** |
+| Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 110 | 3 |
+| **Total** | | **1,787** | **82** |
 
 ---
 

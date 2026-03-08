@@ -75,9 +75,15 @@ class SourceDocument:
 
 
 class IngestionPipeline:
-    def __init__(self, settings: Settings):
+    def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0):
         self.settings = settings
-        self.pdf_extractor = PDFExtractor()
+        self.max_pages = max_pages
+        # Build Anthropic client for vision OCR fallback (opt-in via --vision flag)
+        _anthropic_client = None
+        if use_vision and settings.anthropic_api_key:
+            import anthropic
+            _anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        self.pdf_extractor = PDFExtractor(anthropic_client=_anthropic_client)
         self.classifier = ContentClassifier(settings)
         self.principle_extractor = PrincipleExtractor(settings)
         self.vector_loader = VectorLoader(settings)
@@ -148,7 +154,7 @@ class IngestionPipeline:
                 return stats
 
             if source.path.suffix == ".pdf":
-                pages = self.pdf_extractor.extract(source.path)
+                pages = self.pdf_extractor.extract(source.path, max_pages=self.max_pages)
             elif source.path.suffix in (".html", ".htm"):
                 from extractors.html_extractor import extract_text_from_html
                 pages = [extract_text_from_html(source.path)]
@@ -389,10 +395,14 @@ if __name__ == "__main__":
     parser.add_argument("--type", default="book",
                         choices=["book", "article", "program", "structured", "website"],
                         help="Source document type")
+    parser.add_argument("--vision", action="store_true",
+                        help="Enable Claude vision API as OCR fallback for image-only PDFs")
+    parser.add_argument("--max-pages", type=int, default=0, metavar="N",
+                        help="Only process the first N pages (useful for test runs)")
     args = parser.parse_args()
 
     settings = Settings()
-    pipeline = IngestionPipeline(settings)
+    pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages)
 
     doc = SourceDocument(
         path=Path(args.source),
