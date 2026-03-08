@@ -51,6 +51,13 @@ flowchart TB
         EXPLAIN["6 · EXPLAIN\nexplain.py"]
     end
 
+    subgraph UI["🌐 Web UI  oly-agent/web/"]
+        DASH["Dashboard\ncurrent week · adherence · warnings"]
+        PROG["Program view\nweek accordions · exercise tables"]
+        LOGUI["Log session\nprescribed vs actual · prefill"]
+        GEN["Generate\nbackground job · HTMX polling"]
+    end
+
     subgraph CLI["💻 CLI"]
         LOG["log.py\nshow · session · exercise\nstatus · history"]
         FEEDBACK["feedback.py\noutcome + max promotion"]
@@ -72,6 +79,8 @@ flowchart TB
     EXPLAIN <--> CLAUDE
     ORCH --> GP & PS
 
+    UI --> DB
+    UI -.->|triggers| ORCH
     CLI --> TL & PS
     FEEDBACK --> GP
 ```
@@ -123,7 +132,8 @@ oly-program-generator/
 │       ├── test_pipeline.py         # 4 e2e tests — needs both keys
 │       └── test_retrieval_eval.py   # Retrieval quality eval
 │
-└── oly-agent/                       # Programming agent
+└── oly-agent/                       # Programming agent + web UI
+    ├── pyproject.toml               # uv project (web, dev extras)
     ├── orchestrator.py              # Main pipeline runner (CLI entry point)
     ├── assess.py                    # Step 1: DB queries for athlete context
     ├── plan.py                      # Step 2: Phase selection + Prilepin targets
@@ -136,7 +146,19 @@ oly-program-generator/
     ├── session_templates.py         # SESSION_DISTRIBUTIONS + get_session_templates()
     ├── weight_resolver.py           # resolve_weights() + exercise ID lookup
     ├── feedback.py                  # ProgramOutcome computation + max promotion
-    └── log.py                       # Training log CLI
+    ├── log.py                       # Training log CLI
+    ├── tests/                       # Unit tests (no DB/API needed)
+    │   ├── test_validate.py         # 25 tests — all 6 validation checks
+    │   ├── test_phase_profiles.py   # 15 tests — weekly target computation
+    │   ├── test_weight_resolver.py  # 18 tests — weight resolution + ID lookup
+    │   └── test_generate_utils.py   # 15 tests — JSON parsing + name validation
+    └── web/                         # FastAPI web UI
+        ├── app.py                   # Application factory + Jinja2 filters
+        ├── deps.py                  # get_db dependency + ATHLETE_ID constant
+        ├── jobs.py                  # Background thread queue for generation
+        ├── routers/                 # dashboard, program, log_session, generate
+        ├── queries/                 # SQL helpers (dashboard, program, log_session)
+        └── templates/               # Jinja2 templates + HTMX partials
 ```
 
 ---
@@ -166,7 +188,7 @@ cd oly-ingestion
 uv sync --extra dev
 
 cd ../oly-agent
-uv sync --extra dev
+uv sync --extra web --extra dev
 ```
 
 ### 3. Configure API keys
@@ -191,19 +213,28 @@ PYTHONUTF8=1 uv run python pipeline.py \
 PYTHONUTF8=1 uv run python ingest_web.py
 ```
 
-### 5. Generate a program
+### 5. Start the web UI
 
 ```bash
 cd oly-agent
-
-# Dry run (ASSESS + PLAN only, no LLM calls)
-PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run
-
-# Full generation
-PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1
+PYTHONUTF8=1 uv run uvicorn web.app:app --reload --port 8080
 ```
 
-### 6. Log training sessions
+Open `http://localhost:8080`. The UI provides:
+- **Dashboard** — current week's sessions, logged/unlogged status, adherence, warnings
+- **Programs** — all programs with phase/status badges; week accordions with full exercise tables
+- **Log session** — two-phase form: session RPE/details, then exercise-by-exercise with click-to-prefill from prescribed weights
+- **Generate** — triggers the agent in a background thread and polls for completion via HTMX
+
+### 6. Generate a program (CLI alternative)
+
+```bash
+cd oly-agent
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1             # full generation
+```
+
+### 7. Log training sessions (CLI alternative)
 
 ```bash
 cd oly-agent
@@ -213,7 +244,7 @@ PYTHONUTF8=1 uv run python log.py status  --athlete-id 1   # RPE / make-rate war
 PYTHONUTF8=1 uv run python log.py history --athlete-id 1   # recent session history
 ```
 
-### 7. Run agent tests
+### 8. Run agent tests
 
 ```bash
 cd oly-agent
@@ -224,6 +255,22 @@ PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
 ```
 
 > **Windows note:** Always prefix commands with `PYTHONUTF8=1` to avoid cp1252 encoding errors.
+
+---
+
+## Web UI
+
+The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** — no npm, no build step.
+
+| Page | URL | Description |
+|------|-----|-------------|
+| Dashboard | `/` | Current week's sessions with logged/unlogged status, adherence bar, active warnings |
+| Programs | `/program` | All generated programs with phase and status badges |
+| Program detail | `/program/{id}` | Week accordions with full exercise tables (weight, intensity, RPE, rest), rationale, activate button |
+| Log session | `/log/{session_id}` | Two-phase form: session header (RPE, duration, bodyweight, sleep, stress) → per-exercise logging with click-to-prefill from prescribed |
+| Generate | `/generate` | Triggers the 6-step agent pipeline in a background thread; polls every 3 s via HTMX until complete |
+
+**Stack:** FastAPI · Jinja2 templates · HTMX (no page reloads) · Tailwind CSS via CDN
 
 ---
 
