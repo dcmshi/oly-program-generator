@@ -92,7 +92,7 @@ Reference: implementation order in `oly-programming-pipeline.md` § Implementati
 | 21 | Ingest Laputin — OCR pipeline | ✅ Done — 110 chunks, 3 principles, source_id=499 (Claude vision OCR) |
 | 22 | Ingest web content — Catalyst Athletics articles | ✅ Done — 418 articles, 446 chunks, 22 principles |
 
-**Final corpus:** 2,404 chunks, 435 sources, 82 principles. Retrieval eval completed — results in `memory/CHUNKING.md`.
+**Final corpus:** 2,576 chunks, 436 sources, 82 principles. Retrieval eval completed — results in `memory/CHUNKING.md`.
 
 **Notes:**
 - Laputin is an image-only scanned PDF — implemented Claude vision API as third-stage OCR fallback in `pdf_extractor.py` instead of Tesseract (no local install required, handles unusual typefaces)
@@ -186,7 +186,8 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Takano ingestion | Low | File not available online — substituted with Drechsler. Coverage acceptable: sim 0.51–0.64 on programming queries. Use `programming` profile if obtained. |
+| Takano ingestion | ❌ Skipped | File not available online and unlikely to be found. Programming gap addressed instead by adding *Olympic Weightlifting for Sports* (Everett). |
+| Olympic Weightlifting for Sports (Everett) ingestion | ✅ Done | 259 pages, 172 chunks, 11 exercises parsed, source_id=502. Text-based PDF, `programming` profile. |
 
 **Running the web UI:**
 ```bash

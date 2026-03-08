@@ -284,7 +284,8 @@ The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** �
 | Catalyst Athletics articles | Web (HTML) | 446 | 22 |
 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 110 | 3 |
 | Medvedev — *A Program of Multi-Year Training in Weightlifting* | PDF (vision OCR) | 617 | 0 |
-| **Total** | | **2,404** | **82** |
+| Everett — *Olympic Weightlifting for Sports* | PDF | 172 | 0 |
+| **Total** | | **2,576** | **82** |
 
 ---
 

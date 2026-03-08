@@ -218,8 +218,10 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 5. Laputin (PDF, vision OCR) — ✅ Done (110 chunks, 3 principles, source_id=499, soviet profile, `--vision` flag)
 6. Takano — ⏳ File not available yet; use `programming` profile when obtained
 7. Medvedev — ✅ Done (617 chunks, 0 principles, source_id=501, soviet profile + vision OCR)
+8. Everett — *Olympic Weightlifting for Sports* — ✅ Done (172 chunks, 11 exercises, source_id=502, programming profile)
+   - Added to address programming gap left by unavailable Takano book
 
-**Total corpus:** 2,404 chunks · 82 principles · 435 sources
+**Total corpus:** 2,576 chunks · 82 principles · 436 sources
 
 ## Chunk Sizing Reference
 
