@@ -43,7 +43,7 @@ D:\oly-program-generator\
     ├── pipeline.py                  # EPUB/PDF ingestion orchestrator
     ├── ingest_web.py                # web article ingestion (Catalyst Athletics)
     ├── extractors/
-    │   ├── pdf_extractor.py         # PyMuPDF + pdfplumber fallback
+    │   ├── pdf_extractor.py         # PyMuPDF → pdfplumber → Claude vision OCR fallback chain
     │   ├── html_extractor.py        # BeautifulSoup body extraction
     │   └── epub_extractor.py        # ebooklib chapter-by-chapter
     ├── processors/
@@ -55,6 +55,7 @@ D:\oly-program-generator\
     │   ├── vector_loader.py         # batch embed + SHA-256 dedup + similarity_search
     │   └── structured_loader.py     # upsert sources, principles, exercises
     ├── sources/                     # PDFs go here (gitignored)
+    ├── retag_chunks.py              # re-tag existing DB chunks after KEYWORD_TO_TOPIC changes
     └── tests/
         ├── test_chunker.py          # 14 tests — no API keys needed
         ├── test_classifier.py       # 10 tests (6 heuristic + 4 LLM)
@@ -94,9 +95,21 @@ PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py      # retrieval quality
 # ── Ingestion ────────────────────────────────────────────────────────────
 cd oly-ingestion
 
-# EPUB / PDF
+# EPUB / PDF (text-based)
 PYTHONUTF8=1 uv run python pipeline.py \
   --source "./sources/book.epub" --title "Title" --author "Author" --type book
+
+# PDF with vision OCR fallback (image-only / scanned PDFs)
+PYTHONUTF8=1 uv run python pipeline.py \
+  --source "./sources/book.pdf" --title "Title" --author "Author" --type book --vision
+
+# Test first N pages only (avoid full OCR cost during testing)
+PYTHONUTF8=1 uv run python pipeline.py ... --vision --max-pages 10
+
+# Re-tag all DB chunks after updating KEYWORD_TO_TOPIC (no re-embedding needed)
+PYTHONUTF8=1 uv run python retag_chunks.py                  # all chunks
+PYTHONUTF8=1 uv run python retag_chunks.py --source-id 499  # single source
+PYTHONUTF8=1 uv run python retag_chunks.py --dry-run        # preview only
 
 # Web articles (Catalyst Athletics)
 PYTHONUTF8=1 uv run python ingest_web.py                          # all priority categories
@@ -193,7 +206,7 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **`_llm_classify()` fires when heuristic confidence < 0.6** — short sections (<50 words) score 0.60 (just at threshold), so they won't trigger LLM. Only genuinely ambiguous mid-length sections fall through.
 - **`docker exec` on Windows** — drop the `-it` flag (no TTY). Use `docker exec oly-postgres psql ...` not `docker exec -it`.
 - **classifier `chunk_type` is a Postgres enum** — filter with `chunk_type::text = ANY(...)` not `chunk_type = ANY(...)`.
-- **PDF extractor fallback** — pdfplumber is tried whenever PyMuPDF extracts <100 total chars (including the 0-page case from corrupt xref). Image-only PDFs return empty from both — need Tesseract OCR.
+- **PDF extractor fallback chain** — PyMuPDF → pdfplumber → Claude vision OCR. pdfplumber is tried when PyMuPDF extracts <100 total chars. Vision OCR is tried when pdfplumber also returns <100 chars AND `--vision` flag was passed (opt-in to avoid accidental API costs). Pass `--max-pages N` to limit OCR to the first N pages during testing.
 - **Web scraper progress** — `ingest_web.py` saves ingested URLs to `sources/catalyst_progress.json`. Safe to interrupt and re-run; already-ingested URLs are skipped. Catalyst-specific selector is `div.sub_page_main_area_half_container_left`.
 
 ## Source Ingestion Order
@@ -202,9 +215,11 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 2. Zatsiorsky (PDF) — ✅ Done (430 chunks, 7 principles, source_id=51, theory_heavy profile)
 3. Drechsler / Weightlifting Encyclopedia (PDF) — ✅ Done (603 chunks, 6 principles, source_id=52, theory_heavy profile)
 4. Catalyst Athletics articles (web) — ✅ Done (418 articles, 446 chunks, 22 principles)
-5. Takano — ⏳ File not available yet; use `programming` profile when obtained
-6. Laputin — ⚠️ Image-only PDF, needs `winget install UB-Mannheim.TesseractOCR` first
-7. Medvedev — Soviet data-heavy, use `soviet` profile (700 tokens, 150 overlap)
+5. Laputin (PDF, vision OCR) — ✅ Done (110 chunks, 3 principles, source_id=499, soviet profile, `--vision` flag)
+6. Takano — ⏳ File not available yet; use `programming` profile when obtained
+7. Medvedev — ⏳ Soviet data-heavy; use `soviet` profile (700 tokens, 150 overlap) + `--vision` if scanned
+
+**Total corpus:** 1,787 chunks · 82 principles · 434 sources
 
 ## Chunk Sizing Reference
 

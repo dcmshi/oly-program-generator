@@ -165,15 +165,27 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
 ---
 
+## Phase 7 — OCR + Retrieval Quality ✅ COMPLETE
+
+| Step | Task | Status |
+|------|------|--------|
+| 1 | Claude vision API as third-stage OCR fallback in `pdf_extractor.py` | ✅ Done |
+| 2 | `--vision` and `--max-pages` CLI flags added to `pipeline.py` | ✅ Done |
+| 3 | Laputin ingested via vision OCR — 130 pages, 110 chunks, 3 principles | ✅ Done (source_id=499) |
+| 4 | Expand `KEYWORD_TO_TOPIC` with 28 Soviet/Eastern-bloc terms | ✅ Done |
+| 5 | `retag_chunks.py` — re-tags all DB chunks without re-ingestion | ✅ Done |
+| 6 | Applied retag across full corpus — 232 chunks enriched, 11 newly tagged | ✅ Done |
+| 7 | Retrieval eval re-run — scores stable, topic filterability improved | ✅ Done |
+
+---
+
 ## Remaining / Optional
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Integration test with warmup sets (re-run generation) | ✅ Done | program_id=4, $0.49, warmups confirmed at 55–65% before working sets |
 | Live test `feedback.py` (mark program complete, promote maxes) | Medium | Needs logged sessions first |
-| Tesseract OCR → Laputin ingestion | Low | `winget install UB-Mannheim.TesseractOCR` |
-| Takano ingestion | Low | File not yet available; use `programming` profile |
-| Web UI | ✅ Done | FastAPI + HTMX + Jinja2 in `oly-agent/web/` — dashboard, program view, session logging, generation |
+| Takano ingestion | Low | File not yet available; use `programming` profile when obtained |
+| Medvedev ingestion | Low | Soviet data-heavy; use `soviet` profile (700 tokens, 150 overlap) |
 
 **Running the web UI:**
 ```bash
