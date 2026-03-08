@@ -1,0 +1,45 @@
+# API keys and secrets
+.env
+*.env
+
+# Source material (PDFs, EPUBs — copyright + size)
+sources/
+*.pdf
+*.epub
+
+# Python
+.venv/
+venv/
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+*.egg-info/
+dist/
+build/
+
+# Logs
+logs/
+*.log
+
+# Docker volumes
+pgdata/
+
+# uv
+uv.lock
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Claude Code local settings
+.claude/settings.local.json
+
+# Memory files (session-specific, not for repo)
+memory/

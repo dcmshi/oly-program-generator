@@ -1,0 +1,38 @@
+[project]
+name = "oly-ingestion"
+version = "0.1.0"
+description = "Olympic weightlifting programming ingestion pipeline"
+requires-python = ">=3.11"
+dependencies = [
+    # Database
+    "psycopg2-binary>=2.9.9",
+    "pgvector>=0.2.4",
+    # PDF extraction
+    "pymupdf>=1.23.0",
+    "pdfplumber>=0.10.0",
+    # Embeddings + LLM
+    "openai>=1.12.0",
+    "anthropic>=0.25.0",
+    # HTML extraction
+    "beautifulsoup4>=4.12.0",
+    "lxml>=5.0.0",
+    # Utilities
+    "python-dotenv>=1.0.0",
+    "ebooklib>=0.20",
+    "requests>=2.32.5",
+]
+
+[project.optional-dependencies]
+epub = [
+    "ebooklib>=0.18",
+]
+dev = [
+    "pytest>=8.0.0",
+]
+
+[tool.uv]
+package = false
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"

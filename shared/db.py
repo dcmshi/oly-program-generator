@@ -1,0 +1,71 @@
+# shared/db.py
+"""
+Postgres connection helpers shared by the ingestion pipeline and agent.
+"""
+
+import logging
+from contextlib import contextmanager
+
+import psycopg2
+import psycopg2.extras
+
+logger = logging.getLogger(__name__)
+
+
+def get_connection(database_url: str):
+    """Open a psycopg2 connection. Caller is responsible for closing."""
+    conn = psycopg2.connect(database_url)
+    conn.autocommit = False
+    return conn
+
+
+@contextmanager
+def connection(database_url: str):
+    """Context manager that opens, yields, and closes a DB connection.
+
+    Commits on clean exit, rolls back on exception.
+
+    Usage:
+        with connection(settings.database_url) as conn:
+            cursor = conn.cursor()
+            ...
+    """
+    conn = get_connection(database_url)
+    try:
+        yield conn
+        conn.commit()
+    except Exception:
+        conn.rollback()
+        raise
+    finally:
+        conn.close()
+
+
+def fetch_one(conn, query: str, params=None) -> dict | None:
+    """Execute a query and return a single row as a dict, or None."""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(query, params)
+        row = cur.fetchone()
+        return dict(row) if row else None
+
+
+def fetch_all(conn, query: str, params=None) -> list[dict]:
+    """Execute a query and return all rows as a list of dicts."""
+    with conn.cursor(cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+        cur.execute(query, params)
+        return [dict(row) for row in cur.fetchall()]
+
+
+def execute(conn, query: str, params=None) -> int:
+    """Execute a DML statement. Returns rowcount."""
+    with conn.cursor() as cur:
+        cur.execute(query, params)
+        return cur.rowcount
+
+
+def execute_returning(conn, query: str, params=None):
+    """Execute an INSERT ... RETURNING and return the first column of the first row."""
+    with conn.cursor() as cur:
+        cur.execute(query, params)
+        row = cur.fetchone()
+        return row[0] if row else None

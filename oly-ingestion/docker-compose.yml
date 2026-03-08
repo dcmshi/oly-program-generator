@@ -1,0 +1,25 @@
+# docker-compose.yml
+# Run: docker compose up -d
+# Connect: postgresql://oly:oly@localhost:5432/oly_programming
+
+services:
+  db:
+    image: pgvector/pgvector:pg16
+    container_name: oly-postgres
+    environment:
+      POSTGRES_USER: oly
+      POSTGRES_PASSWORD: oly
+      POSTGRES_DB: oly_programming
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U oly -d oly_programming"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+volumes:
+  pgdata:

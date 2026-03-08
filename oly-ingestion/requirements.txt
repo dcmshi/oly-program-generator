@@ -1,0 +1,23 @@
+# requirements.txt
+
+# Database
+psycopg2-binary>=2.9.9
+pgvector>=0.2.4
+
+# PDF extraction
+PyMuPDF>=1.23.0
+pdfplumber>=0.10.0
+
+# Embeddings + LLM
+openai>=1.12.0              # text-embedding-3-small (embeddings) + optional GPT fallback
+anthropic>=0.25.0           # Claude for principle extraction & classification
+
+# HTML extraction (for web articles)
+beautifulsoup4>=4.12.0
+lxml>=5.0.0
+
+# EPUB extraction
+# ebooklib>=0.18            # uncomment if ingesting EPUB sources
+
+# Utilities
+python-dotenv>=1.0.0        # for .env file loading
