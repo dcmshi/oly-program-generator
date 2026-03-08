@@ -184,8 +184,8 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 | Task | Priority | Notes |
 |------|----------|-------|
 | Live test `feedback.py` (mark program complete, promote maxes) | Medium | Needs logged sessions first |
-| Takano ingestion | Low | File not yet available; use `programming` profile when obtained |
-| Medvedev ingestion | Low | Soviet data-heavy; use `soviet` profile (700 tokens, 150 overlap) |
+| Takano ingestion | Low | File not available online — substituted with Drechsler (theory-heavy). Coverage is acceptable: programming queries surface Catalyst articles + Everett + Drechsler (sim 0.51–0.64). If obtained, use `programming` profile. |
+| Medvedev ingestion | Low | Soviet data-heavy; use `soviet` profile (700 tokens, 150 overlap) + `--vision` if scanned |
 
 **Running the web UI:**
 ```bash
