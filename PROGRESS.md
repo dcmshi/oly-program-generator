@@ -197,13 +197,13 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
 Identified via codebase audit. Grouped by priority.
 
-### 8a — Critical Stubs (non-functional code)
+### 8a — Critical Stubs ✅ COMPLETE
 
 | Item | File | Notes |
 |------|------|-------|
-| Complete `principle_extractor.py` | `oly-ingestion/processors/principle_extractor.py:92–100` | `extract()` builds prompt but never calls LLM or parses response — returns nothing |
-| Implement `_parse_program_template()` | `oly-ingestion/pipeline.py:_parse_program_template()` | Always returns `program_structure: {}` — program templates are never parsed into structured exercise lists |
-| Implement `_parse_exercise()` | `oly-ingestion/pipeline.py:_parse_exercise()` | Returns empty dict — exercises always fail to insert into DB |
+| ~~Complete `principle_extractor.py`~~ | `oly-ingestion/processors/principle_extractor.py` | Already implemented — TODO comment was stale. Removed. |
+| Implement `_parse_program_template()` | `oly-ingestion/pipeline.py` | ✅ Done — LLM call extracts week/session/exercise structure into JSONB |
+| Implement `_parse_exercise()` | `oly-ingestion/pipeline.py` | ✅ Done — heuristic extraction of name, movement_family, category, primary_purpose. 13/13 tests passing (`test_parse_exercise.py`) |
 
 ### 8b — Test Coverage Gaps
 

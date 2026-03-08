@@ -92,7 +92,6 @@ class PrincipleExtractor:
     def extract(self, text: str, source_title: str, source_id: int) -> list[ExtractedPrinciple]:
         """Extract structured principles from prose text using LLM.
 
-        TODO: Wire up in Phase 2, step 11.
         The LLM client is initialized lazily — no API key required until
         principle extraction is actually called.
         """

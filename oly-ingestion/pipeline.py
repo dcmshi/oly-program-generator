@@ -10,7 +10,9 @@ Usage:
 
 import argparse
 import hashlib
+import json
 import logging
+import re
 import time
 from dataclasses import dataclass
 from pathlib import Path
@@ -64,6 +66,47 @@ CHUNK_TYPE_KEYWORDS: dict[str, list[str]] = {
         "rationale", "reasoning", "because", "in order to",
     ],
 }
+
+
+_PROGRAM_PARSE_PROMPT = """\
+You are parsing a weightlifting program template extracted from a coaching book.
+
+Convert the following raw program text into structured JSON with this schema:
+{{
+  "duration_weeks": <int, 0 if unknown>,
+  "sessions_per_week": <int, 0 if unknown>,
+  "athlete_level": "<beginner|intermediate|advanced|elite|any>",
+  "goal": "<general_strength|competition_prep|technique|accumulation|intensification>",
+  "weeks": [
+    {{
+      "week_number": <int>,
+      "sessions": [
+        {{
+          "day": "<Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Day N>",
+          "exercises": [
+            {{
+              "name": "<exercise name>",
+              "sets": <int>,
+              "reps": <int or "1-3" range string>,
+              "intensity_pct": <int, omit if not specified>,
+              "notes": "<optional notes>"
+            }}
+          ]
+        }}
+      ]
+    }}
+  ]
+}}
+
+Rules:
+- Only include weeks/sessions/exercises explicitly in the text.
+- Use 0 for duration_weeks/sessions_per_week if not stated.
+- If the text is not a parseable program, respond with {{}}.
+
+TEXT:
+{text}
+
+Respond ONLY with valid JSON, no other text."""
 
 
 @dataclass
@@ -343,24 +386,37 @@ class IngestionPipeline:
         return stats
 
     def _parse_program_template(self, section, source, source_id) -> dict:
-        """Convert a detected program section into structured JSONB format.
+        """Convert a detected program section into structured JSONB format via LLM."""
+        prompt = _PROGRAM_PARSE_PROMPT.format(text=section.content[:6000])
+        parsed = {}
+        try:
+            client = self.principle_extractor._get_client()
+            message = client.messages.create(
+                model=self.settings.llm_model,
+                max_tokens=2048,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            raw = message.content[0].text.strip()
+            if raw.startswith("```"):
+                raw = raw.split("```")[1]
+                if raw.startswith("json"):
+                    raw = raw[4:]
+            parsed = json.loads(raw)
+        except Exception as e:
+            logger.warning(f"Program template parsing failed for '{source.title}': {e}")
 
-        TODO (Phase 4-5): Implement LLM-assisted program parsing.
-        The prompt should include:
-          1. The raw program text
-          2. The target program_structure JSONB schema
-          3. Instructions to extract exercise_name, sets, reps, intensity_pct,
-             intensity_reference, rest_seconds, and notes for each exercise
-          4. Instructions to identify the phase, week structure, and progression
-        """
+        # Top-level fields extracted by the LLM; remainder becomes program_structure
+        structure_keys = ("athlete_level", "goal", "duration_weeks", "sessions_per_week")
+        program_structure = {k: v for k, v in parsed.items() if k not in structure_keys}
+
         return {
             "name": section.metadata.get("program_name", f"Program from {source.title}"),
             "source_id": source_id,
-            "athlete_level": section.metadata.get("athlete_level", "any"),
-            "goal": section.metadata.get("goal", "general_strength"),
-            "duration_weeks": section.metadata.get("duration_weeks", 0),
-            "sessions_per_week": section.metadata.get("sessions_per_week", 0),
-            "program_structure": section.structured_data or {},
+            "athlete_level": parsed.get("athlete_level", section.metadata.get("athlete_level", "any")),
+            "goal": parsed.get("goal", section.metadata.get("goal", "general_strength")),
+            "duration_weeks": parsed.get("duration_weeks", section.metadata.get("duration_weeks", 0)),
+            "sessions_per_week": parsed.get("sessions_per_week", section.metadata.get("sessions_per_week", 0)),
+            "program_structure": program_structure or {},
         }
 
     def _parse_table(self, section, source_id) -> int:
@@ -381,10 +437,68 @@ class IngestionPipeline:
         return len(rows)
 
     def _parse_exercise(self, section, source_id) -> dict:
-        """Parse exercise description into taxonomy entry."""
-        data = section.structured_data or {}
-        data["source_id"] = source_id
-        return data
+        """Parse exercise description into taxonomy entry using heuristics.
+
+        Extracts the exercise name from the section title or a standalone name
+        line in the content, then infers movement_family and category from
+        standard weightlifting naming conventions.
+        """
+        # Try title first (set by section splitter for markdown / numbered headings)
+        name = re.sub(r"^The\s+", "", section.metadata.get("title", ""), flags=re.IGNORECASE).strip()
+
+        if not name:
+            # Fall back: find the exercise name as a standalone line in content
+            match = re.search(
+                r"^(?:The\s+)?(?:Power|Hang|Block|Muscle|Tall|Deficit|Pause|Tempo|No[- ]Feet)?\s*"
+                r"(?:Snatch|Clean|Jerk|Squat|Pull|Press|Deadlift|RDL|Push Press|Snatch Balance)"
+                r"\s*(?:\(.*?\))?\s*$",
+                section.content,
+                re.MULTILINE | re.IGNORECASE,
+            )
+            name = match.group(0).strip() if match else ""
+
+        if not name:
+            return {}
+
+        name_lower = name.lower()
+
+        # Infer movement family
+        if "snatch" in name_lower:
+            family = "snatch"
+        elif "clean" in name_lower:
+            family = "clean"
+        elif "jerk" in name_lower:
+            family = "jerk"
+        elif "squat" in name_lower:
+            family = "squat"
+        elif any(kw in name_lower for kw in ("press", "push press")):
+            family = "press"
+        elif any(kw in name_lower for kw in ("pull", "deadlift", "rdl")):
+            family = "pull"
+        else:
+            family = "accessory"
+
+        # Infer category from modifiers in the name
+        modifiers = ("power", "muscle", "tall", "hang", "block", "pause", "deficit", "tempo", "no-feet", "no feet")
+        if any(kw in name_lower for kw in modifiers):
+            category = "variation"
+        elif family in ("squat", "press", "pull"):
+            category = "strength"
+        else:
+            category = "competition_variant"
+
+        # First sentence of the description as primary_purpose
+        content = section.content.strip()
+        first_sentence = content.split(".")[0][:400].strip() if content else ""
+
+        return {
+            "name": name,
+            "category": category,
+            "movement_family": family,
+            "primary_purpose": first_sentence,
+            "faults_addressed": [],
+            "source_id": source_id,
+        }
 
 
 if __name__ == "__main__":
