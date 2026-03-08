@@ -286,14 +286,14 @@ Identified via automated codebase scan. Grouped by priority.
 | Dashboard maxes panel | `oly-agent/web/templates/dashboard.html` | ✅ Done — current maxes table + inline update form added to dashboard; `get_athlete_maxes()` added to dashboard query context |
 | Completed program outcome display | `oly-agent/web/templates/program.html` | ✅ Done — existing `outcome_summary` JSONB rendered on program detail page for completed programs |
 
-### 9c — Observability & Ops
+### 9c — Observability & Ops ✅ COMPLETE
 
 | Item | File | Notes |
 |------|------|-------|
-| Add logging to all web routers | `oly-agent/web/routers/` | Zero log statements across all routers; debugging requires guesswork |
-| Log warning when API keys missing at config load | `shared/config.py` | Missing keys silently default to `""`; error surfaces deep in call stack |
-| Add start/completion timestamps to async job handler | `oly-agent/web/jobs.py` | Job progress invisible; no way to estimate completion time |
-| Cache `Settings` singleton — don't re-parse `.env` per request | `oly-agent/web/deps.py` | `get_settings()` creates new instance on every dependency injection |
+| Add logging to all web routers | `oly-agent/web/routers/` | ✅ Done — `logger = logging.getLogger(__name__)` added to all 4 routers; key actions logged (route hits, 404s, submits, outcomes) |
+| Log warning when API keys missing at config load | `shared/config.py` | ✅ Done — `__post_init__` logs `WARNING` if `OPENAI_API_KEY` or `ANTHROPIC_API_KEY` is empty |
+| Add start/completion timestamps to async job handler | `oly-agent/web/jobs.py` | ✅ Done — `started_at`, `completed_at`, `duration_seconds` stored in job dict; logged on submit, start, and finish/failure; duration shown in generate result UI |
+| Cache `Settings` singleton — don't re-parse `.env` per request | `oly-agent/web/deps.py` | ✅ Done — module-level `_settings` singleton; `get_settings()` initialises once; `get_db()` calls `get_settings()` instead of `Settings()` directly |
 
 ### 9d — Code Quality
 

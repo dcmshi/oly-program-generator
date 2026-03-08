@@ -11,12 +11,18 @@ from shared.db import connection
 
 ATHLETE_ID = 1  # single-athlete tool; change here to switch athletes
 
+# Singleton — parsed once at startup, not on every request
+_settings: Settings | None = None
+
 
 def get_settings() -> Settings:
-    return Settings()
+    global _settings
+    if _settings is None:
+        _settings = Settings()
+    return _settings
 
 
 def get_db():
-    settings = Settings()
+    settings = get_settings()
     with connection(settings.database_url) as conn:
         yield conn

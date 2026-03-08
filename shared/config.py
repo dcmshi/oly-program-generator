@@ -77,10 +77,19 @@ class Settings:
     quarantine_invalid_chunks: bool = False
 
     def __post_init__(self):
+        import logging
+        _log = logging.getLogger(__name__)
+
         self.database_url = self.database_url or os.getenv(
             "DATABASE_URL", "postgresql://oly:oly@localhost:5432/oly_programming"
         )
         self.openai_api_key = self.openai_api_key or os.getenv("OPENAI_API_KEY", "")
         self.anthropic_api_key = self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "")
+
+        if not self.openai_api_key:
+            _log.warning("OPENAI_API_KEY is not set — embeddings and vector search will fail")
+        if not self.anthropic_api_key:
+            _log.warning("ANTHROPIC_API_KEY is not set — LLM calls will fail")
+
         self.sources_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)

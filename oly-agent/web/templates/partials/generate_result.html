@@ -13,7 +13,7 @@
 
 {% elif job.status == "done" %}
 <div id="gen-status" class="bg-green-50 border border-green-200 rounded-xl p-4 text-sm">
-  <p class="font-semibold text-green-800 mb-1">✓ Program generated</p>
+  <p class="font-semibold text-green-800 mb-1">✓ Program generated{% if job.duration_seconds %} in {{ job.duration_seconds }}s{% endif %}</p>
   {% if job.program_id %}
   <a href="/program/{{ job.program_id }}"
      class="text-blue-600 hover:underline">View program #{{ job.program_id }} →</a>

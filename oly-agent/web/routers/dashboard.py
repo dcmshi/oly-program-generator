@@ -1,4 +1,5 @@
 # web/routers/dashboard.py
+import logging
 from datetime import date
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -7,6 +8,7 @@ from web.deps import ATHLETE_ID, get_db
 from web.queries import dashboard as q
 from web.queries import program as pq
 
+logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
@@ -38,4 +40,5 @@ async def dashboard(request: Request, conn=Depends(get_db)):
             "warnings": warnings,
         })
 
+    logger.info(f"Dashboard: athlete {ATHLETE_ID}, program={program['id'] if program else None}, week={ctx['current_week']}")
     return templates.TemplateResponse("dashboard.html", ctx)
