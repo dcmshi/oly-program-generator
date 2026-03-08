@@ -36,6 +36,34 @@ logger = logging.getLogger(__name__)
 # Checked in order — first match wins. Extend this dict when adding new sources or
 # noticing systematic mis-classification in the retrieval eval.
 # Mirrors the pattern of KEYWORD_TO_TOPIC in processors/chunker.py.
+# Movement family inference for exercise descriptions.
+# Ordered list of (trigger_keywords, family_name) — first match wins.
+# "snatch" is checked before "pull" so "Snatch Pull" maps to the snatch family.
+EXERCISE_FAMILY_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
+    (("snatch",), "snatch"),
+    (("clean",), "clean"),
+    (("jerk",), "jerk"),
+    (("squat",), "squat"),
+    (("press", "push press"), "press"),
+    (("pull", "deadlift", "rdl"), "pull"),
+]
+EXERCISE_FAMILY_DEFAULT = "accessory"
+
+# Name modifiers that mark an exercise as a variation of a competition lift.
+EXERCISE_VARIATION_MODIFIERS: frozenset[str] = frozenset({
+    "power", "muscle", "tall", "hang", "block",
+    "pause", "deficit", "tempo", "no-feet", "no feet",
+})
+
+# Families that map to category="strength" rather than "competition_variant".
+EXERCISE_STRENGTH_FAMILIES: frozenset[str] = frozenset({"squat", "press", "pull"})
+
+# Top-level keys returned by the LLM for _parse_program_template that are
+# stored as dedicated columns rather than inside program_structure JSONB.
+PROGRAM_TEMPLATE_COLUMN_KEYS: frozenset[str] = frozenset({
+    "athlete_level", "goal", "duration_weeks", "sessions_per_week",
+})
+
 CHUNK_TYPE_KEYWORDS: dict[str, list[str]] = {
     "fault_correction": [
         "fault", "error", "correction", "miss", "common mistake",
@@ -405,9 +433,7 @@ class IngestionPipeline:
         except Exception as e:
             logger.warning(f"Program template parsing failed for '{source.title}': {e}")
 
-        # Top-level fields extracted by the LLM; remainder becomes program_structure
-        structure_keys = ("athlete_level", "goal", "duration_weeks", "sessions_per_week")
-        program_structure = {k: v for k, v in parsed.items() if k not in structure_keys}
+        program_structure = {k: v for k, v in parsed.items() if k not in PROGRAM_TEMPLATE_COLUMN_KEYS}
 
         return {
             "name": section.metadata.get("program_name", f"Program from {source.title}"),
@@ -462,27 +488,17 @@ class IngestionPipeline:
 
         name_lower = name.lower()
 
-        # Infer movement family
-        if "snatch" in name_lower:
-            family = "snatch"
-        elif "clean" in name_lower:
-            family = "clean"
-        elif "jerk" in name_lower:
-            family = "jerk"
-        elif "squat" in name_lower:
-            family = "squat"
-        elif any(kw in name_lower for kw in ("press", "push press")):
-            family = "press"
-        elif any(kw in name_lower for kw in ("pull", "deadlift", "rdl")):
-            family = "pull"
-        else:
-            family = "accessory"
+        # Infer movement family — first match in EXERCISE_FAMILY_KEYWORDS wins
+        family = EXERCISE_FAMILY_DEFAULT
+        for keywords, fam in EXERCISE_FAMILY_KEYWORDS:
+            if any(kw in name_lower for kw in keywords):
+                family = fam
+                break
 
-        # Infer category from modifiers in the name
-        modifiers = ("power", "muscle", "tall", "hang", "block", "pause", "deficit", "tempo", "no-feet", "no feet")
-        if any(kw in name_lower for kw in modifiers):
+        # Infer category from name modifiers and family
+        if any(kw in name_lower for kw in EXERCISE_VARIATION_MODIFIERS):
             category = "variation"
-        elif family in ("squat", "press", "pull"):
+        elif family in EXERCISE_STRENGTH_FAMILIES:
             category = "strength"
         else:
             category = "competition_variant"
