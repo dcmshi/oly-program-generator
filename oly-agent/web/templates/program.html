@@ -22,15 +22,75 @@
     </div>
   </div>
 
-  {% if program.status == 'draft' %}
-  <button hx-post="/program/{{ program.id }}/activate"
-          hx-target="#status-badge"
-          hx-swap="outerHTML"
-          class="bg-green-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-green-700">
-    Activate program
-  </button>
+  <div id="program-actions" class="flex gap-2 flex-wrap">
+    {% if program.status == 'draft' %}
+    <button hx-post="/program/{{ program.id }}/activate"
+            hx-target="#status-badge"
+            hx-swap="outerHTML"
+            class="bg-green-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-green-700">
+      Activate
+    </button>
+    {% endif %}
+
+    {% if program.status == 'active' %}
+    <button hx-post="/program/{{ program.id }}/complete"
+            hx-target="#program-actions"
+            hx-swap="outerHTML"
+            hx-confirm="Mark this program as complete and compute outcomes?"
+            class="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700">
+      Complete program
+    </button>
+    {% endif %}
+
+    {% if program.status in ('draft', 'active') %}
+    <button hx-post="/program/{{ program.id }}/abandon"
+            hx-target="#status-badge"
+            hx-swap="outerHTML"
+            hx-confirm="Abandon this program? This cannot be undone."
+            class="bg-white border border-gray-300 text-gray-600 text-sm px-4 py-2 rounded-lg hover:bg-gray-50">
+      Abandon
+    </button>
+    {% endif %}
+  </div>
+</div>
+
+<!-- Outcome summary (completed programs) -->
+{% if program.status == 'completed' and program.outcome_summary %}
+{% set o = program.outcome_summary %}
+<div class="bg-blue-50 border border-blue-100 rounded-xl p-5 mt-4">
+  <h3 class="font-semibold text-blue-900 mb-3">Program Outcome</h3>
+  <div class="grid grid-cols-3 gap-4 text-center">
+    <div>
+      <p class="text-2xl font-bold text-blue-900">{{ o.adherence_pct }}%</p>
+      <p class="text-xs text-blue-600 mt-0.5">Adherence</p>
+    </div>
+    <div>
+      {% set dev = o.avg_rpe_deviation %}
+      <p class="text-2xl font-bold {{ 'text-amber-600' if dev > 1.0 else 'text-blue-900' }}">
+        {{ '+' if dev > 0 else '' }}{{ '%.2f' | format(dev) }}
+      </p>
+      <p class="text-xs text-blue-600 mt-0.5">Avg RPE deviation</p>
+    </div>
+    <div>
+      {% set mr = o.avg_make_rate %}
+      <p class="text-2xl font-bold {{ 'text-red-600' if mr < 0.75 else 'text-blue-900' }}">
+        {{ (mr * 100) | round | int }}%
+      </p>
+      <p class="text-xs text-blue-600 mt-0.5">Make rate</p>
+    </div>
+  </div>
+  {% if o.maxes_delta %}
+  <div class="border-t border-blue-200 pt-3 mt-3 flex flex-wrap gap-2">
+    {% for name, delta in o.maxes_delta.items() %}
+    <span class="text-xs px-2 py-1 rounded-full
+                 {{ 'bg-green-100 text-green-800' if delta > 0 else 'bg-red-100 text-red-700' }}">
+      {{ name }}: {{ '+' if delta > 0 else '' }}{{ delta }} kg
+    </span>
+    {% endfor %}
+  </div>
   {% endif %}
 </div>
+{% endif %}
 
 <!-- Rationale accordion -->
 {% if program.rationale %}

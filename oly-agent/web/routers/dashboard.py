@@ -5,6 +5,7 @@ from fastapi.responses import HTMLResponse
 
 from web.deps import ATHLETE_ID, get_db
 from web.queries import dashboard as q
+from web.queries import program as pq
 
 router = APIRouter()
 
@@ -20,8 +21,9 @@ def _current_week(start_date, duration_weeks: int) -> int:
 async def dashboard(request: Request, conn=Depends(get_db)):
     from web.app import templates
     program = q.get_active_program(conn, ATHLETE_ID)
+    maxes = pq.get_athlete_maxes(conn, ATHLETE_ID)
     ctx: dict = {"request": request, "program": None, "sessions": [],
-                 "adherence": {}, "warnings": [], "current_week": 1}
+                 "adherence": {}, "warnings": [], "current_week": 1, "maxes": maxes}
 
     if program:
         week = _current_week(program["start_date"], program["duration_weeks"])

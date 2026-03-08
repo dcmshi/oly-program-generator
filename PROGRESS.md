@@ -276,13 +276,15 @@ Identified via automated codebase scan. Grouped by priority.
 | `exercise_id = None` silently stored without downstream validation | `oly-agent/orchestrator.py` | ✅ Fixed — `logger.warning()` lists all unresolved exercise names after `resolve_exercise_ids()` |
 | ~~Pre-check athlete existence before opening connection~~ | `oly-agent/orchestrator.py` | Non-issue — `finally` block always closes `conn` regardless of exception; no resource leak |
 
-### 9b — Feature Completion
+### 9b — Feature Completion ✅ COMPLETE
 
 | Item | File | Notes |
 |------|------|-------|
-| Wire feedback endpoint into web UI | `oly-agent/web/` | `feedback.py` fully implemented but no route calls it — feedback loop is orphaned |
-| Add missing max update endpoint | `oly-agent/web/` | No web route to update `athlete_maxes`; requires direct DB access |
-| Add program delete/supersede endpoint | `oly-agent/web/` | Only `/program/{id}/activate` exists; no way to remove erroneous programs |
+| Wire feedback endpoint into web UI | `oly-agent/web/routers/program.py` | ✅ Done — `POST /program/{id}/complete` calls `compute_outcome()` + `save_outcome()`; returns `partials/outcome_summary.html` with adherence, RPE deviation, make rate, max deltas |
+| Add missing max update endpoint | `oly-agent/web/routers/program.py` | ✅ Done — `POST /program/maxes/update` upserts `athlete_maxes` via partial-index `ON CONFLICT`; `maxes_table.html` partial with datalist autocomplete |
+| Add program delete/supersede endpoint | `oly-agent/web/routers/program.py` | ✅ Done — `POST /program/{id}/abandon` sets status to `abandoned`; button added to `program.html` for draft/active programs |
+| Dashboard maxes panel | `oly-agent/web/templates/dashboard.html` | ✅ Done — current maxes table + inline update form added to dashboard; `get_athlete_maxes()` added to dashboard query context |
+| Completed program outcome display | `oly-agent/web/templates/program.html` | ✅ Done — existing `outcome_summary` JSONB rendered on program detail page for completed programs |
 
 ### 9c — Observability & Ops
 

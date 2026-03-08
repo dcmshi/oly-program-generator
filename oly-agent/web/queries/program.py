@@ -70,6 +70,77 @@ def get_program_weeks(conn, program_id: int) -> list[dict]:
     return [{"week_number": wn, "sessions": ws} for wn, ws in sorted(weeks.items())]
 
 
+def complete_program(conn, program_id: int, athlete_id: int) -> dict:
+    """Compute outcome metrics and mark program as completed.
+
+    Returns the outcome dict (also persisted to generated_programs.outcome_summary).
+    """
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+    from feedback import compute_outcome, save_outcome
+
+    outcome = compute_outcome(program_id, athlete_id, conn)
+    save_outcome(outcome, conn)
+    return outcome
+
+
+def abandon_program(conn, program_id: int):
+    from shared.db import execute
+    execute(
+        conn,
+        "UPDATE generated_programs SET status = 'abandoned', updated_at = NOW() WHERE id = %s",
+        (program_id,),
+    )
+    conn.commit()
+
+
+def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
+    from shared.db import fetch_all
+    return fetch_all(
+        conn,
+        """
+        SELECT e.name AS exercise_name, am.weight_kg, am.date_achieved
+        FROM athlete_maxes am
+        JOIN exercises e ON am.exercise_id = e.id
+        WHERE am.athlete_id = %s AND am.max_type = 'current'
+        ORDER BY e.name
+        """,
+        (athlete_id,),
+    )
+
+
+def upsert_athlete_max(
+    conn, athlete_id: int, exercise_name: str, weight_kg: float, date_achieved
+):
+    """Insert or update the 'current' max for a given exercise name.
+
+    Looks up exercise_id from the exercises table by name (case-insensitive).
+    Raises ValueError if the exercise name is not found.
+    """
+    from shared.db import fetch_one, execute
+    ex_row = fetch_one(
+        conn,
+        "SELECT id FROM exercises WHERE LOWER(name) = LOWER(%s)",
+        (exercise_name,),
+    )
+    if not ex_row:
+        raise ValueError(f"Exercise '{exercise_name}' not found in exercises table")
+    exercise_id = ex_row["id"]
+    execute(
+        conn,
+        """
+        INSERT INTO athlete_maxes (athlete_id, exercise_id, weight_kg, date_achieved, max_type)
+        VALUES (%s, %s, %s, %s, 'current')
+        ON CONFLICT (athlete_id, exercise_id) WHERE max_type = 'current'
+        DO UPDATE SET weight_kg = EXCLUDED.weight_kg,
+                      date_achieved = EXCLUDED.date_achieved
+        """,
+        (athlete_id, exercise_id, weight_kg, date_achieved),
+    )
+    conn.commit()
+
+
 def activate_program(conn, program_id: int, athlete_id: int):
     from shared.db import execute
     # Supersede any currently active program
