@@ -260,6 +260,60 @@ Identified via codebase audit. Grouped by priority.
 | Replace bare `except Exception: pass` | `orchestrator.py`, `pipeline.py`, `ingest_web.py` | ✅ Done — all three now log at DEBUG level with `logger.debug(f"... (non-fatal): {e}")` |
 | Unify transaction management | `oly-ingestion/pipeline.py` | ✅ Done — `_rollback_connections()` helper method extracted; section error handler calls it instead of inlining the try/except block |
 
+---
+
+## Phase 9 — Post-Scan Fixes (second audit)
+
+Identified via automated codebase scan. Grouped by priority.
+
+### 9a — Bug Fixes (crashes / data integrity) ✅ COMPLETE
+
+| Item | File | Notes |
+|------|------|-------|
+| ~~`explain.py` crashes when `active_goal is None`~~ | `oly-agent/explain.py` | Already guarded — `... if athlete_context.active_goal else "general_strength"`. Scan false positive. |
+| ~~`explain.py` IndexError on empty `program_sessions`~~ | `oly-agent/explain.py` | Already guarded — `program_sessions[0] if program_sessions else {}`. Scan false positive. |
+| Cost limit checked after session generated, not before | `oly-agent/orchestrator.py` | ✅ Fixed — cost guard moved to top of session loop; logs session coordinates before aborting |
+| `exercise_id = None` silently stored without downstream validation | `oly-agent/orchestrator.py` | ✅ Fixed — `logger.warning()` lists all unresolved exercise names after `resolve_exercise_ids()` |
+| ~~Pre-check athlete existence before opening connection~~ | `oly-agent/orchestrator.py` | Non-issue — `finally` block always closes `conn` regardless of exception; no resource leak |
+
+### 9b — Feature Completion
+
+| Item | File | Notes |
+|------|------|-------|
+| Wire feedback endpoint into web UI | `oly-agent/web/` | `feedback.py` fully implemented but no route calls it — feedback loop is orphaned |
+| Add missing max update endpoint | `oly-agent/web/` | No web route to update `athlete_maxes`; requires direct DB access |
+| Add program delete/supersede endpoint | `oly-agent/web/` | Only `/program/{id}/activate` exists; no way to remove erroneous programs |
+
+### 9c — Observability & Ops
+
+| Item | File | Notes |
+|------|------|-------|
+| Add logging to all web routers | `oly-agent/web/routers/` | Zero log statements across all routers; debugging requires guesswork |
+| Log warning when API keys missing at config load | `shared/config.py` | Missing keys silently default to `""`; error surfaces deep in call stack |
+| Add start/completion timestamps to async job handler | `oly-agent/web/jobs.py` | Job progress invisible; no way to estimate completion time |
+| Cache `Settings` singleton — don't re-parse `.env` per request | `oly-agent/web/deps.py` | `get_settings()` creates new instance on every dependency injection |
+
+### 9d — Code Quality
+
+| Item | File | Notes |
+|------|------|-------|
+| Consolidate duplicate Settings classes | `shared/config.py` vs `oly-ingestion/config.py` | Two nearly identical Settings classes; fixes don't propagate between them |
+| Clean up `weight_resolver.py` re-export comment | `oly-agent/weight_resolver.py` | `EXERCISE_NAME_TO_INTENSITY_REF` imported with `# noqa: F401 (re-exported)` but not actually re-exported via `__init__.py`; misleading |
+| Pre-check athlete existence before opening DB connection | `oly-agent/orchestrator.py` | Connection opened before `assess()` validates athlete; minor resource leak on bad ID |
+
+### 9e — Deferred / Optional
+
+| Item | Notes |
+|------|-------|
+| Connection pooling (`psycopg2.pool`) | Low priority — single-athlete tool; not under concurrent load |
+| Rate limiting / input size validation on web routes | Low risk in single-user deployment |
+| ER diagram / schema documentation | Nice-to-have for onboarding |
+| A/B testing framework for program strategies | Future feature |
+| CSV/JSON training log export endpoint | Future feature |
+| Principle conflict detection | Future feature |
+
+---
+
 **Running the web UI:**
 ```bash
 cd oly-agent

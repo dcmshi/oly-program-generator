@@ -159,6 +159,16 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     cumulative_comp_reps=cumulative_comp_reps,
                 )
 
+                # Cost guard — check before generating so we don't overshoot by a full session
+                if cumulative_cost > settings.cost_limit_per_program:
+                    logger.error(
+                        f"Cost limit exceeded: ${cumulative_cost:.4f} > "
+                        f"${settings.cost_limit_per_program:.2f}. Aborting before "
+                        f"W{week_number}D{day_number}."
+                    )
+                    _mark_program_draft(conn, program_id)
+                    return program_id
+
                 result = generate_session_with_retries(
                     prompt=prompt,
                     llm_client=llm_client,
@@ -174,15 +184,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     conn=conn,
                 )
 
-                # Cost tracking
                 cumulative_cost += estimate_cost(result.input_tokens, result.output_tokens)
-                if cumulative_cost > settings.cost_limit_per_program:
-                    logger.error(
-                        f"Cost limit exceeded: ${cumulative_cost:.4f} > "
-                        f"${settings.cost_limit_per_program:.2f}. Aborting."
-                    )
-                    _mark_program_draft(conn, program_id)
-                    return program_id
 
                 if result.exercises is None:
                     logger.warning(
@@ -195,6 +197,12 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
 
                 # Resolve exercise IDs and weights
                 exercises = resolve_exercise_ids(exercises, exercise_lookup)
+                unresolved = [ex.get("exercise_name") for ex in exercises if ex.get("exercise_id") is None]
+                if unresolved:
+                    logger.warning(
+                        f"W{week_number}D{day_number}: {len(unresolved)} exercise(s) have no "
+                        f"exercise_id (will store with NULL): {unresolved}"
+                    )
                 exercises = resolve_weights(exercises, athlete_context.maxes)
                 exercises = attach_source_chunk_ids(exercises, {
                     "programming_rationale": retrieval_context.programming_rationale,
