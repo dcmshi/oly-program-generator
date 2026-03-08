@@ -101,7 +101,7 @@ Reference: implementation order in `oly-programming-pipeline.md` § Implementati
 
 ---
 
-## Phase 6 — Programming Agent 🔄 IN PROGRESS
+## Phase 6 — Programming Agent ✅ COMPLETE
 
 Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
@@ -151,7 +151,7 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
 | Step | Task | Status |
 |------|------|--------|
-| 12 | `oly-agent/feedback.py` — ProgramOutcome computation, max promotion | ✅ Done (needs live test) |
+| 12 | `oly-agent/feedback.py` — ProgramOutcome computation, max promotion | ✅ Done (19/19 tests passing, live smoke test confirmed) |
 | 13 | Training log CLI (log a session, log an exercise set) | ✅ Done (`oly-agent/log.py`) |
 | 14 | Integration test: full program generation for David | ✅ Done — program_id=3, $0.44, 16 sessions |
 
@@ -176,6 +176,9 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 | 5 | `retag_chunks.py` — re-tags all DB chunks without re-ingestion | ✅ Done |
 | 6 | Applied retag across full corpus — 232 chunks enriched, 11 newly tagged | ✅ Done |
 | 7 | Retrieval eval re-run — scores stable, topic filterability improved | ✅ Done |
+| 8 | Medvedev ingested via vision OCR — 146 pages, 617 chunks, 1 program template | ✅ Done (source_id=501) |
+| 9 | Add Medvedev abbreviation keywords (P. Sn., B. Sq., C+J, etc.) — 540 chunks retagged | ✅ Done |
+| 10 | `test_feedback.py` — 19 tests + live smoke test against program 4 | ✅ Done |
 
 ---
 
@@ -183,9 +186,7 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Live test `feedback.py` (mark program complete, promote maxes) | Medium | Needs logged sessions first |
-| Takano ingestion | Low | File not available online — substituted with Drechsler (theory-heavy). Coverage is acceptable: programming queries surface Catalyst articles + Everett + Drechsler (sim 0.51–0.64). If obtained, use `programming` profile. |
-| Medvedev ingestion | ✅ Done | 146 pages vision OCR, 617 chunks, 1 program template, source_id=501. Added Medvedev exercise abbreviations (P. Sn., B. Sq., C+J, etc.) to KEYWORD_TO_TOPIC; 540 chunks retagged. |
+| Takano ingestion | Low | File not available online — substituted with Drechsler. Coverage acceptable: sim 0.51–0.64 on programming queries. Use `programming` profile if obtained. |
 
 **Running the web UI:**
 ```bash
