@@ -191,6 +191,75 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 |------|----------|-------|
 | Takano ingestion | ❌ Permanently skipped | File unavailable online. Programming gap closed by *Olympic Weightlifting for Sports* (Everett) + Catalyst. |
 
+---
+
+## Phase 8 — Backlog (post-audit)
+
+Identified via codebase audit. Grouped by priority.
+
+### 8a — Critical Stubs (non-functional code)
+
+| Item | File | Notes |
+|------|------|-------|
+| Complete `principle_extractor.py` | `oly-ingestion/processors/principle_extractor.py:92–100` | `extract()` builds prompt but never calls LLM or parses response — returns nothing |
+| Implement `_parse_program_template()` | `oly-ingestion/pipeline.py:_parse_program_template()` | Always returns `program_structure: {}` — program templates are never parsed into structured exercise lists |
+| Implement `_parse_exercise()` | `oly-ingestion/pipeline.py:_parse_exercise()` | Returns empty dict — exercises always fail to insert into DB |
+
+### 8b — Test Coverage Gaps
+
+**oly-agent (Steps 1–3 and 6 have zero tests):**
+
+| Item | File to create | Notes |
+|------|---------------|-------|
+| `test_assess.py` | `oly-agent/tests/test_assess.py` | Athlete context building, max estimation, cold-start defaults, negative `weeks_to_competition` |
+| `test_plan.py` | `oly-agent/tests/test_plan.py` | Phase selection, weekly target building, deload week detection, session count |
+| `test_retrieve.py` | `oly-agent/tests/test_retrieve.py` | Fault exercise lookup, vector search fallback, substitution loading, empty results |
+| `test_explain.py` | `oly-agent/tests/test_explain.py` | Rationale prompt structure, LLM output parsing |
+| `test_orchestrator.py` | `oly-agent/tests/test_orchestrator.py` | Cost limit enforcement, step sequencing, dry-run output |
+| `test_web_routers.py` | `oly-agent/tests/test_web_routers.py` | FastAPI endpoint tests via `TestClient`; job submission + status polling |
+
+**oly-ingestion (extractor unit tests missing):**
+
+| Item | File to create | Notes |
+|------|---------------|-------|
+| `test_pdf_extractor.py` | `oly-ingestion/tests/test_pdf_extractor.py` | PyMuPDF → pdfplumber → vision fallback chain; `max_pages` enforcement |
+| `test_html_extractor.py` | `oly-ingestion/tests/test_html_extractor.py` | BeautifulSoup parsing, empty body, encoding edge cases |
+| `test_epub_extractor.py` | `oly-ingestion/tests/test_epub_extractor.py` | Chapter extraction, metadata, encoding |
+| `test_retag_chunks.py` | `oly-ingestion/tests/test_retag_chunks.py` | Retag logic, dry-run, source filter |
+
+### 8c — Logic / Edge Case Fixes
+
+| Item | File | Notes |
+|------|------|-------|
+| Call `estimate_missing_maxes()` in assess | `oly-agent/assess.py:133` | Currently defined but never called — cold-start athletes get unresolved weights |
+| Guard negative `weeks_to_competition` | `oly-agent/assess.py` | Competition date in the past gives negative value; should raise or warn |
+| Guard `>3 estimated maxes` on cold-start | `oly-agent/assess.py` | Too many estimated maxes → program could be wildly miscalibrated |
+| Fix retry prompt growth in `generate.py` | `oly-agent/generate.py:342–347` | Retry loop appends feedback without clearing prior attempt — prompt grows unboundedly |
+| Null check `week_cumulative_reps` in `validate.py` | `oly-agent/validate.py:66` | Can be `None`; `.get()` called without check |
+| Add deload week handling in `generate.py` | `oly-agent/generate.py` | `is_deload=True` set in weekly targets but generation applies no special volume/intensity reduction |
+| Validate `session_exercises` non-empty | `oly-agent/validate.py` | No guard against 0-exercise sessions being returned from LLM |
+
+### 8d — Retrieval / Knowledge Improvements
+
+| Item | File | Notes |
+|------|------|-------|
+| Unify `CHUNK_TYPE_KEYWORDS` + `KEYWORD_TO_TOPIC` | `oly-ingestion/processors/chunker.py` / `oly-ingestion/pipeline.py` | Two separate dicts — a chunk can have `chunk_type='fault_correction'` but no fault-related topics |
+| Add missing keyword categories | `oly-ingestion/processors/chunker.py` | Accessory exercise selection, RPE progression, rest/recovery timing, exercise complexity/learning curve |
+| Enrich vector queries with athlete context | `oly-agent/retrieve.py:100` | Queries are generic; should include athlete level, faults, and recent RPE trend |
+| Wire substitutions into LLM prompt | `oly-agent/retrieve.py` / `oly-agent/generate.py` | Substitutions fetched from DB but never passed to `build_session_prompt()` |
+| Increase context snippet length | `oly-agent/generate.py` | Snippets capped at ~400 chars; nuance lost for longer principles |
+| Make vector `top_k` configurable | `oly-agent/retrieve.py:100` | Hardcoded to `3`; should come from `Settings` |
+
+### 8e — Refactoring / Maintainability
+
+| Item | File | Notes |
+|------|------|-------|
+| Extract exercise → intensity_reference mapping | New: `shared/exercise_mapping.py` | Duplicated across `assess.py`, `weight_resolver.py`, `retrieve.py` |
+| Define all Prilepin zones exhaustively | `shared/prilepin.py` | Odd intensities (e.g. 72%) can miss a zone — add full range coverage |
+| Extract magic numbers to constants | New: `shared/constants.py` | `1.5×` Prilepin cap, `0.5kg` rounding, `top_k=3`, snippet char limit |
+| Replace bare `except Exception: pass` | `oly-agent/generate.py`, `oly-agent/orchestrator.py`, `oly-ingestion/ingest_web.py` | Silent swallowing of errors; replace with specific exception + logging |
+| Unify transaction management | `oly-ingestion/pipeline.py:249–259` | Two separate DB connections rolled back independently; can diverge on partial failure |
+
 **Running the web UI:**
 ```bash
 cd oly-agent
