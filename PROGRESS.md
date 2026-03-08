@@ -205,27 +205,27 @@ Identified via codebase audit. Grouped by priority.
 | Implement `_parse_program_template()` | `oly-ingestion/pipeline.py` | ✅ Done — LLM call extracts week/session/exercise structure into JSONB |
 | Implement `_parse_exercise()` | `oly-ingestion/pipeline.py` | ✅ Done — heuristic extraction of name, movement_family, category, primary_purpose. 13/13 tests passing (`test_parse_exercise.py`) |
 
-### 8b — Test Coverage Gaps
+### 8b — Test Coverage Gaps ✅ COMPLETE (core modules)
 
-**oly-agent (Steps 1–3 and 6 have zero tests):**
+**oly-agent:**
 
-| Item | File to create | Notes |
-|------|---------------|-------|
-| `test_assess.py` | `oly-agent/tests/test_assess.py` | Athlete context building, max estimation, cold-start defaults, negative `weeks_to_competition` |
-| `test_plan.py` | `oly-agent/tests/test_plan.py` | Phase selection, weekly target building, deload week detection, session count |
-| `test_retrieve.py` | `oly-agent/tests/test_retrieve.py` | Fault exercise lookup, vector search fallback, substitution loading, empty results |
-| `test_explain.py` | `oly-agent/tests/test_explain.py` | Rationale prompt structure, LLM output parsing |
-| `test_orchestrator.py` | `oly-agent/tests/test_orchestrator.py` | Cost limit enforcement, step sequencing, dry-run output |
-| `test_web_routers.py` | `oly-agent/tests/test_web_routers.py` | FastAPI endpoint tests via `TestClient`; job submission + status polling |
+| Item | File | Notes |
+|------|------|-------|
+| `test_assess.py` | `oly-agent/tests/test_assess.py` | ✅ 15 tests — max estimation (pure), assess() with mocked DB (3 fetch_one + 2 fetch_all calls) |
+| `test_plan.py` | `oly-agent/tests/test_plan.py` | ✅ 20 tests — phase selection (pure), cold-start overrides, plan shape |
+| `test_retrieve.py` | `oly-agent/tests/test_retrieve.py` | ✅ 10 tests — fault lookup, substitutions, Prilepin targets, vector_loader=None path |
+| `test_explain.py` | `oly-agent/tests/test_explain.py` | ✅ 13 tests — prompt structure (pure), mocked LLM success + failure |
+| `test_orchestrator.py` | `oly-agent/tests/test_orchestrator.py` | ⏳ Deferred — requires full pipeline mock; lower value vs above |
+| `test_web_routers.py` | `oly-agent/tests/test_web_routers.py` | ⏳ Deferred — FastAPI TestClient setup; lower priority than logic tests |
 
-**oly-ingestion (extractor unit tests missing):**
+**oly-ingestion:**
 
-| Item | File to create | Notes |
-|------|---------------|-------|
-| `test_pdf_extractor.py` | `oly-ingestion/tests/test_pdf_extractor.py` | PyMuPDF → pdfplumber → vision fallback chain; `max_pages` enforcement |
-| `test_html_extractor.py` | `oly-ingestion/tests/test_html_extractor.py` | BeautifulSoup parsing, empty body, encoding edge cases |
-| `test_epub_extractor.py` | `oly-ingestion/tests/test_epub_extractor.py` | Chapter extraction, metadata, encoding |
-| `test_retag_chunks.py` | `oly-ingestion/tests/test_retag_chunks.py` | Retag logic, dry-run, source filter |
+| Item | File | Notes |
+|------|------|-------|
+| `test_html_extractor.py` | `oly-ingestion/tests/test_html_extractor.py` | ✅ 12 tests — body extraction, boilerplate removal, element priority, whitespace, unicode |
+| `test_pdf_extractor.py` | `oly-ingestion/tests/test_pdf_extractor.py` | ⏳ Deferred — needs real PDF fixtures; vision OCR tests require API key |
+| `test_epub_extractor.py` | `oly-ingestion/tests/test_epub_extractor.py` | ⏳ Deferred — needs real EPUB fixture or ebooklib mock |
+| `test_retag_chunks.py` | `oly-ingestion/tests/test_retag_chunks.py` | ⏳ Deferred — needs live DB |
 
 ### 8c — Logic / Edge Case Fixes
 
