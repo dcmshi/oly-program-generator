@@ -44,6 +44,15 @@ def validate_session(
     errors: list[str] = []
     warnings: list[str] = []
 
+    # Guard: empty session is always invalid
+    if not session_exercises:
+        return ValidationResult(
+            is_valid=False,
+            errors=["Session has no exercises — LLM returned an empty list"],
+            warnings=[],
+            session_comp_reps={},
+        )
+
     # Normalize week_target to plain dict if it's a WeekTarget dataclass
     if hasattr(week_target, "__dataclass_fields__"):
         from dataclasses import asdict

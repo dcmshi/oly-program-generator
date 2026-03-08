@@ -206,6 +206,7 @@ You MUST NOT:
 - Prescribe more reps per set than Prilepin's chart allows for the intensity zone
 - Include exercises from the avoid list
 - Include exercises the athlete cannot perform due to injuries
+{"- Exceed 3 sets or 3 reps per set on any competition lift — this is a DELOAD week. Prioritize movement quality over load." if week_target.is_deload else ""}
 
 ## Athlete Profile
 Name: {athlete_context.athlete['name']}

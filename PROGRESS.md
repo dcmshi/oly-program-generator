@@ -227,17 +227,17 @@ Identified via codebase audit. Grouped by priority.
 | `test_epub_extractor.py` | `oly-ingestion/tests/test_epub_extractor.py` | ⏳ Deferred — needs real EPUB fixture or ebooklib mock |
 | `test_retag_chunks.py` | `oly-ingestion/tests/test_retag_chunks.py` | ⏳ Deferred — needs live DB |
 
-### 8c — Logic / Edge Case Fixes
+### 8c — Logic / Edge Case Fixes ✅ COMPLETE
 
 | Item | File | Notes |
 |------|------|-------|
-| Call `estimate_missing_maxes()` in assess | `oly-agent/assess.py:133` | Currently defined but never called — cold-start athletes get unresolved weights |
-| Guard negative `weeks_to_competition` | `oly-agent/assess.py` | Competition date in the past gives negative value; should raise or warn |
-| Guard `>3 estimated maxes` on cold-start | `oly-agent/assess.py` | Too many estimated maxes → program could be wildly miscalibrated |
-| Fix retry prompt growth in `generate.py` | `oly-agent/generate.py:342–347` | Retry loop appends feedback without clearing prior attempt — prompt grows unboundedly |
-| Null check `week_cumulative_reps` in `validate.py` | `oly-agent/validate.py:66` | Can be `None`; `.get()` called without check |
-| Add deload week handling in `generate.py` | `oly-agent/generate.py` | `is_deload=True` set in weekly targets but generation applies no special volume/intensity reduction |
-| Validate `session_exercises` non-empty | `oly-agent/validate.py` | No guard against 0-exercise sessions being returned from LLM |
+| Call `estimate_missing_maxes()` in assess | `oly-agent/assess.py` | ✅ Done — called after `build_maxes_dict()`; estimated maxes merged into `ctx.maxes` |
+| Guard `>3 estimated maxes` | `oly-agent/assess.py` | ✅ Done — logs warning if more than 3 maxes are estimated (program weights will be approximate) |
+| ~~Guard negative `weeks_to_competition`~~ | `oly-agent/assess.py` | Already clamped: `max(0, delta.days // 7)` — no change needed |
+| ~~Fix retry prompt growth~~ | `oly-agent/generate.py` | Not a bug — each retry resets to `original_prompt + one feedback block` |
+| ~~Null check `week_cumulative_reps`~~ | `oly-agent/validate.py` | Parameter accepted but unused in function body — no change needed |
+| Strengthen deload week guidance | `oly-agent/generate.py` | ✅ Done — adds explicit MUST NOT constraint to prompt for deload sessions |
+| Validate `session_exercises` non-empty | `oly-agent/validate.py` | ✅ Done — early return with `is_valid=False` + error message if list is empty |
 
 ### 8d — Retrieval / Knowledge Improvements
 

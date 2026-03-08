@@ -147,6 +147,17 @@ def test_assess_injuries_defaults_to_empty_list():
             ctx = assess(1, None)
     assert ctx.injuries == []
 
+def test_assess_estimates_missing_maxes_from_snatch():
+    # DB returns only snatch max; assess() should derive snatch_pull etc.
+    snatch_row = {"name": "Snatch", "movement_family": "snatch",
+                  "weight_kg": 100.0, "date_achieved": date.today(), "rpe": None}
+    with patch("assess.fetch_one", side_effect=[_athlete(), None, None]):
+        with patch("assess.fetch_all", side_effect=[[snatch_row], []]):
+            ctx = assess(1, None)
+    assert "snatch" in ctx.maxes
+    assert "snatch_pull" in ctx.maxes, "snatch_pull should be estimated"
+    assert "overhead_squat" in ctx.maxes, "overhead_squat should be estimated"
+
 def test_assess_propagates_recent_logs():
     log_row = {"exercise_name": "Snatch", "weight_kg": 90.0, "sets_completed": 5,
                "rpe": 8.0, "make_rate": 0.9, "log_date": date.today()}

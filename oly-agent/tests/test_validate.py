@@ -318,6 +318,16 @@ def test_valid_session_with_warmup_sets():
     return True, ""
 
 
+# ── Empty session guard ───────────────────────────────────────
+
+def test_empty_session_is_invalid():
+    result = validate_session([], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "Empty session should be invalid"
+    assert result.errors, "Empty session should have at least one error"
+    assert "no exercises" in result.errors[0].lower(), result.errors
+    return True, ""
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
@@ -346,6 +356,7 @@ TESTS = [
     ("Duration: within limit → ok", test_duration_no_warning_within_limit),
     ("Integration: clean session → valid", test_valid_session_no_errors),
     ("Integration: warmup sets → valid", test_valid_session_with_warmup_sets),
+    ("Empty session: no exercises → error", test_empty_session_is_invalid),
 ]
 
 

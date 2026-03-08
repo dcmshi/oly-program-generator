@@ -76,6 +76,18 @@ def assess(athlete_id: int, conn) -> AthleteContext:
     )
     maxes = build_maxes_dict(max_rows)
 
+    # ── Fill in missing maxes via estimation ───────────────────
+    estimated = estimate_missing_maxes(maxes)
+    for exercise, (estimated_kg, _) in estimated.items():
+        maxes[exercise] = estimated_kg
+    if estimated:
+        logger.info(f"Estimated {len(estimated)} missing maxes from competition lifts")
+        if len(estimated) > 3:
+            logger.warning(
+                f"Athlete {athlete_id} has {len(estimated)} estimated maxes — "
+                "program weights will be approximate. Consider testing more lifts before programming."
+            )
+
     # ── Previous program ───────────────────────────────────────
     previous_program = fetch_one(
         conn,
