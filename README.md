@@ -52,10 +52,12 @@ flowchart TB
     end
 
     subgraph UI["🌐 Web UI  oly-agent/web/"]
+        AUTH["Login / Setup\nsession auth · bcrypt · multi-athlete"]
         DASH["Dashboard\ncurrent week · adherence · warnings"]
         PROG["Program view\nweek accordions · exercise tables"]
         LOGUI["Log session\nprescribed vs actual · prefill"]
         GEN["Generate\nbackground job · HTMX polling"]
+        PROF["Profile / Settings\nedit athlete fields · change password"]
     end
 
     subgraph CLI["💻 CLI"]
@@ -156,11 +158,12 @@ oly-program-generator/
     │   ├── test_weight_resolver.py  # 18 tests — weight resolution + ID lookup
     │   └── test_generate_utils.py   # 15 tests — JSON parsing + name validation
     └── web/                         # FastAPI web UI
-        ├── app.py                   # Application factory + Jinja2 filters
-        ├── deps.py                  # get_db dependency + ATHLETE_ID constant
+        ├── app.py                   # Application factory + middleware + Jinja2 filters
+        ├── auth.py                  # bcrypt helpers + get_current_athlete_id dependency
+        ├── deps.py                  # get_db (pooled) + slowapi limiter + settings singleton
         ├── jobs.py                  # Background thread queue for generation
-        ├── routers/                 # dashboard, program, log_session, generate
-        ├── queries/                 # SQL helpers (dashboard, program, log_session)
+        ├── routers/                 # auth, setup, profile, dashboard, program, log_session, generate
+        ├── queries/                 # SQL helpers (dashboard, program, setup, profile)
         └── templates/               # Jinja2 templates + HTMX partials
 ```
 
@@ -223,11 +226,12 @@ cd oly-agent
 PYTHONUTF8=1 uv run uvicorn web.app:app --reload --port 8080
 ```
 
-Open `http://localhost:8080`. The UI provides:
-- **Dashboard** — current week's sessions, logged/unlogged status, adherence, warnings
-- **Programs** — all programs with phase/status badges; week accordions with full exercise tables
+Open `http://localhost:8080`. Create an account at `/setup` or log in at `/login`. The UI provides:
+- **Dashboard** — current week's sessions, logged/unlogged status, adherence, warnings, current maxes
+- **Programs** — all programs with phase/status badges; week accordions with full exercise tables; activate / complete / abandon actions
 - **Log session** — two-phase form: session RPE/details, then exercise-by-exercise with click-to-prefill from prescribed weights
 - **Generate** — triggers the agent in a background thread and polls for completion via HTMX
+- **Profile** — edit all athlete fields (bodyweight, lift emphasis, strength limiters, competition experience, etc.) and change password/username
 
 ### 6. Generate a program (CLI alternative)
 
@@ -267,13 +271,16 @@ The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** �
 
 | Page | URL | Description |
 |------|-----|-------------|
-| Dashboard | `/` | Current week's sessions with logged/unlogged status, adherence bar, active warnings |
+| Login | `/login` | Username + bcrypt password auth; session cookie via `SessionMiddleware` |
+| Create account | `/setup` | Multi-section wizard: account, profile, training config, current maxes, goal |
+| Dashboard | `/` | Current week's sessions with logged/unlogged status, adherence bar, active warnings, current maxes |
 | Programs | `/program` | All generated programs with phase and status badges |
-| Program detail | `/program/{id}` | Week accordions with full exercise tables (weight, intensity, RPE, rest), rationale, activate button |
+| Program detail | `/program/{id}` | Week accordions with full exercise tables (weight, intensity, RPE, rest), rationale, activate / complete / abandon |
 | Log session | `/log/{session_id}` | Two-phase form: session header (RPE, duration, bodyweight, sleep, stress) → per-exercise logging with click-to-prefill from prescribed |
 | Generate | `/generate` | Triggers the 6-step agent pipeline in a background thread; polls every 3 s via HTMX until complete |
+| Profile | `/profile` | Edit athlete fields (name, bodyweight, lift emphasis, strength limiters, competition experience, etc.); change password; change username |
 
-**Stack:** FastAPI · Jinja2 templates · HTMX (no page reloads) · Tailwind CSS via CDN
+**Stack:** FastAPI · Jinja2 templates · HTMX (no page reloads) · Tailwind CSS via CDN · slowapi rate limiting · `ThreadedConnectionPool`
 
 ---
 
