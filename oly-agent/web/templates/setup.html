@@ -173,6 +173,49 @@
           {% endfor %}
         </div>
 
+        <!-- Lift emphasis + competition experience -->
+        <div class="grid grid-cols-2 gap-4 mb-5">
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Lift emphasis</label>
+            <select name="lift_emphasis"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="balanced"      {% if (form.get('lift_emphasis','balanced')) == 'balanced'      %}selected{% endif %}>Balanced (snatch = C&amp;J)</option>
+              <option value="snatch_biased" {% if form.get('lift_emphasis') == 'snatch_biased' %}selected{% endif %}>Snatch-biased</option>
+              <option value="cj_biased"     {% if form.get('lift_emphasis') == 'cj_biased'     %}selected{% endif %}>C&amp;J-biased</option>
+            </select>
+          </div>
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Competition experience</label>
+            <select name="competition_experience"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="none"          {% if (form.get('competition_experience','none')) == 'none'          %}selected{% endif %}>None — never competed</option>
+              <option value="local"         {% if form.get('competition_experience') == 'local'         %}selected{% endif %}>Local / club meets</option>
+              <option value="national"      {% if form.get('competition_experience') == 'national'      %}selected{% endif %}>National level</option>
+              <option value="international" {% if form.get('competition_experience') == 'international' %}selected{% endif %}>International / elite</option>
+            </select>
+          </div>
+        </div>
+
+        <!-- Strength limiters -->
+        <p class="text-xs font-medium text-gray-600 mb-2">Strength limiters <span class="text-gray-400 font-normal">(what's currently holding performance back?)</span></p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
+          {% for val, label in [
+            ("squat_limited",      "Squat strength (below ratio to comp lifts)"),
+            ("pull_limited",       "Pulling strength (snatch/clean pull)"),
+            ("overhead_limited",   "Overhead stability (snatch / jerk)"),
+            ("jerk_limited",       "Jerk (C&J is jerk-limited)"),
+            ("clean_limited",      "Clean (C&J is clean-limited)"),
+            ("positional_strength","Off-the-floor / first pull strength")
+          ] %}
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" name="strength_limiters" value="{{ val }}"
+                   {% if val in (form.getlist('strength_limiters') or []) %}checked{% endif %}
+                   class="rounded border-gray-300">
+            {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+
         <!-- Technical faults -->
         <p class="text-xs font-medium text-gray-600 mb-2">Technical faults <span class="text-gray-400 font-normal">(check all that apply)</span></p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">

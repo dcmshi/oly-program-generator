@@ -124,6 +124,11 @@ def build_session_prompt(
     injuries_str = ", ".join(athlete_context.injuries) or "none"
     avoid = athlete_context.athlete.get("exercise_preferences", {}).get("avoid", [])
     avoid_str = ", ".join(avoid) or "none"
+    lift_emphasis = athlete_context.athlete.get("lift_emphasis") or "balanced"
+    strength_limiters_str = (
+        ", ".join(athlete_context.athlete.get("strength_limiters") or []) or "none identified"
+    )
+    competition_experience = athlete_context.athlete.get("competition_experience") or "none"
 
     maxes_lines = "\n".join(
         f"  {ref}: {kg}kg"
@@ -227,6 +232,9 @@ Name: {athlete_context.athlete['name']}
 Level: {athlete_context.level}
 Sessions/week: {athlete_context.sessions_per_week}
 Session duration: {athlete_context.athlete.get('session_duration_minutes', DEFAULT_SESSION_DURATION_MINUTES)} min
+Lift emphasis: {lift_emphasis} (snatch_biased = more snatch volume/variants; cj_biased = more C&J volume/variants; balanced = equal)
+Strength limiters: {strength_limiters_str}
+Competition experience: {competition_experience}
 Technical faults: {faults_str}
 Injuries: {injuries_str}
 

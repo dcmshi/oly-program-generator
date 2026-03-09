@@ -49,12 +49,15 @@ async def update_profile(
     session_duration_minutes: Annotated[str, Form()] = "",
     injuries: Annotated[str, Form(max_length=1000)] = "",
     notes: Annotated[str, Form(max_length=2000)] = "",
+    lift_emphasis: Annotated[str, Form()] = "balanced",
+    competition_experience: Annotated[str, Form()] = "none",
 ):
     from web.app import templates
     # Collect checkbox lists
     form = await request.form()
     available_equipment = form.getlist("available_equipment")
     technical_faults = form.getlist("technical_faults")
+    strength_limiters = form.getlist("strength_limiters")
 
     data = {
         "name": name.strip(),
@@ -72,6 +75,9 @@ async def update_profile(
         "technical_faults": technical_faults,
         "injuries": injuries.strip() or None,
         "notes": notes.strip() or None,
+        "lift_emphasis": lift_emphasis or "balanced",
+        "strength_limiters": strength_limiters,
+        "competition_experience": competition_experience or "none",
     }
 
     if not data["name"]:

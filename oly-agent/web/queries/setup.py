@@ -34,9 +34,10 @@ def create_athlete(conn, data: dict, password_hash: str) -> int:
             bodyweight_kg, height_cm, date_of_birth, weight_class,
             training_age_years, sessions_per_week, session_duration_minutes,
             available_equipment, injuries, technical_faults,
-            username, password_hash, notes
+            username, password_hash, notes,
+            lift_emphasis, strength_limiters, competition_experience
         )
-        VALUES (%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s, %s,%s,%s, %s,%s,%s)
+        VALUES (%s,%s,%s,%s, %s,%s,%s,%s, %s,%s,%s, %s,%s,%s, %s,%s,%s, %s,%s,%s)
         RETURNING id
         """,
         (
@@ -57,6 +58,9 @@ def create_athlete(conn, data: dict, password_hash: str) -> int:
             data["username"],
             password_hash,
             data.get("notes") or None,
+            data.get("lift_emphasis") or "balanced",
+            data.get("strength_limiters") or [],
+            data.get("competition_experience") or "none",
         ),
     )
 

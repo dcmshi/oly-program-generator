@@ -144,6 +144,50 @@
       </div>
     </div>
 
+    <!-- Lift emphasis + competition experience -->
+    <div class="grid grid-cols-2 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Lift emphasis</label>
+        <select name="lift_emphasis" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="balanced"      {% if (athlete.lift_emphasis or 'balanced') == 'balanced'      %}selected{% endif %}>Balanced (snatch = C&amp;J)</option>
+          <option value="snatch_biased" {% if athlete.lift_emphasis == 'snatch_biased' %}selected{% endif %}>Snatch-biased</option>
+          <option value="cj_biased"     {% if athlete.lift_emphasis == 'cj_biased'     %}selected{% endif %}>C&amp;J-biased</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Competition experience</label>
+        <select name="competition_experience" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="none"          {% if (athlete.competition_experience or 'none') == 'none'          %}selected{% endif %}>None — never competed</option>
+          <option value="local"         {% if athlete.competition_experience == 'local'         %}selected{% endif %}>Local / club meets</option>
+          <option value="national"      {% if athlete.competition_experience == 'national'      %}selected{% endif %}>National level</option>
+          <option value="international" {% if athlete.competition_experience == 'international' %}selected{% endif %}>International / elite</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- Strength limiters -->
+    <div>
+      <p class="text-xs font-medium text-gray-600 mb-2">Strength limiters <span class="text-gray-400">(what's holding performance back?)</span></p>
+      <div class="grid grid-cols-2 gap-1">
+        {% set limiter_options = [
+          ("squat_limited",      "Squat strength (below ratio to comp lifts)"),
+          ("pull_limited",       "Pulling strength (snatch/clean pull)"),
+          ("overhead_limited",   "Overhead stability (snatch / jerk)"),
+          ("jerk_limited",       "Jerk (C&J is jerk-limited)"),
+          ("clean_limited",      "Clean (C&J is clean-limited)"),
+          ("positional_strength","Off-the-floor / first pull strength")
+        ] %}
+        {% for val, label in limiter_options %}
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" name="strength_limiters" value="{{ val }}"
+                 {% if athlete.strength_limiters and val in athlete.strength_limiters %}checked{% endif %}
+                 class="rounded border-gray-300 text-gray-900">
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
     <!-- Technical faults -->
     <div>
       <p class="text-xs font-medium text-gray-600 mb-2">Technical faults (for coaching cues)</p>

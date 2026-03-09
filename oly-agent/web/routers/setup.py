@@ -131,6 +131,9 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         "technical_faults": faults,
         "username": username,
         "notes": form.get("notes", "").strip() or None,
+        "lift_emphasis": form.get("lift_emphasis") or "balanced",
+        "strength_limiters": raw_form.getlist("strength_limiters"),
+        "competition_experience": form.get("competition_experience") or "none",
     }
 
     athlete_id = q.create_athlete(conn, athlete_data, hash_password(password))

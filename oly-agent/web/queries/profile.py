@@ -10,7 +10,8 @@ def get_athlete(conn, athlete_id: int) -> dict | None:
         SELECT id, name, email, username, level, biological_sex,
                bodyweight_kg, height_cm, date_of_birth, weight_class,
                training_age_years, sessions_per_week, session_duration_minutes,
-               available_equipment, technical_faults, injuries, notes
+               available_equipment, technical_faults, injuries, notes,
+               lift_emphasis, strength_limiters, competition_experience
         FROM athletes
         WHERE id = %s
         """,
@@ -52,6 +53,9 @@ def update_profile(conn, athlete_id: int, data: dict):
             technical_faults        = %s,
             injuries                = %s,
             notes                   = %s,
+            lift_emphasis           = %s,
+            strength_limiters       = %s,
+            competition_experience  = %s,
             updated_at              = NOW()
         WHERE id = %s
         """,
@@ -71,6 +75,9 @@ def update_profile(conn, athlete_id: int, data: dict):
             data.get("technical_faults") or [],
             data.get("injuries") or None,
             data.get("notes") or None,
+            data.get("lift_emphasis") or "balanced",
+            data.get("strength_limiters") or [],
+            data.get("competition_experience") or "none",
             athlete_id,
         ),
     )
