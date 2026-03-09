@@ -3,7 +3,7 @@ import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
-from web.deps import ATHLETE_ID, get_db
+from web.deps import ATHLETE_ID, get_db, limiter
 from web import jobs
 from web.queries import program as qp
 
@@ -22,6 +22,7 @@ async def generate_page(request: Request, conn=Depends(get_db)):
 
 
 @router.post("/run", response_class=HTMLResponse)
+@limiter.limit("2/minute")
 async def run_generation(request: Request):
     from web.app import templates
     form = await request.form()

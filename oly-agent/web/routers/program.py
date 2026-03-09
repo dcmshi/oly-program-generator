@@ -1,11 +1,12 @@
 # web/routers/program.py
 import logging
 from datetime import date
+from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from web.deps import ATHLETE_ID, get_db
+from web.deps import ATHLETE_ID, get_db, limiter
 from web.queries import program as q
 
 logger = logging.getLogger(__name__)
@@ -35,6 +36,7 @@ async def program_detail(program_id: int, request: Request, conn=Depends(get_db)
 
 
 @router.post("/{program_id}/activate", response_class=HTMLResponse)
+@limiter.limit("10/minute")
 async def activate(program_id: int, request: Request, conn=Depends(get_db)):
     from web.app import templates
     q.activate_program(conn, program_id, ATHLETE_ID)
@@ -46,6 +48,7 @@ async def activate(program_id: int, request: Request, conn=Depends(get_db)):
 
 
 @router.post("/{program_id}/complete", response_class=HTMLResponse)
+@limiter.limit("5/minute")
 async def complete(program_id: int, request: Request, conn=Depends(get_db)):
     from web.app import templates
     program = q.get_program(conn, program_id)
@@ -61,6 +64,7 @@ async def complete(program_id: int, request: Request, conn=Depends(get_db)):
 
 
 @router.post("/{program_id}/abandon", response_class=HTMLResponse)
+@limiter.limit("5/minute")
 async def abandon(program_id: int, request: Request, conn=Depends(get_db)):
     from web.app import templates
     q.abandon_program(conn, program_id)
@@ -71,10 +75,11 @@ async def abandon(program_id: int, request: Request, conn=Depends(get_db)):
 
 
 @router.post("/maxes/update", response_class=HTMLResponse)
+@limiter.limit("20/minute")
 async def update_max(
     request: Request,
-    exercise_name: str = Form(...),
-    weight_kg: float = Form(...),
+    exercise_name: Annotated[str, Form(min_length=1, max_length=200)],
+    weight_kg: Annotated[float, Form(gt=0, le=500)],
     conn=Depends(get_db),
 ):
     from web.app import templates

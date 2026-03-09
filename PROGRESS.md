@@ -303,16 +303,26 @@ Identified via automated codebase scan. Grouped by priority.
 | Clean up `weight_resolver.py` re-export comment | `oly-agent/weight_resolver.py` | ✅ Done — removed misleading `# noqa: F401 (re-exported)` comment; import is local use only, not re-exported |
 | Pre-check athlete existence before opening DB connection | `oly-agent/orchestrator.py` | ✅ Non-issue — `finally` block always closes `conn`; no resource leak; confirmed in 9a review |
 
-### 9e — Deferred / Optional
+### 9e — Performance & Hardening ✅ COMPLETE
 
 | Item | Notes |
 |------|-------|
-| Connection pooling (`psycopg2.pool`) | Low priority — single-athlete tool; not under concurrent load |
-| Rate limiting / input size validation on web routes | Low risk in single-user deployment |
+| Connection pooling (`psycopg2.pool`) | ✅ Done — `ThreadedConnectionPool` in `shared/db.py`; `init_pool()` / `pooled_connection()`; pool settings (`db_pool_min=1`, `db_pool_max=10`) in `shared/config.py`; `deps.py` initialises pool lazily and uses it for all web requests |
+| Rate limiting on web routes | ✅ Done — `slowapi` added to web deps; per-IP limits: generate 2/min, complete/abandon 5/min, activate 10/min, maxes update 20/min, session log 30/min, exercise log 60/min |
+| Input size validation on web routes | ✅ Done — `ContentSizeLimitMiddleware` (64 KB POST body cap) in `app.py`; `update_max` uses `Annotated Form` bounds: `exercise_name` max 200 chars, `weight_kg` 0–500 kg |
 | ER diagram / schema documentation | ✅ Done — `SCHEMA.md` with two Mermaid ER diagrams + table reference |
 | A/B testing framework for program strategies | Future feature |
 | CSV/JSON training log export endpoint | Future feature |
 | Principle conflict detection | Future feature |
+
+### 9f — Future Scaling (for non-local / multi-user deployment)
+
+| Item | Notes |
+|------|-------|
+| Async DB driver (`asyncpg`) | Replace psycopg2 with asyncpg to avoid blocking the async event loop on every DB call. Requires rewriting `shared/db.py` fetch helpers to use asyncpg's connection API (no cursor objects). |
+| Redis-backed rate limiter | Current `slowapi` uses in-memory storage — limits reset on restart and don't share state across processes/instances. Wire `slowapi` to a Redis backend via the `limits` storage API. |
+| Multi-athlete auth | `ATHLETE_ID = 1` is hardcoded in `deps.py`. A multi-user deployment needs session/JWT auth to route each request to the correct athlete row. |
+| DB query caching for static tables | `prilepin_chart` and `exercises` never change at runtime. An in-process LRU cache (`functools.lru_cache`) on the query helpers would eliminate repeated round-trips on every generation run. |
 
 ---
 

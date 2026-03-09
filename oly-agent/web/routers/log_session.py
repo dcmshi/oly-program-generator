@@ -4,7 +4,7 @@ from datetime import date
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse
 
-from web.deps import ATHLETE_ID, get_db
+from web.deps import ATHLETE_ID, get_db, limiter
 from web.queries import log_session as q
 
 logger = logging.getLogger(__name__)
@@ -33,6 +33,7 @@ async def log_form(session_id: int, request: Request, conn=Depends(get_db)):
 
 
 @router.post("/{session_id}", response_class=HTMLResponse)
+@limiter.limit("30/minute")
 async def submit_session_log(session_id: int, request: Request, conn=Depends(get_db)):
     from web.app import templates
     form = await request.form()
@@ -62,6 +63,7 @@ async def submit_session_log(session_id: int, request: Request, conn=Depends(get
 
 
 @router.post("/{log_id}/exercise", response_class=HTMLResponse)
+@limiter.limit("60/minute")
 async def submit_exercise_log(log_id: int, request: Request, conn=Depends(get_db)):
     from web.app import templates
     form = await request.form()

@@ -8,13 +8,39 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
+from fastapi.responses import HTMLResponse
 from fastapi.staticfiles import StaticFiles
 from fastapi.templating import Jinja2Templates
+from slowapi import _rate_limit_exceeded_handler
+from slowapi.errors import RateLimitExceeded
+from slowapi.middleware import SlowAPIMiddleware
+from starlette.middleware.base import BaseHTTPMiddleware
 
+from web.deps import limiter
 from web.routers import dashboard, program, log_session, generate
 
 app = FastAPI(title="Oly Agent")
+
+# ── Rate limiting ──────────────────────────────────────────────
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_middleware(SlowAPIMiddleware)
+
+
+# ── Request body size cap (64 KB) ─────────────────────────────
+class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
+    _MAX_BODY = 64 * 1024  # 64 KB — enough for any session log form
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ("POST", "PUT", "PATCH"):
+            content_length = request.headers.get("content-length")
+            if content_length and int(content_length) > self._MAX_BODY:
+                return HTMLResponse("Request body too large (max 64 KB)", status_code=413)
+        return await call_next(request)
+
+
+app.add_middleware(ContentSizeLimitMiddleware)
 
 # ── Static files ──────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
