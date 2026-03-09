@@ -335,6 +335,15 @@ Identified via automated codebase scan. Grouped by priority.
 | Change username (`POST /profile/username`) | ✅ Done — uniqueness check; requires password confirmation |
 | `date_of_birth` migration | ✅ Done — `DATE` column added to athletes table; replaces static `age INTEGER` in all web queries, routers, and templates; both setup and profile forms use `<input type="date">`; age can be computed dynamically from timestamp |
 
+### 9h — Extended Athlete Dimensions ✅ COMPLETE
+
+| Item | Notes |
+|------|-------|
+| `lift_emphasis` column | ✅ Done — `VARCHAR(20)` (`balanced` / `snatch_biased` / `cj_biased`); dropdown in setup + profile; injected into generation prompt so LLM weights exercise selection toward the preferred lift |
+| `strength_limiters` column | ✅ Done — `TEXT[]` (6 options: `squat_limited`, `pull_limited`, `overhead_limited`, `jerk_limited`, `clean_limited`, `positional_strength`); checkboxes in setup + profile; injected into prompt to guide supplemental exercise selection |
+| `competition_experience` column | ✅ Done — `VARCHAR(20)` (`none` / `local` / `national` / `international`); dropdown in setup + profile; injected into prompt to calibrate peaking aggressiveness and attempts practice |
+| Prompt wiring | ✅ Done — all three fields added to `## Athlete Profile` block in `generate.py:build_session_prompt()` with inline descriptions so the LLM can act on them |
+
 ---
 
 **Running the web UI:**
