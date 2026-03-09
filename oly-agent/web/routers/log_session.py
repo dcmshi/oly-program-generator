@@ -4,7 +4,8 @@ from datetime import date
 from fastapi import APIRouter, Depends, Request, Form, HTTPException
 from fastapi.responses import HTMLResponse
 
-from web.deps import ATHLETE_ID, get_db, limiter
+from web.auth import get_current_athlete_id
+from web.deps import get_db, limiter
 from web.queries import log_session as q
 
 logger = logging.getLogger(__name__)
@@ -34,7 +35,12 @@ async def log_form(session_id: int, request: Request, conn=Depends(get_db)):
 
 @router.post("/{session_id}", response_class=HTMLResponse)
 @limiter.limit("30/minute")
-async def submit_session_log(session_id: int, request: Request, conn=Depends(get_db)):
+async def submit_session_log(
+    session_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
     form = await request.form()
     session = q.get_session_with_exercises(conn, session_id)
@@ -48,8 +54,8 @@ async def submit_session_log(session_id: int, request: Request, conn=Depends(get
         log_id = existing["id"]
         logger.info(f"Session {session_id} already logged (log_id={log_id}), returning existing")
     else:
-        log_id = q.create_session_log(conn, ATHLETE_ID, session_id, dict(form))
-        logger.info(f"Session {session_id} logged for athlete {ATHLETE_ID} (log_id={log_id})")
+        log_id = q.create_session_log(conn, athlete_id, session_id, dict(form))
+        logger.info(f"Session {session_id} logged for athlete {athlete_id} (log_id={log_id})")
 
     log = q.get_existing_log(conn, session_id)
     logged_exercises = q.get_logged_exercises(conn, log_id)

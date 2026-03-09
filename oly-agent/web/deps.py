@@ -1,6 +1,7 @@
 # web/deps.py
 """FastAPI shared dependencies."""
 
+import logging
 import sys
 from pathlib import Path
 
@@ -12,13 +13,10 @@ from slowapi.util import get_remote_address
 from shared.config import Settings
 from shared.db import init_pool, pooled_connection
 
-ATHLETE_ID = 1  # single-athlete tool; change here to switch athletes
+logger = logging.getLogger(__name__)
 
 # Singleton — parsed once at startup, not on every request
 _settings: Settings | None = None
-
-# Rate limiter — shared across all routers
-limiter = Limiter(key_func=get_remote_address)
 
 
 def get_settings() -> Settings:
@@ -26,6 +24,20 @@ def get_settings() -> Settings:
     if _settings is None:
         _settings = Settings()
     return _settings
+
+
+def _init_limiter() -> Limiter:
+    """Create rate limiter, using Redis storage if REDIS_URL is configured."""
+    s = get_settings()
+    if s.redis_url:
+        try:
+            return Limiter(key_func=get_remote_address, storage_uri=s.redis_url)
+        except Exception as e:
+            logger.warning(f"Redis rate limiter unavailable ({e}), falling back to in-memory")
+    return Limiter(key_func=get_remote_address)
+
+
+limiter = _init_limiter()
 
 
 def get_db():

@@ -3,7 +3,8 @@ import logging
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 
-from web.deps import ATHLETE_ID, get_db, limiter
+from web.auth import get_current_athlete_id
+from web.deps import get_db, limiter
 from web import jobs
 from web.queries import program as qp
 
@@ -12,9 +13,13 @@ router = APIRouter(prefix="/generate")
 
 
 @router.get("", response_class=HTMLResponse)
-async def generate_page(request: Request, conn=Depends(get_db)):
+async def generate_page(
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
-    programs = qp.get_all_programs(conn, ATHLETE_ID)
+    programs = qp.get_all_programs(conn, athlete_id)
     last = programs[0] if programs else None
     return templates.TemplateResponse("generate.html", {
         "request": request, "last_program": last,
@@ -23,12 +28,15 @@ async def generate_page(request: Request, conn=Depends(get_db)):
 
 @router.post("/run", response_class=HTMLResponse)
 @limiter.limit("2/minute")
-async def run_generation(request: Request):
+async def run_generation(
+    request: Request,
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
     form = await request.form()
     dry_run = form.get("dry_run") == "on"
-    job_id = jobs.submit_generation(ATHLETE_ID, dry_run=dry_run)
-    logger.info(f"Generation submitted: job_id={job_id}, athlete={ATHLETE_ID}, dry_run={dry_run}")
+    job_id = jobs.submit_generation(athlete_id, dry_run=dry_run)
+    logger.info(f"Generation submitted: job_id={job_id}, athlete={athlete_id}, dry_run={dry_run}")
     return templates.TemplateResponse("partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": {"status": "running"},
     })

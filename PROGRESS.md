@@ -315,14 +315,14 @@ Identified via automated codebase scan. Grouped by priority.
 | CSV/JSON training log export endpoint | Future feature |
 | Principle conflict detection | Future feature |
 
-### 9f — Future Scaling (for non-local / multi-user deployment)
+### 9f — Multi-user Scaling ✅ COMPLETE
 
 | Item | Notes |
 |------|-------|
-| Async DB driver (`asyncpg`) | Replace psycopg2 with asyncpg to avoid blocking the async event loop on every DB call. Requires rewriting `shared/db.py` fetch helpers to use asyncpg's connection API (no cursor objects). |
-| Redis-backed rate limiter | Current `slowapi` uses in-memory storage — limits reset on restart and don't share state across processes/instances. Wire `slowapi` to a Redis backend via the `limits` storage API. |
-| Multi-athlete auth | `ATHLETE_ID = 1` is hardcoded in `deps.py`. A multi-user deployment needs session/JWT auth to route each request to the correct athlete row. |
-| DB query caching for static tables | `prilepin_chart` and `exercises` never change at runtime. An in-process LRU cache (`functools.lru_cache`) on the query helpers would eliminate repeated round-trips on every generation run. |
+| Redis-backed rate limiter | ✅ Done — `REDIS_URL` setting in `shared/config.py`; `deps.py` configures `slowapi` with Redis storage if set, falls back to in-memory gracefully. Add `redis>=4.0` package to enable. |
+| DB query caching for static tables | ✅ Done — module-level `_exercise_id_cache` in `web/queries/program.py`; first call loads full exercises table in one query, subsequent calls are dict lookups. |
+| Multi-athlete session auth | ✅ Done — `SessionMiddleware` + `AuthMiddleware` (redirects unauthenticated to `/login`, HTMX-aware via `HX-Redirect`); `bcrypt` password hashing via `passlib`; login/logout routes; `get_current_athlete_id` dependency replaces hardcoded `ATHLETE_ID = 1` across all routers; `setup_auth.py` CLI to set credentials; `auth_migration.sql` to add username/password_hash columns. |
+| Async DB driver (`asyncpg`) | ⏳ Deferred — requires rewriting all `%s` → `$N` positional placeholders in ~24 queries across 4 files, plus migrating the connection API (no cursors, different pool type). FastAPI already runs sync deps in a thread pool so the event loop is not blocked. Low priority until concurrency becomes a bottleneck. |
 
 ---
 

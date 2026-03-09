@@ -68,6 +68,10 @@ class Settings:
     openai_api_key: str = ""
     anthropic_api_key: str = ""
 
+    # ── Web / deployment ──────────────────────────────────────
+    secret_key: str = ""   # session signing key; auto-generated if empty (not restart-safe)
+    redis_url: str = ""    # optional Redis URL for rate limiter (e.g. redis://localhost:6379)
+
     # ── Paths (ingestion pipeline) ────────────────────────────
     sources_dir: Path = Path("./sources")
     logs_dir: Path = Path("./logs")
@@ -92,6 +96,13 @@ class Settings:
             _log.warning("OPENAI_API_KEY is not set — embeddings and vector search will fail")
         if not self.anthropic_api_key:
             _log.warning("ANTHROPIC_API_KEY is not set — LLM calls will fail")
+
+        self.redis_url = self.redis_url or os.getenv("REDIS_URL", "")
+        self.secret_key = self.secret_key or os.getenv("SECRET_KEY", "")
+        if not self.secret_key:
+            import secrets
+            self.secret_key = secrets.token_hex(32)
+            _log.warning("SECRET_KEY is not set — sessions will be invalidated on restart. Set SECRET_KEY in .env for production.")
 
         self.sources_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)

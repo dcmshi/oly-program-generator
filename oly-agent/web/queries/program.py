@@ -1,6 +1,10 @@
 # web/queries/program.py
 """DB queries for the program view."""
 
+# In-memory cache for exercise name → id lookups.
+# exercises are static seed data that never change at runtime.
+_exercise_id_cache: dict[str, int] = {}  # lower(name) → id
+
 
 def get_program(conn, program_id: int) -> dict | None:
     from shared.db import fetch_one
@@ -110,6 +114,27 @@ def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
     )
 
 
+def _get_exercise_id(conn, exercise_name: str) -> int | None:
+    """Look up exercise_id by name (case-insensitive), with in-process cache."""
+    from shared.db import fetch_all, fetch_one
+    key = exercise_name.lower()
+    if key in _exercise_id_cache:
+        return _exercise_id_cache[key]
+    # Cache miss: populate the full exercise name→id map in one query
+    if not _exercise_id_cache:
+        rows = fetch_all(conn, "SELECT id, name FROM exercises")
+        for row in rows:
+            _exercise_id_cache[row["name"].lower()] = row["id"]
+        if key in _exercise_id_cache:
+            return _exercise_id_cache[key]
+    # Fall back to single lookup (handles exercises added after cache was populated)
+    row = fetch_one(conn, "SELECT id FROM exercises WHERE LOWER(name) = LOWER(%s)", (exercise_name,))
+    if row:
+        _exercise_id_cache[key] = row["id"]
+        return row["id"]
+    return None
+
+
 def upsert_athlete_max(
     conn, athlete_id: int, exercise_name: str, weight_kg: float, date_achieved
 ):
@@ -118,15 +143,10 @@ def upsert_athlete_max(
     Looks up exercise_id from the exercises table by name (case-insensitive).
     Raises ValueError if the exercise name is not found.
     """
-    from shared.db import fetch_one, execute
-    ex_row = fetch_one(
-        conn,
-        "SELECT id FROM exercises WHERE LOWER(name) = LOWER(%s)",
-        (exercise_name,),
-    )
-    if not ex_row:
+    from shared.db import execute
+    exercise_id = _get_exercise_id(conn, exercise_name)
+    if exercise_id is None:
         raise ValueError(f"Exercise '{exercise_name}' not found in exercises table")
-    exercise_id = ex_row["id"]
     execute(
         conn,
         """

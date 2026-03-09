@@ -6,7 +6,8 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request, HTTPException
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from web.deps import ATHLETE_ID, get_db, limiter
+from web.auth import get_current_athlete_id
+from web.deps import get_db, limiter
 from web.queries import program as q
 
 logger = logging.getLogger(__name__)
@@ -14,10 +15,14 @@ router = APIRouter(prefix="/program")
 
 
 @router.get("", response_class=HTMLResponse)
-async def program_list(request: Request, conn=Depends(get_db)):
+async def program_list(
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
-    programs = q.get_all_programs(conn, ATHLETE_ID)
-    logger.info(f"Program list: {len(programs)} programs for athlete {ATHLETE_ID}")
+    programs = q.get_all_programs(conn, athlete_id)
+    logger.info(f"Program list: {len(programs)} programs for athlete {athlete_id}")
     return templates.TemplateResponse("program_list.html", {"request": request, "programs": programs})
 
 
@@ -37,11 +42,16 @@ async def program_detail(program_id: int, request: Request, conn=Depends(get_db)
 
 @router.post("/{program_id}/activate", response_class=HTMLResponse)
 @limiter.limit("10/minute")
-async def activate(program_id: int, request: Request, conn=Depends(get_db)):
+async def activate(
+    program_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
-    q.activate_program(conn, program_id, ATHLETE_ID)
+    q.activate_program(conn, program_id, athlete_id)
     program = q.get_program(conn, program_id)
-    logger.info(f"Program {program_id} activated for athlete {ATHLETE_ID}")
+    logger.info(f"Program {program_id} activated for athlete {athlete_id}")
     return templates.TemplateResponse("partials/status_badge.html", {
         "request": request, "status": program["status"],
     })
@@ -49,14 +59,19 @@ async def activate(program_id: int, request: Request, conn=Depends(get_db)):
 
 @router.post("/{program_id}/complete", response_class=HTMLResponse)
 @limiter.limit("5/minute")
-async def complete(program_id: int, request: Request, conn=Depends(get_db)):
+async def complete(
+    program_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
     program = q.get_program(conn, program_id)
     if not program:
         logger.warning(f"Complete requested for missing program {program_id}")
         raise HTTPException(status_code=404, detail="Program not found")
-    logger.info(f"Completing program {program_id} for athlete {ATHLETE_ID}")
-    outcome = q.complete_program(conn, program_id, ATHLETE_ID)
+    logger.info(f"Completing program {program_id} for athlete {athlete_id}")
+    outcome = q.complete_program(conn, program_id, athlete_id)
     logger.info(f"Program {program_id} completed: adherence={outcome.adherence_pct}%, make_rate={outcome.avg_make_rate:.0%}")
     return templates.TemplateResponse("partials/outcome_summary.html", {
         "request": request, "outcome": outcome, "program_id": program_id,
@@ -81,18 +96,19 @@ async def update_max(
     exercise_name: Annotated[str, Form(min_length=1, max_length=200)],
     weight_kg: Annotated[float, Form(gt=0, le=500)],
     conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
     try:
-        q.upsert_athlete_max(conn, ATHLETE_ID, exercise_name, weight_kg, date.today())
-        logger.info(f"Max updated: athlete {ATHLETE_ID}, {exercise_name} = {weight_kg} kg")
-        maxes = q.get_athlete_maxes(conn, ATHLETE_ID)
+        q.upsert_athlete_max(conn, athlete_id, exercise_name, weight_kg, date.today())
+        logger.info(f"Max updated: athlete {athlete_id}, {exercise_name} = {weight_kg} kg")
+        maxes = q.get_athlete_maxes(conn, athlete_id)
         return templates.TemplateResponse("partials/maxes_table.html", {
             "request": request, "maxes": maxes, "success": f"{exercise_name} updated to {weight_kg} kg",
         })
     except ValueError as e:
         logger.warning(f"Max update failed: {e}")
-        maxes = q.get_athlete_maxes(conn, ATHLETE_ID)
+        maxes = q.get_athlete_maxes(conn, athlete_id)
         return templates.TemplateResponse("partials/maxes_table.html", {
             "request": request, "maxes": maxes, "error": str(e),
         })
