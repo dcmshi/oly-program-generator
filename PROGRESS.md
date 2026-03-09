@@ -299,9 +299,9 @@ Identified via automated codebase scan. Grouped by priority.
 
 | Item | File | Notes |
 |------|------|-------|
-| Consolidate duplicate Settings classes | `shared/config.py` vs `oly-ingestion/config.py` | Two nearly identical Settings classes; fixes don't propagate between them |
-| Clean up `weight_resolver.py` re-export comment | `oly-agent/weight_resolver.py` | `EXERCISE_NAME_TO_INTENSITY_REF` imported with `# noqa: F401 (re-exported)` but not actually re-exported via `__init__.py`; misleading |
-| Pre-check athlete existence before opening DB connection | `oly-agent/orchestrator.py` | Connection opened before `assess()` validates athlete; minor resource leak on bad ID |
+| Consolidate duplicate Settings classes | `shared/config.py` vs `oly-ingestion/config.py` | ✅ Done — `oly-ingestion/config.py` replaced with thin shim that re-exports `Settings` from `shared.config`; all 9 ingestion callers unchanged |
+| Clean up `weight_resolver.py` re-export comment | `oly-agent/weight_resolver.py` | ✅ Done — removed misleading `# noqa: F401 (re-exported)` comment; import is local use only, not re-exported |
+| Pre-check athlete existence before opening DB connection | `oly-agent/orchestrator.py` | ✅ Non-issue — `finally` block always closes `conn`; no resource leak; confirmed in 9a review |
 
 ### 9e — Deferred / Optional
 

@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF  # noqa: F401 (re-exported)
+from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF
 
 logger = logging.getLogger(__name__)
 
