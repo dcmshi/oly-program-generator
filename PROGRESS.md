@@ -190,6 +190,11 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 | Task | Priority | Notes |
 |------|----------|-------|
 | Takano ingestion | ❌ Permanently skipped | File unavailable online. Programming gap closed by *Olympic Weightlifting for Sports* (Everett) + Catalyst. |
+| Async DB driver (`asyncpg`) | ⏳ Deferred | Requires rewriting all `%s` → `$N` placeholders in ~24 queries + migrating connection API. FastAPI runs sync deps in thread pool so event loop is not blocked. Low priority until concurrency is a bottleneck. |
+| A/B testing framework for program strategies | ⏳ Future | Compare phase/volume approaches across athletes. |
+| CSV/JSON training log export | ⏳ Future | Athlete data portability endpoint. |
+| Principle conflict detection | ⏳ Future | Flag contradictory rules before generation. |
+| Projected maxes in peaking-phase weight calc | ⏳ Future | Wire `target_snatch_kg` / `target_cj_kg` from `athlete_goals` into `weight_resolver.py` as override for realization-phase percentages. |
 
 ---
 
@@ -295,7 +300,7 @@ Identified via automated codebase scan. Grouped by priority.
 | Add start/completion timestamps to async job handler | `oly-agent/web/jobs.py` | ✅ Done — `started_at`, `completed_at`, `duration_seconds` stored in job dict; logged on submit, start, and finish/failure; duration shown in generate result UI |
 | Cache `Settings` singleton — don't re-parse `.env` per request | `oly-agent/web/deps.py` | ✅ Done — module-level `_settings` singleton; `get_settings()` initialises once; `get_db()` calls `get_settings()` instead of `Settings()` directly |
 
-### 9d — Code Quality
+### 9d — Code Quality ✅ COMPLETE
 
 | Item | File | Notes |
 |------|------|-------|
@@ -311,9 +316,6 @@ Identified via automated codebase scan. Grouped by priority.
 | Rate limiting on web routes | ✅ Done — `slowapi` added to web deps; per-IP limits: generate 2/min, complete/abandon 5/min, activate 10/min, maxes update 20/min, session log 30/min, exercise log 60/min |
 | Input size validation on web routes | ✅ Done — `ContentSizeLimitMiddleware` (64 KB POST body cap) in `app.py`; `update_max` uses `Annotated Form` bounds: `exercise_name` max 200 chars, `weight_kg` 0–500 kg |
 | ER diagram / schema documentation | ✅ Done — `SCHEMA.md` with two Mermaid ER diagrams + table reference |
-| A/B testing framework for program strategies | Future feature |
-| CSV/JSON training log export endpoint | Future feature |
-| Principle conflict detection | Future feature |
 
 ### 9f — Multi-user Scaling ✅ COMPLETE
 
