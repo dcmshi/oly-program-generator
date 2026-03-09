@@ -309,7 +309,7 @@ Identified via automated codebase scan. Grouped by priority.
 |------|-------|
 | Connection pooling (`psycopg2.pool`) | Low priority — single-athlete tool; not under concurrent load |
 | Rate limiting / input size validation on web routes | Low risk in single-user deployment |
-| ER diagram / schema documentation | Nice-to-have for onboarding |
+| ER diagram / schema documentation | ✅ Done — `SCHEMA.md` with two Mermaid ER diagrams + table reference |
 | A/B testing framework for program strategies | Future feature |
 | CSV/JSON training log export endpoint | Future feature |
 | Principle conflict detection | Future feature |
