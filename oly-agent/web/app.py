@@ -22,6 +22,7 @@ from starlette.responses import Response as StarletteResponse
 from web.deps import get_settings, limiter
 from web.routers import dashboard, program, log_session, generate
 from web.routers import auth as auth_router
+from web.routers import setup as setup_router
 
 app = FastAPI(title="Oly Agent")
 
@@ -47,7 +48,7 @@ app.add_middleware(ContentSizeLimitMiddleware)
 
 
 # ── Auth guard — redirects unauthenticated requests to /login ──
-_PUBLIC_PATHS = {"/login"}
+_PUBLIC_PATHS = {"/login", "/setup"}
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -125,6 +126,7 @@ templates.env.filters["phase_color"] = _phase_color
 
 # ── Routers ───────────────────────────────────────────────────
 app.include_router(auth_router.router)
+app.include_router(setup_router.router)
 app.include_router(dashboard.router)
 app.include_router(program.router)
 app.include_router(log_session.router)

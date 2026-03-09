@@ -1,0 +1,279 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Create Account — Oly Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-50 text-gray-900 min-h-screen py-12">
+
+  <div class="max-w-2xl mx-auto px-4">
+
+    <!-- Header -->
+    <div class="text-center mb-8">
+      <a href="/" class="text-2xl font-bold tracking-tight">⚡ Oly Agent</a>
+      <p class="text-gray-500 text-sm mt-2">
+        Already have an account?
+        <a href="/login" class="text-gray-900 font-medium hover:underline">Sign in</a>
+      </p>
+    </div>
+
+    {% if errors %}
+    <div class="mb-6 bg-red-50 border border-red-200 rounded-xl p-4">
+      <p class="text-sm font-semibold text-red-800 mb-2">Please fix the following:</p>
+      <ul class="space-y-1">
+        {% for e in errors %}
+        <li class="text-sm text-red-700">• {{ e }}</li>
+        {% endfor %}
+      </ul>
+    </div>
+    {% endif %}
+
+    <form method="post" action="/setup" class="space-y-6">
+
+      <!-- ── Account ─────────────────────────────────────────── -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h2 class="font-semibold text-gray-900 mb-4">Account</h2>
+        <div class="grid grid-cols-1 gap-4">
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Username <span class="text-red-500">*</span></label>
+            <input type="text" name="username" value="{{ form.get('username','') }}"
+                   required maxlength="100" autocomplete="username"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div class="grid grid-cols-2 gap-4">
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Password <span class="text-red-500">*</span></label>
+              <input type="password" name="password" required minlength="8" autocomplete="new-password"
+                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <p class="text-xs text-gray-400 mt-1">Min. 8 characters</p>
+            </div>
+            <div>
+              <label class="block text-xs font-medium text-gray-600 mb-1">Confirm password <span class="text-red-500">*</span></label>
+              <input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"
+                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+            </div>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-gray-400">(optional)</span></label>
+            <input type="email" name="email" value="{{ form.get('email','') }}" maxlength="300"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Profile ─────────────────────────────────────────── -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h2 class="font-semibold text-gray-900 mb-4">Profile</h2>
+        <div class="grid grid-cols-2 gap-4">
+
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Full name <span class="text-red-500">*</span></label>
+            <input type="text" name="name" value="{{ form.get('name','') }}"
+                   required maxlength="200"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Level <span class="text-red-500">*</span></label>
+            <select name="level" required
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="">— select —</option>
+              {% for v in ["beginner","intermediate","advanced","elite"] %}
+              <option value="{{ v }}" {% if form.get('level') == v %}selected{% endif %}>
+                {{ v | capitalize }}
+              </option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Sex</label>
+            <select name="biological_sex"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="">— select —</option>
+              <option value="male"   {% if form.get('biological_sex')=='male'   %}selected{% endif %}>Male</option>
+              <option value="female" {% if form.get('biological_sex')=='female' %}selected{% endif %}>Female</option>
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Age</label>
+            <input type="number" name="age" value="{{ form.get('age','') }}"
+                   min="10" max="80"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Bodyweight (kg)</label>
+            <input type="number" name="bodyweight_kg" value="{{ form.get('bodyweight_kg','') }}"
+                   min="30" max="250" step="0.1"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Height (cm)</label>
+            <input type="number" name="height_cm" value="{{ form.get('height_cm','') }}"
+                   min="100" max="250" step="0.1"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Weight class</label>
+            <input type="text" name="weight_class" value="{{ form.get('weight_class','') }}"
+                   maxlength="20" placeholder="e.g. 89, 96, 102+"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- ── Training Setup ──────────────────────────────────── -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h2 class="font-semibold text-gray-900 mb-4">Training</h2>
+        <div class="grid grid-cols-2 gap-4 mb-5">
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Years of weightlifting experience</label>
+            <input type="number" name="training_age_years" value="{{ form.get('training_age_years','') }}"
+                   min="0" max="40" step="0.5" placeholder="e.g. 3.5"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Sessions per week</label>
+            <input type="number" name="sessions_per_week" value="{{ form.get('sessions_per_week','4') }}"
+                   min="1" max="14"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Session duration (min)</label>
+            <input type="number" name="session_duration_minutes" value="{{ form.get('session_duration_minutes','90') }}"
+                   min="30" max="240" step="5"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+        </div>
+
+        <!-- Equipment -->
+        <p class="text-xs font-medium text-gray-600 mb-2">Available equipment</p>
+        <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">
+          {% for label, val in equipment_options %}
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" name="equip_{{ val }}" value="on"
+                   {% if form.get('equip_' ~ val) == 'on' %}checked{% endif %}
+                   class="rounded border-gray-300">
+            {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+
+        <!-- Technical faults -->
+        <p class="text-xs font-medium text-gray-600 mb-2">Technical faults <span class="text-gray-400 font-normal">(check all that apply)</span></p>
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
+          {% for label, val in fault_options %}
+          <label class="flex items-center gap-2 text-sm cursor-pointer">
+            <input type="checkbox" name="fault_{{ val }}" value="on"
+                   {% if form.get('fault_' ~ val) == 'on' %}checked{% endif %}
+                   class="rounded border-gray-300">
+            {{ label }}
+          </label>
+          {% endfor %}
+        </div>
+
+        <!-- Injuries -->
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Injuries / restrictions</label>
+          <textarea name="injuries" rows="2" maxlength="500"
+                    placeholder="e.g. left shoulder impingement, right knee tendinitis"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none">{{ form.get('injuries','') }}</textarea>
+        </div>
+
+      </div>
+
+      <!-- ── Current Maxes ────────────────────────────────────── -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h2 class="font-semibold text-gray-900 mb-1">Current Maxes</h2>
+        <p class="text-xs text-gray-400 mb-4">Leave blank for exercises you haven't tested. You can add or update maxes from the dashboard.</p>
+        <div class="grid grid-cols-2 gap-4">
+          {% for ex in max_exercises %}
+          {% set field = "max_" ~ ex.lower().replace(" ", "_").replace("&", "and") %}
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">{{ ex }} (kg)</label>
+            <input type="number" name="{{ field }}" value="{{ form.get(field,'') }}"
+                   min="1" max="500" step="0.5"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+          {% endfor %}
+        </div>
+      </div>
+
+      <!-- ── Goal ────────────────────────────────────────────── -->
+      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
+        <h2 class="font-semibold text-gray-900 mb-1">Training Goal</h2>
+        <p class="text-xs text-gray-400 mb-4">Optional — you can set or change this later.</p>
+        <div class="grid grid-cols-2 gap-4">
+
+          <div class="col-span-2">
+            <label class="block text-xs font-medium text-gray-600 mb-1">Primary goal</label>
+            <select name="goal_type"
+                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+              <option value="">— none —</option>
+              {% for v, label in [
+                ("general_strength",   "General strength"),
+                ("competition_prep",   "Competition prep"),
+                ("technique_focus",    "Technique focus"),
+                ("work_capacity",      "Work capacity"),
+                ("return_to_sport",    "Return to sport"),
+              ] %}
+              <option value="{{ v }}" {% if form.get('goal_type') == v %}selected{% endif %}>{{ label }}</option>
+              {% endfor %}
+            </select>
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Competition date</label>
+            <input type="date" name="competition_date" value="{{ form.get('competition_date','') }}"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div></div><!-- spacer -->
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Target Snatch (kg)</label>
+            <input type="number" name="target_snatch_kg" value="{{ form.get('target_snatch_kg','') }}"
+                   min="1" max="400" step="0.5"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+          <div>
+            <label class="block text-xs font-medium text-gray-600 mb-1">Target Clean &amp; Jerk (kg)</label>
+            <input type="number" name="target_cj_kg" value="{{ form.get('target_cj_kg','') }}"
+                   min="1" max="500" step="0.5"
+                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Submit -->
+      <button type="submit"
+              class="w-full py-3 bg-gray-900 text-white font-medium rounded-xl hover:bg-gray-700 transition-colors">
+        Create account
+      </button>
+
+    </form>
+
+    <p class="text-center text-xs text-gray-400 mt-6 pb-6">
+      Already have an account? <a href="/login" class="text-gray-600 hover:underline">Sign in</a>
+    </p>
+
+  </div>
+</body>
+</html>
