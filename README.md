@@ -89,6 +89,8 @@ flowchart TB
 
 ## Project Structure
 
+> Full database schema with ER diagrams: [SCHEMA.md](SCHEMA.md)
+
 ```
 oly-program-generator/
 ├── README.md
@@ -96,6 +98,7 @@ oly-program-generator/
 ├── PROGRESS.md                      # Implementation progress tracker
 ├── schema.sql                       # Ingestion schema DDL (seed data included)
 ├── athlete_schema.sql               # Athlete / program schema DDL
+├── SCHEMA.md                        # ER diagrams + table reference (20 tables)
 ├── oly-programming-pipeline.md      # Ingestion pipeline design doc
 ├── oly-programming-agent.md         # Agent design doc
 │
