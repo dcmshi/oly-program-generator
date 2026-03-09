@@ -321,9 +321,19 @@ Identified via automated codebase scan. Grouped by priority.
 |------|-------|
 | Redis-backed rate limiter | ✅ Done — `REDIS_URL` setting in `shared/config.py`; `deps.py` configures `slowapi` with Redis storage if set, falls back to in-memory gracefully. Add `redis>=4.0` package to enable. |
 | DB query caching for static tables | ✅ Done — module-level `_exercise_id_cache` in `web/queries/program.py`; first call loads full exercises table in one query, subsequent calls are dict lookups. |
-| Multi-athlete session auth | ✅ Done — `SessionMiddleware` + `AuthMiddleware` (redirects unauthenticated to `/login`, HTMX-aware via `HX-Redirect`); `bcrypt` password hashing via `passlib`; login/logout routes; `get_current_athlete_id` dependency replaces hardcoded `ATHLETE_ID = 1` across all routers; `setup_auth.py` CLI to set credentials; `auth_migration.sql` to add username/password_hash columns. |
-| Athlete setup / create-account page | ✅ Done — `GET/POST /setup` (public); multi-section form: account (username/password), profile (level, bodyweight, age, weight class, sex), training (experience years, sessions/week, duration, equipment checkboxes, technical fault checkboxes, injuries), current maxes (7 key exercises, optional), goal (type, competition date, targets); server-side validation with pre-filled error state; auto-login on creation; linked from login page. |
+| Multi-athlete session auth | ✅ Done — `SessionMiddleware` + `AuthMiddleware` (redirects unauthenticated to `/login`, HTMX-aware via `HX-Redirect`); `bcrypt` password hashing (direct `bcrypt` library — passlib 1.7.4 is incompatible with bcrypt 5.x); login/logout routes; `get_current_athlete_id` dependency replaces hardcoded `ATHLETE_ID = 1` across all routers; `setup_auth.py` CLI to set credentials; `auth_migration.sql` to add username/password_hash columns. |
+| Athlete setup / create-account page | ✅ Done — `GET/POST /setup` (public); multi-section form: account (username/password), profile (level, bodyweight, weight class, sex), training (experience years, sessions/week, duration, equipment checkboxes, technical fault checkboxes, injuries), current maxes (7 key exercises, optional), goal (type, competition date, targets); server-side validation with pre-filled error state; auto-login on creation; linked from login page. |
 | Async DB driver (`asyncpg`) | ⏳ Deferred — requires rewriting all `%s` → `$N` positional placeholders in ~24 queries across 4 files, plus migrating the connection API (no cursors, different pool type). FastAPI already runs sync deps in a thread pool so the event loop is not blocked. Low priority until concurrency becomes a bottleneck. |
+
+### 9g — Profile & Settings Page ✅ COMPLETE
+
+| Item | Notes |
+|------|-------|
+| Profile page (`GET /profile`) | ✅ Done — `web/routers/profile.py` + `web/templates/profile.html`; pre-filled from DB; athlete name in nav links to `/profile` |
+| Edit profile fields (`POST /profile/update`) | ✅ Done — name, email, level, biological sex, date of birth, bodyweight, height, weight class, training age, sessions/week, session duration, equipment, technical faults, injuries, notes; session name refreshed on save |
+| Change password (`POST /profile/password`) | ✅ Done — requires current password verification; new password + confirm with 8-char min |
+| Change username (`POST /profile/username`) | ✅ Done — uniqueness check; requires password confirmation |
+| `date_of_birth` migration | ✅ Done — `DATE` column added to athletes table; replaces static `age INTEGER` in all web queries, routers, and templates; both setup and profile forms use `<input type="date">`; age can be computed dynamically from timestamp |
 
 ---
 

@@ -34,7 +34,26 @@ D:\oly-program-generator\
 │   ├── session_templates.py         # SESSION_DISTRIBUTIONS + get_session_templates()
 │   ├── weight_resolver.py           # resolve_weights, resolve_exercise_ids
 │   ├── feedback.py                  # ProgramOutcome computation + max promotion
-│   └── log.py                       # training log CLI (show/session/exercise/status/history)
+│   ├── log.py                       # training log CLI (show/session/exercise/status/history)
+│   └── web/                         # FastAPI web UI (Phase 9e–9g)
+│       ├── app.py                   # app factory: middlewares, routers, Jinja filters
+│       ├── auth.py                  # hash_password, verify_password, get_current_athlete_id
+│       ├── deps.py                  # get_settings, get_db (pooled), slowapi limiter
+│       ├── jobs.py                  # async background job handler (program generation)
+│       ├── routers/
+│       │   ├── auth.py              # GET/POST /login, POST /logout
+│       │   ├── setup.py             # GET/POST /setup (account creation wizard)
+│       │   ├── profile.py           # GET /profile, POST /profile/update|password|username
+│       │   ├── dashboard.py         # GET / (dashboard)
+│       │   ├── program.py           # GET/POST /program (list, detail, activate, complete, abandon, maxes)
+│       │   ├── log_session.py       # GET/POST /log/{session_id}
+│       │   └── generate.py          # GET /generate, POST /generate/run, GET /generate/status/{id}
+│       ├── queries/
+│       │   ├── dashboard.py         # active program, week sessions, adherence, warnings
+│       │   ├── program.py           # program list/detail, maxes upsert, exercise ID cache
+│       │   ├── setup.py             # username_taken, create_athlete/maxes/goal
+│       │   └── profile.py           # get_athlete, update_profile/password/username
+│       └── templates/               # Jinja2 HTML (Tailwind CSS + HTMX)
 │
 └── oly-ingestion/                   # ingestion pipeline (Phases 1–5)
     ├── pyproject.toml               # uv project file
@@ -211,6 +230,10 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **Prilepin zones cover 55-100%** including the 65-70% transition band — `get_prilepin_zone()` returns `None` only below 55%. The fallback in `compute_session_rep_target` handles the sub-55% deload case only.
 - **`_rollback_connections()` in pipeline** — call this method (not inline try/except) whenever a section-level error requires cleaning up both loader connections. `ingest_web.py` has its own inline equivalent (no class structure).
 - **Magic numbers live in `shared/constants.py`** — do not hardcode Prilepin cap multiplier (1.5), session duration (90 min), top_k (5), snippet length (600), or rounding increment (0.5 kg) in agent modules.
+- **`date_of_birth` replaces `age` in the athletes table** — `age` integer column is still present but no longer written to. All web code reads/writes `date_of_birth DATE`. Age can be computed dynamically as `EXTRACT(YEAR FROM AGE(date_of_birth))` in SQL or in Python. Do not add `age` back to INSERT/UPDATE queries.
+- **passlib 1.7.4 is incompatible with bcrypt 5.x** — use the `bcrypt` library directly (`bcrypt.hashpw` / `bcrypt.checkpw`). `web/auth.py` wraps this. Do not add `passlib` as a dependency.
+- **Web auth middleware ordering** — `add_middleware` wraps in reverse order, so `SessionMiddleware` must be added *after* `AuthMiddleware` to run first (outermost). Session must be populated before the auth guard reads it.
+- **HTMX + auth expiry** — `AuthMiddleware` checks `HX-Request` header; if present, returns `HX-Redirect` response header (status 200) instead of a 302, so HTMX performs a full-page redirect rather than swapping fragment content.
 
 ## Source Ingestion Order
 

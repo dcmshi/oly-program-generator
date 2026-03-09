@@ -121,7 +121,7 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         "biological_sex": form.get("biological_sex") or None,
         "bodyweight_kg": form.get("bodyweight_kg"),
         "height_cm": form.get("height_cm"),
-        "age": form.get("age"),
+        "date_of_birth": form.get("date_of_birth") or None,
         "weight_class": form.get("weight_class", "").strip() or None,
         "training_age_years": form.get("training_age_years"),
         "sessions_per_week": form.get("sessions_per_week") or "4",

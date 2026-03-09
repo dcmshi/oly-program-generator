@@ -23,6 +23,7 @@ from web.deps import get_settings, limiter
 from web.routers import dashboard, program, log_session, generate
 from web.routers import auth as auth_router
 from web.routers import setup as setup_router
+from web.routers import profile as profile_router
 
 app = FastAPI(title="Oly Agent")
 
@@ -127,6 +128,7 @@ templates.env.filters["phase_color"] = _phase_color
 # ── Routers ───────────────────────────────────────────────────
 app.include_router(auth_router.router)
 app.include_router(setup_router.router)
+app.include_router(profile_router.router)
 app.include_router(dashboard.router)
 app.include_router(program.router)
 app.include_router(log_session.router)

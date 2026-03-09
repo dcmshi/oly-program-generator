@@ -31,7 +31,7 @@ def create_athlete(conn, data: dict, password_hash: str) -> int:
         """
         INSERT INTO athletes (
             name, email, level, biological_sex,
-            bodyweight_kg, height_cm, age, weight_class,
+            bodyweight_kg, height_cm, date_of_birth, weight_class,
             training_age_years, sessions_per_week, session_duration_minutes,
             available_equipment, injuries, technical_faults,
             username, password_hash, notes
@@ -46,7 +46,7 @@ def create_athlete(conn, data: dict, password_hash: str) -> int:
             data.get("biological_sex") or None,
             _float(data.get("bodyweight_kg")),
             _float(data.get("height_cm")),
-            _int(data.get("age")),
+            data.get("date_of_birth") or None,
             data.get("weight_class") or None,
             _float(data.get("training_age_years")),
             _int(data.get("sessions_per_week")) or 4,

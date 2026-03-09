@@ -22,7 +22,7 @@
     <a href="/generate" class="text-gray-300 hover:text-white text-sm">Generate</a>
     <div class="ml-auto flex items-center gap-4">
       {% if request.session.get("athlete_name") %}
-      <span class="text-gray-400 text-sm">{{ request.session.get("athlete_name") }}</span>
+      <a href="/profile" class="text-gray-400 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
       {% endif %}
       <form method="post" action="/logout">
         <button type="submit" class="text-gray-300 hover:text-white text-sm">Logout</button>

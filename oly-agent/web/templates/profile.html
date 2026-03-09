@@ -1,0 +1,254 @@
+{% extends "base.html" %}
+{% block title %}Profile — Oly Agent{% endblock %}
+
+{% block content %}
+<div class="max-w-2xl mx-auto space-y-6">
+
+  <h1 class="text-xl font-semibold text-gray-900">Profile &amp; Settings</h1>
+
+  {% if success == "profile" %}
+  <div class="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
+    Profile updated successfully.
+  </div>
+  {% elif success == "password" %}
+  <div class="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
+    Password changed successfully.
+  </div>
+  {% elif success == "username" %}
+  <div class="bg-green-50 border border-green-200 rounded-xl px-4 py-3 text-sm text-green-800">
+    Username changed successfully.
+  </div>
+  {% endif %}
+
+  {% if error and profile_error %}
+  <div class="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <!-- ── Profile fields ──────────────────────────────────────── -->
+  <form method="post" action="/profile/update" class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-5">
+    <h2 class="font-semibold text-gray-900">Profile</h2>
+
+    <div class="grid grid-cols-2 gap-4">
+
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Full name <span class="text-red-500">*</span></label>
+        <input type="text" name="name" value="{{ athlete.name or '' }}"
+               required maxlength="200"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+
+      <div class="col-span-2">
+        <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-gray-400">(optional)</span></label>
+        <input type="email" name="email" value="{{ athlete.email or '' }}" maxlength="200"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Level</label>
+        <select name="level" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          {% for v, l in [("beginner","Beginner"),("intermediate","Intermediate"),("advanced","Advanced"),("elite","Elite")] %}
+          <option value="{{ v }}" {% if athlete.level == v %}selected{% endif %}>{{ l }}</option>
+          {% endfor %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Biological sex</label>
+        <select name="biological_sex" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="">— not specified —</option>
+          <option value="male"   {% if athlete.biological_sex == "male"   %}selected{% endif %}>Male</option>
+          <option value="female" {% if athlete.biological_sex == "female" %}selected{% endif %}>Female</option>
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Date of birth</label>
+        <input type="date" name="date_of_birth"
+               value="{{ athlete.date_of_birth.isoformat() if athlete.date_of_birth else '' }}"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Bodyweight (kg)</label>
+        <input type="number" name="bodyweight_kg" value="{{ athlete.bodyweight_kg or '' }}"
+               min="30" max="300" step="0.1"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Height (cm)</label>
+        <input type="number" name="height_cm" value="{{ athlete.height_cm or '' }}"
+               min="100" max="250" step="0.5"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Weight class</label>
+        <select name="weight_class" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <option value="">— select —</option>
+          {% if athlete.biological_sex == "female" %}
+          {% for wc in ["45","49","55","59","64","71","76","81","87","+87"] %}
+          <option value="{{ wc }}" {% if athlete.weight_class == wc %}selected{% endif %}>{{ wc }} kg</option>
+          {% endfor %}
+          {% else %}
+          {% for wc in ["55","61","67","73","81","89","96","102","109","+109"] %}
+          <option value="{{ wc }}" {% if athlete.weight_class == wc %}selected{% endif %}>{{ wc }} kg</option>
+          {% endfor %}
+          {% endif %}
+        </select>
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Training age (years)</label>
+        <input type="number" name="training_age_years" value="{{ athlete.training_age_years or '' }}"
+               min="0" max="50" step="0.5"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Sessions / week</label>
+        <input type="number" name="sessions_per_week" value="{{ athlete.sessions_per_week or 4 }}"
+               min="1" max="14" step="1"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Session duration (min)</label>
+        <input type="number" name="session_duration_minutes" value="{{ athlete.session_duration_minutes or 90 }}"
+               min="30" max="300" step="5"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+
+    </div>
+
+    <!-- Equipment -->
+    <div>
+      <p class="text-xs font-medium text-gray-600 mb-2">Available equipment</p>
+      <div class="grid grid-cols-2 gap-1">
+        {% set equip_options = [
+          ("barbell","Barbell"),("bumper_plates","Bumper plates"),
+          ("platform","Platform"),("squat_rack","Squat rack"),
+          ("blocks","Blocks"),("jerk_rack","Jerk rack"),
+          ("pull_up_bar","Pull-up bar"),("dumbbell","Dumbbells")
+        ] %}
+        {% for val, label in equip_options %}
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" name="available_equipment" value="{{ val }}"
+                 {% if athlete.available_equipment and val in athlete.available_equipment %}checked{% endif %}
+                 class="rounded border-gray-300 text-gray-900">
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <!-- Technical faults -->
+    <div>
+      <p class="text-xs font-medium text-gray-600 mb-2">Technical faults (for coaching cues)</p>
+      <div class="grid grid-cols-2 gap-1">
+        {% set fault_options = [
+          ("early_arm_bend","Early arm bend"),("slow_turnover","Slow turnover"),
+          ("soft_catch","Soft / forward catch"),("forward_sweep","Forward bar sweep"),
+          ("poor_overhead","Overhead instability"),("limited_squat","Limited squat depth")
+        ] %}
+        {% for val, label in fault_options %}
+        <label class="flex items-center gap-2 text-sm text-gray-700">
+          <input type="checkbox" name="technical_faults" value="{{ val }}"
+                 {% if athlete.technical_faults and val in athlete.technical_faults %}checked{% endif %}
+                 class="rounded border-gray-300 text-gray-900">
+          {{ label }}
+        </label>
+        {% endfor %}
+      </div>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Injuries / limitations</label>
+      <textarea name="injuries" rows="2" maxlength="1000"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">{{ athlete.injuries or '' }}</textarea>
+    </div>
+
+    <div>
+      <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
+      <textarea name="notes" rows="2" maxlength="2000"
+                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">{{ athlete.notes or '' }}</textarea>
+    </div>
+
+    <div class="flex justify-end pt-2">
+      <button type="submit"
+              class="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
+        Save profile
+      </button>
+    </div>
+  </form>
+
+  <!-- ── Security ─────────────────────────────────────────────── -->
+  {% if error and security_error %}
+  <div class="bg-red-50 border border-red-200 rounded-xl px-4 py-3 text-sm text-red-700">
+    {{ error }}
+  </div>
+  {% endif %}
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6 space-y-6">
+    <h2 class="font-semibold text-gray-900">Security</h2>
+
+    <!-- Change username -->
+    <form method="post" action="/profile/username" class="space-y-4">
+      <h3 class="text-sm font-medium text-gray-700">Change username</h3>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">New username</label>
+          <input type="text" name="new_username" value="{{ athlete.username or '' }}"
+                 minlength="3" maxlength="100" autocomplete="username"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Confirm with password</label>
+          <input type="password" name="confirm_password_u" autocomplete="current-password"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <button type="submit"
+                class="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
+          Update username
+        </button>
+      </div>
+    </form>
+
+    <hr class="border-gray-200">
+
+    <!-- Change password -->
+    <form method="post" action="/profile/password" class="space-y-4">
+      <h3 class="text-sm font-medium text-gray-700">Change password</h3>
+      <div>
+        <label class="block text-xs font-medium text-gray-600 mb-1">Current password</label>
+        <input type="password" name="current_password" autocomplete="current-password"
+               class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+      </div>
+      <div class="grid grid-cols-2 gap-4">
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">New password</label>
+          <input type="password" name="new_password" minlength="8" autocomplete="new-password"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+          <p class="text-xs text-gray-400 mt-1">Min. 8 characters</p>
+        </div>
+        <div>
+          <label class="block text-xs font-medium text-gray-600 mb-1">Confirm new password</label>
+          <input type="password" name="confirm_password" autocomplete="new-password"
+                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        </div>
+      </div>
+      <div class="flex justify-end">
+        <button type="submit"
+                class="px-5 py-2 bg-gray-900 text-white text-sm font-medium rounded-lg hover:bg-gray-700 transition-colors">
+          Change password
+        </button>
+      </div>
+    </form>
+  </div>
+
+</div>
+{% endblock %}
