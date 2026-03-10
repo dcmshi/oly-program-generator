@@ -119,8 +119,9 @@ def validate_session(
             errors.append(
                 f"{ex.get('exercise_name')} at {pct}% exceeds week ceiling {intensity_ceiling}%"
             )
-        # Below floor is only a warning for competition lifts
-        if pct < intensity_floor and ex.get("intensity_reference") in COMP_LIFT_REFS:
+        # Below floor is only a warning for competition lifts.
+        # Skip warmup sets (≤65%) — they are intentionally sub-floor.
+        if pct < intensity_floor and pct > 65 and ex.get("intensity_reference") in COMP_LIFT_REFS:
             warnings.append(
                 f"{ex.get('exercise_name')} at {pct}% is below week floor {intensity_floor}% "
                 f"for competition lifts"

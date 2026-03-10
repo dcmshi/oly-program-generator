@@ -129,6 +129,8 @@ def build_session_prompt(
         ", ".join(athlete_context.athlete.get("strength_limiters") or []) or "none identified"
     )
     competition_experience = athlete_context.athlete.get("competition_experience") or "none"
+    available_equipment = athlete_context.athlete.get("available_equipment") or []
+    has_blocks = "blocks" in available_equipment
 
     maxes_lines = "\n".join(
         f"  {ref}: {kg}kg"
@@ -225,6 +227,7 @@ You MUST NOT:
 - Prescribe more reps per set than Prilepin's chart allows for the intensity zone
 - Include exercises from the avoid list
 - Include exercises the athlete cannot perform due to injuries
+{"- Prescribe any exercise requiring lifting blocks (e.g. any from-blocks variation) — athlete does not have blocks available." if not has_blocks else ""}
 {"- Exceed 3 sets or 3 reps per set on any competition lift — this is a DELOAD week. Prioritize movement quality over load." if week_target.is_deload else ""}
 
 ## Athlete Profile
@@ -235,6 +238,7 @@ Session duration: {athlete_context.athlete.get('session_duration_minutes', DEFAU
 Lift emphasis: {lift_emphasis} (snatch_biased = more snatch volume/variants; cj_biased = more C&J volume/variants; balanced = equal)
 Strength limiters: {strength_limiters_str}
 Competition experience: {competition_experience}
+Equipment available: {", ".join(available_equipment) if available_equipment else "standard (barbell, plates, rack)"}
 Technical faults: {faults_str}
 Injuries: {injuries_str}
 

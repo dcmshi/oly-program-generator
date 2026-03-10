@@ -100,8 +100,19 @@ def abandon_program(conn, program_id: int):
 
 
 def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
+    """Return recorded maxes plus estimated maxes for any missing exercises.
+
+    Each row includes is_estimated=True/False so the template can style them differently.
+    """
+    import sys
+    from pathlib import Path
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from shared.db import fetch_all
-    return fetch_all(
+    from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF
+    from weight_resolver import build_maxes_dict
+    from assess import estimate_missing_maxes
+
+    rows = fetch_all(
         conn,
         """
         SELECT e.name AS exercise_name, am.weight_kg, am.date_achieved
@@ -112,6 +123,38 @@ def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
         """,
         (athlete_id,),
     )
+    result = [dict(r, is_estimated=False) for r in rows]
+
+    known = build_maxes_dict([{"name": r["exercise_name"], "weight_kg": r["weight_kg"]} for r in rows])
+    estimated = estimate_missing_maxes(known)
+    ref_to_name = {v: k for k, v in EXERCISE_NAME_TO_INTENSITY_REF.items()}
+    for ref, (kg, _) in sorted(estimated.items()):
+        name = ref_to_name.get(ref, ref.replace("_", " ").title())
+        result.append({
+            "exercise_name": name,
+            "weight_kg": kg,
+            "date_achieved": None,
+            "is_estimated": True,
+        })
+
+    result.sort(key=lambda r: r["exercise_name"])
+    return result
+
+
+def delete_athlete_max(conn, athlete_id: int, exercise_name: str):
+    from shared.db import execute
+    exercise_id = _get_exercise_id(conn, exercise_name)
+    if exercise_id is None:
+        raise ValueError(f"Exercise '{exercise_name}' not found")
+    execute(
+        conn,
+        """
+        DELETE FROM athlete_maxes
+        WHERE athlete_id = %s AND exercise_id = %s AND max_type = 'current'
+        """,
+        (athlete_id, exercise_id),
+    )
+    conn.commit()
 
 
 def _get_exercise_id(conn, exercise_name: str) -> int | None:

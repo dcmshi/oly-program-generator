@@ -107,11 +107,13 @@
     <div class="flex items-center gap-3">
       <span class="font-semibold">Week {{ week.week_number }}</span>
       {% set first_session = week.sessions[0] %}
-      {% if first_session %}
+      {% if first_session and first_session.exercises %}
+      {% set intensities = first_session.exercises | selectattr('intensity_pct') | map(attribute='intensity_pct') | list %}
+      {% if intensities %}
       <span class="text-xs text-gray-500">
-        {{ first_session.exercises[0].intensity_pct | fmt_pct if first_session.exercises else '' }}
-        — {{ first_session.exercises[-1].intensity_pct | fmt_pct if first_session.exercises else '' }}
+        {{ intensities | min | fmt_pct }} – {{ intensities | max | fmt_pct }}
       </span>
+      {% endif %}
       {% endif %}
     </div>
     <span class="text-xs text-gray-400">{{ week.sessions | length }} sessions</span>
@@ -156,7 +158,12 @@
             {% for ex in session.exercises %}
             <tr class="hover:bg-gray-50">
               <td class="py-1.5 pr-3 text-gray-400 text-xs">{{ ex.exercise_order }}</td>
-              <td class="py-1.5 pr-3 font-medium">{{ ex.exercise_name }}</td>
+              <td class="py-1.5 pr-3 font-medium">
+                {{ ex.exercise_name }}
+                {% if ex.selection_rationale and 'warmup' in ex.selection_rationale | lower %}
+                <span class="ml-1.5 inline-block text-xs font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 border border-blue-100">Warmup</span>
+                {% endif %}
+              </td>
               <td class="py-1.5 pr-3 text-right text-gray-600">{{ ex.sets }}×{{ ex.reps }}</td>
               <td class="py-1.5 pr-3 text-right font-medium">{{ ex.absolute_weight_kg | fmt_weight }}</td>
               <td class="py-1.5 pr-3 text-right text-gray-500">{{ ex.intensity_pct | fmt_pct }}</td>

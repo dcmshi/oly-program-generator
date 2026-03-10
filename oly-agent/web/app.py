@@ -94,7 +94,7 @@ def _fmt_rpe(rpe) -> str:
 def _fmt_pct(v) -> str:
     if v is None:
         return "—"
-    return f"{v:g}%"
+    return f"{float(v):g}%"
 
 def _reps_list(arr) -> str:
     if not arr:

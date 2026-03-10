@@ -89,6 +89,30 @@ async def abandon(program_id: int, request: Request, conn=Depends(get_db)):
     })
 
 
+@router.post("/maxes/delete", response_class=HTMLResponse)
+@limiter.limit("20/minute")
+async def delete_max(
+    request: Request,
+    exercise_name: Annotated[str, Form(min_length=1, max_length=200)],
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
+    from web.app import templates
+    try:
+        q.delete_athlete_max(conn, athlete_id, exercise_name)
+        logger.info(f"Max deleted: athlete {athlete_id}, {exercise_name}")
+        maxes = q.get_athlete_maxes(conn, athlete_id)
+        return templates.TemplateResponse("partials/maxes_table.html", {
+            "request": request, "maxes": maxes, "success": f"{exercise_name} max removed — using estimated value",
+        })
+    except ValueError as e:
+        logger.warning(f"Max delete failed: {e}")
+        maxes = q.get_athlete_maxes(conn, athlete_id)
+        return templates.TemplateResponse("partials/maxes_table.html", {
+            "request": request, "maxes": maxes, "error": str(e),
+        })
+
+
 @router.post("/maxes/update", response_class=HTMLResponse)
 @limiter.limit("20/minute")
 async def update_max(
