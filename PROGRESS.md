@@ -346,6 +346,19 @@ Identified via automated codebase scan. Grouped by priority.
 | `competition_experience` column | ✅ Done — `VARCHAR(20)` (`none` / `local` / `national` / `international`); dropdown in setup + profile; injected into prompt to calibrate peaking aggressiveness and attempts practice |
 | Prompt wiring | ✅ Done — all three fields added to `## Athlete Profile` block in `generate.py:build_session_prompt()` with inline descriptions so the LLM can act on them |
 
+### 9i — Program UI, Maxes Management & Generation Fixes ✅ COMPLETE
+
+| Item | Notes |
+|------|-------|
+| Intensity range display fix | ✅ Done — program page week summary now shows `min–max` across all session exercises (was first–last, which could show higher % on left); `fmt_pct` filter cast to `float` before `{:g}` format to strip `.00` from `Decimal` DB values |
+| Warmup badge | ✅ Done — exercises with "warmup" in `selection_rationale` (case-insensitive) show a blue "Warmup" badge inline in the program exercise table; keyed on rationale not intensity threshold so deload working sets at 65% are not mislabelled |
+| Dashboard maxes deduplication | ✅ Done — dashboard now uses `{% include "partials/maxes_table.html" %}` instead of duplicating the inline HTML; single source of truth |
+| Estimated maxes in UI | ✅ Done — `get_athlete_maxes()` now appends estimated rows (from `assess.py:estimate_missing_maxes()`) for exercises with no recorded value; displayed greyed-out with an `est.` badge |
+| Max delete | ✅ Done — `✕` delete button per recorded max row (HTMX confirm dialog); `POST /program/maxes/delete` endpoint removes the row so the agent falls back to ratio-based estimation |
+| Validator warmup false-warnings | ✅ Fixed — intensity-floor warning for competition lifts now skips sets ≤65% (warmup band), eliminating non-blocking noise on every session |
+| Equipment constraint in prompt | ✅ Done — `available_equipment` from athlete profile wired into `build_session_prompt()`; MUST NOT rule added when `blocks` absent from equipment list; equipment list shown in athlete profile block |
+| `pgvector` added to agent venv | ✅ Done — `pgvector>=0.2.4` added to `oly-agent/pyproject.toml` so vector search works without `oly-ingestion` venv; run `uv sync` after restart to activate |
+
 ---
 
 **Running the web UI:**
