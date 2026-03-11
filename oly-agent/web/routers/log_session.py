@@ -70,17 +70,39 @@ async def submit_session_log(
 
 @router.post("/{log_id}/exercise", response_class=HTMLResponse)
 @limiter.limit("60/minute")
-async def submit_exercise_log(log_id: int, request: Request, conn=Depends(get_db)):
+async def submit_exercise_log(
+    log_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
+    from datetime import date as _date
     form = await request.form()
     q.create_exercise_log(conn, log_id, dict(form))
     exercise_name = form.get("exercise_name", "Exercise")
-    weight_kg = form.get("weight_kg", "")
+    weight_kg_raw = form.get("weight_kg", "")
     rpe = form.get("rpe", "")
-    logger.info(f"Exercise logged: log_id={log_id}, {exercise_name} {weight_kg}kg RPE={rpe}")
+    logger.info(f"Exercise logged: log_id={log_id}, {exercise_name} {weight_kg_raw}kg RPE={rpe}")
+
+    # Auto-promote new max if this is a max attempt exercise
+    try:
+        se_id_raw = form.get("session_exercise_id")
+        se_id = int(se_id_raw) if se_id_raw else None
+        weight_kg = float(weight_kg_raw) if weight_kg_raw else None
+        if se_id and weight_kg:
+            promoted = q.maybe_promote_max(conn, athlete_id, se_id, weight_kg, _date.today())
+            if promoted:
+                logger.info(
+                    f"New max auto-promoted: athlete={athlete_id}, "
+                    f"{exercise_name} {weight_kg}kg"
+                )
+    except Exception as e:
+        logger.warning(f"Max promotion check failed (non-fatal): {e}")
+
     return templates.TemplateResponse("partials/exercise_logged_row.html", {
         "request": request,
         "exercise_name": exercise_name,
-        "weight_kg": weight_kg,
+        "weight_kg": weight_kg_raw,
         "rpe": rpe,
     })

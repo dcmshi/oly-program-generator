@@ -14,6 +14,7 @@ PHASE_PROFILES = {
         "description": "Build work capacity with moderate loads. Volume is primary driver.",
         "default_weeks": 4,
         "deload_week": 4,
+        "includes_max_test": False,
         "weeks": {
             1: {"intensity_floor": 68, "intensity_ceiling": 76, "volume_modifier": 0.85, "reps_per_set_range": [3, 5]},
             2: {"intensity_floor": 70, "intensity_ceiling": 78, "volume_modifier": 1.00, "reps_per_set_range": [3, 5]},
@@ -28,6 +29,7 @@ PHASE_PROFILES = {
         "description": "Shift emphasis from volume to intensity. Fewer reps, heavier loads.",
         "default_weeks": 4,
         "deload_week": None,
+        "includes_max_test": True,
         "weeks": {
             1: {"intensity_floor": 75, "intensity_ceiling": 83, "volume_modifier": 1.00, "reps_per_set_range": [2, 4]},
             2: {"intensity_floor": 78, "intensity_ceiling": 86, "volume_modifier": 0.90, "reps_per_set_range": [2, 3]},
@@ -42,6 +44,7 @@ PHASE_PROFILES = {
         "description": "Peak for competition or PR attempts. Heavy singles and doubles.",
         "default_weeks": 3,
         "deload_week": 3,
+        "includes_max_test": True,
         "weeks": {
             1: {"intensity_floor": 85, "intensity_ceiling": 95, "volume_modifier": 0.65, "reps_per_set_range": [1, 2]},
             2: {"intensity_floor": 88, "intensity_ceiling": 98, "volume_modifier": 0.50, "reps_per_set_range": [1, 2]},
@@ -55,6 +58,7 @@ PHASE_PROFILES = {
         "description": "General preparation. Balanced volume and intensity, broad exercise selection.",
         "default_weeks": 5,
         "deload_week": 5,
+        "includes_max_test": False,
         "weeks": {
             1: {"intensity_floor": 65, "intensity_ceiling": 73, "volume_modifier": 0.80, "reps_per_set_range": [3, 6]},
             2: {"intensity_floor": 67, "intensity_ceiling": 75, "volume_modifier": 0.90, "reps_per_set_range": [3, 6]},

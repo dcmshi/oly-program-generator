@@ -109,6 +109,54 @@ def create_session_log(conn, athlete_id: int, session_id: int, form: dict) -> in
     return log_id
 
 
+def maybe_promote_max(
+    conn, athlete_id: int, session_exercise_id: int, weight_kg: float, log_date
+) -> bool:
+    """If this session exercise is a max attempt, upsert athlete_maxes when weight is a new PR.
+
+    Returns True if a new max was recorded.
+    """
+    from shared.db import fetch_one, execute
+
+    se = fetch_one(
+        conn,
+        "SELECT exercise_id, is_max_attempt FROM session_exercises WHERE id = %s",
+        (session_exercise_id,),
+    )
+    if not se or not se["is_max_attempt"] or not se["exercise_id"]:
+        return False
+
+    exercise_id = se["exercise_id"]
+
+    current = fetch_one(
+        conn,
+        """
+        SELECT weight_kg FROM athlete_maxes
+        WHERE athlete_id = %s AND exercise_id = %s AND max_type = 'current'
+        """,
+        (athlete_id, exercise_id),
+    )
+    if current and float(current["weight_kg"]) >= weight_kg:
+        return False
+
+    execute(
+        conn,
+        """
+        INSERT INTO athlete_maxes
+            (athlete_id, exercise_id, weight_kg, max_type, date_achieved, notes)
+        VALUES (%s, %s, %s, 'current', %s, 'Auto-promoted from max testing session')
+        ON CONFLICT (athlete_id, exercise_id) WHERE max_type = 'current'
+        DO UPDATE SET
+            weight_kg    = EXCLUDED.weight_kg,
+            date_achieved = EXCLUDED.date_achieved,
+            notes        = EXCLUDED.notes
+        """,
+        (athlete_id, exercise_id, weight_kg, log_date),
+    )
+    conn.commit()
+    return True
+
+
 def create_exercise_log(conn, log_id: int, form: dict):
     from shared.db import execute
 

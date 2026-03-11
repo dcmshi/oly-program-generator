@@ -27,7 +27,8 @@ from generate import generate_session_with_retries, build_session_prompt
 from validate import validate_session
 from explain import explain
 from weight_resolver import resolve_exercise_ids, resolve_weights, attach_source_chunk_ids
-from models import AthleteContext, ProgramPlan, RetrievalContext
+from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate
+from phase_profiles import PHASE_PROFILES
 
 logging.basicConfig(
     level=logging.INFO,
@@ -238,6 +239,35 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     "exercises": exercises,
                 })
 
+        # ── Max test session (realization / intensification) ──
+        if PHASE_PROFILES.get(program_plan.phase, {}).get("includes_max_test"):
+            peak_week = max(
+                (wt.week_number for wt in program_plan.weekly_targets if not wt.is_deload),
+                default=program_plan.duration_weeks,
+            )
+            max_test_day = program_plan.sessions_per_week + 1
+            logger.info(f"  Building max test session W{peak_week}D{max_test_day}")
+            max_test_exercises = _build_max_test_session(athlete_context, exercise_lookup)
+            max_test_template = SessionTemplate(
+                day_number=max_test_day,
+                label="Max Testing — Snatch & Clean & Jerk",
+                primary_movement="snatch",
+                secondary_movements=["clean"],
+                session_volume_share=0.0,
+                notes="Work up to a max single on snatch and clean & jerk. Log new maxes.",
+            )
+            max_test_session_id = _save_session(
+                conn, program_id, peak_week, max_test_day,
+                max_test_template, max_test_exercises,
+            )
+            all_sessions_data.append({
+                "week": peak_week,
+                "day": max_test_day,
+                "label": max_test_template.label,
+                "session_id": max_test_session_id,
+                "exercises": max_test_exercises,
+            })
+
         # ── Step 6: EXPLAIN ───────────────────────────────────
         logger.info("=== Step 6: EXPLAIN ===")
         rationale = explain(
@@ -273,6 +303,93 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                 vector_loader.close()
             except Exception as e:
                 logger.debug(f"vector_loader.close() failed (non-fatal): {e}")
+
+
+# ── Max test session builder ───────────────────────────────────
+
+def _build_max_test_session(
+    athlete_context: AthleteContext,
+    exercise_lookup: dict,
+) -> list[dict]:
+    """Build a deterministic warmup-to-max session for snatch and clean & jerk.
+
+    No LLM call needed — the structure is fixed by convention:
+    progressive singles ending in a max attempt (is_max_attempt=True) for each lift.
+    """
+    from shared.constants import WEIGHT_ROUND_INCREMENT
+
+    def _round_kg(w: float) -> float:
+        inc = WEIGHT_ROUND_INCREMENT
+        return round(round(w / inc) * inc, 1)
+
+    # (intensity_pct, reps, rest_seconds, rpe_target, is_max_attempt)
+    PROGRESSION = [
+        (50,  3, 90,  5.0, False),
+        (60,  2, 90,  6.0, False),
+        (70,  2, 120, 7.0, False),
+        (77,  1, 180, 7.5, False),
+        (83,  1, 180, 8.0, False),
+        (88,  1, 240, 8.5, False),
+        (93,  1, 240, 9.0, False),
+        (97,  1, 300, 9.5, False),
+        (100, 1, 300, 10.0, True),
+    ]
+
+    snatch_max = athlete_context.maxes.get("snatch", 0)
+    cj_max     = athlete_context.maxes.get("clean_and_jerk", 0)
+    snatch_id  = exercise_lookup.get("snatch")
+    cj_id      = exercise_lookup.get("clean & jerk")
+
+    exercises = []
+    order = 1
+
+    for pct, reps, rest, rpe, is_max in PROGRESSION:
+        exercises.append({
+            "exercise_order": order,
+            "exercise_name": "Snatch",
+            "exercise_id": snatch_id,
+            "sets": 1,
+            "reps": reps,
+            "intensity_pct": float(pct),
+            "intensity_reference": "snatch",
+            "absolute_weight_kg": _round_kg(snatch_max * pct / 100) if snatch_max else None,
+            "rpe_target": rpe,
+            "rest_seconds": rest,
+            "is_max_attempt": is_max,
+            "selection_rationale": (
+                "Snatch max attempt — log the weight you hit as your new max."
+                if is_max else
+                f"Snatch build-up at {pct}% toward max attempt."
+            ),
+            "source_principle_ids": [],
+            "source_chunk_ids": [],
+        })
+        order += 1
+
+    for pct, reps, rest, rpe, is_max in PROGRESSION:
+        exercises.append({
+            "exercise_order": order,
+            "exercise_name": "Clean & Jerk",
+            "exercise_id": cj_id,
+            "sets": 1,
+            "reps": reps,
+            "intensity_pct": float(pct),
+            "intensity_reference": "clean_and_jerk",
+            "absolute_weight_kg": _round_kg(cj_max * pct / 100) if cj_max else None,
+            "rpe_target": rpe,
+            "rest_seconds": rest,
+            "is_max_attempt": is_max,
+            "selection_rationale": (
+                "Clean & Jerk max attempt — log the weight you hit as your new max."
+                if is_max else
+                f"Clean & Jerk build-up at {pct}% toward max attempt."
+            ),
+            "source_principle_ids": [],
+            "source_chunk_ids": [],
+        })
+        order += 1
+
+    return exercises
 
 
 # ── DB helpers ─────────────────────────────────────────────────
