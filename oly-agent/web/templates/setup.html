@@ -5,8 +5,44 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Create Account — Oly Agent</title>
   <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=DM+Sans:opsz,wght@9..40,300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:         #F4F0EA;
+      --card:       #FDFBF8;
+      --subtle:     #EDE8E0;
+      --border:     #DDD8CF;
+      --border-dk:  #C9C4BB;
+      --navy:       #1C2B3A;
+      --navy-hov:   #273D52;
+      --text:       #1C2128;
+      --text-sec:   #5C5750;
+      --text-muted: #7A7570;
+      --text-faint: #A09A94;
+    }
+    body {
+      background-color: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1, h2, h3 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+    .bg-white    { background-color: var(--card)      !important; }
+    .bg-gray-50  { background-color: var(--subtle)    !important; }
+    .bg-gray-900 { background-color: var(--navy)      !important; }
+    .border-gray-200 { border-color: var(--border)    !important; }
+    .border-gray-300 { border-color: var(--border-dk) !important; }
+    .text-gray-400 { color: var(--text-faint) !important; }
+    .text-gray-500 { color: var(--text-muted) !important; }
+    .text-gray-600 { color: var(--text-sec)   !important; }
+    .text-gray-700 { color: #3D3830           !important; }
+    .text-gray-900 { color: var(--text)       !important; }
+    .hover\:bg-gray-700:hover { background-color: var(--navy-hov) !important; }
+    .focus\:ring-gray-900:focus { --tw-ring-color: var(--navy) !important; }
+  </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen py-12">
+<body class="text-gray-900 min-h-screen py-12">
 
   <div class="max-w-2xl mx-auto px-4">
 

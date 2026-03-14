@@ -1,6 +1,8 @@
 <div id="tle-{{ tle.id }}">
-  <!-- Display row -->
-  <div class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+  <!-- Display row — click anywhere to expand edit form -->
+  <div onclick="toggleEdit({{ tle.id }})"
+       class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm cursor-pointer
+              hover:ring-1 hover:ring-gray-300 hover:bg-white transition-all select-none">
     <span class="font-medium flex-1">{{ tle.exercise_name }}</span>
     <span class="text-gray-500">{{ tle.reps_per_set | reps_list }}</span>
     <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
@@ -10,12 +12,11 @@
       {{ (tle.make_rate * 100) | round | int }}% makes
     </span>
     {% endif %}
-    <button type="button" onclick="toggleEdit({{ tle.id }})"
-            class="text-gray-300 hover:text-gray-500 text-xs leading-none" title="Edit">✏</button>
     <button hx-delete="/log/{{ log_id }}/exercise/{{ tle.id }}"
             hx-target="#exercise-log-area"
             hx-swap="outerHTML"
             hx-confirm="Remove {{ tle.exercise_name }} from this session?"
+            onclick="event.stopPropagation()"
             class="text-gray-300 hover:text-red-400 text-xs leading-none" title="Remove">✕</button>
   </div>
 

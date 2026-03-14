@@ -6,13 +6,79 @@
   <title>{% block title %}Oly Agent{% endblock %}</title>
   <script src="https://cdn.tailwindcss.com"></script>
   <script src="https://unpkg.com/htmx.org@1.9.12"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=DM+Sans:opsz,wght@9..40,300;400;500;600&display=swap" rel="stylesheet">
   <style>
+    :root {
+      --bg:         #F4F0EA;
+      --card:       #FDFBF8;
+      --subtle:     #EDE8E0;
+      --border-lt:  #EAE5DD;
+      --border:     #DDD8CF;
+      --border-dk:  #C9C4BB;
+      --navy:       #1C2B3A;
+      --navy-hov:   #273D52;
+      --text:       #1C2128;
+      --text-sec:   #5C5750;
+      --text-muted: #7A7570;
+      --text-faint: #A09A94;
+    }
+
+    body {
+      background-color: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+
+    h1, h2, h3, h4 {
+      font-family: 'Barlow Condensed', sans-serif;
+      font-weight: 700;
+      letter-spacing: -0.01em;
+    }
+
+    /* Background remaps */
+    .bg-white    { background-color: var(--card)     !important; }
+    .bg-gray-50  { background-color: var(--subtle)   !important; }
+    .bg-gray-100 { background-color: #E5DFD7         !important; }
+    .bg-gray-200 { background-color: var(--border)   !important; }
+    .bg-gray-900 { background-color: var(--navy)     !important; }
+    .bg-gray-800 { background-color: #253040         !important; }
+    .bg-gray-700 { background-color: var(--navy-hov) !important; }
+
+    /* Border remaps */
+    .border-gray-100 { border-color: var(--border-lt) !important; }
+    .border-gray-200 { border-color: var(--border)    !important; }
+    .border-gray-300 { border-color: var(--border-dk) !important; }
+
+    /* Text remaps */
+    .text-gray-400 { color: var(--text-faint) !important; }
+    .text-gray-500 { color: var(--text-muted) !important; }
+    .text-gray-600 { color: var(--text-sec)   !important; }
+    .text-gray-700 { color: #3D3830           !important; }
+    .text-gray-800 { color: #2B2520           !important; }
+    .text-gray-900 { color: var(--text)       !important; }
+
+    /* Hover remaps */
+    .hover\:bg-gray-50:hover      { background-color: #E8E3DB       !important; }
+    .hover\:bg-gray-100:hover     { background-color: #DDD8CF       !important; }
+    .hover\:bg-gray-200:hover     { background-color: #D0CAC1       !important; }
+    .hover\:bg-gray-700:hover     { background-color: var(--navy-hov) !important; }
+    .hover\:bg-gray-800:hover     { background-color: #253040       !important; }
+    .hover\:border-gray-400:hover { border-color: #B5AFA8           !important; }
+
+    /* Focus ring: remap indigo + gray-900 rings to navy */
+    .focus\:ring-indigo-500:focus   { --tw-ring-color: var(--navy) !important; }
+    .focus\:border-indigo-500:focus { border-color: var(--navy)    !important; }
+    .focus\:ring-gray-900:focus     { --tw-ring-color: var(--navy) !important; }
+
+    /* HTMX */
     [x-cloak] { display: none; }
     .htmx-indicator { display: none; }
     .htmx-request .htmx-indicator { display: inline; }
   </style>
 </head>
-<body class="bg-gray-50 text-gray-900 min-h-screen">
+<body class="text-gray-900 min-h-screen">
 
   <!-- Nav -->
   <nav class="bg-gray-900 text-white px-6 py-3 flex items-center gap-6 shadow">
