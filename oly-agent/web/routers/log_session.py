@@ -48,11 +48,11 @@ async def submit_session_log(
         logger.warning(f"Session log submit: session {session_id} not found")
         raise HTTPException(status_code=404, detail="Session not found")
 
-    # Idempotent: if already logged, return existing log
     existing = q.get_existing_log(conn, session_id)
     if existing:
         log_id = existing["id"]
-        logger.info(f"Session {session_id} already logged (log_id={log_id}), returning existing")
+        q.update_session_log(conn, log_id, dict(form))
+        logger.info(f"Session {session_id} log updated (log_id={log_id})")
     else:
         log_id = q.create_session_log(conn, athlete_id, session_id, dict(form))
         logger.info(f"Session {session_id} logged for athlete {athlete_id} (log_id={log_id})")

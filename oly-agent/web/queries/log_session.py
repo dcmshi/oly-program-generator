@@ -157,6 +157,51 @@ def maybe_promote_max(
     return True
 
 
+def update_session_log(conn, log_id: int, form: dict):
+    """Update an existing training_log row with new form values."""
+    from shared.db import execute
+
+    def _float(v):
+        try:
+            return float(v) if v else None
+        except (ValueError, TypeError):
+            return None
+
+    def _int(v):
+        try:
+            return int(v) if v else None
+        except (ValueError, TypeError):
+            return None
+
+    log_date_str = form.get("log_date") or str(date.today())
+    try:
+        log_date = date.fromisoformat(log_date_str)
+    except ValueError:
+        log_date = date.today()
+
+    execute(
+        conn,
+        """
+        UPDATE training_logs
+        SET log_date = %s, overall_rpe = %s, session_duration_minutes = %s,
+            bodyweight_kg = %s, sleep_quality = %s, stress_level = %s,
+            athlete_notes = %s
+        WHERE id = %s
+        """,
+        (
+            log_date,
+            _float(form.get("overall_rpe")),
+            _int(form.get("duration")),
+            _float(form.get("bodyweight")),
+            _int(form.get("sleep_quality")),
+            _int(form.get("stress_level")),
+            form.get("notes") or None,
+            log_id,
+        ),
+    )
+    conn.commit()
+
+
 def create_exercise_log(conn, log_id: int, form: dict):
     from shared.db import execute
 
