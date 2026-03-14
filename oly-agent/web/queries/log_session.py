@@ -129,6 +129,11 @@ def update_exercise_log(conn, tle_id: int, form: dict):
     conn.commit()
 
 
+def get_log_by_id(conn, log_id: int) -> dict | None:
+    from shared.db import fetch_one
+    return fetch_one(conn, "SELECT * FROM training_logs WHERE id = %s", (log_id,))
+
+
 def delete_exercise_log(conn, tle_id: int):
     from shared.db import execute
     execute(conn, "DELETE FROM training_log_exercises WHERE id = %s", (tle_id,))

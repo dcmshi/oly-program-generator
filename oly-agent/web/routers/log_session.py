@@ -116,9 +116,19 @@ async def delete_exercise_log(
     request: Request,
     conn=Depends(get_db),
 ):
+    from web.app import templates
     q.delete_exercise_log(conn, tle_id)
     logger.info(f"Exercise deleted: tle_id={tle_id}, log_id={log_id}")
-    return HTMLResponse("")
+    log = q.get_log_by_id(conn, log_id)
+    session = q.get_session_with_exercises(conn, log["session_id"])
+    logged_exercises = q.get_logged_exercises(conn, log_id)
+    return templates.TemplateResponse("partials/exercise_log_section.html", {
+        "request": request,
+        "session": session,
+        "log": log,
+        "log_id": log_id,
+        "logged_exercises": logged_exercises,
+    })
 
 
 @router.post("/{log_id}/exercise/{tle_id}", response_class=HTMLResponse)
