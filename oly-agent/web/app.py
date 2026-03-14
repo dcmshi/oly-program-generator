@@ -24,6 +24,7 @@ from web.routers import dashboard, program, log_session, generate
 from web.routers import auth as auth_router
 from web.routers import setup as setup_router
 from web.routers import profile as profile_router
+from web.routers import export as export_router
 
 app = FastAPI(title="Oly Agent")
 
@@ -133,3 +134,4 @@ app.include_router(dashboard.router)
 app.include_router(program.router)
 app.include_router(log_session.router)
 app.include_router(generate.router)
+app.include_router(export_router.router)

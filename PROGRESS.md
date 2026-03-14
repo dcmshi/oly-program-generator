@@ -371,16 +371,51 @@ Identified via automated codebase scan. Grouped by priority.
 
 ---
 
-## Remaining / Optional
+## Phase 10 — Feature Enhancements (planned)
+
+### 10a — Training Intelligence
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Exercise history view | ⭐ High | `GET /log/history/{exercise_name}` — weight, reps, RPE, make rate over time per lift. Data already exists in `training_log_exercises`; needs query + template. |
+| Lift ratio analysis | ⭐ High | Dashboard panel: snatch:C&J, back squat:snatch, front squat:clean ratios from `athlete_maxes`. Flag imbalances vs. standard ratios. |
+| PR detection on max update | ⭐ High | On `POST /program/maxes/update`, compare new value to previous max; highlight as a PR if beaten. Zero new data needed. |
+| Session readiness warning | Medium | If logged sleep ≤ 2 or stress ≥ 4, surface a soft warning in the exercise log section suggesting intensity reduction. Wellness data already captured. |
+| RPE-based weight nudges | Medium | If a session exercise was logged at RPE ≥ 9.5, show a suggestion to reduce weight for that exercise in the next session. Simple flag in exercise history. |
+
+### 10b — Progress Visibility
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Weekly volume chart | ⭐ High | Bar chart (Chart.js or CSS-only) of total weekly volume (sets × reps × weight) across the active program. Surfaced on program detail page. |
+| Multi-program history table | Medium | Table of all completed programs: adherence %, make rate %, phase reached, duration. Longitudinal view of athlete development. |
+
+### 10c — UX & Accessibility
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Mobile layout improvements | ⭐ High | Exercise tables and program week tables are tight on small screens. Log session flow especially benefits from mobile-first treatment. |
+| Calendar view for program | Medium | Week-grid view of sessions (Mon–Sun) as an alternative to the flat session list on the program detail page. |
+| Quick log mode | Medium | Minimal "RPE only" log path from dashboard — one tap, one RPE field, done. For sessions where full exercise entry isn't needed. |
+| Printable / PDF program view | Low | Clean print stylesheet for the program detail page; useful for athletes training without a phone. |
+
+### 10d — Data & Export
+
+| Item | Priority | Notes |
+|------|----------|-------|
+| Training log CSV export | ✅ Done | `GET /export/log.csv` — flat CSV (one row per exercise) with session wellness, prescribed vs actual weights, RPE, make rate. Download link on profile page. `web/routers/export.py` + `web/queries/export.py`. |
+| Principle conflict detection | Low | Flag contradictory principles before generation. Requires pairwise LLM comparison. |
+| A/B testing framework | Low | Compare phase/volume strategies across athletes. Needs multi-athlete data. |
+| Async DB driver (`asyncpg`) | Low | Rewrite all `%s` → `$N` placeholders (~24 queries across 4 files) + migrate connection API. FastAPI runs sync deps in thread pool so not blocking. |
+
+---
+
+## Remaining / Optional (pre-Phase 10)
 
 | Task | Priority | Notes |
 |------|----------|-------|
 | Takano ingestion | ❌ Permanently skipped | File unavailable online. Programming gap closed by *Olympic Weightlifting for Sports* (Everett) + Catalyst. |
-| A/B testing framework for program strategies | ⏳ Future | Compare phase/volume approaches across athletes. |
-| CSV/JSON training log export | ⏳ Future | Athlete data portability endpoint. |
-| Principle conflict detection | ⏳ Future | Flag contradictory rules before generation. |
 | Projected maxes in peaking-phase weight calc | ✅ Done | `weight_resolver.apply_projected_maxes()` overrides snatch/C&J maxes with `target_snatch_kg`/`target_cj_kg` from `athlete_goals` in realization phase; only applies when target > current max (no downgrade); orchestrator computes `effective_maxes` after PLAN and uses it for `resolve_weights()` and prompt; prompt labels the section "Working Maxes" with "← target" annotation; 7 new tests in `test_weight_resolver.py` (25 total). |
-| Async DB driver (`asyncpg`) | ⏳ Deferred | Requires rewriting all `%s` → `$N` placeholders in ~24 queries + migrating connection API. FastAPI runs sync deps in thread pool so event loop is not blocked. Low priority until concurrency is a bottleneck. |
 
 ---
 
