@@ -108,6 +108,19 @@ async def submit_exercise_log(
     })
 
 
+@router.delete("/{log_id}/exercise/{tle_id}", response_class=HTMLResponse)
+@limiter.limit("60/minute")
+async def delete_exercise_log(
+    log_id: int,
+    tle_id: int,
+    request: Request,
+    conn=Depends(get_db),
+):
+    q.delete_exercise_log(conn, tle_id)
+    logger.info(f"Exercise deleted: tle_id={tle_id}, log_id={log_id}")
+    return HTMLResponse("")
+
+
 @router.post("/{log_id}/exercise/{tle_id}", response_class=HTMLResponse)
 @limiter.limit("60/minute")
 async def update_exercise_log(

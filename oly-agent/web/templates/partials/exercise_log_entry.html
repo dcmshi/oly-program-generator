@@ -11,7 +11,12 @@
     </span>
     {% endif %}
     <button type="button" onclick="toggleEdit({{ tle.id }})"
-            class="text-gray-300 hover:text-gray-500 ml-1 text-xs leading-none" title="Edit">✏</button>
+            class="text-gray-300 hover:text-gray-500 text-xs leading-none" title="Edit">✏</button>
+    <button hx-delete="/log/{{ log_id }}/exercise/{{ tle.id }}"
+            hx-target="#tle-{{ tle.id }}"
+            hx-swap="outerHTML"
+            hx-confirm="Remove {{ tle.exercise_name }} from this session?"
+            class="text-gray-300 hover:text-red-400 text-xs leading-none" title="Remove">✕</button>
   </div>
 
   <!-- Inline edit form (hidden by default) -->

@@ -129,6 +129,12 @@ def update_exercise_log(conn, tle_id: int, form: dict):
     conn.commit()
 
 
+def delete_exercise_log(conn, tle_id: int):
+    from shared.db import execute
+    execute(conn, "DELETE FROM training_log_exercises WHERE id = %s", (tle_id,))
+    conn.commit()
+
+
 def get_logged_exercises(conn, log_id: int) -> list[dict]:
     from shared.db import fetch_all
     return fetch_all(
