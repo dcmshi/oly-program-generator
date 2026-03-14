@@ -18,6 +18,7 @@ router = APIRouter(prefix="/history")
 async def exercise_history(
     request: Request,
     exercise: str = Query(..., min_length=1, max_length=200),
+    back: str = Query(default="/"),
     conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
@@ -32,4 +33,5 @@ async def exercise_history(
         "exercise": exercise,
         "rows":     rows,
         "summary":  summary,
+        "back":     back,
     })

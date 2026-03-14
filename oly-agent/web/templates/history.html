@@ -5,7 +5,9 @@
 
 <!-- Header -->
 <div class="mb-6">
-  <a href="/" class="text-sm text-gray-400 hover:text-gray-700">← Dashboard</a>
+  <a href="{{ back }}" class="text-sm text-gray-400 hover:text-gray-700">
+    ← {% if back.startswith('/log/') %}Back to session{% else %}Dashboard{% endif %}
+  </a>
   <h1 class="text-2xl font-bold mt-1">{{ exercise }}</h1>
   <p class="text-sm text-gray-500 mt-0.5">Training history</p>
 </div>

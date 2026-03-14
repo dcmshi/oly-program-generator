@@ -78,6 +78,7 @@
     <h2 class="font-semibold mb-3">Exercises</h2>
 
     <div id="logged-exercises" class="space-y-2 mb-4">
+      {% set session_id = session.id %}
       {% for tle in logged_exercises %}
         {% include "partials/exercise_log_entry.html" %}
       {% endfor %}

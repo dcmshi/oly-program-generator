@@ -3,7 +3,7 @@
   <div onclick="toggleEdit({{ tle.id }})"
        class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm cursor-pointer
               hover:ring-1 hover:ring-gray-300 hover:bg-white transition-all select-none">
-    <a href="/history?exercise={{ tle.exercise_name | urlencode }}"
+    <a href="/history?exercise={{ tle.exercise_name | urlencode }}{% if session_id %}&amp;back=/log/{{ session_id }}{% endif %}"
        onclick="event.stopPropagation()"
        class="font-medium shrink-0 hover:underline hover:text-blue-600 transition-colors">
       {{ tle.exercise_name }}</a>

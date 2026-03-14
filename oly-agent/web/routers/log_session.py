@@ -164,8 +164,10 @@ async def update_exercise_log(
         logger.warning(f"Max promotion check on edit failed (non-fatal): {e}")
 
     tle = q.get_exercise_log_entry(conn, tle_id)
+    log = q.get_log_by_id(conn, log_id)
     return templates.TemplateResponse("partials/exercise_log_entry.html", {
         "request": request,
         "tle": tle,
         "log_id": log_id,
+        "session_id": log["session_id"] if log else None,
     })
