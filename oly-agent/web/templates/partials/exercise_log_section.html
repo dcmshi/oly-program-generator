@@ -84,18 +84,16 @@
     </div>
 
     <!-- Add exercise form -->
-    {% set ns = namespace(logged_se_ids=[]) %}
+    {% set ns = namespace(logged_se_ids=[], remaining=[]) %}
     {% for tle in logged_exercises %}
       {% if tle.session_exercise_id %}
         {% set ns.logged_se_ids = ns.logged_se_ids + [tle.session_exercise_id] %}
       {% endif %}
     {% endfor %}
-
-    {% set remaining = [] %}
     {% if session and session.exercises %}
       {% for ex in session.exercises %}
         {% if ex.id not in ns.logged_se_ids %}
-          {% set remaining = remaining + [ex] %}
+          {% set ns.remaining = ns.remaining + [ex] %}
         {% endif %}
       {% endfor %}
     {% endif %}
@@ -105,11 +103,11 @@
       <div class="px-4 pb-4 pt-2">
 
         <!-- Remaining prescribed exercises -->
-        {% if remaining %}
+        {% if ns.remaining %}
         <div class="mb-3">
           <p class="text-xs text-gray-400 mb-2">Prescribed exercises (click to pre-fill)</p>
           <div class="flex flex-wrap gap-1">
-            {% for ex in remaining %}
+            {% for ex in ns.remaining %}
             <button type="button"
                     onclick="prefillExercise('{{ ex.exercise_name }}', '{{ ex.id }}', '{{ ex.absolute_weight_kg or '' }}', '{{ ex.rpe_target or '' }}', '{{ ex.sets }}', '{{ ex.reps }}')"
                     class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md">
@@ -121,7 +119,7 @@
           </div>
         </div>
         {% elif session and session.exercises %}
-        <p class="text-xs text-gray-400 mb-3">All prescribed exercises logged.</p>
+        <p class="text-xs text-gray-400 mb-3">All prescribed exercises logged. Add extras below if needed.</p>
         {% endif %}
 
         <form hx-post="/log/{{ log_id }}/exercise"
