@@ -59,7 +59,8 @@
   <h2 class="text-lg font-semibold mb-3">Week {{ current_week }} Sessions</h2>
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
     {% for s in sessions %}
-    <div class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm">
+    <a href="/log/{{ s.id }}"
+       class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-gray-400 hover:shadow transition block">
       <div class="flex items-start justify-between">
         <div>
           <p class="text-xs text-gray-400 uppercase tracking-wide">Day {{ s.day_number }}</p>
@@ -71,13 +72,12 @@
             ✓ Logged{% if s.overall_rpe %} · RPE {{ s.overall_rpe }}{% endif %}
           </span>
         {% else %}
-          <a href="/log/{{ s.id }}"
-             class="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700">
+          <span class="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg">
             Log session
-          </a>
+          </span>
         {% endif %}
       </div>
-    </div>
+    </a>
     {% endfor %}
   </div>
 
