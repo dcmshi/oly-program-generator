@@ -132,6 +132,86 @@
 </details>
 {% endif %}
 
+<!-- Weekly volume chart -->
+{% if volume_data %}
+<div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-4">
+  <h2 class="font-semibold mb-4">Weekly Volume</h2>
+  <div class="relative" style="height: 180px;">
+    <canvas id="volume-chart"></canvas>
+  </div>
+</div>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<script>
+(function() {
+  const data = {{ volume_data | tojson }};
+  const labels = data.map(d => 'W' + d.week);
+  const prescribed = data.map(d => d.prescribed);
+  const actual = data.map(d => d.actual);
+  const hasActual = actual.some(v => v !== null);
+  const font = { family: "'DM Sans', sans-serif", size: 11 };
+
+  const datasets = [
+    {
+      label: 'Prescribed',
+      data: prescribed,
+      backgroundColor: '#DDD8CF',
+      borderWidth: 0,
+      borderRadius: 3,
+      order: 2,
+    },
+  ];
+  if (hasActual) {
+    datasets.push({
+      label: 'Logged',
+      data: actual,
+      backgroundColor: '#1C2B3A',
+      borderWidth: 0,
+      borderRadius: 3,
+      order: 1,
+    });
+  }
+
+  new Chart(document.getElementById('volume-chart'), {
+    type: 'bar',
+    data: { labels, datasets },
+    options: {
+      responsive: true,
+      maintainAspectRatio: false,
+      plugins: {
+        legend: {
+          display: hasActual,
+          position: 'top',
+          align: 'end',
+          labels: { font, boxWidth: 10, boxHeight: 10, padding: 12 },
+        },
+        tooltip: {
+          callbacks: {
+            label: ctx => ` ${ctx.dataset.label}: ${ctx.parsed.y.toLocaleString()} kg`,
+          },
+        },
+      },
+      scales: {
+        y: {
+          beginAtZero: true,
+          ticks: {
+            font,
+            callback: v => v >= 1000 ? (v / 1000).toFixed(0) + 't' : v,
+          },
+          grid: { color: '#EAE5DD' },
+          border: { display: false },
+        },
+        x: {
+          ticks: { font },
+          grid: { display: false },
+          border: { display: false },
+        },
+      },
+    },
+  });
+})();
+</script>
+{% endif %}
+
 <!-- Week accordions -->
 {% for week in weeks %}
 <details class="bg-white border border-gray-200 rounded-xl mb-3 shadow-sm" {% if loop.first %}open{% endif %}>

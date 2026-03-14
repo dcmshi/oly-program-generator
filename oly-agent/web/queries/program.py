@@ -20,13 +20,79 @@ def get_all_programs(conn, athlete_id: int) -> list[dict]:
     return fetch_all(
         conn,
         """
-        SELECT id, name, phase, status, start_date, duration_weeks, sessions_per_week, created_at
+        SELECT id, name, phase, status, start_date, duration_weeks, sessions_per_week,
+               created_at, outcome_summary
         FROM generated_programs
         WHERE athlete_id = %s
         ORDER BY created_at DESC
         """,
         (athlete_id,),
     )
+
+
+def get_program_volume_by_week(conn, program_id: int) -> list[dict]:
+    """Compute prescribed and actual weekly volume (sets × reps × weight_kg).
+
+    Returns a list of {week, prescribed, actual} dicts sorted by week.
+    actual is None for weeks with no logged exercises (renders as a gap in the chart).
+    """
+    from shared.db import fetch_all
+
+    se_rows = fetch_all(
+        conn,
+        """
+        SELECT ps.week_number, se.sets, se.reps, se.absolute_weight_kg
+        FROM program_sessions ps
+        JOIN session_exercises se ON se.session_id = ps.id
+        WHERE ps.program_id = %s AND se.absolute_weight_kg IS NOT NULL
+        """,
+        (program_id,),
+    )
+
+    tle_rows = fetch_all(
+        conn,
+        """
+        SELECT ps.week_number, tle.sets_completed, tle.reps_per_set, tle.weight_kg
+        FROM program_sessions ps
+        JOIN training_logs tl ON tl.session_id = ps.id
+        JOIN training_log_exercises tle ON tle.log_id = tl.id
+        WHERE ps.program_id = %s
+          AND tle.weight_kg IS NOT NULL
+          AND tle.sets_completed IS NOT NULL
+        """,
+        (program_id,),
+    )
+
+    prescribed: dict[int, float] = {}
+    for row in se_rows:
+        wk = row["week_number"]
+        try:
+            reps = int(str(row["reps"]).split(",")[0].split("-")[0].strip())
+        except (ValueError, TypeError, AttributeError):
+            continue
+        prescribed[wk] = prescribed.get(wk, 0.0) + row["sets"] * reps * float(row["absolute_weight_kg"])
+
+    actual: dict[int, float] = {}
+    for row in tle_rows:
+        wk = row["week_number"]
+        rps = row["reps_per_set"]
+        if not rps:
+            continue
+        try:
+            avg_reps = sum(int(r) for r in rps) / len(rps)
+        except (ValueError, TypeError):
+            continue
+        actual[wk] = actual.get(wk, 0.0) + row["sets_completed"] * avg_reps * float(row["weight_kg"])
+
+    all_weeks = sorted(set(list(prescribed.keys()) + list(actual.keys())))
+    return [
+        {
+            "week": wk,
+            "prescribed": round(prescribed.get(wk, 0.0)),
+            "actual": round(actual[wk]) if wk in actual else None,
+        }
+        for wk in all_weeks
+    ]
 
 
 def get_program_weeks(conn, program_id: int) -> list[dict]:

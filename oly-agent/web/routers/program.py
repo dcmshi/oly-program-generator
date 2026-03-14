@@ -34,9 +34,10 @@ async def program_detail(program_id: int, request: Request, conn=Depends(get_db)
         logger.warning(f"Program {program_id} not found")
         raise HTTPException(status_code=404, detail="Program not found")
     weeks = q.get_program_weeks(conn, program_id)
+    volume_data = q.get_program_volume_by_week(conn, program_id)
     logger.info(f"Program {program_id} detail: {len(weeks)} weeks, status={program['status']}")
     return templates.TemplateResponse("program.html", {
-        "request": request, "program": program, "weeks": weeks,
+        "request": request, "program": program, "weeks": weeks, "volume_data": volume_data,
     })
 
 

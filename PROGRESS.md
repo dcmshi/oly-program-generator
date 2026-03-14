@@ -387,8 +387,8 @@ Identified via automated codebase scan. Grouped by priority.
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Weekly volume chart | ⭐ High | Bar chart (Chart.js or CSS-only) of total weekly volume (sets × reps × weight) across the active program. Surfaced on program detail page. |
-| Multi-program history table | Medium | Table of all completed programs: adherence %, make rate %, phase reached, duration. Longitudinal view of athlete development. |
+| Weekly volume chart | ✅ Done | Chart.js grouped bar chart (Prescribed vs Logged) per week on program detail page. `get_program_volume_by_week()` in `queries/program.py` computes sets×reps×weight_kg in Python. Chart loaded via CDN, null actual values render as gaps for unlogged weeks. |
+| Multi-program history table | ✅ Done | Outcome metrics (adherence %, make rate %, RPE deviation, max gains count) shown inline on program list cards for completed/abandoned programs. `get_all_programs` updated to include `outcome_summary`. |
 
 ### 10c — UX & Accessibility
 
