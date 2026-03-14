@@ -404,6 +404,7 @@ Identified via automated codebase scan. Grouped by priority.
 | Item | Priority | Notes |
 |------|----------|-------|
 | Training log CSV export | ✅ Done | `GET /export/log.csv` — flat CSV (one row per exercise) with session wellness, prescribed vs actual weights, RPE, make rate. Download link on profile page. `web/routers/export.py` + `web/queries/export.py`. |
+| Program CSV export | ✅ Done | `GET /export/program/{id}.csv` — full program CSV with metadata header block + one row per exercise (week, day, session, sets/reps, weight, intensity, RPE, rest, backoff, notes). "Export CSV" button on program detail page. Filename uses sanitised program name. |
 | Principle conflict detection | Low | Flag contradictory principles before generation. Requires pairwise LLM comparison. |
 | A/B testing framework | Low | Compare phase/volume strategies across athletes. Needs multi-athlete data. |
 | Async DB driver (`asyncpg`) | Low | Rewrite all `%s` → `$N` placeholders (~24 queries across 4 files) + migrate connection API. FastAPI runs sync deps in thread pool so not blocking. |

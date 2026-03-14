@@ -1,5 +1,57 @@
 # web/queries/export.py
-"""DB query for training log CSV export."""
+"""DB queries for CSV exports."""
+
+
+def get_program_for_export(conn, program_id: int, athlete_id: int) -> tuple[dict | None, list[dict]]:
+    """Return (program_meta, exercise_rows) for a single program.
+
+    exercise_rows has one entry per session exercise, ordered by week → day → exercise_order.
+    Returns (None, []) if the program doesn't exist or belongs to another athlete.
+    """
+    from shared.db import fetch_one, fetch_all
+
+    program = fetch_one(
+        conn,
+        """
+        SELECT id, name, phase, status, start_date, duration_weeks, sessions_per_week
+        FROM generated_programs
+        WHERE id = %s AND athlete_id = %s
+        """,
+        (program_id, athlete_id),
+    )
+    if not program:
+        return None, []
+
+    rows = fetch_all(
+        conn,
+        """
+        SELECT
+            ps.week_number,
+            ps.day_number,
+            ps.session_label,
+            ps.focus_area,
+            ps.estimated_duration_minutes   AS session_duration_min,
+            se.exercise_order,
+            se.exercise_name,
+            se.sets,
+            se.reps,
+            se.intensity_pct,
+            se.intensity_reference,
+            se.absolute_weight_kg,
+            se.rpe_target,
+            se.rest_seconds,
+            se.backoff_sets,
+            se.backoff_intensity_pct,
+            se.is_max_attempt,
+            se.notes
+        FROM program_sessions ps
+        JOIN session_exercises se ON se.session_id = ps.id
+        WHERE ps.program_id = %s
+        ORDER BY ps.week_number, ps.day_number, se.exercise_order
+        """,
+        (program_id,),
+    )
+    return program, rows
 
 
 def get_full_training_log(conn, athlete_id: int) -> list[dict]:
