@@ -100,9 +100,11 @@ async def submit_exercise_log(
     except Exception as e:
         logger.warning(f"Max promotion check failed (non-fatal): {e}")
 
+    make_rate_raw = form.get("make_rate", "")
     return templates.TemplateResponse("partials/exercise_logged_row.html", {
         "request": request,
         "exercise_name": exercise_name,
         "weight_kg": weight_kg_raw,
         "rpe": rpe,
+        "make_rate": make_rate_raw,
     })

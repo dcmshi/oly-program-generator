@@ -2,5 +2,10 @@
   <span class="font-medium flex-1">{{ exercise_name }}</span>
   <span class="text-gray-600 font-medium">{% if weight_kg %}{{ weight_kg }} kg{% else %}—{% endif %}</span>
   <span class="text-gray-400">{% if rpe %}RPE {{ rpe }}{% else %}—{% endif %}</span>
-  <span class="text-xs text-green-600">✓ saved</span>
+  {% if make_rate %}
+  <span class="text-xs {% if make_rate | float < 75 %}text-red-500{% else %}text-green-600{% endif %}">
+    {{ make_rate }}% makes
+  </span>
+  {% endif %}
+  <span class="text-xs text-green-600">✓</span>
 </div>

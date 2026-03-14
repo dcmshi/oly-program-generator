@@ -54,6 +54,29 @@
   </div>
 </div>
 
+<!-- Session progress (active programs) -->
+{% if program.status == 'active' %}
+{% set ns = namespace(total=0, done=0) %}
+{% for week in weeks %}
+  {% for session in week.sessions %}
+    {% set ns.total = ns.total + 1 %}
+    {% if session.log_id %}{% set ns.done = ns.done + 1 %}{% endif %}
+  {% endfor %}
+{% endfor %}
+{% if ns.total > 0 %}
+<div class="mt-4 mb-2">
+  <div class="flex items-center justify-between text-xs text-gray-500 mb-1">
+    <span>Sessions completed</span>
+    <span class="font-medium text-gray-700">{{ ns.done }} / {{ ns.total }}</span>
+  </div>
+  <div class="w-full bg-gray-100 rounded-full h-1.5">
+    <div class="bg-gray-900 h-1.5 rounded-full transition-all"
+         style="width: {{ ((ns.done / ns.total) * 100) | round | int }}%"></div>
+  </div>
+</div>
+{% endif %}
+{% endif %}
+
 <!-- Outcome summary (completed programs) -->
 {% if program.status == 'completed' and program.outcome_summary %}
 {% set o = program.outcome_summary %}
