@@ -120,14 +120,32 @@ def _phase_color(phase: str) -> str:
         "general_prep":    "bg-purple-100 text-purple-800",
     }.get(phase, "bg-gray-100 text-gray-700")
 
+def _parse_rationale(text: str) -> list[dict]:
+    """Split rationale text into {heading, body} sections on # lines."""
+    sections: list[dict] = []
+    heading: str | None = None
+    lines: list[str] = []
+    for line in text.splitlines():
+        if line.startswith("#"):
+            if heading is not None or lines:
+                sections.append({"heading": heading, "body": "\n".join(lines).strip()})
+            heading = line.lstrip("#").strip()
+            lines = []
+        else:
+            lines.append(line)
+    if heading is not None or lines:
+        sections.append({"heading": heading, "body": "\n".join(lines).strip()})
+    return sections
+
 from urllib.parse import quote_plus
-templates.env.filters["urlencode"]   = quote_plus
-templates.env.filters["fmt_weight"]  = _fmt_weight
-templates.env.filters["fmt_rpe"] = _fmt_rpe
-templates.env.filters["fmt_pct"] = _fmt_pct
-templates.env.filters["reps_list"] = _reps_list
-templates.env.filters["status_color"] = _status_color
-templates.env.filters["phase_color"] = _phase_color
+templates.env.filters["urlencode"]        = quote_plus
+templates.env.filters["fmt_weight"]       = _fmt_weight
+templates.env.filters["fmt_rpe"]          = _fmt_rpe
+templates.env.filters["fmt_pct"]          = _fmt_pct
+templates.env.filters["reps_list"]        = _reps_list
+templates.env.filters["status_color"]     = _status_color
+templates.env.filters["phase_color"]      = _phase_color
+templates.env.filters["parse_rationale"]  = _parse_rationale
 
 # ── Routers ───────────────────────────────────────────────────
 app.include_router(auth_router.router)
