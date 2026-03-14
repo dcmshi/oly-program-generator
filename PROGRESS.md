@@ -377,7 +377,7 @@ Identified via automated codebase scan. Grouped by priority.
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Exercise history view | ⭐ High | `GET /log/history/{exercise_name}` — weight, reps, RPE, make rate over time per lift. Data already exists in `training_log_exercises`; needs query + template. |
+| Exercise history view | ✅ Done | `GET /history?exercise=Snatch` — table of all logged sessions per exercise with weight, sets×reps, prescribed vs actual, RPE+deviation, make rate, notes. Summary strip: total sessions, best weight, most recent, trend (up/flat/down). Clickable from exercise names in log entries and maxes table. `web/routers/history.py` + `web/queries/history.py`. |
 | Lift ratio analysis | ✅ Done | Dashboard panel: 4 ratios (snatch/C&J, back squat/snatch, front squat/clean, back squat/C&J) with visual bar gauges showing actual vs target range. Status badges (Good/Low/High) + interpretation text. `get_lift_ratios()` in `dashboard.py` queries, `partials/lift_ratios.html`. |
 | PR detection on max update | ⭐ High | On `POST /program/maxes/update`, compare new value to previous max; highlight as a PR if beaten. Zero new data needed. |
 | Session readiness warning | Medium | If logged sleep ≤ 2 or stress ≥ 4, surface a soft warning in the exercise log section suggesting intensity reduction. Wellness data already captured. |

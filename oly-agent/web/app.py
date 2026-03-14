@@ -25,6 +25,7 @@ from web.routers import auth as auth_router
 from web.routers import setup as setup_router
 from web.routers import profile as profile_router
 from web.routers import export as export_router
+from web.routers import history as history_router
 
 app = FastAPI(title="Oly Agent")
 
@@ -119,7 +120,9 @@ def _phase_color(phase: str) -> str:
         "general_prep":    "bg-purple-100 text-purple-800",
     }.get(phase, "bg-gray-100 text-gray-700")
 
-templates.env.filters["fmt_weight"] = _fmt_weight
+from urllib.parse import quote_plus
+templates.env.filters["urlencode"]   = quote_plus
+templates.env.filters["fmt_weight"]  = _fmt_weight
 templates.env.filters["fmt_rpe"] = _fmt_rpe
 templates.env.filters["fmt_pct"] = _fmt_pct
 templates.env.filters["reps_list"] = _reps_list
@@ -135,3 +138,4 @@ app.include_router(program.router)
 app.include_router(log_session.router)
 app.include_router(generate.router)
 app.include_router(export_router.router)
+app.include_router(history_router.router)

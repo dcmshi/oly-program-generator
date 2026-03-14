@@ -1,0 +1,138 @@
+{% extends "base.html" %}
+{% block title %}{{ exercise }} History — Oly Agent{% endblock %}
+
+{% block content %}
+
+<!-- Header -->
+<div class="mb-6">
+  <a href="/" class="text-sm text-gray-400 hover:text-gray-700">← Dashboard</a>
+  <h1 class="text-2xl font-bold mt-1">{{ exercise }}</h1>
+  <p class="text-sm text-gray-500 mt-0.5">Training history</p>
+</div>
+
+<!-- Summary strip -->
+{% if summary.total > 0 %}
+<div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 text-center">
+    <p class="text-2xl font-bold">{{ summary.total }}</p>
+    <p class="text-xs text-gray-500 mt-0.5">Sessions logged</p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 text-center">
+    <p class="text-2xl font-bold">{{ summary.best_kg | fmt_weight }}</p>
+    <p class="text-xs text-gray-500 mt-0.5">Best weight</p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 text-center">
+    <p class="text-2xl font-bold">{{ summary.latest_kg | fmt_weight }}</p>
+    <p class="text-xs text-gray-500 mt-0.5">Most recent</p>
+  </div>
+
+  <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 text-center">
+    {% if summary.trend == 'up' %}
+      <p class="text-2xl font-bold text-green-600">↑</p>
+      <p class="text-xs text-gray-500 mt-0.5">Trending up</p>
+    {% elif summary.trend == 'down' %}
+      <p class="text-2xl font-bold text-red-500">↓</p>
+      <p class="text-xs text-gray-500 mt-0.5">Trending down</p>
+    {% elif summary.trend == 'flat' %}
+      <p class="text-2xl font-bold text-gray-400">→</p>
+      <p class="text-xs text-gray-500 mt-0.5">Holding steady</p>
+    {% else %}
+      <p class="text-2xl font-bold text-gray-300">—</p>
+      <p class="text-xs text-gray-500 mt-0.5">Not enough data</p>
+    {% endif %}
+  </div>
+
+</div>
+{% endif %}
+
+<!-- History table -->
+{% if rows %}
+<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="text-xs text-gray-400 border-b border-gray-100 bg-gray-50">
+          <th class="text-left px-4 py-3 font-medium">Date</th>
+          <th class="text-left px-4 py-3 font-medium">Program</th>
+          <th class="text-right px-4 py-3 font-medium">Sets×Reps</th>
+          <th class="text-right px-4 py-3 font-medium">Weight</th>
+          <th class="text-right px-4 py-3 font-medium">vs Prescribed</th>
+          <th class="text-right px-4 py-3 font-medium">RPE</th>
+          <th class="text-right px-4 py-3 font-medium">Makes</th>
+          <th class="text-left px-4 py-3 font-medium">Notes</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-gray-50">
+        {% for r in rows %}
+        <tr class="hover:bg-gray-50">
+          <td class="px-4 py-2.5 text-gray-700 whitespace-nowrap">
+            {{ r.log_date.strftime('%d %b %Y') if r.log_date else '—' }}
+          </td>
+          <td class="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">
+            {{ r.program_name }}<br>
+            <span class="text-gray-400">W{{ r.week_number }}D{{ r.day_number }}</span>
+          </td>
+          <td class="px-4 py-2.5 text-right text-gray-600 whitespace-nowrap">
+            {% if r.sets_completed and r.reps_per_set %}
+              {{ r.sets_completed }}×{{ r.reps_per_set | reps_list }}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">
+            {{ r.weight_kg | fmt_weight }}
+          </td>
+          <td class="px-4 py-2.5 text-right whitespace-nowrap">
+            {% if r.weight_deviation_kg is not none %}
+              {% set dev = r.weight_deviation_kg | float %}
+              <span class="text-xs {{ 'text-green-600' if dev >= 0 else 'text-amber-600' }}">
+                {{ '+' if dev > 0 else '' }}{{ '%g' | format(dev) }} kg
+              </span>
+            {% else %}
+              <span class="text-gray-300">—</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-2.5 text-right text-gray-500 whitespace-nowrap">
+            {% if r.rpe is not none %}
+              {{ r.rpe | fmt_rpe }}
+              {% if r.rpe_deviation is not none %}
+                {% set rd = r.rpe_deviation | float %}
+                <span class="text-xs {{ 'text-amber-500' if rd | abs > 1.0 else 'text-gray-400' }}">
+                  ({{ '+' if rd > 0 else '' }}{{ '%g' | format(rd) }})
+                </span>
+              {% endif %}
+            {% else %}
+              —
+            {% endif %}
+          </td>
+          <td class="px-4 py-2.5 text-right whitespace-nowrap">
+            {% if r.make_rate is not none %}
+              {% set mr = (r.make_rate * 100) | round | int %}
+              <span class="{{ 'text-red-500' if mr < 75 else 'text-green-600' }} font-medium">
+                {{ mr }}%
+              </span>
+            {% else %}
+              <span class="text-gray-300">—</span>
+            {% endif %}
+          </td>
+          <td class="px-4 py-2.5 text-gray-500 text-xs max-w-xs truncate">
+            {{ r.technical_notes or '' }}
+          </td>
+        </tr>
+        {% endfor %}
+      </tbody>
+    </table>
+  </div>
+</div>
+
+{% else %}
+<div class="text-center py-16 text-gray-400">
+  <p class="text-lg mb-1">No logged sessions for <strong class="text-gray-600">{{ exercise }}</strong> yet.</p>
+  <p class="text-sm">Entries appear here once you log a session that includes this exercise.</p>
+</div>
+{% endif %}
+
+{% endblock %}
