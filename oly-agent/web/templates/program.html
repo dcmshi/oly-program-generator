@@ -153,7 +153,10 @@
           <span class="text-xs text-gray-500">~{{ session.estimated_duration_minutes }} min · {{ session.focus_area }}</span>
         </div>
         {% if session.log_id %}
-          <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full">✓ Logged</span>
+          <a href="/log/{{ session.id }}"
+             class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full hover:bg-green-200">
+            ✓ Logged
+          </a>
         {% else %}
           <a href="/log/{{ session.id }}"
              class="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg hover:bg-gray-700">
