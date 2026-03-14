@@ -46,6 +46,89 @@ def get_existing_log(conn, session_id: int) -> dict | None:
     )
 
 
+def get_exercise_log_entry(conn, tle_id: int) -> dict | None:
+    from shared.db import fetch_one
+    return fetch_one(
+        conn,
+        """
+        SELECT id, session_exercise_id, exercise_name, sets_completed,
+               reps_per_set, weight_kg, rpe, make_rate, technical_notes,
+               prescribed_weight_kg, weight_deviation_kg, rpe_deviation
+        FROM training_log_exercises
+        WHERE id = %s
+        """,
+        (tle_id,),
+    )
+
+
+def update_exercise_log(conn, tle_id: int, form: dict):
+    """Update a training_log_exercises row from form values, recomputing deviations."""
+    from shared.db import execute, fetch_one
+
+    def _float(v):
+        try:
+            return float(v) if v else None
+        except (ValueError, TypeError):
+            return None
+
+    def _int(v):
+        try:
+            return int(v) if v else None
+        except (ValueError, TypeError):
+            return None
+
+    weight_kg = _float(form.get("weight_kg"))
+    rpe = _float(form.get("rpe"))
+    make_rate_raw = _float(form.get("make_rate"))
+    make_rate = make_rate_raw / 100.0 if make_rate_raw is not None else None
+
+    reps_raw = form.get("reps_per_set", "").strip()
+    try:
+        reps_per_set = [int(r.strip()) for r in reps_raw.split(",") if r.strip()]
+    except (ValueError, AttributeError):
+        reps_per_set = []
+
+    # Fetch stored prescribed values to recompute deviations
+    existing = fetch_one(
+        conn,
+        "SELECT prescribed_weight_kg, session_exercise_id FROM training_log_exercises WHERE id = %s",
+        (tle_id,),
+    )
+    prescribed_weight = float(existing["prescribed_weight_kg"]) if existing and existing["prescribed_weight_kg"] else None
+    prescribed_rpe = None
+    if existing and existing["session_exercise_id"]:
+        se = fetch_one(
+            conn,
+            "SELECT rpe_target FROM session_exercises WHERE id = %s",
+            (existing["session_exercise_id"],),
+        )
+        if se and se["rpe_target"] is not None:
+            prescribed_rpe = float(se["rpe_target"])
+
+    weight_deviation = round(weight_kg - prescribed_weight, 2) if (weight_kg and prescribed_weight) else None
+    rpe_deviation = round(rpe - prescribed_rpe, 1) if (rpe and prescribed_rpe) else None
+
+    execute(
+        conn,
+        """
+        UPDATE training_log_exercises
+        SET sets_completed = %s, reps_per_set = %s, weight_kg = %s, rpe = %s,
+            make_rate = %s, technical_notes = %s,
+            weight_deviation_kg = %s, rpe_deviation = %s
+        WHERE id = %s
+        """,
+        (
+            _int(form.get("sets_completed")),
+            reps_per_set or None,
+            weight_kg, rpe, make_rate,
+            form.get("technical_notes") or None,
+            weight_deviation, rpe_deviation,
+            tle_id,
+        ),
+    )
+    conn.commit()
+
+
 def get_logged_exercises(conn, log_id: int) -> list[dict]:
     from shared.db import fetch_all
     return fetch_all(
@@ -202,8 +285,9 @@ def update_session_log(conn, log_id: int, form: dict):
     conn.commit()
 
 
-def create_exercise_log(conn, log_id: int, form: dict):
-    from shared.db import execute
+def create_exercise_log(conn, log_id: int, form: dict) -> int:
+    """Insert a new training_log_exercises row. Returns the new row id."""
+    from shared.db import execute_returning
 
     def _float(v):
         try:
@@ -236,7 +320,7 @@ def create_exercise_log(conn, log_id: int, form: dict):
     weight_deviation = round(weight_kg - prescribed_weight, 2) if (weight_kg and prescribed_weight) else None
     rpe_deviation = round(rpe - prescribed_rpe, 1) if (rpe and prescribed_rpe) else None
 
-    execute(
+    tle_id = execute_returning(
         conn,
         """
         INSERT INTO training_log_exercises
@@ -244,6 +328,7 @@ def create_exercise_log(conn, log_id: int, form: dict):
              reps_per_set, weight_kg, rpe, make_rate, technical_notes,
              prescribed_weight_kg, weight_deviation_kg, rpe_deviation)
         VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        RETURNING id
         """,
         (
             log_id, se_id, exercise_name,
@@ -255,3 +340,4 @@ def create_exercise_log(conn, log_id: int, form: dict):
         ),
     )
     conn.commit()
+    return tle_id

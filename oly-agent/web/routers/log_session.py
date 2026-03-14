@@ -79,7 +79,7 @@ async def submit_exercise_log(
     from web.app import templates
     from datetime import date as _date
     form = await request.form()
-    q.create_exercise_log(conn, log_id, dict(form))
+    tle_id = q.create_exercise_log(conn, log_id, dict(form))
     exercise_name = form.get("exercise_name", "Exercise")
     weight_kg_raw = form.get("weight_kg", "")
     rpe = form.get("rpe", "")
@@ -100,11 +100,45 @@ async def submit_exercise_log(
     except Exception as e:
         logger.warning(f"Max promotion check failed (non-fatal): {e}")
 
-    make_rate_raw = form.get("make_rate", "")
-    return templates.TemplateResponse("partials/exercise_logged_row.html", {
+    tle = q.get_exercise_log_entry(conn, tle_id)
+    return templates.TemplateResponse("partials/exercise_log_entry.html", {
         "request": request,
-        "exercise_name": exercise_name,
-        "weight_kg": weight_kg_raw,
-        "rpe": rpe,
-        "make_rate": make_rate_raw,
+        "tle": tle,
+        "log_id": log_id,
+    })
+
+
+@router.post("/{log_id}/exercise/{tle_id}", response_class=HTMLResponse)
+@limiter.limit("60/minute")
+async def update_exercise_log(
+    log_id: int,
+    tle_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
+    from web.app import templates
+    from datetime import date as _date
+    form = await request.form()
+    q.update_exercise_log(conn, tle_id, dict(form))
+    logger.info(f"Exercise updated: tle_id={tle_id}, log_id={log_id}")
+
+    # Auto-promote new max if this is a max attempt exercise
+    try:
+        weight_kg = float(form.get("weight_kg")) if form.get("weight_kg") else None
+        tle = q.get_exercise_log_entry(conn, tle_id)
+        if tle and tle["session_exercise_id"] and weight_kg:
+            promoted = q.maybe_promote_max(
+                conn, athlete_id, tle["session_exercise_id"], weight_kg, _date.today()
+            )
+            if promoted:
+                logger.info(f"New max auto-promoted on edit: athlete={athlete_id}, {weight_kg}kg")
+    except Exception as e:
+        logger.warning(f"Max promotion check on edit failed (non-fatal): {e}")
+
+    tle = q.get_exercise_log_entry(conn, tle_id)
+    return templates.TemplateResponse("partials/exercise_log_entry.html", {
+        "request": request,
+        "tle": tle,
+        "log_id": log_id,
     })

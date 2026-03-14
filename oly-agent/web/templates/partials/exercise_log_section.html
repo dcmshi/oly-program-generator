@@ -79,31 +79,37 @@
 
     <div id="logged-exercises" class="space-y-2 mb-4">
       {% for tle in logged_exercises %}
-      <div class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
-        <span class="font-medium flex-1">{{ tle.exercise_name }}</span>
-        <span class="text-gray-500">{{ tle.reps_per_set | reps_list }}</span>
-        <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
-        <span class="text-gray-400">{{ tle.rpe | fmt_rpe }}</span>
-        {% if tle.make_rate %}
-        <span class="text-xs {% if tle.make_rate < 0.75 %}text-red-500{% else %}text-green-600{% endif %}">
-          {{ (tle.make_rate * 100) | round | int }}% makes
-        </span>
-        {% endif %}
-      </div>
+        {% include "partials/exercise_log_entry.html" %}
       {% endfor %}
     </div>
 
     <!-- Add exercise form -->
+    {% set ns = namespace(logged_se_ids=[]) %}
+    {% for tle in logged_exercises %}
+      {% if tle.session_exercise_id %}
+        {% set ns.logged_se_ids = ns.logged_se_ids + [tle.session_exercise_id] %}
+      {% endif %}
+    {% endfor %}
+
+    {% set remaining = [] %}
+    {% if session and session.exercises %}
+      {% for ex in session.exercises %}
+        {% if ex.id not in ns.logged_se_ids %}
+          {% set remaining = remaining + [ex] %}
+        {% endif %}
+      {% endfor %}
+    {% endif %}
+
     <details class="border border-gray-200 rounded-xl" {% if not logged_exercises %}open{% endif %}>
       <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700">+ Add exercise</summary>
       <div class="px-4 pb-4 pt-2">
 
-        <!-- Quick-add prescribed exercises -->
-        {% if session and session.exercises %}
+        <!-- Remaining prescribed exercises -->
+        {% if remaining %}
         <div class="mb-3">
           <p class="text-xs text-gray-400 mb-2">Prescribed exercises (click to pre-fill)</p>
           <div class="flex flex-wrap gap-1">
-            {% for ex in session.exercises %}
+            {% for ex in remaining %}
             <button type="button"
                     onclick="prefillExercise('{{ ex.exercise_name }}', '{{ ex.id }}', '{{ ex.absolute_weight_kg or '' }}', '{{ ex.rpe_target or '' }}', '{{ ex.sets }}', '{{ ex.reps }}')"
                     class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md">
@@ -114,6 +120,8 @@
             {% endfor %}
           </div>
         </div>
+        {% elif session and session.exercises %}
+        <p class="text-xs text-gray-400 mb-3">All prescribed exercises logged.</p>
         {% endif %}
 
         <form hx-post="/log/{{ log_id }}/exercise"
@@ -174,6 +182,14 @@
         </form>
       </div>
     </details>
+
+    <!-- Done button -->
+    <div class="mt-5 pt-4 border-t border-gray-100">
+      <a href="/program/{{ session.program_id }}"
+         class="block w-full text-center bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700">
+        Save Session ✓
+      </a>
+    </div>
   </div>
 
 </div>
@@ -189,13 +205,14 @@ function prefillExercise(name, seId, weight, rpe, sets, reps) {
   if (sets) {
     document.getElementById('sets_input').value = sets;
     if (reps) {
-      // Generate "reps,reps,...reps" repeated `sets` times
-      const repsArr = Array(parseInt(sets)).fill(reps).join(',');
-      document.getElementById('reps_input').value = repsArr;
+      document.getElementById('reps_input').value = Array(parseInt(sets)).fill(reps).join(',');
     }
   }
-  // Open the add exercise accordion
   const details = document.getElementById('exercise_name_input').closest('details');
   if (details) details.open = true;
+}
+
+function toggleEdit(tleId) {
+  document.getElementById('tle-edit-' + tleId).classList.toggle('hidden');
 }
 </script>

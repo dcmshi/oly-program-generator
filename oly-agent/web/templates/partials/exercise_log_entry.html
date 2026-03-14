@@ -1,0 +1,72 @@
+<div id="tle-{{ tle.id }}">
+  <!-- Display row -->
+  <div class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm">
+    <span class="font-medium flex-1">{{ tle.exercise_name }}</span>
+    <span class="text-gray-500">{{ tle.reps_per_set | reps_list }}</span>
+    <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
+    <span class="text-gray-400">{{ tle.rpe | fmt_rpe }}</span>
+    {% if tle.make_rate %}
+    <span class="text-xs {% if tle.make_rate < 0.75 %}text-red-500{% else %}text-green-600{% endif %}">
+      {{ (tle.make_rate * 100) | round | int }}% makes
+    </span>
+    {% endif %}
+    <button type="button" onclick="toggleEdit({{ tle.id }})"
+            class="text-gray-300 hover:text-gray-500 ml-1 text-xs leading-none" title="Edit">✏</button>
+  </div>
+
+  <!-- Inline edit form (hidden by default) -->
+  <form id="tle-edit-{{ tle.id }}"
+        hx-post="/log/{{ log_id }}/exercise/{{ tle.id }}"
+        hx-target="#tle-{{ tle.id }}"
+        hx-swap="outerHTML"
+        class="hidden grid grid-cols-2 gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3 mt-1 text-sm">
+
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Sets completed</label>
+      <input type="number" name="sets_completed" min="1"
+             value="{{ tle.sets_completed or '' }}"
+             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Reps per set</label>
+      <input type="text" name="reps_per_set"
+             value="{{ tle.reps_per_set | join(',') if tle.reps_per_set else '' }}"
+             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Weight (kg)</label>
+      <input type="number" name="weight_kg" step="0.5"
+             value="{{ tle.weight_kg or '' }}"
+             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">RPE</label>
+      <input type="number" name="rpe" min="1" max="10" step="0.5"
+             value="{{ tle.rpe or '' }}"
+             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Make rate %</label>
+      <input type="number" name="make_rate" min="0" max="100"
+             value="{{ (tle.make_rate * 100) | round | int if tle.make_rate is not none else '' }}"
+             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+    </div>
+    <div>
+      <label class="block text-xs text-gray-500 mb-1">Technical notes</label>
+      <input type="text" name="technical_notes"
+             value="{{ tle.technical_notes or '' }}"
+             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+    </div>
+
+    <div class="col-span-2 flex gap-2 mt-1">
+      <button type="submit"
+              class="bg-gray-900 text-white px-3 py-1.5 rounded-lg text-xs hover:bg-gray-700">
+        Save
+      </button>
+      <button type="button" onclick="toggleEdit({{ tle.id }})"
+              class="border border-gray-200 text-gray-500 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50">
+        Cancel
+      </button>
+    </div>
+  </form>
+</div>
