@@ -184,9 +184,9 @@
               <th class="text-left py-1 pr-3 font-medium">Exercise</th>
               <th class="text-right py-1 pr-3 font-medium">Sets×Reps</th>
               <th class="text-right py-1 pr-3 font-medium">Weight</th>
-              <th class="text-right py-1 pr-3 font-medium">Intensity</th>
-              <th class="text-right py-1 pr-3 font-medium">RPE</th>
-              <th class="text-right py-1 font-medium">Rest</th>
+              <th class="text-right py-1 pr-3 font-medium hidden sm:table-cell">Intensity</th>
+              <th class="text-right py-1 pr-3 font-medium hidden sm:table-cell">RPE</th>
+              <th class="text-right py-1 font-medium hidden sm:table-cell">Rest</th>
             </tr>
           </thead>
           <tbody class="divide-y divide-gray-50">
@@ -201,9 +201,9 @@
               </td>
               <td class="py-1.5 pr-3 text-right text-gray-600">{{ ex.sets }}×{{ ex.reps }}</td>
               <td class="py-1.5 pr-3 text-right font-medium">{{ ex.absolute_weight_kg | fmt_weight }}</td>
-              <td class="py-1.5 pr-3 text-right text-gray-500">{{ ex.intensity_pct | fmt_pct }}</td>
-              <td class="py-1.5 pr-3 text-right text-gray-500">{{ ex.rpe_target | fmt_rpe }}</td>
-              <td class="py-1.5 text-right text-gray-400 text-xs">{{ ex.rest_seconds }}s</td>
+              <td class="py-1.5 pr-3 text-right text-gray-500 hidden sm:table-cell">{{ ex.intensity_pct | fmt_pct }}</td>
+              <td class="py-1.5 pr-3 text-right text-gray-500 hidden sm:table-cell">{{ ex.rpe_target | fmt_rpe }}</td>
+              <td class="py-1.5 text-right text-gray-400 text-xs hidden sm:table-cell">{{ ex.rest_seconds }}s</td>
             </tr>
             {% endfor %}
           </tbody>

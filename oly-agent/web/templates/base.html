@@ -81,43 +81,67 @@
 <body class="text-gray-900 min-h-screen">
 
   <!-- Nav -->
-  <nav class="bg-gray-900 text-white px-6 py-3 flex items-center gap-6 shadow">
-    <a href="/" class="flex items-center gap-2 font-bold text-lg tracking-tight">
-      <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 92 28" fill="none" class="h-7 w-auto">
-        <!-- bar shaft -->
-        <rect x="0" y="13" width="92" height="2" rx="1" fill="#CBD5E1"/>
-        <!-- left plates: green(10kg) · yellow(15kg) · blue(20kg) · red(25kg) -->
-        <rect x="2"  y="10" width="4" height="8"  rx="0.75" fill="#22C55E"/>
-        <rect x="6"  y="8"  width="5" height="12" rx="1"    fill="#FBBF24"/>
-        <rect x="11" y="6"  width="5" height="16" rx="1"    fill="#3B82F6"/>
-        <rect x="16" y="4"  width="5" height="20" rx="1"    fill="#EF4444"/>
-        <!-- left collar -->
-        <rect x="21" y="8"  width="4" height="12" rx="1"    fill="#64748B"/>
-        <!-- right collar -->
-        <rect x="67" y="8"  width="4" height="12" rx="1"    fill="#64748B"/>
-        <!-- right plates: red(25kg) · blue(20kg) · yellow(15kg) · green(10kg) -->
-        <rect x="71" y="4"  width="5" height="20" rx="1"    fill="#EF4444"/>
-        <rect x="76" y="6"  width="5" height="16" rx="1"    fill="#3B82F6"/>
-        <rect x="81" y="8"  width="5" height="12" rx="1"    fill="#FBBF24"/>
-        <rect x="86" y="10" width="4" height="8"  rx="0.75" fill="#22C55E"/>
-      </svg>
-      Oly Agent
-    </a>
-    <a href="/" class="text-gray-300 hover:text-white text-sm">Dashboard</a>
-    <a href="/program" class="text-gray-300 hover:text-white text-sm">Programs</a>
-    <a href="/generate" class="text-gray-300 hover:text-white text-sm">Generate</a>
-    <div class="ml-auto flex items-center gap-4">
+  <nav class="bg-gray-900 text-white shadow">
+    <div class="px-4 py-3 flex items-center gap-4">
+      <a href="/" class="flex items-center gap-2 font-bold text-lg tracking-tight shrink-0">
+        <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 92 28" fill="none" class="h-7 w-auto">
+          <rect x="0" y="13" width="92" height="2" rx="1" fill="#CBD5E1"/>
+          <rect x="2"  y="10" width="4" height="8"  rx="0.75" fill="#22C55E"/>
+          <rect x="6"  y="8"  width="5" height="12" rx="1"    fill="#FBBF24"/>
+          <rect x="11" y="6"  width="5" height="16" rx="1"    fill="#3B82F6"/>
+          <rect x="16" y="4"  width="5" height="20" rx="1"    fill="#EF4444"/>
+          <rect x="21" y="8"  width="4" height="12" rx="1"    fill="#64748B"/>
+          <rect x="67" y="8"  width="4" height="12" rx="1"    fill="#64748B"/>
+          <rect x="71" y="4"  width="5" height="20" rx="1"    fill="#EF4444"/>
+          <rect x="76" y="6"  width="5" height="16" rx="1"    fill="#3B82F6"/>
+          <rect x="81" y="8"  width="5" height="12" rx="1"    fill="#FBBF24"/>
+          <rect x="86" y="10" width="4" height="8"  rx="0.75" fill="#22C55E"/>
+        </svg>
+        Oly Agent
+      </a>
+      <!-- Desktop links -->
+      <div class="hidden sm:flex items-center gap-5 ml-1">
+        <a href="/" class="text-gray-300 hover:text-white text-sm">Dashboard</a>
+        <a href="/program" class="text-gray-300 hover:text-white text-sm">Programs</a>
+        <a href="/generate" class="text-gray-300 hover:text-white text-sm">Generate</a>
+      </div>
+      <!-- Desktop right -->
+      <div class="hidden sm:flex ml-auto items-center gap-4">
+        {% if request.session.get("athlete_name") %}
+        <a href="/profile" class="text-gray-400 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
+        {% endif %}
+        <form method="post" action="/logout">
+          <button type="submit" class="text-gray-300 hover:text-white text-sm">Logout</button>
+        </form>
+      </div>
+      <!-- Mobile hamburger -->
+      <button id="nav-toggle" class="sm:hidden ml-auto p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors" aria-label="Menu">
+        <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
+          <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
+        </svg>
+      </button>
+    </div>
+    <!-- Mobile menu (hidden by default) -->
+    <div id="nav-menu" class="hidden sm:hidden border-t border-gray-800 px-4 py-2 space-y-0.5">
+      <a href="/" class="block py-2 text-gray-300 hover:text-white text-sm">Dashboard</a>
+      <a href="/program" class="block py-2 text-gray-300 hover:text-white text-sm">Programs</a>
+      <a href="/generate" class="block py-2 text-gray-300 hover:text-white text-sm">Generate</a>
       {% if request.session.get("athlete_name") %}
-      <a href="/profile" class="text-gray-400 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
+      <a href="/profile" class="block py-2 text-gray-400 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
       {% endif %}
-      <form method="post" action="/logout">
+      <form method="post" action="/logout" class="py-1">
         <button type="submit" class="text-gray-300 hover:text-white text-sm">Logout</button>
       </form>
     </div>
   </nav>
+  <script>
+    document.getElementById('nav-toggle').addEventListener('click', function() {
+      document.getElementById('nav-menu').classList.toggle('hidden');
+    });
+  </script>
 
   <!-- Content -->
-  <main class="max-w-5xl mx-auto px-4 py-8">
+  <main class="max-w-5xl mx-auto px-3 sm:px-4 py-6 sm:py-8">
     {% block content %}{% endblock %}
   </main>
 

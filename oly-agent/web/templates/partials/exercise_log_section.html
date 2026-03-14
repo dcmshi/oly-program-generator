@@ -13,7 +13,7 @@
             hx-swap="outerHTML"
             class="space-y-3">
 
-        <div class="grid grid-cols-2 gap-3">
+        <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
             <label class="block text-xs text-gray-500 mb-1">Date</label>
             <input type="date" name="log_date" value="{{ log.log_date }}"
@@ -31,7 +31,7 @@
           <summary class="cursor-pointer px-3 py-2 text-xs text-gray-400 hover:text-gray-600 select-none">
             + Duration, bodyweight, wellness
           </summary>
-          <div class="px-3 pb-3 pt-2 grid grid-cols-2 gap-3">
+          <div class="px-3 pb-3 pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
               <label class="block text-xs text-gray-500 mb-1">Duration (min)</label>
               <input type="number" name="duration"
@@ -111,7 +111,7 @@
             {% for ex in ns.remaining %}
             <button type="button"
                     onclick="prefillExercise('{{ ex.exercise_name }}', '{{ ex.id }}', '{{ ex.absolute_weight_kg or '' }}', '{{ ex.rpe_target or '' }}', '{{ ex.sets }}', '{{ ex.reps }}')"
-                    class="text-xs bg-gray-100 hover:bg-gray-200 px-2 py-1 rounded-md">
+                    class="text-xs bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-md">
               {{ ex.exercise_order }}. {{ ex.exercise_name }}
               {% if ex.absolute_weight_kg %}@{{ ex.absolute_weight_kg }}kg{% endif %}
               · {{ ex.sets }}×{{ ex.reps }}
@@ -126,7 +126,7 @@
         <form hx-post="/log/{{ log_id }}/exercise"
               hx-target="#exercise-log-area"
               hx-swap="outerHTML"
-              class="grid grid-cols-2 gap-3">
+              class="grid grid-cols-1 sm:grid-cols-2 gap-3">
 
           <input type="hidden" name="session_exercise_id" id="se_id">
           <input type="hidden" name="prescribed_weight_kg" id="prescribed_weight">

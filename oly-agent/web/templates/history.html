@@ -58,13 +58,13 @@
       <thead>
         <tr class="text-xs text-gray-400 border-b border-gray-100 bg-gray-50">
           <th class="text-left px-4 py-3 font-medium">Date</th>
-          <th class="text-left px-4 py-3 font-medium">Program</th>
+          <th class="text-left px-4 py-3 font-medium hidden sm:table-cell">Program</th>
           <th class="text-right px-4 py-3 font-medium">Sets×Reps</th>
           <th class="text-right px-4 py-3 font-medium">Weight</th>
-          <th class="text-right px-4 py-3 font-medium">vs Prescribed</th>
+          <th class="text-right px-4 py-3 font-medium hidden md:table-cell">vs Prescribed</th>
           <th class="text-right px-4 py-3 font-medium">RPE</th>
           <th class="text-right px-4 py-3 font-medium">Makes</th>
-          <th class="text-left px-4 py-3 font-medium">Notes</th>
+          <th class="text-left px-4 py-3 font-medium hidden lg:table-cell">Notes</th>
         </tr>
       </thead>
       <tbody class="divide-y divide-gray-50">
@@ -73,7 +73,7 @@
           <td class="px-4 py-2.5 text-gray-700 whitespace-nowrap">
             {{ r.log_date.strftime('%d %b %Y') if r.log_date else '—' }}
           </td>
-          <td class="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap">
+          <td class="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap hidden sm:table-cell">
             {{ r.program_name }}<br>
             <span class="text-gray-400">W{{ r.week_number }}D{{ r.day_number }}</span>
           </td>
@@ -87,7 +87,7 @@
           <td class="px-4 py-2.5 text-right font-semibold whitespace-nowrap">
             {{ r.weight_kg | fmt_weight }}
           </td>
-          <td class="px-4 py-2.5 text-right whitespace-nowrap">
+          <td class="px-4 py-2.5 text-right whitespace-nowrap hidden md:table-cell">
             {% if r.weight_deviation_kg is not none %}
               {% set dev = r.weight_deviation_kg | float %}
               <span class="text-xs {{ 'text-green-600' if dev >= 0 else 'text-amber-600' }}">
@@ -120,7 +120,7 @@
               <span class="text-gray-300">—</span>
             {% endif %}
           </td>
-          <td class="px-4 py-2.5 text-gray-500 text-xs max-w-xs truncate">
+          <td class="px-4 py-2.5 text-gray-500 text-xs max-w-xs truncate hidden lg:table-cell">
             {{ r.technical_notes or '' }}
           </td>
         </tr>

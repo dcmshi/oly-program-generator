@@ -1,27 +1,43 @@
 <div id="tle-{{ tle.id }}">
   <!-- Display row — click anywhere to expand edit form -->
   <div onclick="toggleEdit({{ tle.id }})"
-       class="flex items-center gap-3 bg-gray-50 rounded-lg px-3 py-2 text-sm cursor-pointer
+       class="bg-gray-50 rounded-lg px-3 py-2.5 text-sm cursor-pointer
               hover:ring-1 hover:ring-gray-300 hover:bg-white transition-all select-none">
-    <a href="/history?exercise={{ tle.exercise_name | urlencode }}{% if session_id %}&amp;back=/log/{{ session_id }}{% endif %}"
-       onclick="event.stopPropagation()"
-       class="font-medium shrink-0 hover:underline hover:text-blue-600 transition-colors">
-      {{ tle.exercise_name }}</a>
-    <span class="flex-1"></span>
-    <span class="text-gray-500">{{ tle.reps_per_set | reps_list }}</span>
-    <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
-    <span class="text-gray-400">{{ tle.rpe | fmt_rpe }}</span>
-    {% if tle.make_rate %}
-    <span class="text-xs {% if tle.make_rate < 0.75 %}text-red-500{% else %}text-green-600{% endif %}">
-      {{ (tle.make_rate * 100) | round | int }}% makes
-    </span>
-    {% endif %}
-    <button hx-delete="/log/{{ log_id }}/exercise/{{ tle.id }}"
-            hx-target="#exercise-log-area"
-            hx-swap="outerHTML"
-            hx-confirm="Remove {{ tle.exercise_name }} from this session?"
-            onclick="event.stopPropagation()"
-            class="text-gray-300 hover:text-red-400 text-xs leading-none" title="Remove">✕</button>
+    <!-- Name row (always visible) + delete button -->
+    <div class="flex items-center gap-2">
+      <a href="/history?exercise={{ tle.exercise_name | urlencode }}{% if session_id %}&amp;back=/log/{{ session_id }}{% endif %}"
+         onclick="event.stopPropagation()"
+         class="font-medium min-w-0 flex-1 hover:underline hover:text-blue-600 transition-colors">
+        {{ tle.exercise_name }}</a>
+      <!-- Desktop: stats inline -->
+      <div class="hidden sm:flex items-center gap-3 shrink-0">
+        <span class="text-gray-500">{{ tle.reps_per_set | reps_list }}</span>
+        <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
+        <span class="text-gray-400">{{ tle.rpe | fmt_rpe }}</span>
+        {% if tle.make_rate %}
+        <span class="text-xs {% if tle.make_rate < 0.75 %}text-red-500{% else %}text-green-600{% endif %}">
+          {{ (tle.make_rate * 100) | round | int }}% makes
+        </span>
+        {% endif %}
+      </div>
+      <button hx-delete="/log/{{ log_id }}/exercise/{{ tle.id }}"
+              hx-target="#exercise-log-area"
+              hx-swap="outerHTML"
+              hx-confirm="Remove {{ tle.exercise_name }} from this session?"
+              onclick="event.stopPropagation()"
+              class="shrink-0 text-gray-300 hover:text-red-400 text-xs p-1 -mr-1" title="Remove">✕</button>
+    </div>
+    <!-- Mobile: stats below name -->
+    <div class="flex items-center gap-2.5 sm:hidden mt-1 text-xs text-gray-500">
+      <span>{{ tle.reps_per_set | reps_list }}</span>
+      <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
+      <span>{{ tle.rpe | fmt_rpe }}</span>
+      {% if tle.make_rate %}
+      <span class="{% if tle.make_rate < 0.75 %}text-red-500{% else %}text-green-600{% endif %}">
+        {{ (tle.make_rate * 100) | round | int }}%
+      </span>
+      {% endif %}
+    </div>
   </div>
 
   <!-- Inline edit form (hidden by default) -->
@@ -29,7 +45,7 @@
         hx-post="/log/{{ log_id }}/exercise/{{ tle.id }}"
         hx-target="#tle-{{ tle.id }}"
         hx-swap="outerHTML"
-        class="hidden grid grid-cols-2 gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3 mt-1 text-sm">
+        class="hidden grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3 mt-1 text-sm">
 
     <div>
       <label class="block text-xs text-gray-500 mb-1">Sets completed</label>

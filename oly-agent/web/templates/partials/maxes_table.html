@@ -69,12 +69,12 @@
   <form hx-post="/program/maxes/update"
         hx-target="#maxes-section"
         hx-swap="outerHTML"
-        class="flex gap-2 items-end flex-wrap">
-    <div>
+        class="flex flex-col sm:flex-row gap-2 sm:items-end">
+    <div class="w-full sm:w-auto">
       <label class="block text-xs text-gray-500 mb-1">Exercise</label>
       <input name="exercise_name" list="exercise-options" required
              placeholder="e.g. Snatch"
-             class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-44">
+             class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-full sm:w-44">
       <datalist id="exercise-options">
         <option value="Snatch">
         <option value="Clean &amp; Jerk">
@@ -90,14 +90,14 @@
         <option value="Jerk">
       </datalist>
     </div>
-    <div>
+    <div class="w-full sm:w-auto">
       <label class="block text-xs text-gray-500 mb-1">Weight (kg)</label>
       <input name="weight_kg" type="number" step="0.5" min="1" max="500" required
              placeholder="100.0"
-             class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-24">
+             class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-full sm:w-24">
     </div>
     <button type="submit"
-            class="bg-gray-900 text-white text-sm px-4 py-1.5 rounded-lg hover:bg-gray-700">
+            class="bg-gray-900 text-white text-sm px-4 py-2 sm:py-1.5 rounded-lg hover:bg-gray-700 w-full sm:w-auto">
       Update max
     </button>
   </form>
