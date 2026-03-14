@@ -7,7 +7,7 @@
     <div class="flex items-center gap-2">
       <a href="/history?exercise={{ tle.exercise_name | urlencode }}{% if session_id %}&amp;back=/log/{{ session_id }}{% endif %}"
          onclick="event.stopPropagation()"
-         class="font-medium min-w-0 flex-1 hover:underline hover:text-blue-600 transition-colors">
+         class="font-medium shrink-0 hover:underline hover:text-blue-600 transition-colors">
         {{ tle.exercise_name }}</a>
       <!-- Desktop: stats inline -->
       <div class="hidden sm:flex items-center gap-3 shrink-0">
