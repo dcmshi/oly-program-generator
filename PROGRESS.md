@@ -394,10 +394,10 @@ Identified via automated codebase scan. Grouped by priority.
 
 | Item | Priority | Notes |
 |------|----------|-------|
-| Mobile layout improvements | ⭐ High | Exercise tables and program week tables are tight on small screens. Log session flow especially benefits from mobile-first treatment. |
+| Mobile layout improvements | ✅ Done | Hamburger nav, all grid-cols-2 forms collapse to 1-col on mobile, exercise log entry 2-row layout (name+delete / stats), program/history tables hide low-priority columns progressively (sm/md/lg), maxes form stacks vertically, larger touch targets on prescribed exercise buttons. |
+| PDF export | ✅ Done | "Export PDF" button calls `exportPDF()` (opens all accordions + `window.print()`). `@media print` CSS hides UI chrome, restores hidden table columns, removes overflow scroll. Rationale split into sections via `parse_rationale` Jinja2 filter so it flows across pages without blank-page artifacts. Each session day and each rationale section keeps `page-break-inside: avoid`. |
 | Calendar view for program | Medium | Week-grid view of sessions (Mon–Sun) as an alternative to the flat session list on the program detail page. |
 | Quick log mode | Medium | Minimal "RPE only" log path from dashboard — one tap, one RPE field, done. For sessions where full exercise entry isn't needed. |
-| Printable / PDF program view | Low | Clean print stylesheet for the program detail page; useful for athletes training without a phone. |
 
 ### 10d — Data & Export
 
