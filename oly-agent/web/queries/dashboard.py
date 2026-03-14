@@ -57,6 +57,84 @@ def get_adherence(conn, program_id: int, week_number: int) -> dict:
     return {"prescribed": p, "logged": l, "pct": round(l / p * 100) if p else 0}
 
 
+def get_lift_ratios(conn, athlete_id: int) -> list[dict]:
+    """Compute key lift ratios vs. expected ranges. Returns [] if insufficient maxes."""
+    from shared.db import fetch_one
+
+    row = fetch_one(
+        conn,
+        """
+        SELECT
+            MAX(CASE WHEN e.name = 'Snatch'       THEN am.weight_kg END) AS snatch,
+            MAX(CASE WHEN e.name = 'Clean & Jerk' THEN am.weight_kg END) AS cj,
+            MAX(CASE WHEN e.name = 'Back Squat'   THEN am.weight_kg END) AS back_squat,
+            MAX(CASE WHEN e.name = 'Front Squat'  THEN am.weight_kg END) AS front_squat,
+            MAX(CASE WHEN e.name = 'Clean'        THEN am.weight_kg END) AS clean
+        FROM athlete_maxes am
+        JOIN exercises e ON e.id = am.exercise_id
+        WHERE am.athlete_id = %s AND am.max_type = 'current'
+          AND e.name IN ('Snatch', 'Clean & Jerk', 'Back Squat', 'Front Squat', 'Clean')
+        """,
+        (athlete_id,),
+    )
+    if not row:
+        return []
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    snatch     = _f(row["snatch"])
+    cj         = _f(row["cj"])
+    back_squat = _f(row["back_squat"])
+    front_squat = _f(row["front_squat"])
+    clean      = _f(row["clean"]) or cj  # fall back to C&J if clean not recorded separately
+
+    # bar_min/max define the visual scale; target_low/high are the expected range
+    _CHECKS = [
+        ("Snatch / C&J",        snatch,      cj,         0.80, 0.83, 0.60, 1.00,
+         "Snatch is lagging — technique or snatch-specific strength may be limiting",
+         "C&J may be holding back total — check jerk technique or clean strength"),
+        ("Back Squat / Snatch", back_squat,  snatch,     1.35, 1.55, 1.00, 2.50,
+         "Squat strength may be limiting the snatch",
+         "Strength is not converting to the snatch — technique is likely the limiter"),
+        ("Front Squat / Clean", front_squat, clean,      1.10, 1.20, 0.80, 1.60,
+         "Front squat strength may be limiting the clean",
+         "Clean is technique-limited relative to front squat strength"),
+        ("Back Squat / C&J",   back_squat,  cj,         1.20, 1.30, 0.90, 1.80,
+         "Squat strength may be limiting the clean & jerk",
+         "Strength is not converting to the C&J — check jerk or clean technique"),
+    ]
+
+    def _pct(v, lo, hi):
+        return max(0, min(100, round((v - lo) / (hi - lo) * 100)))
+
+    results = []
+    for label, num, den, t_lo, t_hi, b_lo, b_hi, low_msg, high_msg in _CHECKS:
+        if num is None or den is None or den == 0:
+            continue
+        value = round(num / den, 2)
+        if value < t_lo:
+            status, message = "low", low_msg
+        elif value > t_hi:
+            status, message = "high", high_msg
+        else:
+            status, message = "ok", "Within the expected range"
+        results.append({
+            "label":            label,
+            "value":            value,
+            "target_low":       t_lo,
+            "target_high":      t_hi,
+            "status":           status,
+            "message":          message,
+            "numerator_kg":     num,
+            "denominator_kg":   den,
+            "value_pct":        _pct(value, b_lo, b_hi),
+            "target_low_pct":   _pct(t_lo,  b_lo, b_hi),
+            "target_width_pct": _pct(t_hi,  b_lo, b_hi) - _pct(t_lo, b_lo, b_hi),
+        })
+    return results
+
+
 def get_warnings(conn, athlete_id: int) -> list[str]:
     from shared.db import fetch_all
     warnings = []

@@ -29,8 +29,10 @@ async def dashboard(
     from web.app import templates
     program = q.get_active_program(conn, athlete_id)
     maxes = pq.get_athlete_maxes(conn, athlete_id)
+    ratios = q.get_lift_ratios(conn, athlete_id)
     ctx: dict = {"request": request, "program": None, "sessions": [],
-                 "adherence": {}, "warnings": [], "current_week": 1, "maxes": maxes}
+                 "adherence": {}, "warnings": [], "current_week": 1,
+                 "maxes": maxes, "ratios": ratios}
 
     if program:
         week = _current_week(program["start_date"], program["duration_weeks"])
