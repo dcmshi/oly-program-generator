@@ -47,13 +47,17 @@ D:\oly-program-generator\
 │       │   ├── dashboard.py         # GET / (dashboard)
 │       │   ├── program.py           # GET/POST /program (list, detail, activate, complete, abandon, maxes)
 │       │   ├── log_session.py       # GET/POST /log/{session_id}, POST/DELETE /log/{log_id}/exercise/{tle_id}
-│       │   └── generate.py          # GET /generate, POST /generate/run, GET /generate/status/{id}
+│       │   ├── generate.py          # GET /generate, POST /generate/run, GET /generate/status/{id}
+│       │   ├── export.py            # GET /export/log.csv, GET /export/program/{id}.csv
+│       │   └── history.py           # GET /history?exercise=... (per-exercise training history)
 │       ├── queries/
-│       │   ├── dashboard.py         # active program, week sessions, adherence, warnings
-│       │   ├── program.py           # program list/detail, maxes upsert, exercise ID cache
+│       │   ├── dashboard.py         # active program, week sessions, adherence, warnings, lift_ratios
+│       │   ├── program.py           # program list/detail, maxes upsert (PR detection), exercise ID cache
 │       │   ├── setup.py             # username_taken, create_athlete/maxes/goal
 │       │   ├── profile.py           # get_athlete, update_profile/password/username
-│       │   └── log_session.py       # session log create/update, exercise log create/update/delete, max promotion
+│       │   ├── log_session.py       # session log create/update, exercise log create/update/delete, max promotion
+│       │   ├── export.py            # get_program_for_export, get_full_training_log
+│       │   └── history.py           # get_exercise_history, compute_history_summary
 │       └── templates/               # Jinja2 HTML (Tailwind CSS + HTMX)
 │
 └── oly-ingestion/                   # ingestion pipeline (Phases 1–5)
@@ -238,6 +242,11 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **HTMX + auth expiry** — `AuthMiddleware` checks `HX-Request` header; if present, returns `HX-Redirect` response header (status 200) instead of a 302, so HTMX performs a full-page redirect rather than swapping fragment content.
 - **`plan.py` phase progression** — `_advance_phase()` advances along `general_prep → accumulation → intensification → realization`; realization always cycles back to accumulation; gated by adherence ≥70% and make_rate ≥75%; high RPE deviation (>1.5) blocks advancement. `_apply_outcome_adjustments()` applies volume/intensity nudges to non-deload weeks based on previous `outcome_summary`. Always pass `outcome_summary` as a parsed dict (psycopg2 returns JSONB as Python dict automatically).
 - **Jinja2 `{% set %}` scoping in loops** — variables set inside a `for` loop are scoped to the loop body. Use `{% set ns = namespace(key=[]) %}` and `ns.key = ns.key + [item]` to accumulate values across iterations. This pattern is used in `exercise_log_section.html` for `logged_se_ids` and `remaining`.
+- **Jinja2 `urlencode` filter** — added in `web/app.py` via `templates.env.filters["urlencode"] = quote_plus` (imported from `urllib.parse`). Used in exercise history links: `{{ name | urlencode }}`. Not a built-in Jinja2 filter.
+- **`session_id` in `exercise_log_entry.html`** — the partial is rendered in two contexts: (1) included from `exercise_log_section.html` where `session` is in scope (set via `{% set session_id = session.id %}` before the loop), and (2) rendered directly in `update_exercise_log` which must pass `session_id` explicitly. Both paths must stay in sync.
+- **PR detection on max upsert** — `upsert_athlete_max()` in `queries/program.py` fetches the existing max before upserting and returns `(is_pr: bool, prev_kg: float | None)`. The program router passes `is_pr` and `pr_exercise` to the maxes partial for a banner display. Always destructure the return tuple.
+- **Lift ratio analysis** — `get_lift_ratios()` in `queries/dashboard.py` fetches 5 maxes in one pivot query and computes 4 ratios (snatch/C&J, snatch/back squat, C&J/back squat, clean/front squat). Returns bar positioning percentages (`value_pct`, `target_low_pct`, `target_width_pct`) pre-computed for the horizontal gauge bars in `partials/lift_ratios.html`.
+- **CSV export** — `routers/export.py` streams responses via FastAPI `StreamingResponse` with `text/csv` content type and `Content-Disposition: attachment` header. Program export includes a metadata header block before the exercise rows. Log export is a flat join of all training_log_exercises.
 
 ## Source Ingestion Order
 

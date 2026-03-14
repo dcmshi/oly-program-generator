@@ -53,11 +53,12 @@ flowchart TB
 
     subgraph UI["🌐 Web UI  oly-agent/web/"]
         AUTH["Login / Setup\nsession auth · bcrypt · multi-athlete"]
-        DASH["Dashboard\ncurrent week · adherence · warnings"]
-        PROG["Program view\nweek accordions · exercise tables"]
-        LOGUI["Log session\nprescribed vs actual · prefill"]
+        DASH["Dashboard\ncurrent week · adherence · warnings · lift ratios"]
+        PROG["Program view\nweek accordions · exercise tables · CSV export"]
+        LOGUI["Log session\nprescribed vs actual · prefill · PR detection"]
         GEN["Generate\nbackground job · HTMX polling"]
-        PROF["Profile / Settings\nedit athlete fields · change password"]
+        PROF["Profile / Settings\nedit athlete fields · change password · data export"]
+        HIST["Exercise History\nper-exercise log · trend · back navigation"]
     end
 
     subgraph CLI["💻 CLI"]
@@ -162,8 +163,24 @@ oly-program-generator/
         ├── auth.py                  # bcrypt helpers + get_current_athlete_id dependency
         ├── deps.py                  # get_db (pooled) + slowapi limiter + settings singleton
         ├── jobs.py                  # Background thread queue for generation
-        ├── routers/                 # auth, setup, profile, dashboard, program, log_session, generate
-        ├── queries/                 # SQL helpers (dashboard, program, setup, profile)
+        ├── routers/
+        │   ├── auth.py              # GET/POST /login, POST /logout
+        │   ├── setup.py             # GET/POST /setup (account creation wizard)
+        │   ├── profile.py           # GET /profile, POST /profile/update|password|username
+        │   ├── dashboard.py         # GET / (dashboard + lift ratios)
+        │   ├── program.py           # GET/POST /program (list, detail, activate, complete, abandon, maxes)
+        │   ├── log_session.py       # GET/POST /log/{session_id}, POST/DELETE /log/{log_id}/exercise/{tle_id}
+        │   ├── generate.py          # GET /generate, POST /generate/run, GET /generate/status/{id}
+        │   ├── export.py            # GET /export/log.csv, GET /export/program/{id}.csv
+        │   └── history.py           # GET /history?exercise=... (per-exercise training history)
+        ├── queries/
+        │   ├── dashboard.py         # active program, week sessions, adherence, warnings, lift_ratios
+        │   ├── program.py           # program list/detail, maxes upsert (PR detection)
+        │   ├── setup.py             # username_taken, create_athlete/maxes/goal
+        │   ├── profile.py           # get_athlete, update_profile/password/username
+        │   ├── log_session.py       # session log create/update, exercise log CRUD, max promotion
+        │   ├── export.py            # get_program_for_export, get_full_training_log
+        │   └── history.py           # get_exercise_history, compute_history_summary
         └── templates/               # Jinja2 templates + HTMX partials
 ```
 
@@ -227,11 +244,12 @@ PYTHONUTF8=1 uv run uvicorn web.app:app --reload --port 8080
 ```
 
 Open `http://localhost:8080`. Create an account at `/setup` or log in at `/login`. The UI provides:
-- **Dashboard** — current week's sessions, logged/unlogged status, adherence, warnings, current maxes
-- **Programs** — all programs with phase/status badges; week accordions with full exercise tables; activate / complete / abandon actions
-- **Log session** — two-phase form: session RPE/details, then exercise-by-exercise with click-to-prefill from prescribed weights
+- **Dashboard** — current week's sessions, logged/unlogged status, adherence, warnings, current maxes, lift ratio analysis panel
+- **Programs** — all programs with phase/status badges; week accordions with full exercise tables; activate / complete / abandon; CSV export
+- **Log session** — two-phase form: session RPE/details, then exercise-by-exercise with click-to-prefill from prescribed weights; inline add/edit/delete; PR banner on new max
+- **Exercise history** — per-exercise training log with trend indicator; accessible from any logged exercise name link
 - **Generate** — triggers the agent in a background thread and polls for completion via HTMX
-- **Profile** — edit all athlete fields (bodyweight, lift emphasis, strength limiters, competition experience, etc.) and change password/username
+- **Profile** — edit all athlete fields (bodyweight, lift emphasis, strength limiters, competition experience, etc.); change password/username; full training log CSV export
 
 ### 6. Generate a program (CLI alternative)
 
@@ -273,14 +291,17 @@ The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** �
 |------|-----|-------------|
 | Login | `/login` | Username + bcrypt password auth; session cookie via `SessionMiddleware` |
 | Create account | `/setup` | Multi-section wizard: account, profile, training config, current maxes, goal |
-| Dashboard | `/` | Current week's sessions with logged/unlogged status, adherence bar, active warnings, current maxes |
+| Dashboard | `/` | Current week's sessions with logged/unlogged status, adherence bar, active warnings, current maxes, lift ratio analysis panel |
 | Programs | `/program` | All generated programs with phase and status badges |
-| Program detail | `/program/{id}` | Week accordions with full exercise tables (weight, intensity, RPE, rest), rationale, activate / complete / abandon |
-| Log session | `/log/{session_id}` | Two-phase form: session header (RPE, duration, bodyweight, sleep, stress) → per-exercise logging with click-to-prefill from prescribed |
+| Program detail | `/program/{id}` | Week accordions with full exercise tables (weight, intensity, RPE, rest), rationale, activate / complete / abandon; CSV export button |
+| Log session | `/log/{session_id}` | Session header form + per-exercise logging with click-to-prefill; inline add/edit/delete; PR banner on new personal best |
+| Exercise history | `/history?exercise=` | Full per-exercise training history: sets/reps/weight/RPE/deviation per session, trend indicator, back-to-session navigation |
 | Generate | `/generate` | Triggers the 6-step agent pipeline in a background thread; polls every 3 s via HTMX until complete |
-| Profile | `/profile` | Edit athlete fields (name, bodyweight, lift emphasis, strength limiters, competition experience, etc.); change password; change username |
+| Profile | `/profile` | Edit athlete fields (name, bodyweight, lift emphasis, strength limiters, competition experience, etc.); change password; change username; training log CSV download |
+| Export log | `/export/log.csv` | Download full training log as CSV (streamed, one row per exercise entry) |
+| Export program | `/export/program/{id}.csv` | Download a specific program as CSV with metadata header block + exercise rows |
 
-**Stack:** FastAPI · Jinja2 templates · HTMX (no page reloads) · Tailwind CSS via CDN · slowapi rate limiting · `ThreadedConnectionPool`
+**Stack:** FastAPI · Jinja2 templates · HTMX (no page reloads) · Tailwind CSS via CDN · Google Fonts (Barlow Condensed + DM Sans) · slowapi rate limiting · `ThreadedConnectionPool`
 
 ---
 
