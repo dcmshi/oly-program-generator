@@ -46,13 +46,14 @@ D:\oly-program-generator\
 │       │   ├── profile.py           # GET /profile, POST /profile/update|password|username
 │       │   ├── dashboard.py         # GET / (dashboard)
 │       │   ├── program.py           # GET/POST /program (list, detail, activate, complete, abandon, maxes)
-│       │   ├── log_session.py       # GET/POST /log/{session_id}
+│       │   ├── log_session.py       # GET/POST /log/{session_id}, POST/DELETE /log/{log_id}/exercise/{tle_id}
 │       │   └── generate.py          # GET /generate, POST /generate/run, GET /generate/status/{id}
 │       ├── queries/
 │       │   ├── dashboard.py         # active program, week sessions, adherence, warnings
 │       │   ├── program.py           # program list/detail, maxes upsert, exercise ID cache
 │       │   ├── setup.py             # username_taken, create_athlete/maxes/goal
-│       │   └── profile.py           # get_athlete, update_profile/password/username
+│       │   ├── profile.py           # get_athlete, update_profile/password/username
+│       │   └── log_session.py       # session log create/update, exercise log create/update/delete, max promotion
 │       └── templates/               # Jinja2 HTML (Tailwind CSS + HTMX)
 │
 └── oly-ingestion/                   # ingestion pipeline (Phases 1–5)
@@ -158,7 +159,7 @@ PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
 PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
-PYTHONUTF8=1 uv run python tests/test_plan.py            # 20 tests
+PYTHONUTF8=1 uv run python tests/test_plan.py            # 35 tests
 PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 10 tests
 PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
 ```
@@ -235,6 +236,8 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **passlib 1.7.4 is incompatible with bcrypt 5.x** — use the `bcrypt` library directly (`bcrypt.hashpw` / `bcrypt.checkpw`). `web/auth.py` wraps this. Do not add `passlib` as a dependency.
 - **Web auth middleware ordering** — `add_middleware` wraps in reverse order, so `SessionMiddleware` must be added *after* `AuthMiddleware` to run first (outermost). Session must be populated before the auth guard reads it.
 - **HTMX + auth expiry** — `AuthMiddleware` checks `HX-Request` header; if present, returns `HX-Redirect` response header (status 200) instead of a 302, so HTMX performs a full-page redirect rather than swapping fragment content.
+- **`plan.py` phase progression** — `_advance_phase()` advances along `general_prep → accumulation → intensification → realization`; realization always cycles back to accumulation; gated by adherence ≥70% and make_rate ≥75%; high RPE deviation (>1.5) blocks advancement. `_apply_outcome_adjustments()` applies volume/intensity nudges to non-deload weeks based on previous `outcome_summary`. Always pass `outcome_summary` as a parsed dict (psycopg2 returns JSONB as Python dict automatically).
+- **Jinja2 `{% set %}` scoping in loops** — variables set inside a `for` loop are scoped to the loop body. Use `{% set ns = namespace(key=[]) %}` and `ns.key = ns.key + [item]` to accumulate values across iterations. This pattern is used in `exercise_log_section.html` for `logged_se_ids` and `remaining`.
 
 ## Source Ingestion Order
 

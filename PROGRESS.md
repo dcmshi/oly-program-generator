@@ -205,6 +205,20 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 | Previous program context in LLM prompt | ✅ Done — `generate.py:build_session_prompt()` now includes `## Previous Program` block with phase, duration, adherence %, avg make rate, avg RPE deviation, trends, strength progress (max deltas), and athlete notes |
 | Test coverage | ✅ Done — `test_plan.py` expanded from 20 → 35 tests covering phase progression, outcome adjustments, competition date override |
 
+### 9k — Log Session UX & Logging Fixes ✅ COMPLETE
+
+| Item | Notes |
+|------|-------|
+| Collapsible wellness fields | ✅ Done — date + overall RPE are primary; duration, bodyweight, sleep quality, stress level, notes collapsed into optional `<details>` section |
+| Session edit after logging | ✅ Done — `POST /log/{session_id}` upserts; exercise section shows collapsible pre-filled session-edit panel; `update_session_log()` added to queries |
+| Clickable session cards on dashboard | ✅ Done — entire session card is an `<a>` tag; logged sessions link to `/log/{session_id}` for editing |
+| Logged badge links on program page | ✅ Done — "✓ Logged" badge is now an `<a>` link; sessions-completed progress bar added for active programs |
+| Exercise inline edit | ✅ Done — `exercise_log_entry.html` partial; ✏ button toggles pre-filled inline form; `POST /log/{log_id}/exercise/{tle_id}` update endpoint with deviation recompute |
+| Exercise delete | ✅ Done — ✕ button with hx-confirm; `DELETE /log/{log_id}/exercise/{tle_id}`; returns full section so prescribed buttons refresh |
+| Prescribed exercise deduplication | ✅ Done — prescribed buttons filtered by session_exercise_id of logged exercises; buttons show sets×reps; clicking prefills sets_completed + reps_per_set; Jinja2 namespace fix for scoping bug |
+| Save Session button | ✅ Done — green "Save Session ✓" at bottom of exercise section; links back to program page |
+| Make rate visibility | ✅ Done — field has inline hint "(successful lifts — e.g. 80 = 4/5)"; shown in logged exercise rows with colour coding |
+
 ---
 
 ## Phase 8 — Backlog (post-audit)
@@ -395,7 +409,7 @@ PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
 PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
-PYTHONUTF8=1 uv run python tests/test_plan.py            # 20 tests
+PYTHONUTF8=1 uv run python tests/test_plan.py            # 35 tests
 PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 10 tests
 PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
 ```
