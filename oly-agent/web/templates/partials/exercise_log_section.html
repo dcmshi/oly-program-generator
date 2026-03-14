@@ -123,9 +123,8 @@
         {% endif %}
 
         <form hx-post="/log/{{ log_id }}/exercise"
-              hx-target="#logged-exercises"
-              hx-swap="beforeend"
-              hx-on::after-request="this.reset()"
+              hx-target="#exercise-log-area"
+              hx-swap="outerHTML"
               class="grid grid-cols-2 gap-3">
 
           <input type="hidden" name="session_exercise_id" id="se_id">

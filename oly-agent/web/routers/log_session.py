@@ -100,11 +100,15 @@ async def submit_exercise_log(
     except Exception as e:
         logger.warning(f"Max promotion check failed (non-fatal): {e}")
 
-    tle = q.get_exercise_log_entry(conn, tle_id)
-    return templates.TemplateResponse("partials/exercise_log_entry.html", {
+    log = q.get_log_by_id(conn, log_id)
+    session = q.get_session_with_exercises(conn, log["session_id"])
+    logged_exercises = q.get_logged_exercises(conn, log_id)
+    return templates.TemplateResponse("partials/exercise_log_section.html", {
         "request": request,
-        "tle": tle,
+        "session": session,
+        "log": log,
         "log_id": log_id,
+        "logged_exercises": logged_exercises,
     })
 
 
