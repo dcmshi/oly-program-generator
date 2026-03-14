@@ -185,42 +185,6 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 
 ---
 
-## Remaining / Optional
-
-| Task | Priority | Notes |
-|------|----------|-------|
-| Takano ingestion | ❌ Permanently skipped | File unavailable online. Programming gap closed by *Olympic Weightlifting for Sports* (Everett) + Catalyst. |
-| Async DB driver (`asyncpg`) | ⏳ Deferred | Requires rewriting all `%s` → `$N` placeholders in ~24 queries + migrating connection API. FastAPI runs sync deps in thread pool so event loop is not blocked. Low priority until concurrency is a bottleneck. |
-| A/B testing framework for program strategies | ⏳ Future | Compare phase/volume approaches across athletes. |
-| CSV/JSON training log export | ⏳ Future | Athlete data portability endpoint. |
-| Principle conflict detection | ⏳ Future | Flag contradictory rules before generation. |
-| Projected maxes in peaking-phase weight calc | ⏳ Future | Wire `target_snatch_kg` / `target_cj_kg` from `athlete_goals` into `weight_resolver.py` as override for realization-phase percentages. |
-
-### 9j — Previous Program Awareness ✅ COMPLETE
-
-| Item | Notes |
-|------|-------|
-| Phase progression | ✅ Done — `plan.py:_advance_phase()` advances along `general_prep → accumulation → intensification → realization` sequence; realization always cycles back to accumulation; gated by adherence ≥70% and make_rate ≥75%; high RPE deviation (>1.5) blocks advancement even with good make rate |
-| Outcome-based volume/intensity adjustments | ✅ Done — `plan.py:_apply_outcome_adjustments()` nudges non-deload week targets: low adherence (<70%) → -10% volume, low make rate (<0.75) → -3% intensity ceiling, high RPE deviation (>1.0) → -5% volume, excellent performance → +2% intensity ceiling |
-| Previous program context in LLM prompt | ✅ Done — `generate.py:build_session_prompt()` now includes `## Previous Program` block with phase, duration, adherence %, avg make rate, avg RPE deviation, trends, strength progress (max deltas), and athlete notes |
-| Test coverage | ✅ Done — `test_plan.py` expanded from 20 → 35 tests covering phase progression, outcome adjustments, competition date override |
-
-### 9k — Log Session UX & Logging Fixes ✅ COMPLETE
-
-| Item | Notes |
-|------|-------|
-| Collapsible wellness fields | ✅ Done — date + overall RPE are primary; duration, bodyweight, sleep quality, stress level, notes collapsed into optional `<details>` section |
-| Session edit after logging | ✅ Done — `POST /log/{session_id}` upserts; exercise section shows collapsible pre-filled session-edit panel; `update_session_log()` added to queries |
-| Clickable session cards on dashboard | ✅ Done — entire session card is an `<a>` tag; logged sessions link to `/log/{session_id}` for editing |
-| Logged badge links on program page | ✅ Done — "✓ Logged" badge is now an `<a>` link; sessions-completed progress bar added for active programs |
-| Exercise inline edit | ✅ Done — `exercise_log_entry.html` partial; ✏ button toggles pre-filled inline form; `POST /log/{log_id}/exercise/{tle_id}` update endpoint with deviation recompute |
-| Exercise delete | ✅ Done — ✕ button with hx-confirm; `DELETE /log/{log_id}/exercise/{tle_id}`; returns full section so prescribed buttons refresh |
-| Prescribed exercise deduplication | ✅ Done — prescribed buttons filtered by session_exercise_id of logged exercises; buttons show sets×reps; clicking prefills sets_completed + reps_per_set; Jinja2 namespace fix for scoping bug |
-| Save Session button | ✅ Done — green "Save Session ✓" at bottom of exercise section; links back to program page |
-| Make rate visibility | ✅ Done — field has inline hint "(successful lifts — e.g. 80 = 4/5)"; shown in logged exercise rows with colour coding |
-
----
-
 ## Phase 8 — Backlog (post-audit)
 
 Identified via codebase audit. Grouped by priority.
@@ -381,6 +345,42 @@ Identified via automated codebase scan. Grouped by priority.
 | Validator warmup false-warnings | ✅ Fixed — intensity-floor warning for competition lifts now skips sets ≤65% (warmup band), eliminating non-blocking noise on every session |
 | Equipment constraint in prompt | ✅ Done — `available_equipment` from athlete profile wired into `build_session_prompt()`; MUST NOT rule added when `blocks` absent from equipment list; equipment list shown in athlete profile block |
 | `pgvector` added to agent venv | ✅ Done — `pgvector>=0.2.4` added to `oly-agent/pyproject.toml` so vector search works without `oly-ingestion` venv; run `uv sync` after restart to activate |
+
+### 9j — Previous Program Awareness ✅ COMPLETE
+
+| Item | Notes |
+|------|-------|
+| Phase progression | ✅ Done — `plan.py:_advance_phase()` advances along `general_prep → accumulation → intensification → realization` sequence; realization always cycles back to accumulation; gated by adherence ≥70% and make_rate ≥75%; high RPE deviation (>1.5) blocks advancement even with good make rate |
+| Outcome-based volume/intensity adjustments | ✅ Done — `plan.py:_apply_outcome_adjustments()` nudges non-deload week targets: low adherence (<70%) → -10% volume, low make rate (<0.75) → -3% intensity ceiling, high RPE deviation (>1.0) → -5% volume, excellent performance → +2% intensity ceiling |
+| Previous program context in LLM prompt | ✅ Done — `generate.py:build_session_prompt()` now includes `## Previous Program` block with phase, duration, adherence %, avg make rate, avg RPE deviation, trends, strength progress (max deltas), and athlete notes |
+| Test coverage | ✅ Done — `test_plan.py` expanded from 20 → 35 tests covering phase progression, outcome adjustments, competition date override |
+
+### 9k — Log Session UX & Logging Fixes ✅ COMPLETE
+
+| Item | Notes |
+|------|-------|
+| Collapsible wellness fields | ✅ Done — date + overall RPE are primary; duration, bodyweight, sleep quality, stress level, notes collapsed into optional `<details>` section |
+| Session edit after logging | ✅ Done — `POST /log/{session_id}` upserts; exercise section shows collapsible pre-filled session-edit panel; `update_session_log()` added to queries |
+| Clickable session cards on dashboard | ✅ Done — entire session card is an `<a>` tag; logged sessions link to `/log/{session_id}` for editing |
+| Logged badge links on program page | ✅ Done — "✓ Logged" badge is now an `<a>` link; sessions-completed progress bar added for active programs |
+| Exercise inline edit | ✅ Done — `exercise_log_entry.html` partial; ✏ button toggles pre-filled inline form; `POST /log/{log_id}/exercise/{tle_id}` update endpoint with deviation recompute |
+| Exercise delete | ✅ Done — ✕ button with hx-confirm; `DELETE /log/{log_id}/exercise/{tle_id}`; returns full section so prescribed buttons refresh |
+| Prescribed exercise deduplication | ✅ Done — prescribed buttons filtered by session_exercise_id of logged exercises; buttons show sets×reps; clicking prefills sets_completed + reps_per_set; Jinja2 namespace fix for scoping bug |
+| Save Session button | ✅ Done — green "Save Session ✓" at bottom of exercise section; links back to program page |
+| Make rate visibility | ✅ Done — field has inline hint "(successful lifts — e.g. 80 = 4/5)"; shown in logged exercise rows with colour coding |
+
+---
+
+## Remaining / Optional
+
+| Task | Priority | Notes |
+|------|----------|-------|
+| Takano ingestion | ❌ Permanently skipped | File unavailable online. Programming gap closed by *Olympic Weightlifting for Sports* (Everett) + Catalyst. |
+| A/B testing framework for program strategies | ⏳ Future | Compare phase/volume approaches across athletes. |
+| CSV/JSON training log export | ⏳ Future | Athlete data portability endpoint. |
+| Principle conflict detection | ⏳ Future | Flag contradictory rules before generation. |
+| Projected maxes in peaking-phase weight calc | ✅ Done | `weight_resolver.apply_projected_maxes()` overrides snatch/C&J maxes with `target_snatch_kg`/`target_cj_kg` from `athlete_goals` in realization phase; only applies when target > current max (no downgrade); orchestrator computes `effective_maxes` after PLAN and uses it for `resolve_weights()` and prompt; prompt labels the section "Working Maxes" with "← target" annotation; 7 new tests in `test_weight_resolver.py` (25 total). |
+| Async DB driver (`asyncpg`) | ⏳ Deferred | Requires rewriting all `%s` → `$N` placeholders in ~24 queries + migrating connection API. FastAPI runs sync deps in thread pool so event loop is not blocked. Low priority until concurrency is a bottleneck. |
 
 ---
 

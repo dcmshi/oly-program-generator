@@ -116,6 +116,7 @@ def build_session_prompt(
     already_prescribed: list[dict],
     session_rep_target: int,
     cumulative_comp_reps: int,
+    effective_maxes: dict[str, float] | None = None,
 ) -> str:
     """Assemble the full prompt for one session generation call."""
 
@@ -132,9 +133,24 @@ def build_session_prompt(
     available_equipment = athlete_context.athlete.get("available_equipment") or []
     has_blocks = "blocks" in available_equipment
 
+    # Use effective_maxes (projected targets in realization) if provided,
+    # otherwise fall back to current recorded maxes.
+    display_maxes = effective_maxes if effective_maxes is not None else athlete_context.maxes
+
+    # Detect which lifts are using projected targets vs current maxes
+    projected_lifts = []
+    if effective_maxes is not None:
+        for ref in ("snatch", "clean_and_jerk"):
+            if effective_maxes.get(ref) != athlete_context.maxes.get(ref):
+                projected_lifts.append(ref)
+
+    maxes_header = (
+        "Working Maxes (realization phase — snatch/C&J calculated off competition targets)"
+        if projected_lifts else "Current Maxes"
+    )
     maxes_lines = "\n".join(
-        f"  {ref}: {kg}kg"
-        for ref, kg in sorted(athlete_context.maxes.items())
+        f"  {ref}: {kg}kg{'  ← target' if ref in projected_lifts else ''}"
+        for ref, kg in sorted(display_maxes.items())
     )
 
     # ── Available exercises ───────────────────────────────────
@@ -267,7 +283,7 @@ Equipment available: {", ".join(available_equipment) if available_equipment else
 Technical faults: {faults_str}
 Injuries: {injuries_str}
 
-## Current Maxes
+## {maxes_header}
 {maxes_lines}
 
 ## Previous Program

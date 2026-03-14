@@ -92,6 +92,44 @@ def resolve_weights(
     return session_exercises
 
 
+def apply_projected_maxes(
+    maxes: dict[str, float],
+    active_goal: dict | None,
+    phase: str,
+) -> dict[str, float]:
+    """Override competition lift maxes with goal targets in realization phase.
+
+    In peaking, percentages are computed off the *target* performance rather
+    than the current max, so training loads reflect competition-day intensity.
+
+    Only overrides snatch / clean_and_jerk, and only when the target exceeds
+    the current recorded max (never downgrades weights).
+
+    Returns the original dict unchanged if phase != 'realization', no goal is
+    active, no targets are set, or targets are not higher than current maxes.
+    """
+    if phase != "realization" or not active_goal:
+        return maxes
+
+    targets = {
+        "snatch":         active_goal.get("target_snatch_kg"),
+        "clean_and_jerk": active_goal.get("target_cj_kg"),
+    }
+    effective = dict(maxes)
+    for ref, target_kg in targets.items():
+        if target_kg is None:
+            continue
+        target_kg = float(target_kg)
+        current = effective.get(ref, 0.0)
+        if target_kg > current:
+            logger.info(
+                f"Realization phase: using projected {ref} max "
+                f"{target_kg}kg (vs current {current}kg) for weight calculation"
+            )
+            effective[ref] = target_kg
+    return effective
+
+
 def attach_source_chunk_ids(
     session_exercises: list[dict],
     retrieval_context: dict,

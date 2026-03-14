@@ -156,7 +156,7 @@ PYTHONUTF8=1 uv run python log.py history  --athlete-id 1 --weeks 2  # recent hi
 # ── Agent Tests (no DB or API keys needed) ───────────────────────────────
 PYTHONUTF8=1 uv run python tests/test_validate.py        # 26 tests
 PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
-PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
+PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 25 tests
 PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
 PYTHONUTF8=1 uv run python tests/test_plan.py            # 35 tests

@@ -19,6 +19,7 @@ from weight_resolver import (
     resolve_exercise_ids,
     resolve_weights,
     attach_source_chunk_ids,
+    apply_projected_maxes,
 )
 
 
@@ -222,6 +223,75 @@ def test_attach_chunk_ids_no_duplicates():
     return True, ""
 
 
+# ── apply_projected_maxes ──────────────────────────────────────
+
+def test_projected_maxes_realization_overrides():
+    """Realization phase + targets above current → projected maxes applied."""
+    maxes = {"snatch": 100.0, "clean_and_jerk": 125.0, "back_squat": 160.0}
+    goal = {"target_snatch_kg": 105.0, "target_cj_kg": 130.0}
+    result = apply_projected_maxes(maxes, goal, "realization")
+    assert result["snatch"] == 105.0, f"Expected 105.0, got {result['snatch']}"
+    assert result["clean_and_jerk"] == 130.0, f"Expected 130.0, got {result['clean_and_jerk']}"
+    assert result["back_squat"] == 160.0, "Accessory lifts must not be changed"
+    return True, ""
+
+
+def test_projected_maxes_no_downgrade():
+    """Target below current max → current max kept."""
+    maxes = {"snatch": 100.0, "clean_and_jerk": 125.0}
+    goal = {"target_snatch_kg": 95.0, "target_cj_kg": 120.0}
+    result = apply_projected_maxes(maxes, goal, "realization")
+    assert result["snatch"] == 100.0, "Should not downgrade snatch"
+    assert result["clean_and_jerk"] == 125.0, "Should not downgrade C&J"
+    return True, ""
+
+
+def test_projected_maxes_non_realization_phase():
+    """Non-realization phase → maxes unchanged regardless of targets."""
+    maxes = {"snatch": 100.0, "clean_and_jerk": 125.0}
+    goal = {"target_snatch_kg": 110.0, "target_cj_kg": 135.0}
+    for phase in ("accumulation", "intensification", "general_prep"):
+        result = apply_projected_maxes(maxes, goal, phase)
+        assert result == maxes, f"Phase {phase} should not override maxes"
+    return True, ""
+
+
+def test_projected_maxes_no_goal():
+    """No active goal → maxes unchanged."""
+    maxes = {"snatch": 100.0}
+    result = apply_projected_maxes(maxes, None, "realization")
+    assert result == maxes
+    return True, ""
+
+
+def test_projected_maxes_partial_targets():
+    """Only snatch target set → only snatch overridden."""
+    maxes = {"snatch": 100.0, "clean_and_jerk": 125.0}
+    goal = {"target_snatch_kg": 107.5, "target_cj_kg": None}
+    result = apply_projected_maxes(maxes, goal, "realization")
+    assert result["snatch"] == 107.5
+    assert result["clean_and_jerk"] == 125.0
+    return True, ""
+
+
+def test_projected_maxes_equal_target_not_applied():
+    """Target exactly equal to current → no override (not strictly greater)."""
+    maxes = {"snatch": 100.0}
+    goal = {"target_snatch_kg": 100.0, "target_cj_kg": None}
+    result = apply_projected_maxes(maxes, goal, "realization")
+    assert result["snatch"] == 100.0
+    return True, ""
+
+
+def test_projected_maxes_original_dict_not_mutated():
+    """apply_projected_maxes must not mutate the input dict."""
+    maxes = {"snatch": 100.0, "clean_and_jerk": 125.0}
+    goal = {"target_snatch_kg": 110.0, "target_cj_kg": 135.0}
+    apply_projected_maxes(maxes, goal, "realization")
+    assert maxes["snatch"] == 100.0, "Original maxes dict must not be mutated"
+    return True, ""
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
@@ -247,6 +317,14 @@ TESTS = [
     ("attach_chunk_ids: no fault → only rationale IDs", test_attach_chunk_ids_no_fault_rationale),
     ("attach_chunk_ids: empty context → empty list", test_attach_chunk_ids_empty_context),
     ("attach_chunk_ids: no duplicate IDs", test_attach_chunk_ids_no_duplicates),
+    # apply_projected_maxes
+    ("apply_projected_maxes: realization + higher target → overrides", test_projected_maxes_realization_overrides),
+    ("apply_projected_maxes: target below current → no downgrade", test_projected_maxes_no_downgrade),
+    ("apply_projected_maxes: non-realization phase → unchanged", test_projected_maxes_non_realization_phase),
+    ("apply_projected_maxes: no goal → unchanged", test_projected_maxes_no_goal),
+    ("apply_projected_maxes: partial targets (only snatch)", test_projected_maxes_partial_targets),
+    ("apply_projected_maxes: equal target not applied", test_projected_maxes_equal_target_not_applied),
+    ("apply_projected_maxes: original dict not mutated", test_projected_maxes_original_dict_not_mutated),
 ]
 
 

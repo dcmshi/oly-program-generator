@@ -26,7 +26,7 @@ from retrieve import retrieve
 from generate import generate_session_with_retries, build_session_prompt
 from validate import validate_session
 from explain import explain
-from weight_resolver import resolve_exercise_ids, resolve_weights, attach_source_chunk_ids
+from weight_resolver import resolve_exercise_ids, resolve_weights, attach_source_chunk_ids, apply_projected_maxes
 from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate
 from phase_profiles import PHASE_PROFILES
 
@@ -78,6 +78,16 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
         if dry_run:
             _print_plan(athlete_context, program_plan)
             return None
+
+        # ── Projected maxes for realization phase ─────────────
+        # In realization, use target maxes (from athlete_goals) for weight
+        # calculations instead of current maxes, so percentages reflect
+        # competition-day intensity. Other phases always use current maxes.
+        effective_maxes = apply_projected_maxes(
+            athlete_context.maxes,
+            athlete_context.active_goal,
+            program_plan.phase,
+        )
 
         # ── Create program record ─────────────────────────────
         llm_client = create_llm_client(settings)
@@ -158,6 +168,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     already_prescribed=week_already_prescribed,
                     session_rep_target=session_rep_target,
                     cumulative_comp_reps=cumulative_comp_reps,
+                    effective_maxes=effective_maxes,
                 )
 
                 # Cost guard — check before generating so we don't overshoot by a full session
@@ -204,7 +215,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                         f"W{week_number}D{day_number}: {len(unresolved)} exercise(s) have no "
                         f"exercise_id (will store with NULL): {unresolved}"
                     )
-                exercises = resolve_weights(exercises, athlete_context.maxes)
+                exercises = resolve_weights(exercises, effective_maxes)
                 exercises = attach_source_chunk_ids(exercises, {
                     "programming_rationale": retrieval_context.programming_rationale,
                     "fault_correction_chunks": retrieval_context.fault_correction_chunks,
