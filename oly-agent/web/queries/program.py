@@ -180,16 +180,29 @@ def _get_exercise_id(conn, exercise_name: str) -> int | None:
 
 def upsert_athlete_max(
     conn, athlete_id: int, exercise_name: str, weight_kg: float, date_achieved
-):
+) -> tuple[bool, float | None]:
     """Insert or update the 'current' max for a given exercise name.
 
     Looks up exercise_id from the exercises table by name (case-insensitive).
     Raises ValueError if the exercise name is not found.
+    Returns (is_pr, previous_kg) — is_pr is True when weight_kg beats the previous record.
     """
-    from shared.db import execute
+    from shared.db import fetch_one, execute
     exercise_id = _get_exercise_id(conn, exercise_name)
     if exercise_id is None:
         raise ValueError(f"Exercise '{exercise_name}' not found in exercises table")
+
+    existing = fetch_one(
+        conn,
+        """
+        SELECT weight_kg FROM athlete_maxes
+        WHERE athlete_id = %s AND exercise_id = %s AND max_type = 'current'
+        """,
+        (athlete_id, exercise_id),
+    )
+    prev_kg = float(existing["weight_kg"]) if existing else None
+    is_pr = prev_kg is None or weight_kg > prev_kg
+
     execute(
         conn,
         """
@@ -202,6 +215,7 @@ def upsert_athlete_max(
         (athlete_id, exercise_id, weight_kg, date_achieved),
     )
     conn.commit()
+    return is_pr, prev_kg
 
 
 def activate_program(conn, program_id: int, athlete_id: int):

@@ -379,7 +379,7 @@ Identified via automated codebase scan. Grouped by priority.
 |------|----------|-------|
 | Exercise history view | ✅ Done | `GET /history?exercise=Snatch` — table of all logged sessions per exercise with weight, sets×reps, prescribed vs actual, RPE+deviation, make rate, notes. Summary strip: total sessions, best weight, most recent, trend (up/flat/down). Clickable from exercise names in log entries and maxes table. `web/routers/history.py` + `web/queries/history.py`. |
 | Lift ratio analysis | ✅ Done | Dashboard panel: 4 ratios (snatch/C&J, back squat/snatch, front squat/clean, back squat/C&J) with visual bar gauges showing actual vs target range. Status badges (Good/Low/High) + interpretation text. `get_lift_ratios()` in `dashboard.py` queries, `partials/lift_ratios.html`. |
-| PR detection on max update | ⭐ High | On `POST /program/maxes/update`, compare new value to previous max; highlight as a PR if beaten. Zero new data needed. |
+| PR detection on max update | ✅ Done | `upsert_athlete_max` now fetches previous value before upserting, returns `(is_pr, prev_kg)`. PR triggers an amber trophy banner in the maxes table showing the new weight and kg improvement over previous best. |
 | Session readiness warning | Medium | If logged sleep ≤ 2 or stress ≥ 4, surface a soft warning in the exercise log section suggesting intensity reduction. Wellness data already captured. |
 | RPE-based weight nudges | Medium | If a session exercise was logged at RPE ≥ 9.5, show a suggestion to reduce weight for that exercise in the next session. Simple flag in exercise history. |
 

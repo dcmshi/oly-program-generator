@@ -124,11 +124,16 @@ async def update_max(
 ):
     from web.app import templates
     try:
-        q.upsert_athlete_max(conn, athlete_id, exercise_name, weight_kg, date.today())
-        logger.info(f"Max updated: athlete {athlete_id}, {exercise_name} = {weight_kg} kg")
+        is_pr, prev_kg = q.upsert_athlete_max(conn, athlete_id, exercise_name, weight_kg, date.today())
+        logger.info(f"Max updated: athlete {athlete_id}, {exercise_name} = {weight_kg} kg, PR={is_pr}")
         maxes = q.get_athlete_maxes(conn, athlete_id)
         return templates.TemplateResponse("partials/maxes_table.html", {
-            "request": request, "maxes": maxes, "success": f"{exercise_name} updated to {weight_kg} kg",
+            "request": request, "maxes": maxes,
+            "success": f"{exercise_name} updated to {weight_kg:g} kg",
+            "is_pr": is_pr,
+            "pr_exercise": exercise_name,
+            "pr_kg": weight_kg,
+            "pr_prev_kg": prev_kg,
         })
     except ValueError as e:
         logger.warning(f"Max update failed: {e}")
