@@ -16,7 +16,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from plan import plan, _select_phase_and_duration
+from plan import plan, _select_phase_and_duration, _advance_phase, _apply_outcome_adjustments
 from models import AthleteContext
 
 RESULTS = []
@@ -147,6 +147,105 @@ def test_returning_athlete_no_intensity_override():
     with patch("plan.fetch_all", return_value=[]):
         result = plan(_ctx(previous_program={"phase": "accumulation"}), None, _FakeSettings())
     assert result.intensity_ceiling_override is None
+
+
+# ── Phase progression (_advance_phase) ──────────────────────────────────────
+
+def _good_outcome(**kwargs):
+    base = {"adherence_pct": 90.0, "avg_make_rate": 0.85, "avg_rpe_deviation": 0.2}
+    base.update(kwargs)
+    return base
+
+def test_accumulation_advances_to_intensification():
+    phase, _ = _advance_phase("accumulation", _good_outcome(), None)
+    assert phase == "intensification"
+
+def test_intensification_advances_to_realization():
+    phase, _ = _advance_phase("intensification", _good_outcome(), None)
+    assert phase == "realization"
+
+def test_realization_cycles_back_to_accumulation():
+    phase, _ = _advance_phase("realization", _good_outcome(), None)
+    assert phase == "accumulation"
+
+def test_phase_not_advanced_low_adherence():
+    phase, _ = _advance_phase("accumulation", _good_outcome(adherence_pct=60.0), None)
+    assert phase == "accumulation"
+
+def test_phase_not_advanced_low_make_rate():
+    phase, _ = _advance_phase("accumulation", _good_outcome(avg_make_rate=0.65), None)
+    assert phase == "accumulation"
+
+def test_phase_not_advanced_high_rpe_deviation():
+    phase, _ = _advance_phase("accumulation", _good_outcome(avg_rpe_deviation=2.0), None)
+    assert phase == "accumulation"
+
+def test_unknown_prev_phase_defaults_to_accumulation():
+    phase, _ = _advance_phase("some_unknown_phase", _good_outcome(), None)
+    assert phase == "accumulation"
+
+def test_advance_phase_returns_profile_default_duration():
+    _, weeks = _advance_phase("accumulation", _good_outcome(), None)
+    assert weeks == 4  # intensification default
+
+def test_phase_progression_used_in_select_when_no_competition():
+    ctx = _ctx(previous_program={"phase": "accumulation", "outcome_summary": _good_outcome()})
+    phase, _ = _select_phase_and_duration(ctx)
+    assert phase == "intensification"
+
+def test_competition_date_overrides_phase_progression():
+    # Even with a previous program, weeks_to_competition wins
+    ctx = _ctx(
+        previous_program={"phase": "accumulation", "outcome_summary": _good_outcome()},
+        weeks_to_competition=6,
+    )
+    phase, _ = _select_phase_and_duration(ctx)
+    assert phase == "intensification"  # driven by weeks_to_comp, not progression
+
+
+# ── Outcome adjustments (_apply_outcome_adjustments) ─────────────────────────
+
+def _dummy_targets(n=4):
+    return [
+        {"week_number": i, "volume_modifier": 1.0, "intensity_ceiling": 80.0, "is_deload": i == n}
+        for i in range(1, n + 1)
+    ]
+
+def test_no_outcome_returns_unchanged():
+    targets = _dummy_targets()
+    result = _apply_outcome_adjustments(targets, {"outcome_summary": None})
+    assert result == targets
+
+def test_low_adherence_reduces_volume():
+    targets = _dummy_targets()
+    result = _apply_outcome_adjustments(targets, {"outcome_summary": {"adherence_pct": 60.0}})
+    for t in result:
+        if not t["is_deload"]:
+            assert t["volume_modifier"] < 1.0
+
+def test_low_make_rate_reduces_intensity_ceiling():
+    targets = _dummy_targets()
+    result = _apply_outcome_adjustments(targets, {"outcome_summary": {"avg_make_rate": 0.60}})
+    for t in result:
+        if not t["is_deload"]:
+            assert t["intensity_ceiling"] < 80.0
+
+def test_excellent_performance_increases_intensity():
+    targets = _dummy_targets()
+    outcome = {"adherence_pct": 95.0, "avg_make_rate": 0.90}
+    result = _apply_outcome_adjustments(targets, {"outcome_summary": outcome})
+    for t in result:
+        if not t["is_deload"]:
+            assert t["intensity_ceiling"] > 80.0
+
+def test_deload_week_never_adjusted():
+    targets = _dummy_targets()
+    outcome = {"adherence_pct": 60.0, "avg_make_rate": 0.60}
+    result = _apply_outcome_adjustments(targets, {"outcome_summary": outcome})
+    deload = [t for t in result if t["is_deload"]]
+    assert len(deload) == 1
+    assert deload[0]["volume_modifier"] == 1.0
+    assert deload[0]["intensity_ceiling"] == 80.0
 
 
 # ── plan() — output shape ────────────────────────────────────────────────────

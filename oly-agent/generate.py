@@ -211,6 +211,31 @@ def build_session_prompt(
         )
     prilepin_block = "\n".join(prilepin_lines) if prilepin_lines else "  (standard Prilepin guidelines apply)"
 
+    # ── Previous program summary ──────────────────────────────
+    prev_prog = athlete_context.previous_program
+    if prev_prog:
+        outcome = prev_prog.get("outcome_summary") or {}
+        prev_lines = [
+            f"  Phase: {prev_prog.get('phase', 'unknown')} ({prev_prog.get('duration_weeks', '?')} weeks)",
+            f"  Adherence: {outcome.get('adherence_pct', 'N/A')}%",
+            f"  Avg make rate on competition lifts: {outcome.get('avg_make_rate', 'N/A')}",
+            f"  Avg RPE deviation: {outcome.get('avg_rpe_deviation', 'N/A'):+.2f}"
+            if isinstance(outcome.get("avg_rpe_deviation"), (int, float)) else
+            f"  Avg RPE deviation: N/A",
+            f"  RPE trend: {outcome.get('rpe_trend', 'N/A')}",
+            f"  Make rate trend: {outcome.get('make_rate_trend', 'N/A')}",
+        ]
+        deltas = outcome.get("maxes_delta") or {}
+        if deltas:
+            delta_parts = [f"{k} {v:+.1f}kg" for k, v in deltas.items()]
+            prev_lines.append(f"  Strength progress: {', '.join(delta_parts)}")
+        feedback = outcome.get("athlete_feedback")
+        if feedback:
+            prev_lines.append(f'  Athlete notes: "{feedback[:200]}"')
+        prev_program_block = "\n".join(prev_lines)
+    else:
+        prev_program_block = "  None — this is the athlete's first program."
+
     prompt = f"""You are an Olympic weightlifting programming assistant. Generate a training session as a JSON array.
 
 You MUST:
@@ -244,6 +269,9 @@ Injuries: {injuries_str}
 
 ## Current Maxes
 {maxes_lines}
+
+## Previous Program
+{prev_program_block}
 
 ## Program Plan
 Phase: {week_target.__class__.__name__} — Week {week_number} of {duration_weeks}

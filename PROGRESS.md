@@ -196,6 +196,15 @@ Design doc: `oly-programming-agent.md`. Athlete schema: `athlete_schema.sql`.
 | Principle conflict detection | ⏳ Future | Flag contradictory rules before generation. |
 | Projected maxes in peaking-phase weight calc | ⏳ Future | Wire `target_snatch_kg` / `target_cj_kg` from `athlete_goals` into `weight_resolver.py` as override for realization-phase percentages. |
 
+### 9j — Previous Program Awareness ✅ COMPLETE
+
+| Item | Notes |
+|------|-------|
+| Phase progression | ✅ Done — `plan.py:_advance_phase()` advances along `general_prep → accumulation → intensification → realization` sequence; realization always cycles back to accumulation; gated by adherence ≥70% and make_rate ≥75%; high RPE deviation (>1.5) blocks advancement even with good make rate |
+| Outcome-based volume/intensity adjustments | ✅ Done — `plan.py:_apply_outcome_adjustments()` nudges non-deload week targets: low adherence (<70%) → -10% volume, low make rate (<0.75) → -3% intensity ceiling, high RPE deviation (>1.0) → -5% volume, excellent performance → +2% intensity ceiling |
+| Previous program context in LLM prompt | ✅ Done — `generate.py:build_session_prompt()` now includes `## Previous Program` block with phase, duration, adherence %, avg make rate, avg RPE deviation, trends, strength progress (max deltas), and athlete notes |
+| Test coverage | ✅ Done — `test_plan.py` expanded from 20 → 35 tests covering phase progression, outcome adjustments, competition date override |
+
 ---
 
 ## Phase 8 — Backlog (post-audit)
