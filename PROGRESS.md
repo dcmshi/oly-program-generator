@@ -417,7 +417,7 @@ Identified via automated codebase scan. Grouped by priority.
 
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
-| Make-rate by lift | High | ⏳ In progress | Split `avg_make_rate` in `feedback.py` by `intensity_reference` (snatch / clean_and_jerk / clean). Store as `make_rate_by_lift` dict in `outcome_summary` JSONB. Surface in program list cards and program detail outcome panel. |
+| Make-rate by lift | High | ✅ Done | `feedback.py` groups make_rows by `intensity_reference` → `make_rate_by_lift` dict stored in `outcome_summary` JSONB. Program list cards show per-lift badges. `outcome_summary.html` and `program.html` both show per-lift breakdown below overall make rate. `generate.py` injects per-lift rates into the LLM previous-program prompt. |
 | Session duration vs estimated | Medium | ⬜ Planned | Log actual session end time (or total duration). Compare to `estimated_duration_minutes` on program detail. Simple "X min over/under" stat in session log. |
 | Video URL in exercise history | Low | ⬜ Planned | Optional `video_url` field per training log exercise entry. Displayed as thumbnail/link in history view. |
 
@@ -426,8 +426,8 @@ Identified via automated codebase scan. Grouped by priority.
 | Item | Priority | Status | Notes |
 |------|----------|--------|-------|
 | Intensity zone distribution chart | Medium | ⬜ Planned | Chart.js stacked bar per week showing % of prescribed volume in each Prilepin zone (55-65 / 65-70 / 70-80 / 80-90 / 90+). Uses `intensity_pct` from `session_exercises`. |
-| Goal progress tracker | Medium | ⬜ Planned | Dashboard widget tracking progress toward `target_snatch_kg` / `target_cj_kg` in `athlete_goals`. Show current max vs target with a progress bar and estimated programs-to-goal. |
-| Phase progression transparency | Medium | ⬜ Planned | Show why a phase did/didn't advance on program completion: adherence, make rate, RPE deviation thresholds annotated in the outcome summary. |
+| Goal progress tracker | Medium | ✅ Done | `GET /profile/goals` (POST upserts active `athlete_goals` row) added to profile page with goal type, target snatch/C&J, competition date/name, notes. Dashboard widget shows goal type badge, competition countdown, snatch + C&J progress bars (current / target / gap). `queries/dashboard.get_goal_progress()`. |
+| Phase progression transparency | Medium | ✅ Done | `_compute_phase_verdict()` in `feedback.py` mirrors `plan._advance_phase` + `_apply_outcome_adjustments`. Stored as `phase_verdict` in `outcome_summary` JSONB. Rendered in both `outcome_summary.html` (HTMX on completion) and `program.html` (static on completed program detail): phase arrow, per-threshold ✓/✗ rows, next-program load adjustments block. |
 
 ### 11c — Tier 3 (Complex / lower priority)
 
