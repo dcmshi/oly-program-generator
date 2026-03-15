@@ -2,11 +2,11 @@
 """DB queries for exercise history view."""
 
 
-def get_exercise_history(conn, athlete_id: int, exercise_name: str) -> list[dict]:
+async def get_exercise_history(conn, athlete_id: int, exercise_name: str) -> list[dict]:
     """All logged entries for a given exercise, most recent first."""
-    from shared.db import fetch_all
+    from web.async_db import async_fetch_all
 
-    return fetch_all(
+    return await async_fetch_all(
         conn,
         """
         SELECT
@@ -27,11 +27,11 @@ def get_exercise_history(conn, athlete_id: int, exercise_name: str) -> list[dict
         JOIN training_logs tl      ON tl.id  = tle.log_id
         JOIN program_sessions ps   ON ps.id  = tl.session_id
         JOIN generated_programs gp ON gp.id  = ps.program_id
-        WHERE tl.athlete_id = %s
-          AND LOWER(tle.exercise_name) = LOWER(%s)
+        WHERE tl.athlete_id = $1
+          AND LOWER(tle.exercise_name) = LOWER($2)
         ORDER BY tl.log_date DESC, tl.id DESC
         """,
-        (athlete_id, exercise_name),
+        athlete_id, exercise_name,
     )
 
 

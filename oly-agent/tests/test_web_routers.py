@@ -54,7 +54,7 @@ from web.deps import get_db, get_settings
 _mock_conn = MagicMock()
 
 
-def _db_override():
+async def _db_override():
     yield _mock_conn
 
 
@@ -154,7 +154,7 @@ def test_login_page_accessible_without_auth():
 
 
 def test_login_invalid_credentials_returns_401():
-    with patch("web.routers.auth.fetch_one", return_value=None):
+    with patch("web.routers.auth.async_fetch_one", return_value=None):
         r = _unauthed.post("/login", data={"username": "bad", "password": "bad"})
     assert r.status_code == 401, f"Expected 401, got {r.status_code}"
 
@@ -164,7 +164,7 @@ def test_login_valid_credentials_redirects():
     hashed = bcrypt.hashpw(b"secret", bcrypt.gensalt()).decode()
     mock_athlete = {"id": 1, "name": "Test", "password_hash": hashed}
     client = TestClient(app, follow_redirects=False)
-    with patch("web.routers.auth.fetch_one", return_value=mock_athlete):
+    with patch("web.routers.auth.async_fetch_one", return_value=mock_athlete):
         r = client.post("/login", data={"username": "test", "password": "secret"})
     assert r.status_code == 303, f"Expected 303, got {r.status_code}"
     assert r.headers.get("location") == "/"

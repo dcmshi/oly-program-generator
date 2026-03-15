@@ -1,7 +1,9 @@
 # web/app.py
 """FastAPI application factory."""
 
+import logging
 import sys
+from contextlib import asynccontextmanager
 from pathlib import Path
 
 # Make shared/ and oly-agent/ importable
@@ -19,6 +21,7 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response as StarletteResponse
 
+from web.async_db import init_async_pool, close_async_pool
 from web.deps import get_settings, limiter
 from web.routers import dashboard, program, log_session, generate
 from web.routers import auth as auth_router
@@ -27,7 +30,21 @@ from web.routers import profile as profile_router
 from web.routers import export as export_router
 from web.routers import history as history_router
 
-app = FastAPI(title="Oly Agent")
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    s = get_settings()
+    try:
+        await init_async_pool(s.database_url, s.db_pool_min, s.db_pool_max)
+    except Exception as e:
+        logger.warning(f"DB pool init failed ({e}) — running without async pool")
+    yield
+    await close_async_pool()
+
+
+app = FastAPI(title="Oly Agent", lifespan=lifespan)
 
 # ── Rate limiting ──────────────────────────────────────────────
 app.state.limiter = limiter

@@ -83,7 +83,7 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         errors.append("Username is required.")
     elif len(username) > 100:
         errors.append("Username must be 100 characters or fewer.")
-    elif q.username_taken(conn, username):
+    elif await q.username_taken(conn, username):
         errors.append(f"Username '{username}' is already taken.")
 
     if not password:
@@ -136,7 +136,7 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         "competition_experience": form.get("competition_experience") or "none",
     }
 
-    athlete_id = q.create_athlete(conn, athlete_data, hash_password(password))
+    athlete_id = await q.create_athlete(conn, athlete_data, hash_password(password))
 
     # ── Maxes ─────────────────────────────────────────────────
     maxes = []
@@ -149,12 +149,12 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
                 maxes.append((exercise_name, weight))
         except (ValueError, TypeError):
             pass
-    q.create_maxes(conn, athlete_id, maxes)
+    await q.create_maxes(conn, athlete_id, maxes)
 
     # ── Goal ──────────────────────────────────────────────────
     goal_type = form.get("goal_type", "").strip()
     if goal_type:
-        q.create_goal(
+        await q.create_goal(
             conn,
             athlete_id,
             goal_type,
@@ -163,7 +163,6 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
             target_cj_kg=form.get("target_cj_kg"),
         )
 
-    conn.commit()
     logger.info(f"New athlete created: id={athlete_id}, username={username}, level={level}")
 
     request.session["athlete_id"] = athlete_id

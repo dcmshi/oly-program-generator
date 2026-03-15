@@ -2,9 +2,9 @@
 """DB queries for athlete profile viewing and editing."""
 
 
-def get_athlete(conn, athlete_id: int) -> dict | None:
-    from shared.db import fetch_one
-    return fetch_one(
+async def get_athlete(conn, athlete_id: int) -> dict | None:
+    from web.async_db import async_fetch_one
+    return await async_fetch_one(
         conn,
         """
         SELECT id, name, email, username, level, biological_sex,
@@ -13,14 +13,14 @@ def get_athlete(conn, athlete_id: int) -> dict | None:
                available_equipment, technical_faults, injuries, notes,
                lift_emphasis, strength_limiters, competition_experience
         FROM athletes
-        WHERE id = %s
+        WHERE id = $1
         """,
-        (athlete_id,),
+        athlete_id,
     )
 
 
-def update_profile(conn, athlete_id: int, data: dict):
-    from shared.db import execute
+async def update_profile(conn, athlete_id: int, data: dict):
+    from web.async_db import async_execute
 
     def _float(v):
         try:
@@ -34,75 +34,73 @@ def update_profile(conn, athlete_id: int, data: dict):
         except (ValueError, TypeError):
             return None
 
-    execute(
+    await async_execute(
         conn,
         """
         UPDATE athletes SET
-            name                    = %s,
-            email                   = %s,
-            level                   = %s,
-            biological_sex          = %s,
-            date_of_birth           = %s,
-            bodyweight_kg           = %s,
-            height_cm               = %s,
-            weight_class            = %s,
-            training_age_years      = %s,
-            sessions_per_week       = %s,
-            session_duration_minutes= %s,
-            available_equipment     = %s,
-            technical_faults        = %s,
-            injuries                = %s,
-            notes                   = %s,
-            lift_emphasis           = %s,
-            strength_limiters       = %s,
-            competition_experience  = %s,
+            name                    = $1,
+            email                   = $2,
+            level                   = $3,
+            biological_sex          = $4,
+            date_of_birth           = $5,
+            bodyweight_kg           = $6,
+            height_cm               = $7,
+            weight_class            = $8,
+            training_age_years      = $9,
+            sessions_per_week       = $10,
+            session_duration_minutes= $11,
+            available_equipment     = $12,
+            technical_faults        = $13,
+            injuries                = $14,
+            notes                   = $15,
+            lift_emphasis           = $16,
+            strength_limiters       = $17,
+            competition_experience  = $18,
             updated_at              = NOW()
-        WHERE id = %s
+        WHERE id = $19
         """,
-        (
-            data["name"],
-            data.get("email") or None,
-            data["level"],
-            data.get("biological_sex") or None,
-            data.get("date_of_birth") or None,
-            _float(data.get("bodyweight_kg")),
-            _float(data.get("height_cm")),
-            data.get("weight_class") or None,
-            _float(data.get("training_age_years")),
-            _int(data.get("sessions_per_week")) or 4,
-            _int(data.get("session_duration_minutes")) or 90,
-            data.get("available_equipment") or [],
-            data.get("technical_faults") or [],
-            data.get("injuries") or None,
-            data.get("notes") or None,
-            data.get("lift_emphasis") or "balanced",
-            data.get("strength_limiters") or [],
-            data.get("competition_experience") or "none",
-            athlete_id,
-        ),
+        data["name"],
+        data.get("email") or None,
+        data["level"],
+        data.get("biological_sex") or None,
+        data.get("date_of_birth") or None,
+        _float(data.get("bodyweight_kg")),
+        _float(data.get("height_cm")),
+        data.get("weight_class") or None,
+        _float(data.get("training_age_years")),
+        _int(data.get("sessions_per_week")) or 4,
+        _int(data.get("session_duration_minutes")) or 90,
+        data.get("available_equipment") or [],
+        data.get("technical_faults") or [],
+        data.get("injuries") or None,
+        data.get("notes") or None,
+        data.get("lift_emphasis") or "balanced",
+        data.get("strength_limiters") or [],
+        data.get("competition_experience") or "none",
+        athlete_id,
     )
 
 
-def update_password(conn, athlete_id: int, new_hash: str):
-    from shared.db import execute
-    execute(
+async def update_password(conn, athlete_id: int, new_hash: str):
+    from web.async_db import async_execute
+    await async_execute(
         conn,
-        "UPDATE athletes SET password_hash = %s, updated_at = NOW() WHERE id = %s",
-        (new_hash, athlete_id),
+        "UPDATE athletes SET password_hash = $1, updated_at = NOW() WHERE id = $2",
+        new_hash, athlete_id,
     )
 
 
-def update_username(conn, athlete_id: int, new_username: str):
-    from shared.db import fetch_one, execute
-    existing = fetch_one(
+async def update_username(conn, athlete_id: int, new_username: str):
+    from web.async_db import async_fetch_one, async_execute
+    existing = await async_fetch_one(
         conn,
-        "SELECT id FROM athletes WHERE username = %s AND id != %s",
-        (new_username, athlete_id),
+        "SELECT id FROM athletes WHERE username = $1 AND id != $2",
+        new_username, athlete_id,
     )
     if existing:
         raise ValueError(f"Username '{new_username}' is already taken.")
-    execute(
+    await async_execute(
         conn,
-        "UPDATE athletes SET username = %s, updated_at = NOW() WHERE id = %s",
-        (new_username, athlete_id),
+        "UPDATE athletes SET username = $1, updated_at = NOW() WHERE id = $2",
+        new_username, athlete_id,
     )

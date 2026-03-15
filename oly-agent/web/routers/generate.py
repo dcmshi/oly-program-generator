@@ -19,7 +19,7 @@ async def generate_page(
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
-    programs = qp.get_all_programs(conn, athlete_id)
+    programs = await qp.get_all_programs(conn, athlete_id)
     last = programs[0] if programs else None
     return templates.TemplateResponse("generate.html", {
         "request": request, "last_program": last,

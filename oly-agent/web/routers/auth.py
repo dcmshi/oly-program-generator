@@ -5,7 +5,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
-from shared.db import fetch_one
+from web.async_db import async_fetch_one
 from web.auth import verify_password
 from web.deps import get_db, limiter
 
@@ -31,10 +31,10 @@ async def login_submit(
     conn=Depends(get_db),
 ):
     from web.app import templates
-    row = fetch_one(
+    row = await async_fetch_one(
         conn,
-        "SELECT id, name, password_hash FROM athletes WHERE username = %s",
-        (username.strip(),),
+        "SELECT id, name, password_hash FROM athletes WHERE username = $1",
+        username.strip(),
     )
     if not row or not verify_password(password, row["password_hash"]):
         logger.warning(f"Failed login attempt for username='{username.strip()}'")

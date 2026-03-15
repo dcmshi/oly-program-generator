@@ -6,6 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 
+from web.async_db import async_fetch_one
 from web.auth import get_current_athlete_id, hash_password, verify_password
 from web.deps import get_db, limiter
 from web.queries import profile as q
@@ -21,7 +22,7 @@ async def profile_page(
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
-    athlete = q.get_athlete(conn, athlete_id)
+    athlete = await q.get_athlete(conn, athlete_id)
     return templates.TemplateResponse("profile.html", {
         "request": request,
         "athlete": athlete,
@@ -81,7 +82,7 @@ async def update_profile(
     }
 
     if not data["name"]:
-        athlete = q.get_athlete(conn, athlete_id)
+        athlete = await q.get_athlete(conn, athlete_id)
         return templates.TemplateResponse("profile.html", {
             "request": request,
             "athlete": athlete,
@@ -89,8 +90,7 @@ async def update_profile(
             "profile_error": True,
         }, status_code=422)
 
-    q.update_profile(conn, athlete_id, data)
-    conn.commit()
+    await q.update_profile(conn, athlete_id, data)
 
     # Refresh session name if it changed
     request.session["athlete_name"] = data["name"]
@@ -109,9 +109,8 @@ async def update_password(
     confirm_password: Annotated[str, Form(min_length=1, max_length=200)] = "",
 ):
     from web.app import templates
-    from shared.db import fetch_one
 
-    athlete = q.get_athlete(conn, athlete_id)
+    athlete = await q.get_athlete(conn, athlete_id)
 
     def _err(msg):
         return templates.TemplateResponse("profile.html", {
@@ -121,7 +120,7 @@ async def update_password(
             "security_error": True,
         }, status_code=422)
 
-    row = fetch_one(conn, "SELECT password_hash FROM athletes WHERE id = %s", (athlete_id,))
+    row = await async_fetch_one(conn, "SELECT password_hash FROM athletes WHERE id = $1", athlete_id)
     if not row or not verify_password(current_password, row["password_hash"]):
         return _err("Current password is incorrect.")
 
@@ -131,8 +130,7 @@ async def update_password(
     if len(new_password) < 8:
         return _err("New password must be at least 8 characters.")
 
-    q.update_password(conn, athlete_id, hash_password(new_password))
-    conn.commit()
+    await q.update_password(conn, athlete_id, hash_password(new_password))
     logger.info(f"Password changed: athlete_id={athlete_id}")
     return RedirectResponse("/profile?success=password", status_code=303)
 
@@ -147,9 +145,8 @@ async def update_username(
     confirm_password_u: Annotated[str, Form(min_length=1, max_length=200)] = "",
 ):
     from web.app import templates
-    from shared.db import fetch_one
 
-    athlete = q.get_athlete(conn, athlete_id)
+    athlete = await q.get_athlete(conn, athlete_id)
 
     def _err(msg):
         return templates.TemplateResponse("profile.html", {
@@ -163,13 +160,12 @@ async def update_username(
     if not new_username:
         return _err("Username cannot be empty.")
 
-    row = fetch_one(conn, "SELECT password_hash FROM athletes WHERE id = %s", (athlete_id,))
+    row = await async_fetch_one(conn, "SELECT password_hash FROM athletes WHERE id = $1", athlete_id)
     if not row or not verify_password(confirm_password_u, row["password_hash"]):
         return _err("Password is incorrect.")
 
     try:
-        q.update_username(conn, athlete_id, new_username)
-        conn.commit()
+        await q.update_username(conn, athlete_id, new_username)
     except ValueError as exc:
         return _err(str(exc))
 

@@ -27,18 +27,18 @@ async def dashboard(
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
-    program = q.get_active_program(conn, athlete_id)
-    maxes = pq.get_athlete_maxes(conn, athlete_id)
-    ratios = q.get_lift_ratios(conn, athlete_id)
+    program = await q.get_active_program(conn, athlete_id)
+    maxes = await pq.get_athlete_maxes(conn, athlete_id)
+    ratios = await q.get_lift_ratios(conn, athlete_id)
     ctx: dict = {"request": request, "program": None, "sessions": [],
                  "adherence": {}, "warnings": [], "current_week": 1,
                  "maxes": maxes, "ratios": ratios}
 
     if program:
         week = _current_week(program["start_date"], program["duration_weeks"])
-        sessions = q.get_current_week_sessions(conn, program["id"], week)
-        adherence = q.get_adherence(conn, program["id"], week)
-        warnings = q.get_warnings(conn, athlete_id)
+        sessions = await q.get_current_week_sessions(conn, program["id"], week)
+        adherence = await q.get_adherence(conn, program["id"], week)
+        warnings = await q.get_warnings(conn, athlete_id)
         ctx.update({
             "program": program,
             "current_week": week,

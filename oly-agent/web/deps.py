@@ -11,7 +11,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 
 from shared.config import Settings
-from shared.db import init_pool, pooled_connection
+from web.async_db import get_async_pool
 
 logger = logging.getLogger(__name__)
 
@@ -40,8 +40,8 @@ def _init_limiter() -> Limiter:
 limiter = _init_limiter()
 
 
-def get_db():
-    s = get_settings()
-    init_pool(s.database_url, s.db_pool_min, s.db_pool_max)
-    with pooled_connection() as conn:
-        yield conn
+async def get_db():
+    pool = get_async_pool()
+    async with pool.acquire() as conn:
+        async with conn.transaction():
+            yield conn

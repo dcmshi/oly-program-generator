@@ -4,64 +4,63 @@
 from datetime import date, timedelta
 
 
-def get_active_program(conn, athlete_id: int) -> dict | None:
-    from shared.db import fetch_one
-    return fetch_one(
+async def get_active_program(conn, athlete_id: int) -> dict | None:
+    from web.async_db import async_fetch_one
+    return await async_fetch_one(
         conn,
         """
         SELECT id, name, phase, status, start_date, duration_weeks, sessions_per_week
         FROM generated_programs
-        WHERE athlete_id = %s AND status IN ('active', 'draft')
+        WHERE athlete_id = $1 AND status IN ('active', 'draft')
         ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, created_at DESC
         LIMIT 1
         """,
-        (athlete_id,),
+        athlete_id,
     )
 
 
-def get_current_week_sessions(conn, program_id: int, week_number: int) -> list[dict]:
-    from shared.db import fetch_all
-    sessions = fetch_all(
+async def get_current_week_sessions(conn, program_id: int, week_number: int) -> list[dict]:
+    from web.async_db import async_fetch_all
+    return await async_fetch_all(
         conn,
         """
         SELECT ps.id, ps.day_number, ps.session_label, ps.estimated_duration_minutes,
                ps.focus_area, tl.id AS log_id, tl.overall_rpe
         FROM program_sessions ps
         LEFT JOIN training_logs tl ON tl.session_id = ps.id
-        WHERE ps.program_id = %s AND ps.week_number = %s
+        WHERE ps.program_id = $1 AND ps.week_number = $2
         ORDER BY ps.day_number
         """,
-        (program_id, week_number),
+        program_id, week_number,
     )
-    return sessions
 
 
-def get_adherence(conn, program_id: int, week_number: int) -> dict:
-    from shared.db import fetch_one
-    prescribed = fetch_one(
+async def get_adherence(conn, program_id: int, week_number: int) -> dict:
+    from web.async_db import async_fetch_one
+    prescribed = await async_fetch_one(
         conn,
-        "SELECT COUNT(*) AS cnt FROM program_sessions WHERE program_id = %s AND week_number <= %s",
-        (program_id, week_number),
+        "SELECT COUNT(*) AS cnt FROM program_sessions WHERE program_id = $1 AND week_number <= $2",
+        program_id, week_number,
     )
-    logged = fetch_one(
+    logged = await async_fetch_one(
         conn,
         """
         SELECT COUNT(*) AS cnt FROM training_logs tl
         JOIN program_sessions ps ON ps.id = tl.session_id
-        WHERE ps.program_id = %s AND ps.week_number <= %s
+        WHERE ps.program_id = $1 AND ps.week_number <= $2
         """,
-        (program_id, week_number),
+        program_id, week_number,
     )
     p = (prescribed or {}).get("cnt", 0)
     l = (logged or {}).get("cnt", 0)
     return {"prescribed": p, "logged": l, "pct": round(l / p * 100) if p else 0}
 
 
-def get_lift_ratios(conn, athlete_id: int) -> list[dict]:
+async def get_lift_ratios(conn, athlete_id: int) -> list[dict]:
     """Compute key lift ratios vs. expected ranges. Returns [] if insufficient maxes."""
-    from shared.db import fetch_one
+    from web.async_db import async_fetch_one
 
-    row = fetch_one(
+    row = await async_fetch_one(
         conn,
         """
         SELECT
@@ -72,10 +71,10 @@ def get_lift_ratios(conn, athlete_id: int) -> list[dict]:
             MAX(CASE WHEN e.name = 'Clean'        THEN am.weight_kg END) AS clean
         FROM athlete_maxes am
         JOIN exercises e ON e.id = am.exercise_id
-        WHERE am.athlete_id = %s AND am.max_type = 'current'
+        WHERE am.athlete_id = $1 AND am.max_type = 'current'
           AND e.name IN ('Snatch', 'Clean & Jerk', 'Back Squat', 'Front Squat', 'Clean')
         """,
-        (athlete_id,),
+        athlete_id,
     )
     if not row:
         return []
@@ -83,11 +82,11 @@ def get_lift_ratios(conn, athlete_id: int) -> list[dict]:
     def _f(v):
         return float(v) if v is not None else None
 
-    snatch     = _f(row["snatch"])
-    cj         = _f(row["cj"])
-    back_squat = _f(row["back_squat"])
+    snatch      = _f(row["snatch"])
+    cj          = _f(row["cj"])
+    back_squat  = _f(row["back_squat"])
     front_squat = _f(row["front_squat"])
-    clean      = _f(row["clean"]) or cj  # fall back to C&J if clean not recorded separately
+    clean       = _f(row["clean"]) or cj  # fall back to C&J if clean not recorded separately
 
     # bar_min/max define the visual scale; target_low/high are the expected range
     _CHECKS = [
@@ -135,20 +134,20 @@ def get_lift_ratios(conn, athlete_id: int) -> list[dict]:
     return results
 
 
-def get_warnings(conn, athlete_id: int) -> list[str]:
-    from shared.db import fetch_all
+async def get_warnings(conn, athlete_id: int) -> list[str]:
+    from web.async_db import async_fetch_all
     warnings = []
     cutoff = date.today() - timedelta(days=14)
 
-    recent_logs = fetch_all(
+    recent_logs = await async_fetch_all(
         conn,
         """
         SELECT log_date, overall_rpe, sleep_quality, stress_level
         FROM training_logs
-        WHERE athlete_id = %s AND log_date >= %s
+        WHERE athlete_id = $1 AND log_date >= $2
         ORDER BY log_date DESC
         """,
-        (athlete_id, cutoff),
+        athlete_id, cutoff,
     )
     for log in recent_logs:
         d = log["log_date"].strftime("%b %d") if hasattr(log["log_date"], "strftime") else str(log["log_date"])
@@ -159,7 +158,7 @@ def get_warnings(conn, athlete_id: int) -> list[str]:
         if log["stress_level"] and int(log["stress_level"]) >= 4:
             warnings.append(f"High stress (level {log['stress_level']}/5) on {d}")
 
-    ex_stats = fetch_all(
+    ex_stats = await async_fetch_all(
         conn,
         """
         SELECT tle.exercise_name,
@@ -168,11 +167,11 @@ def get_warnings(conn, athlete_id: int) -> list[str]:
                COUNT(*) AS sessions
         FROM training_log_exercises tle
         JOIN training_logs tl ON tl.id = tle.log_id
-        WHERE tl.athlete_id = %s AND tl.log_date >= %s AND tle.rpe IS NOT NULL
+        WHERE tl.athlete_id = $1 AND tl.log_date >= $2 AND tle.rpe IS NOT NULL
         GROUP BY tle.exercise_name
         HAVING COUNT(*) >= 2
         """,
-        (athlete_id, cutoff),
+        athlete_id, cutoff,
     )
     for ex in ex_stats:
         if ex["avg_rpe_dev"] and float(ex["avg_rpe_dev"]) > 1.5:

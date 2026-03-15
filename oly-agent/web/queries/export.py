@@ -2,27 +2,27 @@
 """DB queries for CSV exports."""
 
 
-def get_program_for_export(conn, program_id: int, athlete_id: int) -> tuple[dict | None, list[dict]]:
+async def get_program_for_export(conn, program_id: int, athlete_id: int) -> tuple[dict | None, list[dict]]:
     """Return (program_meta, exercise_rows) for a single program.
 
     exercise_rows has one entry per session exercise, ordered by week → day → exercise_order.
     Returns (None, []) if the program doesn't exist or belongs to another athlete.
     """
-    from shared.db import fetch_one, fetch_all
+    from web.async_db import async_fetch_one, async_fetch_all
 
-    program = fetch_one(
+    program = await async_fetch_one(
         conn,
         """
         SELECT id, name, phase, status, start_date, duration_weeks, sessions_per_week
         FROM generated_programs
-        WHERE id = %s AND athlete_id = %s
+        WHERE id = $1 AND athlete_id = $2
         """,
-        (program_id, athlete_id),
+        program_id, athlete_id,
     )
     if not program:
         return None, []
 
-    rows = fetch_all(
+    rows = await async_fetch_all(
         conn,
         """
         SELECT
@@ -46,22 +46,22 @@ def get_program_for_export(conn, program_id: int, athlete_id: int) -> tuple[dict
             se.notes
         FROM program_sessions ps
         JOIN session_exercises se ON se.session_id = ps.id
-        WHERE ps.program_id = %s
+        WHERE ps.program_id = $1
         ORDER BY ps.week_number, ps.day_number, se.exercise_order
         """,
-        (program_id,),
+        program_id,
     )
     return program, rows
 
 
-def get_full_training_log(conn, athlete_id: int) -> list[dict]:
+async def get_full_training_log(conn, athlete_id: int) -> list[dict]:
     """Return all logged sessions + exercises for an athlete, one row per exercise entry.
 
     Sessions with no logged exercises produce a single row with null exercise fields.
     """
-    from shared.db import fetch_all
+    from web.async_db import async_fetch_all
 
-    return fetch_all(
+    return await async_fetch_all(
         conn,
         """
         SELECT
@@ -90,8 +90,8 @@ def get_full_training_log(conn, athlete_id: int) -> list[dict]:
         JOIN program_sessions  ps  ON ps.id  = tl.session_id
         JOIN generated_programs gp ON gp.id  = ps.program_id
         LEFT JOIN training_log_exercises tle ON tle.log_id = tl.id
-        WHERE tl.athlete_id = %s
+        WHERE tl.athlete_id = $1
         ORDER BY tl.log_date, tl.id, tle.id
         """,
-        (athlete_id,),
+        athlete_id,
     )

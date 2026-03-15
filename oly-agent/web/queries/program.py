@@ -6,61 +6,61 @@
 _exercise_id_cache: dict[str, int] = {}  # lower(name) → id
 
 
-def get_program(conn, program_id: int) -> dict | None:
-    from shared.db import fetch_one
-    return fetch_one(
+async def get_program(conn, program_id: int) -> dict | None:
+    from web.async_db import async_fetch_one
+    return await async_fetch_one(
         conn,
-        "SELECT * FROM generated_programs WHERE id = %s",
-        (program_id,),
+        "SELECT * FROM generated_programs WHERE id = $1",
+        program_id,
     )
 
 
-def get_all_programs(conn, athlete_id: int) -> list[dict]:
-    from shared.db import fetch_all
-    return fetch_all(
+async def get_all_programs(conn, athlete_id: int) -> list[dict]:
+    from web.async_db import async_fetch_all
+    return await async_fetch_all(
         conn,
         """
         SELECT id, name, phase, status, start_date, duration_weeks, sessions_per_week,
                created_at, outcome_summary
         FROM generated_programs
-        WHERE athlete_id = %s
+        WHERE athlete_id = $1
         ORDER BY created_at DESC
         """,
-        (athlete_id,),
+        athlete_id,
     )
 
 
-def get_program_volume_by_week(conn, program_id: int) -> list[dict]:
+async def get_program_volume_by_week(conn, program_id: int) -> list[dict]:
     """Compute prescribed and actual weekly volume (sets × reps × weight_kg).
 
     Returns a list of {week, prescribed, actual} dicts sorted by week.
     actual is None for weeks with no logged exercises (renders as a gap in the chart).
     """
-    from shared.db import fetch_all
+    from web.async_db import async_fetch_all
 
-    se_rows = fetch_all(
+    se_rows = await async_fetch_all(
         conn,
         """
         SELECT ps.week_number, se.sets, se.reps, se.absolute_weight_kg
         FROM program_sessions ps
         JOIN session_exercises se ON se.session_id = ps.id
-        WHERE ps.program_id = %s AND se.absolute_weight_kg IS NOT NULL
+        WHERE ps.program_id = $1 AND se.absolute_weight_kg IS NOT NULL
         """,
-        (program_id,),
+        program_id,
     )
 
-    tle_rows = fetch_all(
+    tle_rows = await async_fetch_all(
         conn,
         """
         SELECT ps.week_number, tle.sets_completed, tle.reps_per_set, tle.weight_kg
         FROM program_sessions ps
         JOIN training_logs tl ON tl.session_id = ps.id
         JOIN training_log_exercises tle ON tle.log_id = tl.id
-        WHERE ps.program_id = %s
+        WHERE ps.program_id = $1
           AND tle.weight_kg IS NOT NULL
           AND tle.sets_completed IS NOT NULL
         """,
-        (program_id,),
+        program_id,
     )
 
     prescribed: dict[int, float] = {}
@@ -95,10 +95,10 @@ def get_program_volume_by_week(conn, program_id: int) -> list[dict]:
     ]
 
 
-def get_program_weeks(conn, program_id: int) -> list[dict]:
+async def get_program_weeks(conn, program_id: int) -> list[dict]:
     """Return sessions grouped by week, each with their exercises."""
-    from shared.db import fetch_all
-    sessions = fetch_all(
+    from web.async_db import async_fetch_all
+    sessions = await async_fetch_all(
         conn,
         """
         SELECT ps.id, ps.week_number, ps.day_number, ps.session_label,
@@ -106,27 +106,26 @@ def get_program_weeks(conn, program_id: int) -> list[dict]:
                tl.id AS log_id
         FROM program_sessions ps
         LEFT JOIN training_logs tl ON tl.session_id = ps.id
-        WHERE ps.program_id = %s
+        WHERE ps.program_id = $1
         ORDER BY ps.week_number, ps.day_number
         """,
-        (program_id,),
+        program_id,
     )
 
     exercises_by_session: dict[int, list] = {}
     all_session_ids = [s["id"] for s in sessions]
     if all_session_ids:
-        placeholders = ",".join(["%s"] * len(all_session_ids))
-        exercises = fetch_all(
+        exercises = await async_fetch_all(
             conn,
-            f"""
+            """
             SELECT session_id, exercise_order, exercise_name, sets, reps,
                    intensity_pct, absolute_weight_kg, rest_seconds, rpe_target,
                    selection_rationale
             FROM session_exercises
-            WHERE session_id IN ({placeholders})
+            WHERE session_id = ANY($1::int[])
             ORDER BY session_id, exercise_order
             """,
-            tuple(all_session_ids),
+            all_session_ids,
         )
         for ex in exercises:
             exercises_by_session.setdefault(ex["session_id"], []).append(ex)
@@ -140,32 +139,40 @@ def get_program_weeks(conn, program_id: int) -> list[dict]:
     return [{"week_number": wn, "sessions": ws} for wn, ws in sorted(weeks.items())]
 
 
-def complete_program(conn, program_id: int, athlete_id: int) -> dict:
+async def complete_program(conn, program_id: int, athlete_id: int) -> dict:
     """Compute outcome metrics and mark program as completed.
 
+    feedback.py uses psycopg2 internally, so we open a dedicated synchronous
+    connection for that work and leave the asyncpg conn untouched.
     Returns the outcome dict (also persisted to generated_programs.outcome_summary).
     """
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from feedback import compute_outcome, save_outcome
+    from shared.db import get_connection
+    from web.deps import get_settings
 
-    outcome = compute_outcome(program_id, athlete_id, conn)
-    save_outcome(outcome, conn)
+    sync_conn = get_connection(get_settings().database_url)
+    try:
+        outcome = compute_outcome(program_id, athlete_id, sync_conn)
+        save_outcome(outcome, sync_conn)
+        sync_conn.commit()
+    finally:
+        sync_conn.close()
     return outcome
 
 
-def abandon_program(conn, program_id: int):
-    from shared.db import execute
-    execute(
+async def abandon_program(conn, program_id: int):
+    from web.async_db import async_execute
+    await async_execute(
         conn,
-        "UPDATE generated_programs SET status = 'abandoned', updated_at = NOW() WHERE id = %s",
-        (program_id,),
+        "UPDATE generated_programs SET status = 'abandoned', updated_at = NOW() WHERE id = $1",
+        program_id,
     )
-    conn.commit()
 
 
-def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
+async def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
     """Return recorded maxes plus estimated maxes for any missing exercises.
 
     Each row includes is_estimated=True/False so the template can style them differently.
@@ -173,21 +180,21 @@ def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from shared.db import fetch_all
+    from web.async_db import async_fetch_all
     from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF
     from weight_resolver import build_maxes_dict
     from assess import estimate_missing_maxes
 
-    rows = fetch_all(
+    rows = await async_fetch_all(
         conn,
         """
         SELECT e.name AS exercise_name, am.weight_kg, am.date_achieved
         FROM athlete_maxes am
         JOIN exercises e ON am.exercise_id = e.id
-        WHERE am.athlete_id = %s AND am.max_type = 'current'
+        WHERE am.athlete_id = $1 AND am.max_type = 'current'
         ORDER BY e.name
         """,
-        (athlete_id,),
+        athlete_id,
     )
     result = [dict(r, is_estimated=False) for r in rows]
 
@@ -207,44 +214,43 @@ def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
     return result
 
 
-def delete_athlete_max(conn, athlete_id: int, exercise_name: str):
-    from shared.db import execute
-    exercise_id = _get_exercise_id(conn, exercise_name)
+async def delete_athlete_max(conn, athlete_id: int, exercise_name: str):
+    from web.async_db import async_execute
+    exercise_id = await _get_exercise_id(conn, exercise_name)
     if exercise_id is None:
         raise ValueError(f"Exercise '{exercise_name}' not found")
-    execute(
+    await async_execute(
         conn,
         """
         DELETE FROM athlete_maxes
-        WHERE athlete_id = %s AND exercise_id = %s AND max_type = 'current'
+        WHERE athlete_id = $1 AND exercise_id = $2 AND max_type = 'current'
         """,
-        (athlete_id, exercise_id),
+        athlete_id, exercise_id,
     )
-    conn.commit()
 
 
-def _get_exercise_id(conn, exercise_name: str) -> int | None:
+async def _get_exercise_id(conn, exercise_name: str) -> int | None:
     """Look up exercise_id by name (case-insensitive), with in-process cache."""
-    from shared.db import fetch_all, fetch_one
+    from web.async_db import async_fetch_all, async_fetch_one
     key = exercise_name.lower()
     if key in _exercise_id_cache:
         return _exercise_id_cache[key]
     # Cache miss: populate the full exercise name→id map in one query
     if not _exercise_id_cache:
-        rows = fetch_all(conn, "SELECT id, name FROM exercises")
+        rows = await async_fetch_all(conn, "SELECT id, name FROM exercises")
         for row in rows:
             _exercise_id_cache[row["name"].lower()] = row["id"]
         if key in _exercise_id_cache:
             return _exercise_id_cache[key]
     # Fall back to single lookup (handles exercises added after cache was populated)
-    row = fetch_one(conn, "SELECT id FROM exercises WHERE LOWER(name) = LOWER(%s)", (exercise_name,))
+    row = await async_fetch_one(conn, "SELECT id FROM exercises WHERE LOWER(name) = LOWER($1)", exercise_name)
     if row:
         _exercise_id_cache[key] = row["id"]
         return row["id"]
     return None
 
 
-def upsert_athlete_max(
+async def upsert_athlete_max(
     conn, athlete_id: int, exercise_name: str, weight_kg: float, date_achieved
 ) -> tuple[bool, float | None]:
     """Insert or update the 'current' max for a given exercise name.
@@ -253,51 +259,49 @@ def upsert_athlete_max(
     Raises ValueError if the exercise name is not found.
     Returns (is_pr, previous_kg) — is_pr is True when weight_kg beats the previous record.
     """
-    from shared.db import fetch_one, execute
-    exercise_id = _get_exercise_id(conn, exercise_name)
+    from web.async_db import async_fetch_one, async_execute
+    exercise_id = await _get_exercise_id(conn, exercise_name)
     if exercise_id is None:
         raise ValueError(f"Exercise '{exercise_name}' not found in exercises table")
 
-    existing = fetch_one(
+    existing = await async_fetch_one(
         conn,
         """
         SELECT weight_kg FROM athlete_maxes
-        WHERE athlete_id = %s AND exercise_id = %s AND max_type = 'current'
+        WHERE athlete_id = $1 AND exercise_id = $2 AND max_type = 'current'
         """,
-        (athlete_id, exercise_id),
+        athlete_id, exercise_id,
     )
     prev_kg = float(existing["weight_kg"]) if existing else None
     is_pr = prev_kg is None or weight_kg > prev_kg
 
-    execute(
+    await async_execute(
         conn,
         """
         INSERT INTO athlete_maxes (athlete_id, exercise_id, weight_kg, date_achieved, max_type)
-        VALUES (%s, %s, %s, %s, 'current')
+        VALUES ($1, $2, $3, $4, 'current')
         ON CONFLICT (athlete_id, exercise_id) WHERE max_type = 'current'
         DO UPDATE SET weight_kg = EXCLUDED.weight_kg,
                       date_achieved = EXCLUDED.date_achieved
         """,
-        (athlete_id, exercise_id, weight_kg, date_achieved),
+        athlete_id, exercise_id, weight_kg, date_achieved,
     )
-    conn.commit()
     return is_pr, prev_kg
 
 
-def activate_program(conn, program_id: int, athlete_id: int):
-    from shared.db import execute
+async def activate_program(conn, program_id: int, athlete_id: int):
+    from web.async_db import async_execute
     # Supersede any currently active program
-    execute(
+    await async_execute(
         conn,
         """
         UPDATE generated_programs SET status = 'superseded', updated_at = NOW()
-        WHERE athlete_id = %s AND status = 'active' AND id != %s
+        WHERE athlete_id = $1 AND status = 'active' AND id != $2
         """,
-        (athlete_id, program_id),
+        athlete_id, program_id,
     )
-    execute(
+    await async_execute(
         conn,
-        "UPDATE generated_programs SET status = 'active', updated_at = NOW() WHERE id = %s",
-        (program_id,),
+        "UPDATE generated_programs SET status = 'active', updated_at = NOW() WHERE id = $1",
+        program_id,
     )
-    conn.commit()

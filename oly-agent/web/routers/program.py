@@ -21,7 +21,7 @@ async def program_list(
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
-    programs = q.get_all_programs(conn, athlete_id)
+    programs = await q.get_all_programs(conn, athlete_id)
     logger.info(f"Program list: {len(programs)} programs for athlete {athlete_id}")
     return templates.TemplateResponse("program_list.html", {"request": request, "programs": programs})
 
@@ -29,12 +29,12 @@ async def program_list(
 @router.get("/{program_id}", response_class=HTMLResponse)
 async def program_detail(program_id: int, request: Request, conn=Depends(get_db)):
     from web.app import templates
-    program = q.get_program(conn, program_id)
+    program = await q.get_program(conn, program_id)
     if not program:
         logger.warning(f"Program {program_id} not found")
         raise HTTPException(status_code=404, detail="Program not found")
-    weeks = q.get_program_weeks(conn, program_id)
-    volume_data = q.get_program_volume_by_week(conn, program_id)
+    weeks = await q.get_program_weeks(conn, program_id)
+    volume_data = await q.get_program_volume_by_week(conn, program_id)
     logger.info(f"Program {program_id} detail: {len(weeks)} weeks, status={program['status']}")
     return templates.TemplateResponse("program.html", {
         "request": request, "program": program, "weeks": weeks, "volume_data": volume_data,
@@ -50,8 +50,8 @@ async def activate(
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
-    q.activate_program(conn, program_id, athlete_id)
-    program = q.get_program(conn, program_id)
+    await q.activate_program(conn, program_id, athlete_id)
+    program = await q.get_program(conn, program_id)
     logger.info(f"Program {program_id} activated for athlete {athlete_id}")
     return templates.TemplateResponse("partials/status_badge.html", {
         "request": request, "status": program["status"],
@@ -67,12 +67,12 @@ async def complete(
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
-    program = q.get_program(conn, program_id)
+    program = await q.get_program(conn, program_id)
     if not program:
         logger.warning(f"Complete requested for missing program {program_id}")
         raise HTTPException(status_code=404, detail="Program not found")
     logger.info(f"Completing program {program_id} for athlete {athlete_id}")
-    outcome = q.complete_program(conn, program_id, athlete_id)
+    outcome = await q.complete_program(conn, program_id, athlete_id)
     logger.info(f"Program {program_id} completed: adherence={outcome.adherence_pct}%, make_rate={outcome.avg_make_rate:.0%}")
     return templates.TemplateResponse("partials/outcome_summary.html", {
         "request": request, "outcome": outcome, "program_id": program_id,
@@ -83,7 +83,7 @@ async def complete(
 @limiter.limit("5/minute")
 async def abandon(program_id: int, request: Request, conn=Depends(get_db)):
     from web.app import templates
-    q.abandon_program(conn, program_id)
+    await q.abandon_program(conn, program_id)
     logger.info(f"Program {program_id} abandoned")
     return templates.TemplateResponse("partials/status_badge.html", {
         "request": request, "status": "abandoned",
@@ -100,15 +100,15 @@ async def delete_max(
 ):
     from web.app import templates
     try:
-        q.delete_athlete_max(conn, athlete_id, exercise_name)
+        await q.delete_athlete_max(conn, athlete_id, exercise_name)
         logger.info(f"Max deleted: athlete {athlete_id}, {exercise_name}")
-        maxes = q.get_athlete_maxes(conn, athlete_id)
+        maxes = await q.get_athlete_maxes(conn, athlete_id)
         return templates.TemplateResponse("partials/maxes_table.html", {
             "request": request, "maxes": maxes, "success": f"{exercise_name} max removed — using estimated value",
         })
     except ValueError as e:
         logger.warning(f"Max delete failed: {e}")
-        maxes = q.get_athlete_maxes(conn, athlete_id)
+        maxes = await q.get_athlete_maxes(conn, athlete_id)
         return templates.TemplateResponse("partials/maxes_table.html", {
             "request": request, "maxes": maxes, "error": str(e),
         })
@@ -125,9 +125,9 @@ async def update_max(
 ):
     from web.app import templates
     try:
-        is_pr, prev_kg = q.upsert_athlete_max(conn, athlete_id, exercise_name, weight_kg, date.today())
+        is_pr, prev_kg = await q.upsert_athlete_max(conn, athlete_id, exercise_name, weight_kg, date.today())
         logger.info(f"Max updated: athlete {athlete_id}, {exercise_name} = {weight_kg} kg, PR={is_pr}")
-        maxes = q.get_athlete_maxes(conn, athlete_id)
+        maxes = await q.get_athlete_maxes(conn, athlete_id)
         return templates.TemplateResponse("partials/maxes_table.html", {
             "request": request, "maxes": maxes,
             "success": f"{exercise_name} updated to {weight_kg:g} kg",
@@ -138,7 +138,7 @@ async def update_max(
         })
     except ValueError as e:
         logger.warning(f"Max update failed: {e}")
-        maxes = q.get_athlete_maxes(conn, athlete_id)
+        maxes = await q.get_athlete_maxes(conn, athlete_id)
         return templates.TemplateResponse("partials/maxes_table.html", {
             "request": request, "maxes": maxes, "error": str(e),
         })

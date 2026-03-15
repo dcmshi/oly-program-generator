@@ -30,7 +30,7 @@ async def export_training_log(
     conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
-    rows = get_full_training_log(conn, athlete_id)
+    rows = await get_full_training_log(conn, athlete_id)
 
     output = io.StringIO()
     writer = csv.writer(output)
@@ -99,7 +99,7 @@ async def export_program(
 ):
     from fastapi import HTTPException
 
-    program, rows = get_program_for_export(conn, program_id, athlete_id)
+    program, rows = await get_program_for_export(conn, program_id, athlete_id)
     if program is None:
         raise HTTPException(status_code=404, detail="Program not found")
 

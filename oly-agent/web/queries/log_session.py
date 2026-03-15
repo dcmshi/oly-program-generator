@@ -4,9 +4,9 @@
 from datetime import date
 
 
-def get_session_with_exercises(conn, session_id: int) -> dict | None:
-    from shared.db import fetch_one, fetch_all
-    session = fetch_one(
+async def get_session_with_exercises(conn, session_id: int) -> dict | None:
+    from web.async_db import async_fetch_one, async_fetch_all
+    session = await async_fetch_one(
         conn,
         """
         SELECT ps.id, ps.week_number, ps.day_number, ps.session_label,
@@ -14,56 +14,56 @@ def get_session_with_exercises(conn, session_id: int) -> dict | None:
                gp.name AS program_name, gp.athlete_id
         FROM program_sessions ps
         JOIN generated_programs gp ON gp.id = ps.program_id
-        WHERE ps.id = %s
+        WHERE ps.id = $1
         """,
-        (session_id,),
+        session_id,
     )
     if not session:
         return None
 
-    exercises = fetch_all(
+    exercises = await async_fetch_all(
         conn,
         """
         SELECT id, exercise_order, exercise_name, sets, reps,
                intensity_pct, absolute_weight_kg, rest_seconds, rpe_target
         FROM session_exercises
-        WHERE session_id = %s
+        WHERE session_id = $1
         ORDER BY exercise_order
         """,
-        (session_id,),
+        session_id,
     )
     session = dict(session)
     session["exercises"] = exercises
     return session
 
 
-def get_existing_log(conn, session_id: int) -> dict | None:
-    from shared.db import fetch_one
-    return fetch_one(
+async def get_existing_log(conn, session_id: int) -> dict | None:
+    from web.async_db import async_fetch_one
+    return await async_fetch_one(
         conn,
-        "SELECT * FROM training_logs WHERE session_id = %s",
-        (session_id,),
+        "SELECT * FROM training_logs WHERE session_id = $1",
+        session_id,
     )
 
 
-def get_exercise_log_entry(conn, tle_id: int) -> dict | None:
-    from shared.db import fetch_one
-    return fetch_one(
+async def get_exercise_log_entry(conn, tle_id: int) -> dict | None:
+    from web.async_db import async_fetch_one
+    return await async_fetch_one(
         conn,
         """
         SELECT id, session_exercise_id, exercise_name, sets_completed,
                reps_per_set, weight_kg, rpe, make_rate, technical_notes,
                prescribed_weight_kg, weight_deviation_kg, rpe_deviation
         FROM training_log_exercises
-        WHERE id = %s
+        WHERE id = $1
         """,
-        (tle_id,),
+        tle_id,
     )
 
 
-def update_exercise_log(conn, tle_id: int, form: dict):
+async def update_exercise_log(conn, tle_id: int, form: dict):
     """Update a training_log_exercises row from form values, recomputing deviations."""
-    from shared.db import execute, fetch_one
+    from web.async_db import async_execute, async_fetch_one
 
     def _float(v):
         try:
@@ -89,18 +89,18 @@ def update_exercise_log(conn, tle_id: int, form: dict):
         reps_per_set = []
 
     # Fetch stored prescribed values to recompute deviations
-    existing = fetch_one(
+    existing = await async_fetch_one(
         conn,
-        "SELECT prescribed_weight_kg, session_exercise_id FROM training_log_exercises WHERE id = %s",
-        (tle_id,),
+        "SELECT prescribed_weight_kg, session_exercise_id FROM training_log_exercises WHERE id = $1",
+        tle_id,
     )
     prescribed_weight = float(existing["prescribed_weight_kg"]) if existing and existing["prescribed_weight_kg"] else None
     prescribed_rpe = None
     if existing and existing["session_exercise_id"]:
-        se = fetch_one(
+        se = await async_fetch_one(
             conn,
-            "SELECT rpe_target FROM session_exercises WHERE id = %s",
-            (existing["session_exercise_id"],),
+            "SELECT rpe_target FROM session_exercises WHERE id = $1",
+            existing["session_exercise_id"],
         )
         if se and se["rpe_target"] is not None:
             prescribed_rpe = float(se["rpe_target"])
@@ -108,56 +108,52 @@ def update_exercise_log(conn, tle_id: int, form: dict):
     weight_deviation = round(weight_kg - prescribed_weight, 2) if (weight_kg and prescribed_weight) else None
     rpe_deviation = round(rpe - prescribed_rpe, 1) if (rpe and prescribed_rpe) else None
 
-    execute(
+    await async_execute(
         conn,
         """
         UPDATE training_log_exercises
-        SET sets_completed = %s, reps_per_set = %s, weight_kg = %s, rpe = %s,
-            make_rate = %s, technical_notes = %s,
-            weight_deviation_kg = %s, rpe_deviation = %s
-        WHERE id = %s
+        SET sets_completed = $1, reps_per_set = $2, weight_kg = $3, rpe = $4,
+            make_rate = $5, technical_notes = $6,
+            weight_deviation_kg = $7, rpe_deviation = $8
+        WHERE id = $9
         """,
-        (
-            _int(form.get("sets_completed")),
-            reps_per_set or None,
-            weight_kg, rpe, make_rate,
-            form.get("technical_notes") or None,
-            weight_deviation, rpe_deviation,
-            tle_id,
-        ),
+        _int(form.get("sets_completed")),
+        reps_per_set or None,
+        weight_kg, rpe, make_rate,
+        form.get("technical_notes") or None,
+        weight_deviation, rpe_deviation,
+        tle_id,
     )
-    conn.commit()
 
 
-def get_log_by_id(conn, log_id: int) -> dict | None:
-    from shared.db import fetch_one
-    return fetch_one(conn, "SELECT * FROM training_logs WHERE id = %s", (log_id,))
+async def get_log_by_id(conn, log_id: int) -> dict | None:
+    from web.async_db import async_fetch_one
+    return await async_fetch_one(conn, "SELECT * FROM training_logs WHERE id = $1", log_id)
 
 
-def delete_exercise_log(conn, tle_id: int):
-    from shared.db import execute
-    execute(conn, "DELETE FROM training_log_exercises WHERE id = %s", (tle_id,))
-    conn.commit()
+async def delete_exercise_log(conn, tle_id: int):
+    from web.async_db import async_execute
+    await async_execute(conn, "DELETE FROM training_log_exercises WHERE id = $1", tle_id)
 
 
-def get_logged_exercises(conn, log_id: int) -> list[dict]:
-    from shared.db import fetch_all
-    return fetch_all(
+async def get_logged_exercises(conn, log_id: int) -> list[dict]:
+    from web.async_db import async_fetch_all
+    return await async_fetch_all(
         conn,
         """
         SELECT id, session_exercise_id, exercise_name, sets_completed,
                reps_per_set, weight_kg, rpe, make_rate, technical_notes,
                prescribed_weight_kg, weight_deviation_kg, rpe_deviation
         FROM training_log_exercises
-        WHERE log_id = %s
+        WHERE log_id = $1
         ORDER BY id
         """,
-        (log_id,),
+        log_id,
     )
 
 
-def create_session_log(conn, athlete_id: int, session_id: int, form: dict) -> int:
-    from shared.db import execute_returning
+async def create_session_log(conn, athlete_id: int, session_id: int, form: dict) -> int:
+    from web.async_db import async_execute_returning
 
     def _float(v):
         try:
@@ -177,83 +173,78 @@ def create_session_log(conn, athlete_id: int, session_id: int, form: dict) -> in
     except ValueError:
         log_date = date.today()
 
-    log_id = execute_returning(
+    return await async_execute_returning(
         conn,
         """
         INSERT INTO training_logs
             (athlete_id, session_id, log_date, overall_rpe,
              session_duration_minutes, bodyweight_kg, sleep_quality,
              stress_level, athlete_notes)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
         RETURNING id
         """,
-        (
-            athlete_id,
-            session_id,
-            log_date,
-            _float(form.get("overall_rpe")),
-            _int(form.get("duration")),
-            _float(form.get("bodyweight")),
-            _int(form.get("sleep_quality")),
-            _int(form.get("stress_level")),
-            form.get("notes") or None,
-        ),
+        athlete_id,
+        session_id,
+        log_date,
+        _float(form.get("overall_rpe")),
+        _int(form.get("duration")),
+        _float(form.get("bodyweight")),
+        _int(form.get("sleep_quality")),
+        _int(form.get("stress_level")),
+        form.get("notes") or None,
     )
-    conn.commit()
-    return log_id
 
 
-def maybe_promote_max(
+async def maybe_promote_max(
     conn, athlete_id: int, session_exercise_id: int, weight_kg: float, log_date
 ) -> bool:
     """If this session exercise is a max attempt, upsert athlete_maxes when weight is a new PR.
 
     Returns True if a new max was recorded.
     """
-    from shared.db import fetch_one, execute
+    from web.async_db import async_fetch_one, async_execute
 
-    se = fetch_one(
+    se = await async_fetch_one(
         conn,
-        "SELECT exercise_id, is_max_attempt FROM session_exercises WHERE id = %s",
-        (session_exercise_id,),
+        "SELECT exercise_id, is_max_attempt FROM session_exercises WHERE id = $1",
+        session_exercise_id,
     )
     if not se or not se["is_max_attempt"] or not se["exercise_id"]:
         return False
 
     exercise_id = se["exercise_id"]
 
-    current = fetch_one(
+    current = await async_fetch_one(
         conn,
         """
         SELECT weight_kg FROM athlete_maxes
-        WHERE athlete_id = %s AND exercise_id = %s AND max_type = 'current'
+        WHERE athlete_id = $1 AND exercise_id = $2 AND max_type = 'current'
         """,
-        (athlete_id, exercise_id),
+        athlete_id, exercise_id,
     )
     if current and float(current["weight_kg"]) >= weight_kg:
         return False
 
-    execute(
+    await async_execute(
         conn,
         """
         INSERT INTO athlete_maxes
             (athlete_id, exercise_id, weight_kg, max_type, date_achieved, notes)
-        VALUES (%s, %s, %s, 'current', %s, 'Auto-promoted from max testing session')
+        VALUES ($1, $2, $3, 'current', $4, 'Auto-promoted from max testing session')
         ON CONFLICT (athlete_id, exercise_id) WHERE max_type = 'current'
         DO UPDATE SET
             weight_kg    = EXCLUDED.weight_kg,
             date_achieved = EXCLUDED.date_achieved,
             notes        = EXCLUDED.notes
         """,
-        (athlete_id, exercise_id, weight_kg, log_date),
+        athlete_id, exercise_id, weight_kg, log_date,
     )
-    conn.commit()
     return True
 
 
-def update_session_log(conn, log_id: int, form: dict):
+async def update_session_log(conn, log_id: int, form: dict):
     """Update an existing training_log row with new form values."""
-    from shared.db import execute
+    from web.async_db import async_execute
 
     def _float(v):
         try:
@@ -273,32 +264,29 @@ def update_session_log(conn, log_id: int, form: dict):
     except ValueError:
         log_date = date.today()
 
-    execute(
+    await async_execute(
         conn,
         """
         UPDATE training_logs
-        SET log_date = %s, overall_rpe = %s, session_duration_minutes = %s,
-            bodyweight_kg = %s, sleep_quality = %s, stress_level = %s,
-            athlete_notes = %s
-        WHERE id = %s
+        SET log_date = $1, overall_rpe = $2, session_duration_minutes = $3,
+            bodyweight_kg = $4, sleep_quality = $5, stress_level = $6,
+            athlete_notes = $7
+        WHERE id = $8
         """,
-        (
-            log_date,
-            _float(form.get("overall_rpe")),
-            _int(form.get("duration")),
-            _float(form.get("bodyweight")),
-            _int(form.get("sleep_quality")),
-            _int(form.get("stress_level")),
-            form.get("notes") or None,
-            log_id,
-        ),
+        log_date,
+        _float(form.get("overall_rpe")),
+        _int(form.get("duration")),
+        _float(form.get("bodyweight")),
+        _int(form.get("sleep_quality")),
+        _int(form.get("stress_level")),
+        form.get("notes") or None,
+        log_id,
     )
-    conn.commit()
 
 
-def create_exercise_log(conn, log_id: int, form: dict) -> int:
+async def create_exercise_log(conn, log_id: int, form: dict) -> int:
     """Insert a new training_log_exercises row. Returns the new row id."""
-    from shared.db import execute_returning
+    from web.async_db import async_execute_returning
 
     def _float(v):
         try:
@@ -331,24 +319,20 @@ def create_exercise_log(conn, log_id: int, form: dict) -> int:
     weight_deviation = round(weight_kg - prescribed_weight, 2) if (weight_kg and prescribed_weight) else None
     rpe_deviation = round(rpe - prescribed_rpe, 1) if (rpe and prescribed_rpe) else None
 
-    tle_id = execute_returning(
+    return await async_execute_returning(
         conn,
         """
         INSERT INTO training_log_exercises
             (log_id, session_exercise_id, exercise_name, sets_completed,
              reps_per_set, weight_kg, rpe, make_rate, technical_notes,
              prescribed_weight_kg, weight_deviation_kg, rpe_deviation)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12)
         RETURNING id
         """,
-        (
-            log_id, se_id, exercise_name,
-            _int(form.get("sets_completed")),
-            reps_per_set or None,
-            weight_kg, rpe, make_rate,
-            form.get("technical_notes") or None,
-            prescribed_weight, weight_deviation, rpe_deviation,
-        ),
+        log_id, se_id, exercise_name,
+        _int(form.get("sets_completed")),
+        reps_per_set or None,
+        weight_kg, rpe, make_rate,
+        form.get("technical_notes") or None,
+        prescribed_weight, weight_deviation, rpe_deviation,
     )
-    conn.commit()
-    return tle_id

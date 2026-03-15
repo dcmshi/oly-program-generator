@@ -24,7 +24,7 @@ async def exercise_history(
 ):
     from web.app import templates
 
-    rows = get_exercise_history(conn, athlete_id, exercise)
+    rows = await get_exercise_history(conn, athlete_id, exercise)
     summary = compute_history_summary(rows)
     logger.info(f"History: athlete={athlete_id}, exercise={exercise!r}, rows={len(rows)}")
 
