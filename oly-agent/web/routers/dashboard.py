@@ -30,9 +30,10 @@ async def dashboard(
     program = await q.get_active_program(conn, athlete_id)
     maxes = await pq.get_athlete_maxes(conn, athlete_id)
     ratios = await q.get_lift_ratios(conn, athlete_id)
+    goal_progress = await q.get_goal_progress(conn, athlete_id)
     ctx: dict = {"request": request, "program": None, "sessions": [],
                  "adherence": {}, "warnings": [], "current_week": 1,
-                 "maxes": maxes, "ratios": ratios}
+                 "maxes": maxes, "ratios": ratios, "goal_progress": goal_progress}
 
     if program:
         week = _current_week(program["start_date"], program["duration_weeks"])

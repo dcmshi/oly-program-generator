@@ -134,6 +134,77 @@ async def get_lift_ratios(conn, athlete_id: int) -> list[dict]:
     return results
 
 
+async def get_goal_progress(conn, athlete_id: int) -> dict | None:
+    """Return goal + current maxes merged into a single progress dict, or None."""
+    from web.async_db import async_fetch_one
+
+    goal = await async_fetch_one(
+        conn,
+        """
+        SELECT goal, competition_date, competition_name,
+               target_snatch_kg, target_cj_kg
+        FROM athlete_goals
+        WHERE athlete_id = $1 AND is_active = TRUE
+        ORDER BY priority DESC, id DESC
+        LIMIT 1
+        """,
+        athlete_id,
+    )
+    if not goal:
+        return None
+
+    maxes = await async_fetch_one(
+        conn,
+        """
+        SELECT
+            MAX(CASE WHEN e.name = 'Snatch'       THEN am.weight_kg END) AS snatch,
+            MAX(CASE WHEN e.name = 'Clean & Jerk' THEN am.weight_kg END) AS cj
+        FROM athlete_maxes am
+        JOIN exercises e ON e.id = am.exercise_id
+        WHERE am.athlete_id = $1 AND am.max_type = 'current'
+          AND e.name IN ('Snatch', 'Clean & Jerk')
+        """,
+        athlete_id,
+    )
+
+    def _f(v):
+        return float(v) if v is not None else None
+
+    snatch_cur = _f(maxes["snatch"]) if maxes else None
+    cj_cur     = _f(maxes["cj"])     if maxes else None
+    snatch_tgt = _f(goal["target_snatch_kg"])
+    cj_tgt     = _f(goal["target_cj_kg"])
+
+    def _bar(cur, tgt):
+        if cur is None or tgt is None or tgt == 0:
+            return None
+        return {"current": cur, "target": tgt,
+                "gap": round(tgt - cur, 1),
+                "pct": min(100, round(cur / tgt * 100))}
+
+    days_to_comp = None
+    if goal["competition_date"]:
+        delta = (goal["competition_date"] - date.today()).days
+        days_to_comp = delta
+
+    goal_labels = {
+        "general_strength": "General Strength",
+        "competition_prep": "Competition Prep",
+        "technique_focus":  "Technique Focus",
+    }
+
+    return {
+        "goal":             goal["goal"],
+        "goal_label":       goal_labels.get(goal["goal"], goal["goal"].replace("_", " ").title()),
+        "competition_date": goal["competition_date"],
+        "competition_name": goal["competition_name"],
+        "days_to_comp":     days_to_comp,
+        "snatch":           _bar(snatch_cur, snatch_tgt),
+        "cj":               _bar(cj_cur, cj_tgt),
+        "has_targets":      snatch_tgt is not None or cj_tgt is not None,
+    }
+
+
 async def get_warnings(conn, athlete_id: int) -> list[str]:
     from web.async_db import async_fetch_all
     warnings = []
