@@ -70,7 +70,7 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
     make_rows = fetch_all(
         conn,
         """
-        SELECT tle.make_rate
+        SELECT tle.make_rate, se.intensity_reference
         FROM training_log_exercises tle
         JOIN session_exercises se ON tle.session_exercise_id = se.id
         JOIN program_sessions ps ON se.session_id = ps.id
@@ -83,6 +83,16 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
     avg_make_rate = (
         sum(r["make_rate"] for r in make_rows) / len(make_rows) if make_rows else 0.0
     )
+
+    # Per-lift make rate breakdown
+    lift_buckets: dict[str, list[float]] = {}
+    for r in make_rows:
+        ref = r["intensity_reference"]
+        lift_buckets.setdefault(ref, []).append(float(r["make_rate"]))
+    make_rate_by_lift = {
+        ref: round(sum(vals) / len(vals), 2)
+        for ref, vals in sorted(lift_buckets.items())
+    }
 
     # ── Volume signal ─────────────────────────────────────────
     weekly_reps_rows = fetch_all(
@@ -167,6 +177,7 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         adherence_pct=round(adherence_pct, 1),
         avg_rpe_deviation=round(avg_rpe_deviation, 2),
         avg_make_rate=round(avg_make_rate, 2),
+        make_rate_by_lift=make_rate_by_lift,
         avg_weekly_reps=round(avg_weekly_reps, 1),
         rpe_trend=rpe_trend,
         make_rate_trend=make_rate_trend,
@@ -195,14 +206,15 @@ def save_outcome(outcome: ProgramOutcome, conn):
         """,
         (
             json.dumps({
-                "maxes_delta":       outcome.maxes_delta,
-                "adherence_pct":     outcome.adherence_pct,
-                "avg_rpe_deviation": outcome.avg_rpe_deviation,
-                "avg_make_rate":     outcome.avg_make_rate,
-                "avg_weekly_reps":   outcome.avg_weekly_reps,
-                "rpe_trend":         outcome.rpe_trend,
-                "make_rate_trend":   outcome.make_rate_trend,
-                "athlete_feedback":  outcome.athlete_feedback,
+                "maxes_delta":        outcome.maxes_delta,
+                "adherence_pct":      outcome.adherence_pct,
+                "avg_rpe_deviation":  outcome.avg_rpe_deviation,
+                "avg_make_rate":      outcome.avg_make_rate,
+                "make_rate_by_lift":  outcome.make_rate_by_lift,
+                "avg_weekly_reps":    outcome.avg_weekly_reps,
+                "rpe_trend":          outcome.rpe_trend,
+                "make_rate_trend":    outcome.make_rate_trend,
+                "athlete_feedback":   outcome.athlete_feedback,
             }),
             outcome.program_id,
         ),

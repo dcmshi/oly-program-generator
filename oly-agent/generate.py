@@ -235,6 +235,12 @@ def build_session_prompt(
             f"  Phase: {prev_prog.get('phase', 'unknown')} ({prev_prog.get('duration_weeks', '?')} weeks)",
             f"  Adherence: {outcome.get('adherence_pct', 'N/A')}%",
             f"  Avg make rate on competition lifts: {outcome.get('avg_make_rate', 'N/A')}",
+        ]
+        by_lift = outcome.get("make_rate_by_lift") or {}
+        if by_lift:
+            lift_parts = [f"{k.replace('_', ' ')} {v:.0%}" for k, v in by_lift.items()]
+            prev_lines.append(f"  Make rate by lift: {', '.join(lift_parts)}")
+        prev_lines += [
             f"  Avg RPE deviation: {outcome.get('avg_rpe_deviation', 'N/A'):+.2f}"
             if isinstance(outcome.get("avg_rpe_deviation"), (int, float)) else
             f"  Avg RPE deviation: N/A",

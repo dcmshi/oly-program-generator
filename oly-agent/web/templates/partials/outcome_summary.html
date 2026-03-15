@@ -31,7 +31,18 @@
           {{ (mr * 100) | round | int }}%
         </p>
         <p class="text-xs text-blue-600 mt-0.5">Make rate</p>
+        {% set lift_labels = {"snatch": "SN", "clean_and_jerk": "C&J", "clean": "Clean"} %}
+        {% if outcome.make_rate_by_lift %}
+        <div class="flex flex-wrap justify-center gap-x-2 mt-1">
+          {% for ref, rate in outcome.make_rate_by_lift.items() %}
+          <span class="text-xs {{ 'text-red-500' if rate < 0.75 else 'text-gray-400' }}">
+            {{ lift_labels.get(ref, ref) }} {{ (rate * 100) | round | int }}%
+          </span>
+          {% endfor %}
+        </div>
+        {% else %}
         <p class="text-xs text-gray-400">competition lifts</p>
+        {% endif %}
       </div>
     </div>
 

@@ -116,10 +116,11 @@ class ProgramOutcome:
 
     avg_rpe_deviation: float            # positive = harder than intended
     avg_make_rate: float                # across competition lifts (0.0-1.0)
+    make_rate_by_lift: dict[str, float] = field(default_factory=dict)  # per intensity_reference
 
     # Volume signals for next program
-    avg_weekly_reps: float
-    rpe_trend: str                      # "ascending", "stable", "descending"
-    make_rate_trend: str
+    avg_weekly_reps: float = 0.0
+    rpe_trend: str = "stable"           # "ascending", "stable", "descending"
+    make_rate_trend: str = "stable"
 
-    athlete_feedback: str | None        # free text from training_logs
+    athlete_feedback: str | None = None  # free text from training_logs

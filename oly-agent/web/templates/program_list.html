@@ -28,9 +28,18 @@
               <span class="font-medium {{ 'text-green-600' if o.adherence_pct >= 80 else 'text-amber-600' }}">
                 {{ o.adherence_pct }}% adherence
               </span>
+              {% if o.make_rate_by_lift %}
+              {% set lift_labels = {"snatch": "SN", "clean_and_jerk": "C&J", "clean": "Clean"} %}
+              {% for ref, rate in o.make_rate_by_lift.items() %}
+              <span class="font-medium {{ 'text-green-600' if rate >= 0.75 else 'text-red-500' }}">
+                {{ lift_labels.get(ref, ref) }} {{ (rate * 100) | round | int }}%
+              </span>
+              {% endfor %}
+              {% else %}
               <span class="font-medium {{ 'text-green-600' if o.avg_make_rate >= 0.75 else 'text-red-500' }}">
                 {{ (o.avg_make_rate * 100) | round | int }}% makes
               </span>
+              {% endif %}
               {% set dev = o.avg_rpe_deviation %}
               <span class="{{ 'text-amber-500' if dev | abs > 1.0 else 'text-gray-400' }}">
                 RPE {{ '+' if dev > 0 else '' }}{{ '%.1f' | format(dev) }}

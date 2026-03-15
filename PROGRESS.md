@@ -407,7 +407,34 @@ Identified via automated codebase scan. Grouped by priority.
 | Program CSV export | ✅ Done | `GET /export/program/{id}.csv` — full program CSV with metadata header block + one row per exercise (week, day, session, sets/reps, weight, intensity, RPE, rest, backoff, notes). "Export CSV" button on program detail page. Filename uses sanitised program name. |
 | Principle conflict detection | Low | Flag contradictory principles before generation. Requires pairwise LLM comparison. |
 | A/B testing framework | Low | Compare phase/volume strategies across athletes. Needs multi-athlete data. |
-| Async DB driver (`asyncpg`) | Low | Rewrite all `%s` → `$N` placeholders (~24 queries across 4 files) + migrate connection API. FastAPI runs sync deps in thread pool so not blocking. |
+| Async DB driver (`asyncpg`) | ✅ Done | Migrated all web queries to asyncpg. `web/async_db.py` added; `shared/db.py` (psycopg2) unchanged for agent pipeline. Pool lifecycle in FastAPI `lifespan` handler. JSONB columns registered via `_init_connection` codec. `get_db()` uses `async with pool.acquire() + conn.transaction()`. |
+
+---
+
+## Phase 11 — Post-Audit Enhancements
+
+### 11a — Tier 1 (High value / low effort)
+
+| Item | Priority | Status | Notes |
+|------|----------|--------|-------|
+| Make-rate by lift | High | ⏳ In progress | Split `avg_make_rate` in `feedback.py` by `intensity_reference` (snatch / clean_and_jerk / clean). Store as `make_rate_by_lift` dict in `outcome_summary` JSONB. Surface in program list cards and program detail outcome panel. |
+| Session duration vs estimated | Medium | ⬜ Planned | Log actual session end time (or total duration). Compare to `estimated_duration_minutes` on program detail. Simple "X min over/under" stat in session log. |
+| Video URL in exercise history | Low | ⬜ Planned | Optional `video_url` field per training log exercise entry. Displayed as thumbnail/link in history view. |
+
+### 11b — Tier 2 (Medium effort)
+
+| Item | Priority | Status | Notes |
+|------|----------|--------|-------|
+| Intensity zone distribution chart | Medium | ⬜ Planned | Chart.js stacked bar per week showing % of prescribed volume in each Prilepin zone (55-65 / 65-70 / 70-80 / 80-90 / 90+). Uses `intensity_pct` from `session_exercises`. |
+| Goal progress tracker | Medium | ⬜ Planned | Dashboard widget tracking progress toward `target_snatch_kg` / `target_cj_kg` in `athlete_goals`. Show current max vs target with a progress bar and estimated programs-to-goal. |
+| Phase progression transparency | Medium | ⬜ Planned | Show why a phase did/didn't advance on program completion: adherence, make rate, RPE deviation thresholds annotated in the outcome summary. |
+
+### 11c — Tier 3 (Complex / lower priority)
+
+| Item | Priority | Status | Notes |
+|------|----------|--------|-------|
+| Exercise complexity self-tuning | Low | ⬜ Planned | Use historical make-rate-by-lift to reduce competition lift frequency when make rate is consistently low (< 60%). Auto-suggest substituting power variants. |
+| Attempt selection intelligence | Low | ⬜ Planned | For realization-phase programs, suggest opening/second/third attempt weights based on current max, competition date proximity, and historical make rates. |
 
 ---
 
