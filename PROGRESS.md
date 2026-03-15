@@ -207,17 +207,17 @@ Identified via codebase audit. Grouped by priority.
 | `test_plan.py` | `oly-agent/tests/test_plan.py` | ✅ 20 tests — phase selection (pure), cold-start overrides, plan shape |
 | `test_retrieve.py` | `oly-agent/tests/test_retrieve.py` | ✅ 10 tests — fault lookup, substitutions, Prilepin targets, vector_loader=None path |
 | `test_explain.py` | `oly-agent/tests/test_explain.py` | ✅ 13 tests — prompt structure (pure), mocked LLM success + failure |
-| `test_orchestrator.py` | `oly-agent/tests/test_orchestrator.py` | ⏳ Deferred — requires full pipeline mock; lower value vs above |
-| `test_web_routers.py` | `oly-agent/tests/test_web_routers.py` | ⏳ Deferred — FastAPI TestClient setup; lower priority than logic tests |
+| `test_orchestrator.py` | `oly-agent/tests/test_orchestrator.py` | ✅ 12 tests — all 6 pipeline steps mocked; dry-run, cost limit, exception handling |
+| `test_web_routers.py` | `oly-agent/tests/test_web_routers.py` | ✅ 21 tests — FastAPI TestClient with signed session cookies; auth redirect, CRUD routes, 404s |
 
 **oly-ingestion:**
 
 | Item | File | Notes |
 |------|------|-------|
 | `test_html_extractor.py` | `oly-ingestion/tests/test_html_extractor.py` | ✅ 12 tests — body extraction, boilerplate removal, element priority, whitespace, unicode |
-| `test_pdf_extractor.py` | `oly-ingestion/tests/test_pdf_extractor.py` | ⏳ Deferred — needs real PDF fixtures; vision OCR tests require API key |
-| `test_epub_extractor.py` | `oly-ingestion/tests/test_epub_extractor.py` | ⏳ Deferred — needs real EPUB fixture or ebooklib mock |
-| `test_retag_chunks.py` | `oly-ingestion/tests/test_retag_chunks.py` | ⏳ Deferred — needs live DB |
+| `test_pdf_extractor.py` | `oly-ingestion/tests/test_pdf_extractor.py` | ✅ 13 tests + 1 skipped — fallback chain (mocked fitz/pdfplumber), _split_page_responses pure logic; vision OCR gated with INTEGRATION_TESTS=1 |
+| `test_epub_extractor.py` | `oly-ingestion/tests/test_epub_extractor.py` | ✅ 9 tests — mocked ebooklib; chapter extraction, script/style removal, empty filtering, import error |
+| `test_retag_chunks.py` | `oly-ingestion/tests/test_retag_chunks.py` | ✅ 10 tests + 1 skipped — mocked psycopg2; dry-run, updates, source_id filter; live DB test gated with INTEGRATION_TESTS=1 |
 
 ### 8c — Logic / Edge Case Fixes ✅ COMPLETE
 

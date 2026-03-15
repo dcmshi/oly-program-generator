@@ -89,6 +89,9 @@ D:\oly-program-generator\
         ├── test_structured_loader.py # 7 tests — needs live DB
         ├── test_principle_extractor.py # 6 tests — needs ANTHROPIC_API_KEY
         ├── test_pipeline.py         # 4 e2e tests — needs both keys
+        ├── test_pdf_extractor.py    # 13 tests — mocked fitz/pdfplumber (1 INTEGRATION_TESTS=1)
+        ├── test_epub_extractor.py   # 9 tests — mocked ebooklib; no fixtures needed
+        ├── test_retag_chunks.py     # 10 tests — mocked psycopg2 (1 INTEGRATION_TESTS=1)
         └── test_retrieval_eval.py   # retrieval quality eval (both keys)
 ```
 
@@ -108,6 +111,9 @@ cd oly-ingestion
 PYTHONUTF8=1 uv run python tests/test_chunker.py          # 14 tests
 PYTHONUTF8=1 uv run python tests/test_classifier.py       # 6 heuristic tests
 PYTHONUTF8=1 uv run python tests/test_classifier.py --llm # + 4 LLM tests (needs ANTHROPIC_API_KEY)
+PYTHONUTF8=1 uv run python tests/test_pdf_extractor.py    # 13 tests (mocked; +1 skipped)
+PYTHONUTF8=1 uv run python tests/test_epub_extractor.py   # 9 tests (mocked ebooklib)
+PYTHONUTF8=1 uv run python tests/test_retag_chunks.py     # 10 tests (mocked; +1 skipped)
 
 # ── Tests (need live DB, no API keys) ───────────────────────────────────
 PYTHONUTF8=1 uv run python tests/test_structured_loader.py  # 7 tests
@@ -117,6 +123,11 @@ PYTHONUTF8=1 uv run python tests/test_vector_loader.py       # 6 tests (OPENAI_A
 PYTHONUTF8=1 uv run python tests/test_principle_extractor.py # 6 tests (ANTHROPIC_API_KEY)
 PYTHONUTF8=1 uv run python tests/test_pipeline.py            # 4 e2e tests (both keys)
 PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py      # retrieval quality (both keys)
+
+# ── Integration tests (INTEGRATION_TESTS=1) ─────────────────────────────
+# Gates tests that need real API calls or live DB in normally-mocked test files
+INTEGRATION_TESTS=1 PYTHONUTF8=1 uv run python tests/test_pdf_extractor.py   # +1 vision OCR test
+INTEGRATION_TESTS=1 PYTHONUTF8=1 uv run python tests/test_retag_chunks.py    # +1 live DB test
 
 # ── Ingestion ────────────────────────────────────────────────────────────
 cd oly-ingestion
@@ -166,6 +177,8 @@ PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
 PYTHONUTF8=1 uv run python tests/test_plan.py            # 35 tests
 PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 10 tests
 PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
+PYTHONUTF8=1 uv run python tests/test_orchestrator.py    # 12 tests (all 6 steps mocked)
+PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 21 tests (signed session cookies, mocked queries)
 ```
 
 ## Docker / Database
@@ -240,6 +253,8 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **passlib 1.7.4 is incompatible with bcrypt 5.x** — use the `bcrypt` library directly (`bcrypt.hashpw` / `bcrypt.checkpw`). `web/auth.py` wraps this. Do not add `passlib` as a dependency.
 - **Web auth middleware ordering** — `add_middleware` wraps in reverse order, so `SessionMiddleware` must be added *after* `AuthMiddleware` to run first (outermost). Session must be populated before the auth guard reads it.
 - **HTMX + auth expiry** — `AuthMiddleware` checks `HX-Request` header; if present, returns `HX-Redirect` response header (status 200) instead of a 302, so HTMX performs a full-page redirect rather than swapping fragment content.
+- **Web router tests — auth bypass** — `BaseHTTPMiddleware` stores `self.dispatch_func = self.dispatch` at construction time, so `patch.object(AuthMiddleware, "dispatch", ...)` does NOT work after the app is built. Use signed session cookies instead: `itsdangerous.TimestampSigner(secret).sign(base64(json(session)))` and set on the TestClient's cookie jar. `get_settings().secret_key` gives the live key after app initialization.
+- **INTEGRATION_TESTS flag** — tests that require external API calls or a live DB are gated with `_integration_only()` (raises `_Skip` unless `INTEGRATION_TESTS=1`). The `_test()` runner shows these as SKIP. This pattern is used in `test_pdf_extractor.py` (vision OCR), `test_retag_chunks.py` (live DB).
 - **`plan.py` phase progression** — `_advance_phase()` advances along `general_prep → accumulation → intensification → realization`; realization always cycles back to accumulation; gated by adherence ≥70% and make_rate ≥75%; high RPE deviation (>1.5) blocks advancement. `_apply_outcome_adjustments()` applies volume/intensity nudges to non-deload weeks based on previous `outcome_summary`. Always pass `outcome_summary` as a parsed dict (psycopg2 returns JSONB as Python dict automatically).
 - **Jinja2 `{% set %}` scoping in loops** — variables set inside a `for` loop are scoped to the loop body. Use `{% set ns = namespace(key=[]) %}` and `ns.key = ns.key + [item]` to accumulate values across iterations. This pattern is used in `exercise_log_section.html` for `logged_se_ids` and `remaining`.
 - **Jinja2 `urlencode` filter** — added in `web/app.py` via `templates.env.filters["urlencode"] = quote_plus` (imported from `urllib.parse`). Used in exercise history links: `{{ name | urlencode }}`. Not a built-in Jinja2 filter.
