@@ -79,6 +79,19 @@ async def complete(
     })
 
 
+@router.delete("/{program_id}", response_class=HTMLResponse)
+@limiter.limit("10/minute")
+async def delete_program(
+    program_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
+    await q.delete_program(conn, program_id, athlete_id)
+    logger.info(f"Program {program_id} deleted by athlete {athlete_id}")
+    return HTMLResponse("")
+
+
 @router.post("/{program_id}/abandon", response_class=HTMLResponse)
 @limiter.limit("5/minute")
 async def abandon(program_id: int, request: Request, conn=Depends(get_db)):

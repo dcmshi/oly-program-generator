@@ -163,6 +163,49 @@ async def complete_program(conn, program_id: int, athlete_id: int) -> dict:
     return outcome
 
 
+async def delete_program(conn, program_id: int, athlete_id: int):
+    """Permanently delete a program and all its sessions/exercises.
+
+    Nulls out the back-references from training_logs and training_log_exercises
+    first (those FKs have no ON DELETE CASCADE), then deletes the program row
+    which cascades to program_sessions → session_exercises → generation_log.
+    Training log entries themselves are preserved (just unlinked from the program).
+    """
+    from web.async_db import async_execute
+    # Unlink training_log_exercises from session_exercises being deleted
+    await async_execute(
+        conn,
+        """
+        UPDATE training_log_exercises
+        SET session_exercise_id = NULL
+        WHERE session_exercise_id IN (
+            SELECT se.id FROM session_exercises se
+            JOIN program_sessions ps ON ps.id = se.session_id
+            WHERE ps.program_id = $1
+        )
+        """,
+        program_id,
+    )
+    # Unlink training_logs from sessions being deleted
+    await async_execute(
+        conn,
+        """
+        UPDATE training_logs
+        SET session_id = NULL
+        WHERE session_id IN (
+            SELECT id FROM program_sessions WHERE program_id = $1
+        )
+        """,
+        program_id,
+    )
+    # Delete the program — cascades to program_sessions, session_exercises, generation_log
+    await async_execute(
+        conn,
+        "DELETE FROM generated_programs WHERE id = $1 AND athlete_id = $2",
+        program_id, athlete_id,
+    )
+
+
 async def abandon_program(conn, program_id: int):
     from web.async_db import async_execute
     await async_execute(
