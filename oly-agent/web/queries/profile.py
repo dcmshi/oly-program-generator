@@ -19,6 +19,81 @@ async def get_athlete(conn, athlete_id: int) -> dict | None:
     )
 
 
+async def get_active_goal(conn, athlete_id: int) -> dict | None:
+    from web.async_db import async_fetch_one
+    return await async_fetch_one(
+        conn,
+        """
+        SELECT id, goal, competition_date, competition_name,
+               target_snatch_kg, target_cj_kg, target_total_kg, notes
+        FROM athlete_goals
+        WHERE athlete_id = $1 AND is_active = TRUE
+        ORDER BY priority DESC, id DESC
+        LIMIT 1
+        """,
+        athlete_id,
+    )
+
+
+async def upsert_goal(conn, athlete_id: int, data: dict):
+    """Update the active goal row if one exists, otherwise insert a new one."""
+    from web.async_db import async_fetch_one, async_execute
+
+    def _float(v):
+        try:
+            return float(v) if v else None
+        except (ValueError, TypeError):
+            return None
+
+    existing = await async_fetch_one(
+        conn,
+        "SELECT id FROM athlete_goals WHERE athlete_id = $1 AND is_active = TRUE ORDER BY priority DESC, id DESC LIMIT 1",
+        athlete_id,
+    )
+
+    if existing:
+        await async_execute(
+            conn,
+            """
+            UPDATE athlete_goals SET
+                goal               = $1,
+                competition_date   = $2,
+                competition_name   = $3,
+                target_snatch_kg   = $4,
+                target_cj_kg       = $5,
+                target_total_kg    = $6,
+                notes              = $7
+            WHERE id = $8
+            """,
+            data["goal"],
+            data.get("competition_date") or None,
+            data.get("competition_name") or None,
+            _float(data.get("target_snatch_kg")),
+            _float(data.get("target_cj_kg")),
+            _float(data.get("target_total_kg")),
+            data.get("notes") or None,
+            existing["id"],
+        )
+    else:
+        await async_execute(
+            conn,
+            """
+            INSERT INTO athlete_goals
+                (athlete_id, goal, competition_date, competition_name,
+                 target_snatch_kg, target_cj_kg, target_total_kg, notes, is_active, priority)
+            VALUES ($1, $2, $3, $4, $5, $6, $7, $8, TRUE, 1)
+            """,
+            athlete_id,
+            data["goal"],
+            data.get("competition_date") or None,
+            data.get("competition_name") or None,
+            _float(data.get("target_snatch_kg")),
+            _float(data.get("target_cj_kg")),
+            _float(data.get("target_total_kg")),
+            data.get("notes") or None,
+        )
+
+
 async def update_profile(conn, athlete_id: int, data: dict):
     from web.async_db import async_execute
 

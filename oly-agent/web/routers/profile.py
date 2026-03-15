@@ -23,9 +23,11 @@ async def profile_page(
 ):
     from web.app import templates
     athlete = await q.get_athlete(conn, athlete_id)
+    goal = await q.get_active_goal(conn, athlete_id)
     return templates.TemplateResponse("profile.html", {
         "request": request,
         "athlete": athlete,
+        "goal": goal,
         "success": request.query_params.get("success"),
         "error": request.query_params.get("error"),
     })
@@ -83,9 +85,11 @@ async def update_profile(
 
     if not data["name"]:
         athlete = await q.get_athlete(conn, athlete_id)
+        goal = await q.get_active_goal(conn, athlete_id)
         return templates.TemplateResponse("profile.html", {
             "request": request,
             "athlete": athlete,
+            "goal": goal,
             "error": "Name is required.",
             "profile_error": True,
         }, status_code=422)
@@ -111,11 +115,13 @@ async def update_password(
     from web.app import templates
 
     athlete = await q.get_athlete(conn, athlete_id)
+    goal = await q.get_active_goal(conn, athlete_id)
 
     def _err(msg):
         return templates.TemplateResponse("profile.html", {
             "request": request,
             "athlete": athlete,
+            "goal": goal,
             "error": msg,
             "security_error": True,
         }, status_code=422)
@@ -147,11 +153,13 @@ async def update_username(
     from web.app import templates
 
     athlete = await q.get_athlete(conn, athlete_id)
+    goal = await q.get_active_goal(conn, athlete_id)
 
     def _err(msg):
         return templates.TemplateResponse("profile.html", {
             "request": request,
             "athlete": athlete,
+            "goal": goal,
             "error": msg,
             "security_error": True,
         }, status_code=422)
@@ -171,3 +179,30 @@ async def update_username(
 
     logger.info(f"Username changed: athlete_id={athlete_id} -> '{new_username}'")
     return RedirectResponse("/profile?success=username", status_code=303)
+
+
+@router.post("/goals", response_class=HTMLResponse)
+@limiter.limit("20/minute")
+async def update_goals(
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+    goal: Annotated[str, Form()] = "general_strength",
+    competition_date: Annotated[str, Form()] = "",
+    competition_name: Annotated[str, Form(max_length=200)] = "",
+    target_snatch_kg: Annotated[str, Form()] = "",
+    target_cj_kg: Annotated[str, Form()] = "",
+    target_total_kg: Annotated[str, Form()] = "",
+    goal_notes: Annotated[str, Form(max_length=500)] = "",
+):
+    await q.upsert_goal(conn, athlete_id, {
+        "goal": goal,
+        "competition_date": competition_date or None,
+        "competition_name": competition_name.strip() or None,
+        "target_snatch_kg": target_snatch_kg or None,
+        "target_cj_kg": target_cj_kg or None,
+        "target_total_kg": target_total_kg or None,
+        "notes": goal_notes.strip() or None,
+    })
+    logger.info(f"Goals updated: athlete_id={athlete_id}, goal={goal}")
+    return RedirectResponse("/profile?success=goals", status_code=303)
