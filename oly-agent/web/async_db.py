@@ -5,6 +5,7 @@ shared/db.py is kept intact for the agent pipeline (synchronous psycopg2).
 This module is used exclusively by the FastAPI web app.
 """
 
+import json
 import logging
 
 import asyncpg
@@ -14,11 +15,23 @@ logger = logging.getLogger(__name__)
 _pool: asyncpg.Pool | None = None
 
 
+async def _init_connection(conn: asyncpg.Connection):
+    """Register JSON/JSONB codecs so columns are decoded as Python dicts, not strings."""
+    await conn.set_type_codec(
+        "jsonb", encoder=json.dumps, decoder=json.loads,
+        schema="pg_catalog", format="text",
+    )
+    await conn.set_type_codec(
+        "json", encoder=json.dumps, decoder=json.loads,
+        schema="pg_catalog", format="text",
+    )
+
+
 async def init_async_pool(dsn: str, min_size: int = 1, max_size: int = 10) -> asyncpg.Pool:
     """Create the module-level asyncpg pool. Idempotent — safe to call multiple times."""
     global _pool
     if _pool is None:
-        _pool = await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size)
+        _pool = await asyncpg.create_pool(dsn, min_size=min_size, max_size=max_size, init=_init_connection)
         logger.info(f"Async DB pool initialised (min={min_size}, max={max_size})")
     return _pool
 
