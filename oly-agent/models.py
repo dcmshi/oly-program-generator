@@ -117,6 +117,7 @@ class ProgramOutcome:
     avg_rpe_deviation: float            # positive = harder than intended
     avg_make_rate: float                # across competition lifts (0.0-1.0)
     make_rate_by_lift: dict[str, float] = field(default_factory=dict)  # per intensity_reference
+    phase_verdict: dict = field(default_factory=dict)  # phase progression explanation
 
     # Volume signals for next program
     avg_weekly_reps: float = 0.0

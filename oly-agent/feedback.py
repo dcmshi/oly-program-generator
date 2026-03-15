@@ -168,6 +168,17 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         " | ".join(r["athlete_notes"] for r in feedback_rows) if feedback_rows else None
     )
 
+    # ── Phase progression verdict ─────────────────────────────
+    phase_row = fetch_one(
+        conn,
+        "SELECT phase FROM generated_programs WHERE id = %s",
+        (program_id,),
+    )
+    prev_phase = phase_row["phase"] if phase_row else None
+    phase_verdict = _compute_phase_verdict(
+        prev_phase, adherence_pct, avg_make_rate, avg_rpe_deviation
+    )
+
     outcome = ProgramOutcome(
         program_id=program_id,
         athlete_id=athlete_id,
@@ -178,6 +189,7 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         avg_rpe_deviation=round(avg_rpe_deviation, 2),
         avg_make_rate=round(avg_make_rate, 2),
         make_rate_by_lift=make_rate_by_lift,
+        phase_verdict=phase_verdict,
         avg_weekly_reps=round(avg_weekly_reps, 1),
         rpe_trend=rpe_trend,
         make_rate_trend=make_rate_trend,
@@ -211,6 +223,7 @@ def save_outcome(outcome: ProgramOutcome, conn):
                 "avg_rpe_deviation":  outcome.avg_rpe_deviation,
                 "avg_make_rate":      outcome.avg_make_rate,
                 "make_rate_by_lift":  outcome.make_rate_by_lift,
+                "phase_verdict":      outcome.phase_verdict,
                 "avg_weekly_reps":    outcome.avg_weekly_reps,
                 "rpe_trend":          outcome.rpe_trend,
                 "make_rate_trend":    outcome.make_rate_trend,
@@ -221,6 +234,95 @@ def save_outcome(outcome: ProgramOutcome, conn):
     )
     conn.commit()
     logger.info(f"Saved outcome for program {outcome.program_id}")
+
+
+_PHASE_SEQUENCE = ["general_prep", "accumulation", "intensification", "realization"]
+_PHASE_LABELS = {
+    "general_prep":    "General Prep",
+    "accumulation":    "Accumulation",
+    "intensification": "Intensification",
+    "realization":     "Realization",
+}
+
+
+def _compute_phase_verdict(
+    prev_phase: str | None,
+    adherence_pct: float,
+    avg_make_rate: float,
+    avg_rpe_deviation: float,
+) -> dict:
+    """Compute what phase comes next and why, mirroring plan._advance_phase logic."""
+    checks = [
+        {
+            "metric":    "Adherence",
+            "value":     round(adherence_pct, 1),
+            "display":   f"{adherence_pct:.0f}%",
+            "threshold": "≥ 70%",
+            "passed":    adherence_pct >= 70.0,
+        },
+        {
+            "metric":    "Make rate",
+            "value":     round(avg_make_rate, 2),
+            "display":   f"{avg_make_rate:.0%}",
+            "threshold": "≥ 75%",
+            "passed":    avg_make_rate >= 0.75,
+        },
+        {
+            "metric":    "RPE deviation",
+            "value":     round(avg_rpe_deviation, 2),
+            "display":   f"{avg_rpe_deviation:+.2f}",
+            "threshold": "≤ +1.5",
+            "passed":    avg_rpe_deviation <= 1.5,
+        },
+    ]
+
+    ready = adherence_pct >= 70.0 and avg_make_rate >= 0.75
+    rpe_blocked = avg_rpe_deviation > 1.5
+
+    if prev_phase not in _PHASE_SEQUENCE:
+        next_phase = "accumulation"
+        advanced = False
+        reason = "No previous phase — starting at Accumulation"
+    elif prev_phase == "realization":
+        next_phase = "accumulation"
+        advanced = False
+        reason = "Realization complete — rebuilding with Accumulation"
+    elif ready and not rpe_blocked:
+        idx = _PHASE_SEQUENCE.index(prev_phase)
+        next_phase = _PHASE_SEQUENCE[min(idx + 1, len(_PHASE_SEQUENCE) - 1)]
+        advanced = next_phase != prev_phase
+        reason = "All thresholds met — phase advanced" if advanced else "Already at highest phase"
+    elif ready and rpe_blocked:
+        next_phase = prev_phase
+        advanced = False
+        reason = f"RPE deviation too high ({avg_rpe_deviation:+.2f}) — phase held despite good adherence and make rate"
+    else:
+        next_phase = prev_phase
+        advanced = False
+        failing = [c["metric"] for c in checks if not c["passed"]]
+        reason = f"Phase repeated — {', '.join(failing)} below threshold"
+
+    # Next-program load adjustments (mirrors _apply_outcome_adjustments)
+    adjustments = []
+    if adherence_pct < 70.0:
+        adjustments.append("Volume −10% (low adherence)")
+    if avg_make_rate < 0.75:
+        adjustments.append("Intensity ceiling −3% (low make rate)")
+    if avg_rpe_deviation > 1.0:
+        adjustments.append("Volume −5% (high RPE deviation)")
+    if adherence_pct >= 90.0 and avg_make_rate >= 0.85:
+        adjustments.append("Intensity ceiling +2% (excellent performance)")
+
+    return {
+        "prev_phase":       prev_phase,
+        "next_phase":       next_phase,
+        "prev_label":       _PHASE_LABELS.get(prev_phase, prev_phase or "—"),
+        "next_label":       _PHASE_LABELS.get(next_phase, next_phase),
+        "advanced":         advanced,
+        "reason":           reason,
+        "checks":           checks,
+        "adjustments":      adjustments,
+    }
 
 
 def _compute_trend(values: list[float], invert: bool = False) -> str:

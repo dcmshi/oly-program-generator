@@ -113,12 +113,23 @@
     </div>
     <div>
       {% set mr = o.avg_make_rate %}
+      {% set lift_labels = {"snatch": "SN", "clean_and_jerk": "C&J", "clean": "Clean"} %}
       <p class="text-2xl font-bold {{ 'text-red-600' if mr < 0.75 else 'text-blue-900' }}">
         {{ (mr * 100) | round | int }}%
       </p>
       <p class="text-xs text-blue-600 mt-0.5">Make rate</p>
+      {% if o.make_rate_by_lift %}
+      <div class="flex flex-wrap justify-center gap-x-2 mt-1">
+        {% for ref, rate in o.make_rate_by_lift.items() %}
+        <span class="text-xs {{ 'text-red-500' if rate < 0.75 else 'text-gray-400' }}">
+          {{ lift_labels.get(ref, ref) }} {{ (rate * 100) | round | int }}%
+        </span>
+        {% endfor %}
+      </div>
+      {% endif %}
     </div>
   </div>
+
   {% if o.maxes_delta %}
   <div class="border-t border-blue-200 pt-3 mt-3 flex flex-wrap gap-2">
     {% for name, delta in o.maxes_delta.items() %}
@@ -129,6 +140,47 @@
     {% endfor %}
   </div>
   {% endif %}
+
+  {% if o.phase_verdict %}
+  {% set pv = o.phase_verdict %}
+  <div class="border-t border-blue-200 pt-4 mt-3">
+    <p class="text-xs font-semibold text-blue-800 mb-3">Phase Progression</p>
+    <div class="flex items-center gap-2 mb-3">
+      <span class="text-xs font-medium px-2 py-1 rounded bg-blue-100 text-blue-800">{{ pv.prev_label }}</span>
+      <span class="text-blue-400">→</span>
+      <span class="text-xs font-medium px-2 py-1 rounded
+                   {{ 'bg-green-100 text-green-800' if pv.advanced else 'bg-blue-100 text-blue-800' }}">
+        {{ pv.next_label }}
+      </span>
+      {% if pv.advanced %}
+      <span class="text-xs text-green-600 font-semibold">↑ Advanced</span>
+      {% elif pv.prev_phase == 'realization' %}
+      <span class="text-xs text-blue-500">↻ Rebuild</span>
+      {% else %}
+      <span class="text-xs text-amber-600">↻ Repeat</span>
+      {% endif %}
+    </div>
+    <div class="space-y-1 mb-3">
+      {% for c in pv.checks %}
+      <div class="flex items-center gap-2 text-xs">
+        <span class="{{ 'text-green-600' if c.passed else 'text-red-500' }}">{{ '✓' if c.passed else '✗' }}</span>
+        <span class="text-blue-700 w-28">{{ c.metric }}</span>
+        <span class="font-medium {{ 'text-green-700' if c.passed else 'text-red-600' }}">{{ c.display }}</span>
+        <span class="text-blue-400">(need {{ c.threshold }})</span>
+      </div>
+      {% endfor %}
+    </div>
+    {% if pv.adjustments %}
+    <div class="bg-blue-100 rounded-lg px-3 py-2">
+      <p class="text-xs font-medium text-blue-800 mb-1">Next program adjustments</p>
+      {% for adj in pv.adjustments %}
+      <p class="text-xs text-blue-700">• {{ adj }}</p>
+      {% endfor %}
+    </div>
+    {% endif %}
+  </div>
+  {% endif %}
+
 </div>
 {% endif %}
 
