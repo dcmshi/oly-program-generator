@@ -30,6 +30,7 @@ from web.routers import setup as setup_router
 from web.routers import profile as profile_router
 from web.routers import export as export_router
 from web.routers import history as history_router
+from web.routers import health as health_router
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +75,7 @@ app.add_middleware(ContentSizeLimitMiddleware)
 
 
 # ── Auth guard — redirects unauthenticated requests to /login ──
-_PUBLIC_PATHS = {"/login", "/setup"}
+_PUBLIC_PATHS = {"/login", "/setup", "/health"}
 
 class AuthMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next):
@@ -181,3 +182,4 @@ app.include_router(log_session.router)
 app.include_router(generate.router)
 app.include_router(export_router.router)
 app.include_router(history_router.router)
+app.include_router(health_router.router)

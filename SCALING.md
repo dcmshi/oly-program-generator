@@ -8,8 +8,8 @@ Identified during pre-deployment architecture review (2026-03-16).
 
 | # | Issue | File | Status |
 |---|-------|------|--------|
-| S1 | Rate limiter uses in-memory storage — bypassed entirely with 2+ web instances | `oly-agent/web/deps.py` | ⬜ Open |
-| S2 | No health check endpoint — load balancers and container orchestrators can't probe readiness | `oly-agent/web/app.py` | ⬜ Open |
+| S1 | Rate limiter uses in-memory storage — bypassed entirely with 2+ web instances | `oly-agent/web/deps.py` | ✅ Done (`_init_limiter()` already wires `REDIS_URL` into slowapi; set `REDIS_URL` in env) |
+| S2 | No health check endpoint — load balancers and container orchestrators can't probe readiness | `oly-agent/web/routers/health.py` | ✅ Done (`GET /health` — checks DB + Redis, returns 200/503) |
 
 ## Fix at Moderate Scale (10+ concurrent users / multi-instance)
 
