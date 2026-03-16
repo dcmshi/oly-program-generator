@@ -92,6 +92,28 @@ flowchart TB
 
 ---
 
+## Screenshots
+
+**Login**
+![Login](screenshots/01-login.png)
+
+**Dashboard** — current week sessions, goal progress, current maxes, lift ratio analysis
+![Dashboard](screenshots/02-dashboard.png)
+
+**Program detail** — week accordions, exercise tables with weights / intensity / RPE
+![Program detail](screenshots/04-program-detail.png)
+
+**Session logging** — prescribed exercises prefilled, log actual sets/reps/weight/RPE
+![Session log](screenshots/05-session-log.png)
+
+**Exercise history** — per-exercise trend across all logged sessions
+![Exercise history](screenshots/06-history.png)
+
+**Generate** — triggers the 6-step agent pipeline as a background job
+![Generate](screenshots/07-generate.png)
+
+---
+
 ## Project Structure
 
 > Full database schema with ER diagrams: [SCHEMA.md](SCHEMA.md)
