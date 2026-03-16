@@ -191,6 +191,12 @@ templates.env.filters["status_color"]     = _status_color
 templates.env.filters["phase_color"]      = _phase_color
 templates.env.filters["parse_rationale"]  = _parse_rationale
 
+# ── Favicon redirect (browsers that request /favicon.ico directly) ─────────
+@app.get("/favicon.ico", include_in_schema=False)
+async def favicon_redirect():
+    return RedirectResponse("/static/favicon.svg", status_code=301)
+
+
 # ── Routers ───────────────────────────────────────────────────
 app.include_router(auth_router.router)
 app.include_router(setup_router.router)

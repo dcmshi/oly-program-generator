@@ -40,6 +40,7 @@ services:
       DEFAULT_POOL_SIZE: 20   # server connections per user/db pair
       MIN_POOL_SIZE: 2
       AUTH_TYPE: scram-sha-256  # must match Postgres 16 default; stores cleartext so PgBouncer can SCRAM-auth to Postgres
+      LOG_CONNECTIONS: 0        # suppress per-connection login attempt noise
     ports:
       - "127.0.0.1:5432:5432"   # app DATABASE_URL points here
     depends_on:

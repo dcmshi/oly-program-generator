@@ -4,7 +4,7 @@
 import logging
 
 from fastapi import APIRouter, Depends, Query, Request
-from fastapi.responses import HTMLResponse
+from fastapi.responses import HTMLResponse, RedirectResponse
 
 from web.auth import get_current_athlete_id
 from web.deps import get_db
@@ -24,11 +24,14 @@ def _safe_back(url: str) -> str:
 @router.get("", response_class=HTMLResponse)
 async def exercise_history(
     request: Request,
-    exercise: str = Query(..., min_length=1, max_length=200),
+    exercise: str = Query(default="", max_length=200),
     back: str = Query(default="/"),
     conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
+    if not exercise:
+        return RedirectResponse("/", status_code=302)
+
     from web.app import templates
 
     rows = await get_exercise_history(conn, athlete_id, exercise)
