@@ -41,14 +41,14 @@ services:
       MAX_CLIENT_CONN: 200    # max simultaneous client connections
       DEFAULT_POOL_SIZE: 20   # server connections per user/db pair
       MIN_POOL_SIZE: 2
-      AUTH_TYPE: trust         # local dev only — ports bound to 127.0.0.1
+      AUTH_TYPE: scram-sha-256  # must match Postgres 16 default; stores cleartext so PgBouncer can SCRAM-auth to Postgres
     ports:
       - "127.0.0.1:5432:5432"   # app DATABASE_URL points here
     depends_on:
       db:
         condition: service_healthy
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER:-oly}"]
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER:-oly} -d ${POSTGRES_DB:-oly_programming}"]
       interval: 5s
       timeout: 5s
       retries: 5
