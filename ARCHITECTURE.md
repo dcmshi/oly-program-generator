@@ -4,16 +4,16 @@
 
 ```mermaid
 flowchart TB
-    Browser["🌐 Browser\nHTMX · Tailwind CSS"]
+    Browser["🌐 Browser<br/>HTMX · Tailwind CSS"]
 
     subgraph infra["Infrastructure  (docker compose up -d)"]
-        PG[("🗄 Postgres 16 + pgvector\nlocalhost:5432")]
-        RD[("⚡ Redis 7\nlocalhost:6379")]
+        PG[("🗄 Postgres 16 + pgvector<br/>localhost:5432")]
+        RD[("⚡ Redis 7<br/>localhost:6379")]
     end
 
     subgraph agent["oly-agent/"]
         subgraph web["Web Server  (uvicorn)"]
-            App["FastAPI\nauth · rate-limit · session\n11 routers · Jinja2 templates"]
+            App["FastAPI<br/>auth · rate-limit · session<br/>11 routers · Jinja2 templates"]
             APool["asyncpg pool"]
             AQueue["arq client"]
         end
@@ -29,12 +29,12 @@ flowchart TB
     end
 
     subgraph ingestion["oly-ingestion/"]
-        Ing["Ingestion pipeline\npipeline.py · ingest_web.py"]
+        Ing["Ingestion pipeline<br/>pipeline.py · ingest_web.py"]
     end
 
     subgraph ext["External APIs"]
-        Anthropic["☁ Anthropic\nclaude-sonnet-4-6"]
-        OpenAI["☁ OpenAI\ntext-embedding-3-small"]
+        Anthropic["☁ Anthropic<br/>claude-sonnet-4-6"]
+        OpenAI["☁ OpenAI<br/>text-embedding-3-small"]
     end
 
     Browser <-->|HTTP| App
@@ -112,26 +112,26 @@ flowchart LR
     end
 
     subgraph extract["Extract"]
-        PE["pdf_extractor\nPyMuPDF → pdfplumber\n→ Claude vision OCR"]
-        EE["epub_extractor\nebooklib"]
-        HE["html_extractor\nBeautifulSoup"]
+        PE["pdf_extractor<br/>PyMuPDF → pdfplumber<br/>→ Claude vision OCR"]
+        EE["epub_extractor<br/>ebooklib"]
+        HE["html_extractor<br/>BeautifulSoup"]
     end
 
-    CLASS["Classifier\nheuristic + LLM fallback\n(confidence < 0.6)"]
+    CLASS["Classifier<br/>heuristic + LLM fallback<br/>(confidence < 0.6)"]
 
     subgraph route["Route by content type"]
-        CHUNK["Chunker\nprofile-aware sizing\n500–1100 tokens"]
-        SL["Structured Loader\nupsert tables"]
-        PEX["Principle Extractor\nClaude LLM"]
+        CHUNK["Chunker<br/>profile-aware sizing<br/>500–1100 tokens"]
+        SL["Structured Loader<br/>upsert tables"]
+        PEX["Principle Extractor<br/>Claude LLM"]
     end
 
     subgraph store["Postgres"]
-        KC[("knowledge_chunks\n+ pgvector embeddings")]
+        KC[("knowledge_chunks<br/>+ pgvector embeddings")]
         PP[("programming_principles")]
-        EX[("exercises · templates\nprilepin_chart")]
+        EX[("exercises · templates<br/>prilepin_chart")]
     end
 
-    OAI["OpenAI\ntext-embedding-3-small"]
+    OAI["OpenAI<br/>text-embedding-3-small"]
 
     PDF --> PE --> CLASS
     EPUB --> EE --> CLASS
