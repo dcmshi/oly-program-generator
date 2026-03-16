@@ -225,12 +225,12 @@ Direct Postgres (psql/debug): `postgresql://oly:oly@localhost:5433/oly_programmi
 
 ## API Keys
 
-Set in `oly-ingestion/.env`:
-```
-OPENAI_API_KEY=sk-...        # required for embeddings (vector_loader)
-ANTHROPIC_API_KEY=sk-ant-... # required for LLM tasks (principle_extractor, classifier LLM fallback)
-DATABASE_URL=postgresql://oly:oly@localhost:5432/oly_programming  # via PgBouncer
-```
+Copy `oly-ingestion/.env.example` → `oly-ingestion/.env` and fill in real values. The `.env` file is gitignored. Key variables:
+- `POSTGRES_PASSWORD` — required; no hardcoded default in docker-compose
+- `DATABASE_URL` — Postgres connection string via PgBouncer (port 5432)
+- `OPENAI_API_KEY` — required for embeddings (vector_loader)
+- `ANTHROPIC_API_KEY` — required for LLM tasks (principle_extractor, classifier LLM fallback)
+- `SECRET_KEY` — required for session signing; generate with `python -c "import secrets; print(secrets.token_hex(32))"`
 
 - `OPENAI_API_KEY` — needed by `loaders/vector_loader.py` (embeddings via text-embedding-3-small)
 - `ANTHROPIC_API_KEY` — needed by `processors/principle_extractor.py` and the `_llm_classify()` stub in `processors/classifier.py`

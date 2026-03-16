@@ -248,13 +248,14 @@ uv sync --extra web --extra dev
 
 ### 3. Configure environment
 
-Create `oly-ingestion/.env` (shared by both subsystems via `shared/config.py`):
+```bash
+cd oly-ingestion
+cp .env.example .env
 ```
-OPENAI_API_KEY=sk-...
-ANTHROPIC_API_KEY=sk-ant-...
-DATABASE_URL=postgresql://oly:oly@localhost:5432/oly_programming
-SECRET_KEY=your-random-secret-here   # required for session signing
-```
+
+Edit `.env` and fill in real values — at minimum set `POSTGRES_PASSWORD`, `SECRET_KEY`, and the API keys. The file is gitignored and never committed.
+
+`shared/config.py` loads this `.env` automatically for both subsystems.
 
 ---
 

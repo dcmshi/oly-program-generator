@@ -1,15 +1,13 @@
 # docker-compose.yml
 # Run: docker compose up -d
 #
+# Requires .env to be present — copy .env.example and fill in credentials:
+#   cp .env.example .env
+#
 # Ports:
 #   localhost:5432  — PgBouncer (transaction pooling) — use for app DATABASE_URL
 #   localhost:5433  — Postgres direct (debugging / psql / ingestion pipeline)
 #   localhost:6379  — Redis
-#
-# Dev defaults:
-#   DATABASE_URL=postgresql://oly:oly@localhost:5432/oly_programming
-# Production:
-#   Set POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB in environment or .env
 
 services:
   db:
@@ -17,7 +15,7 @@ services:
     container_name: oly-postgres
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-oly}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oly}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}          # required — set in .env
       POSTGRES_DB: ${POSTGRES_DB:-oly_programming}
     ports:
       - "127.0.0.1:5433:5432"   # direct access for psql / ingestion / debugging
@@ -36,7 +34,7 @@ services:
     image: edoburu/pgbouncer:latest
     container_name: oly-pgbouncer
     environment:
-      DATABASE_URL: "postgresql://${POSTGRES_USER:-oly}:${POSTGRES_PASSWORD:-oly}@db:5432/${POSTGRES_DB:-oly_programming}"
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-oly}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-oly_programming}"
       POOL_MODE: transaction
       MAX_CLIENT_CONN: 200    # max simultaneous client connections
       DEFAULT_POOL_SIZE: 20   # server connections per user/db pair
