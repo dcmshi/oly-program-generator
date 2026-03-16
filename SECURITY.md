@@ -27,7 +27,7 @@ Identified during pre-deployment audit (2026-03-16).
 | # | Issue | File | Status |
 |---|-------|------|--------|
 | I1 | `ports: "5432:5432"` exposes Postgres on all interfaces (`0.0.0.0`) — direct DB access from internet if firewall misconfigured | `oly-ingestion/docker-compose.yml:14` | ✅ Fixed |
-| I2 | Default Postgres credentials `oly:oly` — trivial password in dev compose | `oly-ingestion/docker-compose.yml:11` | ⚠️ Documented (override via `DATABASE_URL` in production) |
+| I2 | Default Postgres credentials `oly:oly` — trivial password in dev compose | `oly-ingestion/docker-compose.yml:11` | ✅ Fixed (compose uses `${POSTGRES_PASSWORD:-oly}` — override via env or `.env`) |
 
 ## Low
 
@@ -38,6 +38,11 @@ Identified during pre-deployment audit (2026-03-16).
 
 ---
 
-## Known Limitations (not fixed — architectural)
+## Notes
 
-**I2 — Default DB password**: The dev compose uses `POSTGRES_PASSWORD=oly`. For production, set a strong password and override `DATABASE_URL` in the environment — do not commit credentials. The `config.py` startup check (M3 fix) will catch a missing `DATABASE_URL` at boot.
+All issues resolved. For production, ensure the following are set in the environment (never committed):
+- `SECRET_KEY` — session signing
+- `DATABASE_URL` — Postgres connection string with strong credentials
+- `REDIS_URL` — Redis connection string
+- `POSTGRES_PASSWORD` — overrides the `oly` dev default in docker-compose
+- `HTTPS_ONLY=true` — enables `Secure` cookie flag behind a TLS-terminating proxy
