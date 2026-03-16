@@ -171,11 +171,12 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     effective_maxes=effective_maxes,
                 )
 
-                # Cost guard — check before generating so we don't overshoot by a full session
-                if cumulative_cost > settings.cost_limit_per_program:
+                # Cost guard — athlete-specific limit takes precedence over global setting
+                cost_limit = athlete_context.athlete.get("cost_limit_usd") or settings.cost_limit_per_program
+                if cumulative_cost > cost_limit:
                     logger.error(
                         f"Cost limit exceeded: ${cumulative_cost:.4f} > "
-                        f"${settings.cost_limit_per_program:.2f}. Aborting before "
+                        f"${cost_limit:.2f}. Aborting before "
                         f"W{week_number}D{day_number}."
                     )
                     _mark_program_draft(conn, program_id)

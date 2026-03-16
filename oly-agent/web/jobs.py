@@ -11,7 +11,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logger = logging.getLogger(__name__)
 
 _arq_pool = None
-_JOB_OWNER_TTL = 3600  # seconds — matches WorkerSettings.keep_result
+_JOB_OWNER_TTL = 86400  # seconds — matches WorkerSettings.keep_result (24 hours)
 
 
 async def init_arq_pool(redis_url: str = "") -> None:

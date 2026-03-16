@@ -30,20 +30,25 @@ async def _init_connection(conn: asyncpg.Connection):
 async def init_async_pool(dsn: str, min_size: int = 1, max_size: int = 10) -> asyncpg.Pool:
     """Create the module-level asyncpg pool. Idempotent — safe to call multiple times.
 
-    statement_cache_size=0 disables asyncpg's prepared statement cache, which is
-    required for PgBouncer transaction pooling — pooled connections are not guaranteed
-    to be the same server connection, so cached prepared statements would not exist.
+    statement_cache_size=0 — required for PgBouncer transaction pooling; pooled
+    connections are not guaranteed to be the same server connection.
+
+    command_timeout=30 — any single query that takes >30 s releases the connection
+    rather than holding it indefinitely. Override via DB_COMMAND_TIMEOUT env var.
     """
+    import os
     global _pool
     if _pool is None:
+        timeout = float(os.getenv("DB_COMMAND_TIMEOUT", "30"))
         _pool = await asyncpg.create_pool(
             dsn,
             min_size=min_size,
             max_size=max_size,
             init=_init_connection,
             statement_cache_size=0,
+            command_timeout=timeout,
         )
-        logger.info(f"Async DB pool initialised (min={min_size}, max={max_size})")
+        logger.info(f"Async DB pool initialised (min={min_size}, max={max_size}, command_timeout={timeout}s)")
     return _pool
 
 

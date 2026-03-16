@@ -63,7 +63,7 @@ class WorkerSettings:
     functions = [run_generation]
     max_jobs = 1          # one generation at a time
     job_timeout = 600     # 10 minute hard limit per job
-    keep_result = 3600    # keep results in Redis for 1 hour
+    keep_result = 86400   # keep results in Redis for 24 hours
 
     @classmethod
     def redis_settings(cls) -> RedisSettings:
