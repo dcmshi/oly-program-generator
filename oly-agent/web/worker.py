@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from arq.connections import RedisSettings
+from web.logging_config import configure_logging, request_id_var
 
 logger = logging.getLogger(__name__)
 
@@ -24,12 +25,21 @@ logger = logging.getLogger(__name__)
 _executor = ThreadPoolExecutor(max_workers=1)
 
 
-async def run_generation(ctx, athlete_id: int, dry_run: bool = False) -> dict:
+async def _on_startup(ctx) -> None:
+    """Configure logging when the worker process starts."""
+    from shared.config import Settings
+    s = Settings()
+    configure_logging(s.log_format, s.log_level)
+    logger.info("ARQ worker started")
+
+
+async def run_generation(ctx, athlete_id: int, dry_run: bool = False, request_id: str = "-") -> dict:
     """Generate a program for the given athlete.
 
     Runs the synchronous orchestrator in a thread so the event loop stays free.
     Return value is stored in Redis by ARQ for the web server to fetch.
     """
+    token = request_id_var.set(request_id)
     start = datetime.now(timezone.utc)
     logger.info(f"Worker: starting generation for athlete {athlete_id} (dry_run={dry_run})")
 
@@ -38,15 +48,18 @@ async def run_generation(ctx, athlete_id: int, dry_run: bool = False) -> dict:
         import orchestrator
         return orchestrator.run(athlete_id, Settings(), dry_run=dry_run)
 
-    loop = asyncio.get_event_loop()
-    program_id = await loop.run_in_executor(_executor, _sync)
-
-    duration = round((datetime.now(timezone.utc) - start).total_seconds(), 1)
-    logger.info(f"Worker: completed in {duration}s — program_id={program_id}")
-    return {"program_id": program_id, "duration_seconds": duration, "athlete_id": athlete_id}
+    try:
+        loop = asyncio.get_event_loop()
+        program_id = await loop.run_in_executor(_executor, _sync)
+        duration = round((datetime.now(timezone.utc) - start).total_seconds(), 1)
+        logger.info(f"Worker: completed in {duration}s — program_id={program_id}")
+        return {"program_id": program_id, "duration_seconds": duration, "athlete_id": athlete_id}
+    finally:
+        request_id_var.reset(token)
 
 
 class WorkerSettings:
+    on_startup = _on_startup
     functions = [run_generation]
     max_jobs = 1          # one generation at a time
     job_timeout = 600     # 10 minute hard limit per job

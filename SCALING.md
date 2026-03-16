@@ -24,8 +24,8 @@ Identified during pre-deployment architecture review (2026-03-16).
 | # | Issue | File | Status |
 |---|-------|------|--------|
 | S6 | No database migration tooling — schema changes applied as raw SQL with no history or rollback; add Alembic | `schema.sql` / `athlete_schema.sql` | ⬜ Open |
-| S7 | Unstructured logging — plain text logs don't integrate with aggregation tools (CloudWatch, Datadog, Loki); one `logging.config` change adds JSON output | `oly-agent/web/app.py` | ⬜ Open |
-| S8 | No request ID / tracing — can't correlate a user's request across web server + ARQ worker logs; add `X-Request-ID` middleware | `oly-agent/web/app.py` | ⬜ Open |
+| S7 | Unstructured logging — plain text logs don't integrate with aggregation tools (CloudWatch, Datadog, Loki); one `logging.config` change adds JSON output | `oly-agent/web/logging_config.py` | ✅ Done (`LOG_FORMAT=json` for prod; `text` default for dev; JSON formatter in `logging_config.py`) |
+| S8 | No request ID / tracing — can't correlate a user's request across web server + ARQ worker logs; add `X-Request-ID` middleware | `oly-agent/web/app.py` | ✅ Done (`RequestIDMiddleware` stamps every request; contextvar propagates to all logs + ARQ worker jobs) |
 | S9 | No backup strategy — `pgdata` Docker volume has no backup config; use managed Postgres (RDS, Cloud SQL, Supabase) with automated backups in production | `oly-ingestion/docker-compose.yml` | ⬜ Open |
 
 ## Low Priority / When Needed

@@ -72,6 +72,8 @@ class Settings:
     secret_key: str = ""   # session signing key; MUST be set in production via SECRET_KEY env var
     redis_url: str = ""    # optional Redis URL for rate limiter (e.g. redis://localhost:6379)
     https_only: bool = False  # set HTTPS_ONLY=true in production to enable Secure cookie flag
+    log_format: str = "text"  # "json" for production — set via LOG_FORMAT env var
+    log_level: str = "INFO"   # set via LOG_LEVEL env var
 
     # ── Paths (ingestion pipeline) ────────────────────────────
     sources_dir: Path = Path("./sources")
@@ -106,6 +108,9 @@ class Settings:
         self.redis_url = self.redis_url or os.getenv("REDIS_URL", "")
 
         self.https_only = self.https_only or os.getenv("HTTPS_ONLY", "").lower() in ("1", "true", "yes")
+
+        self.log_format = os.getenv("LOG_FORMAT", self.log_format)
+        self.log_level  = os.getenv("LOG_LEVEL",  self.log_level)
 
         self.secret_key = self.secret_key or os.getenv("SECRET_KEY", "")
         if not self.secret_key:

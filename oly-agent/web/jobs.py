@@ -30,10 +30,10 @@ async def close_arq_pool() -> None:
         _arq_pool = None
 
 
-async def submit_generation(athlete_id: int, dry_run: bool = False) -> str:
+async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: str = "-") -> str:
     if _arq_pool is None:
         raise RuntimeError("ARQ pool not initialised — is Redis running?")
-    job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run)
+    job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run, request_id=request_id)
     # Store ownership alongside the job so status polls can verify the requester
     await _arq_pool.set(f"job_owner:{job.job_id}", str(athlete_id), ex=_JOB_OWNER_TTL)
     logger.info(f"Job {job.job_id}: submitted for athlete {athlete_id} (dry_run={dry_run})")

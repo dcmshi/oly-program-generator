@@ -35,7 +35,8 @@ async def run_generation(
     from web.app import templates
     form = await request.form()
     dry_run = form.get("dry_run") == "on"
-    job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run)
+    request_id = getattr(request.state, "request_id", "-")
+    job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run, request_id=request_id)
     logger.info(f"Generation submitted: job_id={job_id}, athlete={athlete_id}, dry_run={dry_run}")
     return templates.TemplateResponse("partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": {"status": "running"},

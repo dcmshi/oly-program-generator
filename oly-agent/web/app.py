@@ -3,6 +3,7 @@
 
 import logging
 import sys
+import uuid
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -24,6 +25,7 @@ from starlette.responses import Response as StarletteResponse
 from web.async_db import init_async_pool, close_async_pool
 from web.jobs import init_arq_pool, close_arq_pool
 from web.deps import get_settings, limiter
+from web.logging_config import configure_logging, request_id_var
 from web.routers import dashboard, program, log_session, generate
 from web.routers import auth as auth_router
 from web.routers import setup as setup_router
@@ -94,12 +96,29 @@ app.add_middleware(AuthMiddleware)
 
 # ── Session middleware (must be added after AuthMiddleware so it runs first) ──
 _settings = get_settings()
+configure_logging(_settings.log_format, _settings.log_level)
 app.add_middleware(
     SessionMiddleware,
     secret_key=_settings.secret_key,
     https_only=_settings.https_only,  # set HTTPS_ONLY=true in production
     same_site="lax",
 )
+
+# ── Request ID — added last so it runs outermost (before all other middleware) ──
+class RequestIDMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        req_id = request.headers.get("X-Request-ID") or uuid.uuid4().hex[:12]
+        request.state.request_id = req_id
+        token = request_id_var.set(req_id)
+        try:
+            response = await call_next(request)
+        finally:
+            request_id_var.reset(token)
+        response.headers["X-Request-ID"] = req_id
+        return response
+
+
+app.add_middleware(RequestIDMiddleware)
 
 # ── Static files ──────────────────────────────────────────────
 app.mount("/static", StaticFiles(directory=Path(__file__).parent / "static"), name="static")
