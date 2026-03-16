@@ -1,7 +1,15 @@
 # docker-compose.yml
 # Run: docker compose up -d
-# Dev defaults: postgresql://oly:oly@localhost:5432/oly_programming
-# Production:   set POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB in environment or .env
+#
+# Ports:
+#   localhost:5432  — PgBouncer (transaction pooling) — use for app DATABASE_URL
+#   localhost:5433  — Postgres direct (debugging / psql / ingestion pipeline)
+#   localhost:6379  — Redis
+#
+# Dev defaults:
+#   DATABASE_URL=postgresql://oly:oly@localhost:5432/oly_programming
+# Production:
+#   Set POSTGRES_USER / POSTGRES_PASSWORD / POSTGRES_DB in environment or .env
 
 services:
   db:
@@ -12,12 +20,35 @@ services:
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-oly}
       POSTGRES_DB: ${POSTGRES_DB:-oly_programming}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "127.0.0.1:5433:5432"   # direct access for psql / ingestion / debugging
+    expose:
+      - "5432"                   # reachable within Docker network as db:5432
     volumes:
       - pgdata:/var/lib/postgresql/data
       - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-oly} -d ${POSTGRES_DB:-oly_programming}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+
+  pgbouncer:
+    image: edoburu/pgbouncer:latest
+    container_name: oly-pgbouncer
+    environment:
+      DATABASE_URL: "postgresql://${POSTGRES_USER:-oly}:${POSTGRES_PASSWORD:-oly}@db:5432/${POSTGRES_DB:-oly_programming}"
+      POOL_MODE: transaction
+      MAX_CLIENT_CONN: 200    # max simultaneous client connections
+      DEFAULT_POOL_SIZE: 20   # server connections per user/db pair
+      MIN_POOL_SIZE: 2
+      AUTH_TYPE: md5
+    ports:
+      - "127.0.0.1:5432:5432"   # app DATABASE_URL points here
+    depends_on:
+      db:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -h localhost -p 5432 -U ${POSTGRES_USER:-oly}"]
       interval: 5s
       timeout: 5s
       retries: 5

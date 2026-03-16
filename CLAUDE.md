@@ -194,13 +194,14 @@ PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 21 tests (signed sess
 ## Docker / Database
 
 ```bash
-# Start Postgres (from oly-ingestion/)
+# Start all services (from oly-ingestion/)
 docker compose up -d
 
 # Stop
 docker compose down
 
-# Connect directly (no -it flag on Windows — use without TTY)
+# Connect directly to Postgres (no -it flag on Windows — use without TTY)
+# Note: port 5432 = PgBouncer, port 5433 = Postgres direct
 docker exec oly-postgres psql -U oly -d oly_programming -c "\dt"
 
 # Quick spot-check after ingestion
@@ -214,7 +215,13 @@ docker exec oly-postgres psql -U oly -d oly_programming -c "
 docker compose down -v && docker compose up -d
 ```
 
-Connection string: `postgresql://oly:oly@localhost:5432/oly_programming`
+Ports:
+- `localhost:5432` — **PgBouncer** (transaction pooling) — app `DATABASE_URL` points here
+- `localhost:5433` — **Postgres direct** — for psql, ingestion pipeline, debugging
+- `localhost:6379` — **Redis**
+
+Connection string (via PgBouncer): `postgresql://oly:oly@localhost:5432/oly_programming`
+Direct Postgres (psql/debug): `postgresql://oly:oly@localhost:5433/oly_programming`
 
 ## API Keys
 
@@ -222,7 +229,7 @@ Set in `oly-ingestion/.env`:
 ```
 OPENAI_API_KEY=sk-...        # required for embeddings (vector_loader)
 ANTHROPIC_API_KEY=sk-ant-... # required for LLM tasks (principle_extractor, classifier LLM fallback)
-DATABASE_URL=postgresql://oly:oly@localhost:5432/oly_programming
+DATABASE_URL=postgresql://oly:oly@localhost:5432/oly_programming  # via PgBouncer
 ```
 
 - `OPENAI_API_KEY` — needed by `loaders/vector_loader.py` (embeddings via text-embedding-3-small)
@@ -251,6 +258,8 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **Dedup is content-hash global** — the same text appearing in two different sources will only be embedded once. The second source's run shows `chunks_created=0` for those sections.
 - **`_llm_classify()` fires when heuristic confidence < 0.6** — short sections (<50 words) score 0.60 (just at threshold), so they won't trigger LLM. Only genuinely ambiguous mid-length sections fall through.
 - **`docker exec` on Windows** — drop the `-it` flag (no TTY). Use `docker exec oly-postgres psql ...` not `docker exec -it`.
+- **PgBouncer + asyncpg** — `statement_cache_size=0` is set in `web/async_db.py:init_async_pool()`. Required for PgBouncer transaction pooling — asyncpg's prepared statement cache doesn't survive across pooled connections. psycopg2 (ingestion + CLI) is unaffected.
+- **Port layout** — `localhost:5432` = PgBouncer (app + ingestion traffic), `localhost:5433` = Postgres direct (psql/debugging only). All `DATABASE_URL` usage goes through PgBouncer; use port 5433 only for direct psql inspection.
 - **classifier `chunk_type` is a Postgres enum** — filter with `chunk_type::text = ANY(...)` not `chunk_type = ANY(...)`.
 - **PDF extractor fallback chain** — PyMuPDF → pdfplumber → Claude vision OCR. pdfplumber is tried when PyMuPDF extracts <100 total chars. Vision OCR is tried when pdfplumber also returns <100 chars AND `--vision` flag was passed (opt-in to avoid accidental API costs). Pass `--max-pages N` to limit OCR to the first N pages during testing.
 - **Web scraper progress** — `ingest_web.py` saves ingested URLs to `sources/catalyst_progress.json`. Safe to interrupt and re-run; already-ingested URLs are skipped. Catalyst-specific selector is `div.sub_page_main_area_half_container_left`.
