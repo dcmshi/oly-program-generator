@@ -20,7 +20,7 @@ Identified during pre-deployment audit (2026-03-16).
 | M1 | `https_only=False` hardcoded in `SessionMiddleware` — session cookies lack `Secure` flag over HTTPS | `web/app.py:92` | ✅ Fixed |
 | M2 | `SECRET_KEY` auto-generates randomly at startup if unset — sessions invalidate on restart, breaks multi-instance | `shared/config.py:102` | ✅ Fixed |
 | M3 | `DATABASE_URL` silently falls back to `localhost` default if unset — masks misconfiguration | `shared/config.py:89` | ✅ Fixed |
-| M4 | In-process `ThreadPoolExecutor` job queue — jobs lost on restart, incompatible with multi-worker/multi-instance deployments | `web/jobs.py:16` | ⚠️ Documented (architectural — needs Redis + worker for cloud scale) |
+| M4 | In-process `ThreadPoolExecutor` job queue — jobs lost on restart, incompatible with multi-worker/multi-instance deployments | `web/jobs.py:16` | ✅ Fixed (ARQ + Redis — see `web/worker.py`) |
 
 ## Infrastructure
 
@@ -39,7 +39,5 @@ Identified during pre-deployment audit (2026-03-16).
 ---
 
 ## Known Limitations (not fixed — architectural)
-
-**M4 — In-process job queue**: `_jobs` is a plain dict in process memory. In production with `gunicorn --workers N` or any auto-scaling setup, each worker has its own dict — a status poll routed to a different worker returns "not found". For a single-process deployment (`uvicorn --workers 1`) this is fine. For cloud scale, replace with Redis-backed queue (e.g. ARQ or Celery).
 
 **I2 — Default DB password**: The dev compose uses `POSTGRES_PASSWORD=oly`. For production, set a strong password and override `DATABASE_URL` in the environment — do not commit credentials. The `config.py` startup check (M3 fix) will catch a missing `DATABASE_URL` at boot.

@@ -2,6 +2,8 @@
 
 An AI-powered training program generator for Olympic weightlifting. Ingests coaching literature into a hybrid vector + structured database, then generates personalised mesocycle programs grounded in Prilepin's chart, extracted programming principles, and athlete-specific maxes and goals.
 
+> Full service and deployment architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+
 ---
 
 ## Architecture
@@ -190,96 +192,148 @@ oly-program-generator/
 
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) — `pip install uv`
-- Docker Desktop (for Postgres + pgvector)
+- Docker Desktop (for Postgres + Redis)
 - API keys: `OPENAI_API_KEY` (embeddings) and `ANTHROPIC_API_KEY` (LLM)
+
+> **Windows note:** Always prefix Python commands with `PYTHONUTF8=1` to avoid cp1252 encoding errors.
 
 ---
 
-## Quick Start
+## Local Setup
 
-### 1. Start the database
+### 1. Start infrastructure (Postgres + Redis)
 
 ```bash
 cd oly-ingestion
 docker compose up -d
 ```
 
+This starts:
+- **Postgres 16 + pgvector** on `localhost:5432` — stores all knowledge, programs, athlete data
+- **Redis 7** on `localhost:6379` — backs the ARQ job queue for program generation
+
 ### 2. Install dependencies
 
 ```bash
+# Ingestion pipeline
 cd oly-ingestion
 uv sync --extra dev
 
+# Agent + web UI
 cd ../oly-agent
 uv sync --extra web --extra dev
 ```
 
-### 3. Configure API keys
+### 3. Configure environment
 
-Create `oly-ingestion/.env`:
+Create `oly-ingestion/.env` (shared by both subsystems via `shared/config.py`):
 ```
 OPENAI_API_KEY=sk-...
 ANTHROPIC_API_KEY=sk-ant-...
 DATABASE_URL=postgresql://oly:oly@localhost:5432/oly_programming
+SECRET_KEY=your-random-secret-here   # required for session signing
 ```
 
-### 4. Ingest source material
+---
 
+## Running the Web UI
+
+The web UI requires **three processes** running simultaneously. Open three terminals:
+
+**Terminal 1 — Infrastructure** (if not already up):
 ```bash
-cd oly-ingestion
-
-# EPUB / PDF book
-PYTHONUTF8=1 uv run python pipeline.py \
-  --source "./sources/book.epub" --title "Title" --author "Author" --type book
-
-# Catalyst Athletics web articles
-PYTHONUTF8=1 uv run python ingest_web.py
+cd oly-ingestion && docker compose up -d
 ```
 
-### 5. Start the web UI
-
+**Terminal 2 — Web server:**
 ```bash
 cd oly-agent
 PYTHONUTF8=1 uv run uvicorn web.app:app --reload --port 8080
 ```
 
-Open `http://localhost:8080`. Create an account at `/setup` or log in at `/login`. The UI provides:
-- **Dashboard** — current week's sessions, logged/unlogged status, adherence, warnings, current maxes, lift ratio analysis panel
-- **Programs** — all programs with phase/status badges; week accordions with full exercise tables; activate / complete / abandon; CSV export
-- **Log session** — two-phase form: session RPE/details, then exercise-by-exercise with click-to-prefill from prescribed weights; inline add/edit/delete; PR banner on new max
-- **Exercise history** — per-exercise training log with trend indicator; accessible from any logged exercise name link
-- **Generate** — triggers the agent in a background thread and polls for completion via HTMX
-- **Profile** — edit all athlete fields (bodyweight, lift emphasis, strength limiters, competition experience, etc.); change password/username; full training log CSV export
-
-### 6. Generate a program (CLI alternative)
-
+**Terminal 3 — ARQ worker** (handles background program generation):
 ```bash
 cd oly-agent
-PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
-PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1             # full generation
+PYTHONUTF8=1 uv run arq web.worker.WorkerSettings
 ```
 
-### 7. Log training sessions (CLI alternative)
+Open `http://localhost:8080`. Create an account at `/setup` or log in at `/login`.
+
+The web server and ARQ worker are **separate processes** — both connect to the same Redis and Postgres. The worker can be restarted independently without affecting the web server or any open sessions.
+
+**What each process does:**
+
+| Process | Role |
+|---------|------|
+| Docker (Postgres) | Stores knowledge corpus, athlete profiles, programs, training logs |
+| Docker (Redis) | Queues generation jobs between the web server and worker |
+| uvicorn (web server) | Serves the UI, handles auth, reads/writes DB, enqueues generation jobs |
+| ARQ worker | Polls Redis for jobs, runs the 6-step agent pipeline, stores result |
+
+---
+
+## Running Ingestion Only
+
+If you only want to ingest source material (no web UI needed):
+
+```bash
+# Start Postgres only (Redis not required for ingestion)
+cd oly-ingestion && docker compose up -d
+
+# EPUB / PDF book
+PYTHONUTF8=1 uv run python pipeline.py \
+  --source "./sources/book.epub" --title "Title" --author "Author" --type book
+
+# PDF with vision OCR fallback (scanned / image-only PDFs)
+PYTHONUTF8=1 uv run python pipeline.py \
+  --source "./sources/book.pdf" --title "Title" --author "Author" --type book --vision
+
+# Catalyst Athletics web articles
+PYTHONUTF8=1 uv run python ingest_web.py
+```
+
+Ingestion only needs Postgres — Redis is only required when running the web UI + worker.
+
+---
+
+## Running the Agent via CLI
+
+To generate programs or log sessions without the web UI:
 
 ```bash
 cd oly-agent
+
+# Generate a program
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
+PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1             # full generation
+
+# Training log
 PYTHONUTF8=1 uv run python log.py show    --athlete-id 1   # view current week
 PYTHONUTF8=1 uv run python log.py session --athlete-id 1   # log a session (interactive)
 PYTHONUTF8=1 uv run python log.py status  --athlete-id 1   # RPE / make-rate warnings
 PYTHONUTF8=1 uv run python log.py history --athlete-id 1   # recent session history
 ```
 
-### 8. Run agent tests
+CLI generation only needs Postgres (no Redis, no web server, no ARQ worker).
+
+---
+
+## Running Tests
 
 ```bash
+# Agent tests (no DB or API keys needed)
 cd oly-agent
 PYTHONUTF8=1 uv run python tests/test_validate.py        # 25 tests
 PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
 PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
-```
+PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 21 tests (mocked — no DB needed)
 
-> **Windows note:** Always prefix commands with `PYTHONUTF8=1` to avoid cp1252 encoding errors.
+# Ingestion tests (no API keys needed)
+cd oly-ingestion
+PYTHONUTF8=1 uv run python tests/test_chunker.py         # 14 tests
+PYTHONUTF8=1 uv run python tests/test_classifier.py      # 6 heuristic tests
+```
 
 ---
 

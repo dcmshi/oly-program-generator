@@ -23,7 +23,8 @@ web = [
     "bcrypt>=4.0.0",
     "itsdangerous>=2.1.0",
     "asyncpg>=0.29.0",
-    # Optional: install redis>=4.0 separately to enable Redis-backed rate limiting
+    "arq>=0.25.0",
+    "redis>=5.0.0",
 ]
 dev = [
     "pytest>=8.0.0",

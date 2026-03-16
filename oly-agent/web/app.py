@@ -22,6 +22,7 @@ from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response as StarletteResponse
 
 from web.async_db import init_async_pool, close_async_pool
+from web.jobs import init_arq_pool, close_arq_pool
 from web.deps import get_settings, limiter
 from web.routers import dashboard, program, log_session, generate
 from web.routers import auth as auth_router
@@ -40,8 +41,13 @@ async def lifespan(app: FastAPI):
         await init_async_pool(s.database_url, s.db_pool_min, s.db_pool_max)
     except Exception as e:
         logger.warning(f"DB pool init failed ({e}) — running without async pool")
+    try:
+        await init_arq_pool(s.redis_url)
+    except Exception as e:
+        logger.warning(f"ARQ Redis pool init failed ({e}) — background jobs unavailable")
     yield
     await close_async_pool()
+    await close_arq_pool()
 
 
 app = FastAPI(title="Oly Agent", lifespan=lifespan)

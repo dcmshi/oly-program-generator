@@ -35,7 +35,7 @@ async def run_generation(
     from web.app import templates
     form = await request.form()
     dry_run = form.get("dry_run") == "on"
-    job_id = jobs.submit_generation(athlete_id, dry_run=dry_run)
+    job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run)
     logger.info(f"Generation submitted: job_id={job_id}, athlete={athlete_id}, dry_run={dry_run}")
     return templates.TemplateResponse("partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": {"status": "running"},
@@ -49,10 +49,7 @@ async def generation_status(
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
-    job = jobs.get_job_for_athlete(job_id, athlete_id)
-    if not job:
-        logger.warning(f"Status poll for unknown/unauthorized job {job_id} by athlete {athlete_id}")
-        job = {"status": "failed", "error": "Job not found", "program_id": None}
+    job = await jobs.get_job_status(job_id, athlete_id)
     return templates.TemplateResponse("partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": job,
     })

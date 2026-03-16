@@ -7,6 +7,7 @@ D:\oly-program-generator\
 ├── CLAUDE.md                        # this file
 ├── README.md                        # project overview + Mermaid architecture diagram
 ├── SECURITY.md                      # pre-deployment security audit + fix tracker (2026-03-16)
+├── ARCHITECTURE.md                  # service architecture + Mermaid diagrams (services, sequence, ER, deployment)
 ├── PROGRESS.md                      # implementation progress tracker
 ├── oly-programming-pipeline.md      # ingestion pipeline design doc
 ├── oly-programming-agent.md         # agent design doc
@@ -156,7 +157,14 @@ PYTHONUTF8=1 uv run python ingest_web.py --limit 20               # cap for test
 PYTHONUTF8=1 uv run python ingest_web.py --dry-run                # collect URLs only
 # Progress tracked in sources/catalyst_progress.json — re-run resumes from where it left off
 
-# ── Programming Agent ────────────────────────────────────────────────────
+# ── Web UI (requires 3 processes) ────────────────────────────────────────
+# Terminal 1: docker compose up -d  (Postgres + Redis)
+# Terminal 2 (web server):
+cd oly-agent && PYTHONUTF8=1 uv run uvicorn web.app:app --reload --port 8080
+# Terminal 3 (ARQ worker — handles background generation jobs):
+cd oly-agent && PYTHONUTF8=1 uv run arq web.worker.WorkerSettings
+
+# ── Programming Agent (CLI — no Redis or web server needed) ──────────────
 cd oly-agent
 
 PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
