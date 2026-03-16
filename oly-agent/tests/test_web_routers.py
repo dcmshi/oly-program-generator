@@ -84,7 +84,7 @@ _unauthed = TestClient(app, follow_redirects=False)
 
 def _program(status="active", **overrides):
     base = {
-        "id": 1, "name": "Accumulation Block", "status": status,
+        "id": 1, "athlete_id": 1, "name": "Accumulation Block", "status": status,
         "phase": "accumulation", "duration_weeks": 6, "sessions_per_week": 4,
         "start_date": "2026-01-01", "rationale": None, "outcome_summary": None,
     }
@@ -183,7 +183,8 @@ def test_dashboard_no_program():
     with patch("web.queries.dashboard.get_active_program", return_value=None):
         with patch("web.queries.program.get_athlete_maxes", return_value=[]):
             with patch("web.queries.dashboard.get_lift_ratios", return_value={}):
-                r = _client.get("/")
+                with patch("web.queries.dashboard.get_goal_progress", return_value=None):
+                    r = _client.get("/")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
     assert b"No program" in r.content or b"Generate" in r.content, "Expected no-program state"
 
@@ -196,7 +197,8 @@ def test_dashboard_with_active_program():
                 with patch("web.queries.dashboard.get_warnings", return_value=[]):
                     with patch("web.queries.program.get_athlete_maxes", return_value=[]):
                         with patch("web.queries.dashboard.get_lift_ratios", return_value={}):
-                            r = _client.get("/")
+                            with patch("web.queries.dashboard.get_goal_progress", return_value=None):
+                                r = _client.get("/")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
     assert b"Accumulation Block" in r.content
 
@@ -242,8 +244,9 @@ def test_program_activate():
 
 
 def test_program_abandon():
-    with patch("web.queries.program.abandon_program", return_value=None):
-        r = _client.post("/program/1/abandon")
+    with patch("web.queries.program.get_program", return_value=_program(status="active")):
+        with patch("web.queries.program.abandon_program", return_value=None):
+            r = _client.post("/program/1/abandon")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
 
 

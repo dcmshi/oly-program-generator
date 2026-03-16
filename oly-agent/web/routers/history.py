@@ -14,6 +14,13 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/history")
 
 
+def _safe_back(url: str) -> str:
+    """Return url only if it is a safe relative path, else fall back to /."""
+    if url.startswith("/") and "://" not in url:
+        return url
+    return "/"
+
+
 @router.get("", response_class=HTMLResponse)
 async def exercise_history(
     request: Request,
@@ -33,5 +40,5 @@ async def exercise_history(
         "exercise": exercise,
         "rows":     rows,
         "summary":  summary,
-        "back":     back,
+        "back":     _safe_back(back),
     })

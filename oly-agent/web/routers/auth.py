@@ -37,7 +37,7 @@ async def login_submit(
         username.strip(),
     )
     if not row or not verify_password(password, row["password_hash"]):
-        logger.warning(f"Failed login attempt for username='{username.strip()}'")
+        logger.warning("Failed login attempt — invalid credentials")
         return templates.TemplateResponse(
             "login.html",
             {"request": request, "error": "Invalid username or password"},

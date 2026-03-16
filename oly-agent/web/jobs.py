@@ -14,7 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logger = logging.getLogger(__name__)
 
 _executor = ThreadPoolExecutor(max_workers=1)  # one generation at a time
-_jobs: dict[str, dict] = {}
+_jobs: dict[str, dict] = {}  # job_id → {status, athlete_id, program_id, error, ...}
 
 
 def submit_generation(athlete_id: int, dry_run: bool = False) -> str:
@@ -22,6 +22,7 @@ def submit_generation(athlete_id: int, dry_run: bool = False) -> str:
     started_at = datetime.now(timezone.utc).isoformat()
     _jobs[job_id] = {
         "status": "running",
+        "athlete_id": athlete_id,
         "program_id": None,
         "error": None,
         "started_at": started_at,
@@ -37,6 +38,14 @@ def get_job(job_id: str) -> dict | None:
     return _jobs.get(job_id)
 
 
+def get_job_for_athlete(job_id: str, athlete_id: int) -> dict | None:
+    """Return the job only if it belongs to the given athlete."""
+    job = _jobs.get(job_id)
+    if job is None or job.get("athlete_id") != athlete_id:
+        return None
+    return job
+
+
 def _run_generation(job_id: str, athlete_id: int, dry_run: bool):
     start = datetime.now(timezone.utc)
     logger.info(f"Job {job_id}: starting orchestrator for athlete {athlete_id}")
@@ -47,8 +56,10 @@ def _run_generation(job_id: str, athlete_id: int, dry_run: bool):
         program_id = orchestrator.run(athlete_id, settings, dry_run=dry_run)
         completed_at = datetime.now(timezone.utc)
         duration = round((completed_at - start).total_seconds(), 1)
+        athlete_id = _jobs[job_id].get("athlete_id")
         _jobs[job_id] = {
             "status": "done",
+            "athlete_id": athlete_id,
             "program_id": program_id,
             "error": None,
             "started_at": start.isoformat(),
@@ -60,12 +71,14 @@ def _run_generation(job_id: str, athlete_id: int, dry_run: bool):
         import traceback
         completed_at = datetime.now(timezone.utc)
         duration = round((completed_at - start).total_seconds(), 1)
+        athlete_id = _jobs[job_id].get("athlete_id")
+        logger.error(f"Job {job_id}: failed after {duration}s — {e}\n{traceback.format_exc()}")
         _jobs[job_id] = {
             "status": "failed",
+            "athlete_id": athlete_id,
             "program_id": None,
-            "error": f"{e}\n{traceback.format_exc()}",
+            "error": "Program generation failed. Check server logs for details.",
             "started_at": start.isoformat(),
             "completed_at": completed_at.isoformat(),
             "duration_seconds": duration,
         }
-        logger.error(f"Job {job_id}: failed after {duration}s — {e}")

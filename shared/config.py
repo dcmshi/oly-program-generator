@@ -69,8 +69,9 @@ class Settings:
     anthropic_api_key: str = ""
 
     # ── Web / deployment ──────────────────────────────────────
-    secret_key: str = ""   # session signing key; auto-generated if empty (not restart-safe)
+    secret_key: str = ""   # session signing key; MUST be set in production via SECRET_KEY env var
     redis_url: str = ""    # optional Redis URL for rate limiter (e.g. redis://localhost:6379)
+    https_only: bool = False  # set HTTPS_ONLY=true in production to enable Secure cookie flag
 
     # ── Paths (ingestion pipeline) ────────────────────────────
     sources_dir: Path = Path("./sources")
@@ -86,9 +87,14 @@ class Settings:
         import logging
         _log = logging.getLogger(__name__)
 
-        self.database_url = self.database_url or os.getenv(
-            "DATABASE_URL", "postgresql://oly:oly@localhost:5432/oly_programming"
-        )
+        env_db = os.getenv("DATABASE_URL", "")
+        self.database_url = self.database_url or env_db or "postgresql://oly:oly@localhost:5432/oly_programming"
+        if not env_db and "localhost" in self.database_url:
+            _log.warning(
+                "DATABASE_URL is not set — using localhost fallback. "
+                "Set DATABASE_URL in environment for production deployments."
+            )
+
         self.openai_api_key = self.openai_api_key or os.getenv("OPENAI_API_KEY", "")
         self.anthropic_api_key = self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "")
 
@@ -98,11 +104,17 @@ class Settings:
             _log.warning("ANTHROPIC_API_KEY is not set — LLM calls will fail")
 
         self.redis_url = self.redis_url or os.getenv("REDIS_URL", "")
+
+        self.https_only = self.https_only or os.getenv("HTTPS_ONLY", "").lower() in ("1", "true", "yes")
+
         self.secret_key = self.secret_key or os.getenv("SECRET_KEY", "")
         if not self.secret_key:
             import secrets
             self.secret_key = secrets.token_hex(32)
-            _log.warning("SECRET_KEY is not set — sessions will be invalidated on restart. Set SECRET_KEY in .env for production.")
+            _log.warning(
+                "SECRET_KEY is not set — sessions will be invalidated on every restart. "
+                "Set SECRET_KEY in environment for production deployments."
+            )
 
         self.sources_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)

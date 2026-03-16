@@ -27,11 +27,19 @@ async def program_list(
 
 
 @router.get("/{program_id}", response_class=HTMLResponse)
-async def program_detail(program_id: int, request: Request, conn=Depends(get_db)):
+async def program_detail(
+    program_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
     program = await q.get_program(conn, program_id)
     if not program:
         logger.warning(f"Program {program_id} not found")
+        raise HTTPException(status_code=404, detail="Program not found")
+    if program["athlete_id"] != athlete_id:
+        logger.warning(f"Athlete {athlete_id} attempted to access program {program_id} owned by {program['athlete_id']}")
         raise HTTPException(status_code=404, detail="Program not found")
     weeks = await q.get_program_weeks(conn, program_id)
     volume_data = await q.get_program_volume_by_week(conn, program_id)
@@ -94,10 +102,18 @@ async def delete_program(
 
 @router.post("/{program_id}/abandon", response_class=HTMLResponse)
 @limiter.limit("5/minute")
-async def abandon(program_id: int, request: Request, conn=Depends(get_db)):
+async def abandon(
+    program_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
+    program = await q.get_program(conn, program_id)
+    if not program or program["athlete_id"] != athlete_id:
+        raise HTTPException(status_code=404, detail="Program not found")
     await q.abandon_program(conn, program_id)
-    logger.info(f"Program {program_id} abandoned")
+    logger.info(f"Program {program_id} abandoned by athlete {athlete_id}")
     return templates.TemplateResponse("partials/status_badge.html", {
         "request": request, "status": "abandoned",
     })

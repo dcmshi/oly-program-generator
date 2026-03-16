@@ -43,11 +43,15 @@ async def run_generation(
 
 
 @router.get("/status/{job_id}", response_class=HTMLResponse)
-async def generation_status(job_id: str, request: Request):
+async def generation_status(
+    job_id: str,
+    request: Request,
+    athlete_id: int = Depends(get_current_athlete_id),
+):
     from web.app import templates
-    job = jobs.get_job(job_id)
+    job = jobs.get_job_for_athlete(job_id, athlete_id)
     if not job:
-        logger.warning(f"Status poll for unknown job {job_id}")
+        logger.warning(f"Status poll for unknown/unauthorized job {job_id} by athlete {athlete_id}")
         job = {"status": "failed", "error": "Job not found", "program_id": None}
     return templates.TemplateResponse("partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": job,

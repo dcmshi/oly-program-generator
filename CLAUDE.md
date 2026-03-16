@@ -6,6 +6,7 @@
 D:\oly-program-generator\
 ├── CLAUDE.md                        # this file
 ├── README.md                        # project overview + Mermaid architecture diagram
+├── SECURITY.md                      # pre-deployment security audit + fix tracker (2026-03-16)
 ├── PROGRESS.md                      # implementation progress tracker
 ├── oly-programming-pipeline.md      # ingestion pipeline design doc
 ├── oly-programming-agent.md         # agent design doc

@@ -86,10 +86,11 @@ class AuthMiddleware(BaseHTTPMiddleware):
 app.add_middleware(AuthMiddleware)
 
 # ── Session middleware (must be added after AuthMiddleware so it runs first) ──
+_settings = get_settings()
 app.add_middleware(
     SessionMiddleware,
-    secret_key=get_settings().secret_key,
-    https_only=False,  # set True in production behind HTTPS
+    secret_key=_settings.secret_key,
+    https_only=_settings.https_only,  # set HTTPS_ONLY=true in production
     same_site="lax",
 )
 
