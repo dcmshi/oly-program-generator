@@ -8,6 +8,7 @@ D:\oly-program-generator\
 ├── README.md                        # project overview + Mermaid architecture diagram
 ├── SECURITY.md                      # pre-deployment security audit + fix tracker (2026-03-16)
 ├── ARCHITECTURE.md                  # service architecture + Mermaid diagrams (services, sequence, ER, deployment)
+├── SCALING.md                       # scaling + production readiness tracker
 ├── PROGRESS.md                      # implementation progress tracker
 ├── oly-programming-pipeline.md      # ingestion pipeline design doc
 ├── oly-programming-agent.md         # agent design doc
