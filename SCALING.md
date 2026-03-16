@@ -17,7 +17,7 @@ Identified during pre-deployment architecture review (2026-03-16).
 |---|-------|------|--------|
 | S3 | Static files served by the app — ties up the app process; should be handled by reverse proxy or CDN | `oly-agent/web/app.py` | ⬜ Open |
 | S4 | DB connection pool vs Postgres `max_connections=100` — 10 web instances exhausts the limit; add PgBouncer | `oly-agent/web/async_db.py` | ✅ Done (PgBouncer transaction pooling on :5432; Postgres direct on :5433; `statement_cache_size=0` in asyncpg) |
-| S5 | pgvector index — full table scan on every retrieval without HNSW/IVFFlat index; fine at 2,576 chunks, degrades at corpus scale | `schema.sql` | ⬜ Open |
+| S5 | pgvector index — full table scan on every retrieval without HNSW/IVFFlat index; fine at 2,576 chunks, degrades at corpus scale | `schema.sql` | ✅ Done (HNSW index `idx_chunks_embedding` already in schema.sql — `m=16, ef_construction=64`, `vector_cosine_ops`) |
 
 ## Operational Gaps (before team / production SLA)
 
