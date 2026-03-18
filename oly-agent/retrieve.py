@@ -92,21 +92,35 @@ def retrieve(
     fault_correction_chunks: list[dict] = []
 
     if vector_loader is not None:
-        # One query per session template (limit to first 2 to control context size)
         seen_chunk_ids: set[int] = set()
+
+        # Build reusable context strings for richer query construction
         level_context = f"{athlete_context.level} athlete"
+        lift_emphasis = athlete_context.athlete.get("lift_emphasis") or "balanced"
+        strength_limiters = athlete_context.athlete.get("strength_limiters") or []
+
         faults_context = (
             f", addressing faults: {', '.join(athlete_context.technical_faults)}"
-            if athlete_context.technical_faults
-            else ""
+            if athlete_context.technical_faults else ""
+        )
+        emphasis_context = (
+            f", {lift_emphasis.replace('_', ' ')} lift focus"
+            if lift_emphasis != "balanced" else ""
+        )
+        limiters_context = (
+            f", addressing strength limiters: "
+            f"{', '.join(s.replace('_', ' ') for s in strength_limiters)}"
+            if strength_limiters else ""
         )
 
+        # Session template queries — enriched with lift emphasis + strength limiters
         for session_tmpl in plan.session_templates[:2]:
             try:
                 chunks = vector_loader.similarity_search(
                     query=(
                         f"exercise selection for {session_tmpl.primary_movement} "
-                        f"during {plan.phase} phase, {level_context}{faults_context}"
+                        f"during {plan.phase} phase, {level_context}"
+                        f"{faults_context}{emphasis_context}{limiters_context}"
                     ),
                     top_k=top_k,
                     chunk_types=["programming_rationale", "periodization"],
@@ -118,9 +132,10 @@ def retrieve(
             except Exception as e:
                 logger.warning(f"Vector search failed for session template: {e}")
 
+        # Fault correction — search ALL faults, not just the first two
         if athlete_context.technical_faults:
             fault_seen: set[int] = set()
-            for fault in athlete_context.technical_faults[:2]:
+            for fault in athlete_context.technical_faults:
                 try:
                     chunks = vector_loader.similarity_search(
                         query=f"correcting {fault} in weightlifting, {level_context}",
@@ -133,6 +148,25 @@ def retrieve(
                             fault_correction_chunks.append(c)
                 except Exception as e:
                     logger.warning(f"Vector search failed for fault '{fault}': {e}")
+
+        # Strength limiter searches — pull targeted programming content per limiter
+        for limiter in strength_limiters:
+            limiter_term = limiter.replace("_limited", "").replace("_", " ").strip()
+            try:
+                chunks = vector_loader.similarity_search(
+                    query=(
+                        f"{limiter_term} strength development "
+                        f"for {level_context} weightlifter"
+                    ),
+                    top_k=top_k,
+                    chunk_types=["programming_rationale", "periodization", "methodology"],
+                )
+                for c in chunks:
+                    if c.get("id") not in seen_chunk_ids:
+                        seen_chunk_ids.add(c["id"])
+                        programming_rationale.append(c)
+            except Exception as e:
+                logger.warning(f"Vector search failed for limiter '{limiter}': {e}")
     else:
         logger.info("No vector_loader provided — skipping similarity search")
 

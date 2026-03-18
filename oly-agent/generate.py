@@ -22,6 +22,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
     MAX_PRINCIPLES_IN_PROMPT,
+    MAX_RECENT_LOGS_IN_PROMPT,
+    PROMPT_LENGTH_WARN_CHARS,
     SNIPPET_MAX_CHARS,
 )
 from shared.llm import estimate_cost
@@ -154,7 +156,12 @@ def build_session_prompt(
     )
 
     # ── Available exercises ───────────────────────────────────
-    # Group by movement family, show typical prescription
+    # Group by movement family, show typical prescription.
+    # NOTE: This is the largest variable section in the prompt (~78 chars/exercise).
+    # At the current DB size (~50 exercises) it stays well under the 20k-char warning
+    # threshold. If the exercise catalogue grows large (100+), add a cap here:
+    #   retrieval_context.available_exercises[:MAX_EXERCISES_IN_PROMPT]
+    # and add MAX_EXERCISES_IN_PROMPT to shared/constants.py.
     ex_lines = []
     for e in retrieval_context.available_exercises:
         line = (
@@ -169,15 +176,54 @@ def build_session_prompt(
         ex_lines.append(line)
     exercises_block = "\n".join(ex_lines)
 
-    # ── Fault emphasis ────────────────────────────────────────
+    # ── Fault emphasis (fault → exercise cross-reference) ─────
+    # Group by fault so the LLM sees explicit "For fault X: Exercise A, B"
+    # mappings rather than a flat list that requires inference.
     fault_lines = []
-    for family, exs in retrieval_context.fault_exercises.items():
-        for e in exs[:3]:
-            fault_lines.append(
-                f"  {e['name']} — {e.get('primary_purpose', '')} "
-                f"(addresses: {', '.join(e.get('faults_addressed') or [])})"
-            )
+    if athlete_context.technical_faults and retrieval_context.fault_exercises:
+        all_fault_exs: list[dict] = [
+            ex for exs in retrieval_context.fault_exercises.values() for ex in exs
+        ]
+        for fault in athlete_context.technical_faults:
+            matching = [
+                e for e in all_fault_exs
+                if fault in (e.get("faults_addressed") or [])
+            ]
+            if matching:
+                ex_names = ", ".join(
+                    f"{e['name']} ({e.get('primary_purpose', '').split('.')[0].strip()})"
+                    for e in matching[:3]
+                )
+                fault_lines.append(f"  '{fault}': {ex_names}")
+            else:
+                fault_lines.append(f"  '{fault}': (no specific exercises retrieved — use general technique work)")
     fault_block = "\n".join(fault_lines) if fault_lines else "  None"
+
+    # ── Lift ratios ───────────────────────────────────────────
+    # Standard weightlifting ratios inform which area is the structural limiter.
+    # Computed from current/effective maxes; only shown when both lifts are recorded.
+    _RATIO_TARGETS = [
+        ("snatch", "clean_and_jerk", 0.80, "Sn/C&J",   "77–83%"),
+        ("snatch", "back_squat",     0.63, "Sn/BS",     "60–67%"),
+        ("clean_and_jerk", "back_squat", 0.78, "C&J/BS", "75–82%"),
+    ]
+    ratio_lines = []
+    for lift_a, lift_b, target, label, target_range in _RATIO_TARGETS:
+        kg_a = display_maxes.get(lift_a)
+        kg_b = display_maxes.get(lift_b)
+        if kg_a and kg_b:
+            ratio = kg_a / kg_b
+            if ratio > target + 0.04:
+                status = "↑ above target"
+            elif ratio < target - 0.04:
+                status = "↓ below target — consider structural work"
+            else:
+                status = "✓ on target"
+            ratio_lines.append(f"  {label}: {ratio:.0%} (target {target_range}) {status}")
+    ratios_block = (
+        "\n".join(ratio_lines) if ratio_lines
+        else "  (insufficient maxes on record)"
+    )
 
     # ── Substitutions (injury modifications) ──────────────────
     sub_lines = []
@@ -197,8 +243,24 @@ def build_session_prompt(
     principles_block = "\n".join(principle_lines) if principle_lines else "  None"
 
     # ── Programming context (retrieved chunks) ─────────────────
+    # When athlete has faults, lead with fault-correction chunks (up to 2),
+    # then fill remaining slots with programming-rationale chunks. Cap at 4 total.
+    all_context_chunks: list[dict] = []
+    seen_ctx_ids: set[int] = set()
+    if athlete_context.technical_faults:
+        for c in retrieval_context.fault_correction_chunks[:2]:
+            if c.get("id") not in seen_ctx_ids:
+                seen_ctx_ids.add(c["id"])
+                all_context_chunks.append(c)
+    for c in retrieval_context.programming_rationale:
+        if c.get("id") not in seen_ctx_ids:
+            seen_ctx_ids.add(c["id"])
+            all_context_chunks.append(c)
+        if len(all_context_chunks) >= 4:
+            break
+
     chunk_lines = []
-    for c in retrieval_context.programming_rationale[:4]:
+    for c in all_context_chunks:
         excerpt = c.get("raw_content", c.get("content", ""))[:SNIPPET_MAX_CHARS]
         chunk_lines.append(f"  [{c.get('chunk_type', '?')}] {excerpt}...")
     context_block = "\n".join(chunk_lines) if chunk_lines else "  (none retrieved)"
@@ -240,6 +302,12 @@ def build_session_prompt(
         if by_lift:
             lift_parts = [f"{k.replace('_', ' ')} {v:.0%}" for k, v in by_lift.items()]
             prev_lines.append(f"  Make rate by lift: {', '.join(lift_parts)}")
+            weak_lifts = [k.replace("_", " ") for k, v in by_lift.items() if v < 0.75]
+            if weak_lifts:
+                prev_lines.append(
+                    f"  → {', '.join(weak_lifts)} make rate was below 75% — "
+                    f"reduce intensity on those lifts 3–5% below the week ceiling."
+                )
         prev_lines += [
             f"  Avg RPE deviation: {outcome.get('avg_rpe_deviation', 'N/A'):+.2f}"
             if isinstance(outcome.get("avg_rpe_deviation"), (int, float)) else
@@ -257,6 +325,35 @@ def build_session_prompt(
         prev_program_block = "\n".join(prev_lines)
     else:
         prev_program_block = "  None — this is the athlete's first program."
+
+    # ── Recent training logs ──────────────────────────────────
+    recent_log_lines = []
+    for entry in (athlete_context.recent_logs or [])[:MAX_RECENT_LOGS_IN_PROMPT]:
+        parts = [
+            f"  {entry.get('log_date', '?')}: {entry.get('exercise_name', '?')} "
+            f"{entry.get('weight_kg', '?')}kg × {entry.get('sets_completed', '?')} sets"
+        ]
+        if entry.get("rpe") is not None:
+            parts.append(f"RPE {entry['rpe']:.1f}")
+        if entry.get("make_rate") is not None:
+            parts.append(f"make {entry['make_rate']:.0%}")
+        recent_log_lines.append(" | ".join(parts))
+    recent_logs_block = (
+        "\n".join(recent_log_lines) if recent_log_lines
+        else "  No recent sessions logged."
+    )
+
+    # ── Program template references ───────────────────────────
+    tmpl_lines = []
+    for t in retrieval_context.template_references[:2]:
+        line = f"  {t.get('name', 'Unnamed')}"
+        if t.get("notes"):
+            line += f" — {t['notes']}"
+        tmpl_lines.append(line)
+    templates_block = (
+        "\n".join(tmpl_lines) if tmpl_lines
+        else "  (none matched for this phase/level/frequency)"
+    )
 
     prompt = f"""You are an Olympic weightlifting programming assistant. Generate a training session as a JSON array.
 
@@ -292,8 +389,14 @@ Injuries: {injuries_str}
 ## {maxes_header}
 {maxes_lines}
 
+## Lift Ratios (structural balance indicators)
+{ratios_block}
+
 ## Previous Program
 {prev_program_block}
+
+## Recent Training (last 14 days)
+{recent_logs_block}
 
 ## Program Plan
 Phase: {week_target.__class__.__name__} — Week {week_number} of {duration_weeks}
@@ -320,7 +423,7 @@ Remaining session rep budget: {remaining_reps}
 ## Available Exercises
 {exercises_block}
 
-## Exercises to Emphasize (fault correction)
+## Fault Correction Exercises (prescribe ≥1 per session when faults are listed)
 {fault_block}
 
 ## Exercises to Avoid
@@ -334,6 +437,9 @@ Remaining session rep budget: {remaining_reps}
 
 ## Programming Context (from knowledge base)
 {context_block}
+
+## Similar Program Templates
+{templates_block}
 
 ## Instructions
 Generate this session as a JSON array. Each object must include:
@@ -349,6 +455,14 @@ Generate this session as a JSON array. Each object must include:
 - source_principle_ids (array of principle IDs from Active Principles, or empty array)
 
 Respond ONLY with a valid JSON array. No markdown, no preamble, no explanation outside the JSON."""
+
+    prompt_chars = len(prompt)
+    logger.debug(f"Prompt W{week_number}D{session_template.day_number}: {prompt_chars:,} chars (~{prompt_chars // 4:,} tokens)")
+    if prompt_chars > PROMPT_LENGTH_WARN_CHARS:
+        logger.warning(
+            f"Prompt is large ({prompt_chars:,} chars). "
+            f"Consider reducing MAX_PRINCIPLES_IN_PROMPT or SNIPPET_MAX_CHARS."
+        )
 
     return prompt
 
@@ -368,6 +482,7 @@ def generate_session_with_retries(
     week_number: int,
     day_number: int,
     conn,
+    fault_exercise_names: list[str] | None = None,
 ) -> GenerationResult:
     """Generate one session with parse + validation retries.
 
@@ -452,6 +567,7 @@ def generate_session_with_retries(
             active_principles=active_principles,
             athlete=athlete,
             week_cumulative_reps=week_cumulative_reps,
+            fault_exercise_names=fault_exercise_names,
         )
         if not last_validation.is_valid:
             logger.warning(f"  Validation errors (attempt {attempt}): {last_validation.errors}")

@@ -87,6 +87,58 @@ RETRIEVAL_EVAL_QUERIES = [
         "expected_chunk_type": ["periodization", "concept"],
         "should_contain_numbers": True,
     },
+    # Accessory / hypertrophy (Israetel)
+    {
+        "query": "How much weekly volume should I do for upper back hypertrophy as a weightlifter?",
+        "expected_topics": ["exercise_selection_rationale"],
+        "expected_chunk_type": ["concept", "methodology"],
+        "should_contain_numbers": True,
+        "note": "Should surface Israetel MEV/MAV/MRV volume landmark content.",
+    },
+    {
+        "query": "How do I periodise accessory hypertrophy work alongside competition lift training?",
+        "expected_topics": ["exercise_selection_rationale", "periodization_models"],
+        "expected_chunk_type": ["periodization", "concept", "methodology"],
+        "note": "Should surface Israetel on integrating hypertrophy blocks with strength phases.",
+    },
+    # Mobility (Starrett)
+    {
+        "query": "How do I improve hip mobility and squat depth for the receiving position in the clean?",
+        "expected_topics": ["clean_technique"],
+        "expected_chunk_type": ["fault_correction", "methodology", "concept"],
+        "note": "Should surface Starrett content on hip mobility and squat mechanics.",
+    },
+    {
+        "query": "What mobility work helps an athlete achieve a better overhead position in the snatch?",
+        "expected_topics": ["snatch_technique"],
+        "expected_chunk_type": ["fault_correction", "methodology", "concept"],
+        "note": "Should surface Starrett shoulder/thoracic mobility content.",
+    },
+    {
+        "query": "How should I address limited ankle mobility that causes an athlete to fold forward in the squat?",
+        "expected_topics": ["squat_programming"],
+        "expected_chunk_type": ["fault_correction", "methodology"],
+        "note": "Should surface Starrett ankle mobility and squat mechanics content.",
+    },
+    # GPP / conditioning (Dan John)
+    {
+        "query": "What general physical preparation work should a weightlifter do in the off-season?",
+        "expected_topics": ["exercise_selection_rationale", "periodization_models"],
+        "expected_chunk_type": ["methodology", "concept"],
+        "note": "Should surface Dan John GPP and big rocks content.",
+    },
+    {
+        "query": "How should I use loaded carries and conditioning work alongside weightlifting training?",
+        "expected_topics": ["exercise_selection_rationale"],
+        "expected_chunk_type": ["methodology", "concept"],
+        "note": "Should surface Dan John carry and conditioning content.",
+    },
+    # RPE / autoregulation (cross-source)
+    {
+        "query": "How do I use RPE to autoregulate training intensity from session to session?",
+        "expected_topics": ["load_progression", "intensity_prescription"],
+        "expected_chunk_type": ["methodology", "concept"],
+    },
     # Negative / edge cases
     {
         "query": "How to do a barbell curl",

@@ -88,14 +88,14 @@ D:\oly-program-generator\
     └── tests/
         ├── test_chunker.py          # 14 tests — no API keys needed
         ├── test_classifier.py       # 10 tests (6 heuristic + 4 LLM)
-        ├── test_vector_loader.py    # 6 tests — needs live DB + OPENAI_API_KEY
+        ├── test_vector_loader.py    # 8 tests — needs live DB + OPENAI_API_KEY
         ├── test_structured_loader.py # 7 tests — needs live DB
         ├── test_principle_extractor.py # 6 tests — needs ANTHROPIC_API_KEY
         ├── test_pipeline.py         # 4 e2e tests — needs both keys
         ├── test_pdf_extractor.py    # 13 tests — mocked fitz/pdfplumber (1 INTEGRATION_TESTS=1)
-        ├── test_epub_extractor.py   # 9 tests — mocked ebooklib; no fixtures needed
+        ├── test_epub_extractor.py   # 13 tests — mocked ebooklib; no fixtures needed
         ├── test_retag_chunks.py     # 10 tests — mocked psycopg2 (1 INTEGRATION_TESTS=1)
-        └── test_retrieval_eval.py   # retrieval quality eval (both keys)
+        └── test_retrieval_eval.py   # 22 retrieval quality queries (both keys)
 ```
 
 ## How to Run Things
@@ -115,14 +115,14 @@ PYTHONUTF8=1 uv run python tests/test_chunker.py          # 14 tests
 PYTHONUTF8=1 uv run python tests/test_classifier.py       # 6 heuristic tests
 PYTHONUTF8=1 uv run python tests/test_classifier.py --llm # + 4 LLM tests (needs ANTHROPIC_API_KEY)
 PYTHONUTF8=1 uv run python tests/test_pdf_extractor.py    # 13 tests (mocked; +1 skipped)
-PYTHONUTF8=1 uv run python tests/test_epub_extractor.py   # 9 tests (mocked ebooklib)
+PYTHONUTF8=1 uv run python tests/test_epub_extractor.py   # 13 tests (mocked ebooklib)
 PYTHONUTF8=1 uv run python tests/test_retag_chunks.py     # 10 tests (mocked; +1 skipped)
 
 # ── Tests (need live DB, no API keys) ───────────────────────────────────
 PYTHONUTF8=1 uv run python tests/test_structured_loader.py  # 7 tests
 
 # ── Tests (need live DB + API keys) ─────────────────────────────────────
-PYTHONUTF8=1 uv run python tests/test_vector_loader.py       # 6 tests (OPENAI_API_KEY)
+PYTHONUTF8=1 uv run python tests/test_vector_loader.py       # 8 tests (OPENAI_API_KEY)
 PYTHONUTF8=1 uv run python tests/test_principle_extractor.py # 6 tests (ANTHROPIC_API_KEY)
 PYTHONUTF8=1 uv run python tests/test_pipeline.py            # 4 e2e tests (both keys)
 PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py      # retrieval quality (both keys)
@@ -179,13 +179,13 @@ PYTHONUTF8=1 uv run python log.py status   --athlete-id 1            # RPE + mak
 PYTHONUTF8=1 uv run python log.py history  --athlete-id 1 --weeks 2  # recent history
 
 # ── Agent Tests (no DB or API keys needed) ───────────────────────────────
-PYTHONUTF8=1 uv run python tests/test_validate.py        # 26 tests
+PYTHONUTF8=1 uv run python tests/test_validate.py        # 40 tests
 PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
 PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 25 tests
-PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
+PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 43 tests
 PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
 PYTHONUTF8=1 uv run python tests/test_plan.py            # 35 tests
-PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 10 tests
+PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 19 tests
 PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
 PYTHONUTF8=1 uv run python tests/test_orchestrator.py    # 12 tests (all 6 steps mocked)
 PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 21 tests (signed session cookies, mocked queries)
@@ -253,6 +253,9 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 ## Known Pipeline Behaviours & Gotchas
 
 - **EPUB chapters are processed individually** — do NOT join all pages into one string before classifying. Each EPUB document item is already a logical section. `pipeline.py` now iterates `pages` and classifies each one separately.
+- **EPUB paragraph extraction** — `epub_extractor.py` uses `NavigableString('\n\n')` inserted after block-level tags (`p`, `h1`–`h6`, `li`) before calling `get_text(separator='')`. Using `get_text(separator='\n')` (old behaviour) produced only single newlines between paragraphs, causing `_chunk_section` (which splits on `\n\n`) to treat an entire chapter as one paragraph → 1 chunk per chapter regardless of length. Without this fix, a 146k-char chapter produces 1 oversized chunk instead of ~47 proper chunks.
+- **`SOURCE_PROFILE_MAP` in `chunker.py`** — controls chunk size per source title (substring match). Always add new sources here before ingesting; unrecognised titles fall back to `programming` profile (900 tokens). Current entries: Everett, Zatsiorsky, Laputin/Medvedev (soviet), Drechsler (theory_heavy), Israetel, Dan John (programming), Starrett (theory_heavy).
+- **Empty chunks filtered before embedding** — `vector_loader.load_chunks()` skips chunks with empty `content` after dedup. OpenAI returns a 400 JSON parse error for empty strings. A warning is logged; the chunk is not stored.
 - **Oversized chunks are truncated at embedding time** — `vector_loader` truncates texts >30k chars before sending to OpenAI (limit is 8192 tokens ≈ 32k chars). A warning is logged; the chunk is still stored with a partial embedding.
 - **Transaction rollback on section error** — the section processing loop calls `conn.rollback()` on both connections after any exception, preventing the "transaction is aborted" cascade.
 - **Dedup is content-hash global** — the same text appearing in two different sources will only be embedded once. The second source's run shows `chunks_created=0` for those sections.
@@ -270,6 +273,7 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **Prilepin zones cover 55-100%** including the 65-70% transition band — `get_prilepin_zone()` returns `None` only below 55%. The fallback in `compute_session_rep_target` handles the sub-55% deload case only.
 - **`_rollback_connections()` in pipeline** — call this method (not inline try/except) whenever a section-level error requires cleaning up both loader connections. `ingest_web.py` has its own inline equivalent (no class structure).
 - **Magic numbers live in `shared/constants.py`** — do not hardcode Prilepin cap multiplier (1.5), session duration (90 min), top_k (5), snippet length (600), or rounding increment (0.5 kg) in agent modules.
+- **Prompt length budget** — worst-case realistic prompt is ~10,500 chars (~2,600 tokens), well under `PROMPT_LENGTH_WARN_CHARS=20,000`. The two dominant sections are Available Exercises (~78 chars/exercise) and Programming Context (4 chunks × 600 chars). If the exercise catalogue grows past ~100 exercises, add `MAX_EXERCISES_IN_PROMPT` to `shared/constants.py` and slice `retrieval_context.available_exercises` in `generate.py` at the `ex_lines` loop. The warning is already logged at DEBUG/WARNING level per session.
 - **`date_of_birth` replaces `age` in the athletes table** — `age` integer column is still present but no longer written to. All web code reads/writes `date_of_birth DATE`. Age can be computed dynamically as `EXTRACT(YEAR FROM AGE(date_of_birth))` in SQL or in Python. Do not add `age` back to INSERT/UPDATE queries.
 - **Extended athlete dimensions** — `lift_emphasis VARCHAR(20)`, `strength_limiters TEXT[]`, and `competition_experience VARCHAR(20)` were added to the athletes table. All three have defaults (`balanced`, `{}`, `none`). They are read by `generate.py:build_session_prompt()` and injected into the LLM prompt. Always include them in profile SELECT/UPDATE and setup INSERT queries.
 - **passlib 1.7.4 is incompatible with bcrypt 5.x** — use the `bcrypt` library directly (`bcrypt.hashpw` / `bcrypt.checkpw`). `web/auth.py` wraps this. Do not add `passlib` as a dependency.
@@ -302,7 +306,7 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 
 ## Source Ingestion Order
 
-1. Everett (EPUB) — ✅ Done (198 chunks, 44 principles, source_id=1)
+1. Everett (EPUB) — ✅ Done (587 chunks, 76 principles, source_id=507) — re-ingested 2026-03-18 with EPUB paragraph fix (was 198 chunks/44 principles at source_id=1)
 2. Zatsiorsky (PDF) — ✅ Done (430 chunks, 7 principles, source_id=51, theory_heavy profile)
 3. Drechsler / Weightlifting Encyclopedia (PDF) — ✅ Done (603 chunks, 6 principles, source_id=52, theory_heavy profile)
 4. Catalyst Athletics articles (web) — ✅ Done (418 articles, 446 chunks, 22 principles)
@@ -311,8 +315,11 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 7. Medvedev — ✅ Done (617 chunks, 0 principles, source_id=501, soviet profile + vision OCR)
 8. Everett — *Olympic Weightlifting for Sports* — ✅ Done (172 chunks, 11 exercises, source_id=502, programming profile)
    - Added to address programming gap left by unavailable Takano book
+9. Israetel — *Scientific Principles of Hypertrophy Training* (EPUB) — ✅ Done (206 chunks, 21 principles, source_id=504, programming profile)
+10. Starrett — *Becoming a Supple Leopard* (EPUB) — ✅ Done (137 chunks, 16 principles, source_id=505, theory_heavy profile)
+11. Dan John — *Intervention* (PDF) — ✅ Done (266 chunks, 0 principles, source_id=506, programming profile)
 
-**Total corpus:** 2,576 chunks · 82 principles · 436 sources
+**Total corpus:** 3,578 chunks · 151 principles · 439 sources
 
 ## Chunk Sizing Reference
 

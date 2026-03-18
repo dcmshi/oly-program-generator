@@ -262,12 +262,16 @@ class IngestionPipeline:
             # text blobs that defeat chunking (critical for EPUB/multi-chapter sources).
             all_sections = []
             for page_text in pages:
+                if not page_text.strip():
+                    continue
                 page_sections = self.classifier.classify_sections(page_text, source.title)
                 all_sections.extend(page_sections)
 
             logger.info(f"Classified {len(all_sections)} sections across {len(pages)} page(s)")
 
             for i, section in enumerate(all_sections):
+                if not section.content.strip():
+                    continue
                 try:
                     match section.content_type:
 

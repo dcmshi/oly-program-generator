@@ -26,8 +26,8 @@ flowchart TB
     end
 
     subgraph DB["🗄  Postgres 16 + pgvector"]
-        KC[("knowledge_chunks<br/>1,681 chunks · embeddings")]
-        PP[("programming_principles<br/>79 extracted rules")]
+        KC[("knowledge_chunks<br/>3,578 chunks · embeddings")]
+        PP[("programming_principles<br/>167 extracted rules")]
         EX[("exercises · 50+<br/>substitutions · complexes")]
         PC[("prilepin_chart<br/>4 intensity zones")]
         AP[("athletes · maxes<br/>goals · logs")]
@@ -156,7 +156,7 @@ oly-program-generator/
 │   └── tests/
 │       ├── test_chunker.py          # 14 tests — no API keys needed
 │       ├── test_classifier.py       # 10 tests (6 heuristic + 4 LLM)
-│       ├── test_vector_loader.py    # 6 tests — needs live DB + OPENAI_API_KEY
+│       ├── test_vector_loader.py    # 8 tests — needs live DB + OPENAI_API_KEY
 │       ├── test_structured_loader.py # 7 tests — needs live DB
 │       ├── test_principle_extractor.py # 6 tests — needs ANTHROPIC_API_KEY
 │       ├── test_pipeline.py         # 4 e2e tests — needs both keys
@@ -386,14 +386,17 @@ The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** �
 
 | Source | Format | Chunks | Principles |
 |--------|--------|--------|------------|
-| Everett — *Olympic Weightlifting* | EPUB | 198 | 44 |
+| Everett — *Olympic Weightlifting* | EPUB | 587 | 76 |
 | Zatsiorsky — *Science and Practice of Strength Training* | PDF | 430 | 7 |
 | Drechsler — *Weightlifting Encyclopedia* | PDF | 603 | 6 |
 | Catalyst Athletics articles | Web (HTML) | 446 | 22 |
 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 110 | 3 |
 | Medvedev — *A Program of Multi-Year Training in Weightlifting* | PDF (vision OCR) | 617 | 0 |
 | Everett — *Olympic Weightlifting for Sports* | PDF | 172 | 0 |
-| **Total** | | **2,576** | **82** |
+| Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 206 | 21 |
+| Starrett — *Becoming a Supple Leopard* | EPUB | 137 | 16 |
+| Dan John — *Intervention* | PDF | 266 | 0 |
+| **Total** | | **3,578** | **151** |
 
 ---
 

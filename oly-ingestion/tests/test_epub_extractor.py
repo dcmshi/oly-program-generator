@@ -215,6 +215,83 @@ def test_nested_html_structure():
     assert "Specificity" in result[0]
 
 
+# ── Paragraph break tests (EPUB fix) ──────────────────────────────────────────
+
+def test_p_tags_produce_double_newlines():
+    """Consecutive <p> tags must produce \\n\\n between them for the chunker to split."""
+    from extractors.epub_extractor import extract_text_from_epub
+
+    html = "<html><body><p>First paragraph.</p><p>Second paragraph.</p></body></html>"
+    book = _make_book([_make_item(html)])
+    with patch.dict(sys.modules, _mock_ebooklib(book)):
+        result = extract_text_from_epub(Path("test.epub"))
+
+    assert len(result) == 1
+    assert "\n\n" in result[0], "Expected \\n\\n between <p> tags for chunker splitting"
+    parts = [p.strip() for p in result[0].split("\n\n") if p.strip()]
+    assert len(parts) == 2, f"Expected 2 paragraphs, got {len(parts)}: {parts}"
+    assert "First paragraph" in parts[0]
+    assert "Second paragraph" in parts[1]
+
+
+def test_heading_tags_produce_double_newlines():
+    """<h1>–<h6> tags must also produce \\n\\n breaks so section titles split cleanly."""
+    from extractors.epub_extractor import extract_text_from_epub
+
+    html = "<html><body><h1>Chapter Title</h1><p>Body content here.</p></body></html>"
+    book = _make_book([_make_item(html)])
+    with patch.dict(sys.modules, _mock_ebooklib(book)):
+        result = extract_text_from_epub(Path("test.epub"))
+
+    assert len(result) == 1
+    assert "\n\n" in result[0], "Expected \\n\\n after heading tag"
+    parts = [p.strip() for p in result[0].split("\n\n") if p.strip()]
+    assert any("Chapter Title" in p for p in parts)
+    assert any("Body content" in p for p in parts)
+
+
+def test_inline_elements_no_spurious_breaks():
+    """Inline elements like <strong> and <em> must not introduce \\n\\n within a paragraph."""
+    from extractors.epub_extractor import extract_text_from_epub
+
+    html = "<html><body><p>The <strong>snatch</strong> requires full <em>hip extension</em>.</p></body></html>"
+    book = _make_book([_make_item(html)])
+    with patch.dict(sys.modules, _mock_ebooklib(book)):
+        result = extract_text_from_epub(Path("test.epub"))
+
+    assert len(result) == 1
+    # All words should appear in one paragraph (no \n\n splitting the sentence)
+    paragraphs = [p.strip() for p in result[0].split("\n\n") if p.strip()]
+    assert len(paragraphs) == 1, (
+        f"Inline elements should not create paragraph breaks, got {len(paragraphs)} paragraphs: {paragraphs}"
+    )
+    assert "snatch" in paragraphs[0]
+    assert "hip extension" in paragraphs[0]
+
+
+def test_many_p_tags_all_preserved_as_separate_paragraphs():
+    """A chapter with many <p> tags should produce one paragraph per tag, not one blob.
+
+    This is the core regression test for the EPUB chunking fix:
+    before the fix, get_text(separator='\\n') produced a single paragraph
+    regardless of how many <p> tags were present.
+    """
+    from extractors.epub_extractor import extract_text_from_epub
+
+    paras = [f"<p>Paragraph number {i} with enough words to be meaningful.</p>" for i in range(10)]
+    html = f"<html><body>{''.join(paras)}</body></html>"
+    book = _make_book([_make_item(html)])
+    with patch.dict(sys.modules, _mock_ebooklib(book)):
+        result = extract_text_from_epub(Path("test.epub"))
+
+    assert len(result) == 1
+    parts = [p.strip() for p in result[0].split("\n\n") if p.strip()]
+    assert len(parts) == 10, (
+        f"Expected 10 paragraphs (one per <p> tag), got {len(parts)}. "
+        "This suggests the EPUB paragraph fix is not working."
+    )
+
+
 # ── Runner ────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

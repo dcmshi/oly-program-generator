@@ -88,6 +88,15 @@ class VectorLoader:
             cursor.close()
             return 0
 
+        # Filter out chunks with empty content — OpenAI rejects empty strings.
+        empty_count = sum(1 for chunk, _ in new_chunks if not chunk.content.strip())
+        if empty_count:
+            logger.warning(f"  Skipped {empty_count} chunk(s) with empty content (would cause API error)")
+            new_chunks = [(chunk, h) for chunk, h in new_chunks if chunk.content.strip()]
+        if not new_chunks:
+            cursor.close()
+            return 0
+
         # Step 2: Batch embed all new chunks.
         # Truncate texts that exceed OpenAI's 8192-token limit (~32000 chars at ~4 chars/token).
         # Oversized chunks lose their tail content but still get embedded — better than dropping them.

@@ -250,6 +250,90 @@ def test_load_with_run_logging():
     sl.close()
 
 
+def test_empty_content_chunks_skipped_before_embed():
+    """Chunks with empty content are filtered out before the embedding API is called.
+
+    Requires: live DB only — no OPENAI_API_KEY needed because the filter
+    runs before _embed_batch and returns 0 without making any API call.
+    """
+    from unittest.mock import patch
+
+    vl, sl = make_loaders()
+    sid = sl.upsert_source(f"{TEST_PREFIX}Empty Chunk Book", "Test Author", "book")
+
+    empty_chunk = Chunk(
+        content="   ",   # whitespace only
+        raw_content="",
+        metadata={"chapter": "Ch1", "section_title": "", "chunk_type": "concept", "page_number": 1},
+        token_count=0,
+        topics=[],
+        contains_specific_numbers=False,
+        information_density="low",
+    )
+
+    embed_calls = []
+    original_embed = vl._embed_batch
+    def tracking_embed(texts):
+        embed_calls.append(texts)
+        return original_embed(texts)
+
+    with patch.object(vl, "_embed_batch", side_effect=tracking_embed):
+        loaded = vl.load_chunks([empty_chunk], source_id=sid)
+
+    assert loaded == 0, f"Expected 0 chunks loaded for empty content, got {loaded}"
+    assert len(embed_calls) == 0, (
+        f"_embed_batch should not be called for empty chunks, was called {len(embed_calls)} time(s)"
+    )
+
+    cur = vl.conn.cursor()
+    cur.execute("SELECT count(*) FROM knowledge_chunks WHERE source_id = %s", (sid,))
+    count = cur.fetchone()[0]
+    cur.close()
+    assert count == 0, f"Expected no chunks stored for empty content, found {count}"
+
+    print(f"  empty_chunk_filter: 0 loaded, embed not called, DB clean OK")
+    cleanup(vl, sl, sid)
+    vl.close()
+    sl.close()
+
+
+def test_mixed_empty_and_valid_chunks_only_valid_embedded():
+    """When a batch has both empty and valid chunks, only valid ones are embedded and stored."""
+    from unittest.mock import patch
+
+    vl, sl = make_loaders()
+    sid = sl.upsert_source(f"{TEST_PREFIX}Mixed Chunk Book", "Test Author", "book")
+
+    valid_chunk = make_chunk(
+        "The snatch pull develops explosive hip extension critical for the full snatch.",
+        topics=["snatch", "pull_programming"],
+    )
+    empty_chunk = Chunk(
+        content="",
+        raw_content="",
+        metadata={"chapter": "Ch1", "section_title": "", "chunk_type": "concept", "page_number": 1},
+        token_count=0,
+        topics=[],
+        contains_specific_numbers=False,
+        information_density="low",
+    )
+
+    loaded = vl.load_chunks([empty_chunk, valid_chunk], source_id=sid)
+
+    assert loaded == 1, f"Expected 1 chunk loaded (valid only), got {loaded}"
+
+    cur = vl.conn.cursor()
+    cur.execute("SELECT count(*) FROM knowledge_chunks WHERE source_id = %s", (sid,))
+    count = cur.fetchone()[0]
+    cur.close()
+    assert count == 1, f"Expected 1 chunk in DB, found {count}"
+
+    print(f"  mixed_chunks: {loaded} loaded (empty skipped, valid stored) OK")
+    cleanup(vl, sl, sid)
+    vl.close()
+    sl.close()
+
+
 # ── Runner ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -260,6 +344,8 @@ if __name__ == "__main__":
         test_similarity_search_returns_relevant_chunk,
         test_similarity_search_with_filters,
         test_load_with_run_logging,
+        test_empty_content_chunks_skipped_before_embed,
+        test_mixed_empty_and_valid_chunks_only_valid_embedded,
     ]
     passed = failed = 0
     for test in tests:

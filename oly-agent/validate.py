@@ -27,12 +27,25 @@ from shared.prilepin import get_prilepin_zone, get_prilepin_data
 from models import ValidationResult
 
 
+# Keywords used to detect whether a prescribed exercise addresses a strength limiter.
+# Checked against the exercise name (lowercase). First keyword is used in warning text.
+_LIMITER_KEYWORDS: dict[str, list[str]] = {
+    "squat_limited":        ["squat"],
+    "pull_limited":         ["pull", "deadlift", "row"],
+    "overhead_limited":     ["press", "overhead", "jerk"],
+    "jerk_limited":         ["jerk"],
+    "clean_limited":        ["clean"],
+    "positional_strength":  ["pause", "tempo", "slow"],
+}
+
+
 def validate_session(
     session_exercises: list[dict],
     week_target: dict,
     active_principles: list[dict],
     athlete: dict,
     week_cumulative_reps: dict | None = None,
+    fault_exercise_names: list[str] | None = None,
 ) -> ValidationResult:
     """Validate a generated session against all programming constraints.
 
@@ -43,6 +56,9 @@ def validate_session(
         athlete: athletes row (for session_duration_minutes, exercise_preferences)
         week_cumulative_reps: {zone_key: total_reps} already prescribed earlier
                                in the same week; None on the first session.
+        fault_exercise_names: flat list of exercise names known to address the athlete's
+                               technical faults (from retrieval_context.fault_exercises).
+                               If None, fault-coverage check is skipped.
 
     Returns:
         ValidationResult with is_valid, errors, warnings, session_comp_reps.
@@ -184,6 +200,57 @@ def validate_session(
             f"Estimated duration {estimated_minutes:.0f} min exceeds "
             f"available {available_minutes} min"
         )
+
+    # ── Check 7: RPE target vs intensity appropriateness ──────
+    # High-intensity sets should carry a high RPE target — if the LLM assigns
+    # a low RPE to a heavy set it likely miscalibrated the prescription.
+    for ex in session_exercises:
+        pct = float(ex.get("intensity_pct") or 0)
+        rpe = ex.get("rpe_target")
+        if rpe is None or pct == 0:
+            continue
+        rpe = float(rpe)
+        if pct >= 90 and rpe < 8.0:
+            warnings.append(
+                f"{ex.get('exercise_name')} at {pct}% has RPE target {rpe:.1f} — "
+                f"intensity ≥90% typically warrants RPE 8.0+"
+            )
+        elif pct >= 80 and rpe < 7.0:
+            warnings.append(
+                f"{ex.get('exercise_name')} at {pct}% has RPE target {rpe:.1f} — "
+                f"intensity 80–90% typically warrants RPE 7.0+"
+            )
+
+    # ── Check 8: Fault-correction exercise coverage ───────────
+    # If the athlete has identified technical faults and fault-correction exercises
+    # were retrieved, warn when none of those exercises appear in this session.
+    # Skipped when fault_exercise_names is None (not provided by caller).
+    technical_faults = athlete.get("technical_faults") or []
+    if technical_faults and fault_exercise_names is not None:
+        prescribed_lower = {(ex.get("exercise_name") or "").lower() for ex in session_exercises}
+        fault_lower = {name.lower() for name in fault_exercise_names}
+        if not prescribed_lower & fault_lower:
+            warnings.append(
+                f"Athlete has technical faults ({', '.join(technical_faults)}) "
+                f"but no fault-correction exercises were selected this session"
+            )
+
+    # ── Check 9: Strength limiter coverage ────────────────────
+    # Warn when a declared strength limiter has no matching exercise this session.
+    # Uses keyword matching against exercise names — not exhaustive but catches
+    # the common case of squat/pull/overhead limiters with no relevant work.
+    strength_limiters = athlete.get("strength_limiters") or []
+    if strength_limiters:
+        prescribed_names_lower = [(ex.get("exercise_name") or "").lower() for ex in session_exercises]
+        for limiter in strength_limiters:
+            keywords = _LIMITER_KEYWORDS.get(limiter, [])
+            if not keywords:
+                continue
+            if not any(kw in name for kw in keywords for name in prescribed_names_lower):
+                warnings.append(
+                    f"Strength limiter '{limiter}' not addressed — "
+                    f"consider adding {keywords[0]}-focused work"
+                )
 
     return ValidationResult(
         is_valid=len(errors) == 0,

@@ -10,7 +10,7 @@ Run: python tests/test_retrieve.py
 
 import sys
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -35,9 +35,14 @@ def _test(name, fn):
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
-def _ctx(faults=None, injuries=None, level="intermediate", sessions_per_week=4):
+def _ctx(faults=None, injuries=None, level="intermediate", sessions_per_week=4,
+         lift_emphasis="balanced", strength_limiters=None):
     return AthleteContext(
-        athlete={"name": "Test", "level": level},
+        athlete={
+            "name": "Test", "level": level,
+            "lift_emphasis": lift_emphasis,
+            "strength_limiters": strength_limiters or [],
+        },
         level=level,
         maxes={"snatch": 100.0, "clean_and_jerk": 120.0},
         active_goal={"goal": "general_strength"},
@@ -48,6 +53,13 @@ def _ctx(faults=None, injuries=None, level="intermediate", sessions_per_week=4):
         sessions_per_week=sessions_per_week,
         weeks_to_competition=None,
     )
+
+
+def _mock_vector_loader(return_chunks=None):
+    """Return a mock vector_loader whose similarity_search returns empty lists."""
+    vl = MagicMock()
+    vl.similarity_search.return_value = return_chunks or []
+    return vl
 
 def _plan(phase="accumulation", max_complexity=3):
     raw = build_weekly_targets(phase, 4, "intermediate")
@@ -170,6 +182,155 @@ def test_active_principles_passed_through_from_plan():
     with patch("retrieve.fetch_all", side_effect=[[], []]):
         result = retrieve(_ctx(), p, conn=None, vector_loader=None)
     assert result.active_principles == principles
+
+
+# ── Vector search: all faults searched ──────────────────────────────────────
+
+def test_all_faults_searched_not_just_first_two():
+    """similarity_search is called once per fault, not capped at 2."""
+    vl = _mock_vector_loader()
+    faults = ["forward_lean", "early_arm_bend", "slow_turnover", "press_out"]
+    # fetch_all calls: snatch fault exercises, clean fault exercises,
+    # template_references, available_exercises
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+        retrieve(_ctx(faults=faults), _plan(), conn=None, vector_loader=vl)
+
+    fault_queries = [
+        call.kwargs.get("query") or call.args[0]
+        for call in vl.similarity_search.call_args_list
+        if "correcting" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+    ]
+    assert len(fault_queries) == 4, (
+        f"Expected 4 fault searches (one per fault), got {len(fault_queries)}"
+    )
+    for fault in faults:
+        assert any(fault in q for q in fault_queries), f"Fault '{fault}' not searched"
+
+
+def test_two_faults_still_searched():
+    """The all-faults path works correctly when there are exactly 2 faults."""
+    vl = _mock_vector_loader()
+    faults = ["forward_lean", "press_out"]
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+        retrieve(_ctx(faults=faults), _plan(), conn=None, vector_loader=vl)
+
+    fault_queries = [
+        call.kwargs.get("query") or call.args[0]
+        for call in vl.similarity_search.call_args_list
+        if "correcting" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+    ]
+    assert len(fault_queries) == 2
+
+
+# ── Vector search: lift_emphasis in queries ───────────────────────────────────
+
+def test_snatch_biased_emphasis_in_session_query():
+    """lift_emphasis=snatch_biased is included in session template query strings."""
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        retrieve(_ctx(lift_emphasis="snatch_biased"), _plan(), conn=None, vector_loader=vl)
+
+    session_queries = [
+        call.kwargs.get("query") or call.args[0]
+        for call in vl.similarity_search.call_args_list
+        if "exercise selection" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+    ]
+    assert len(session_queries) > 0
+    assert all("snatch biased lift focus" in q for q in session_queries), (
+        f"Expected 'snatch biased lift focus' in session queries: {session_queries}"
+    )
+
+
+def test_balanced_emphasis_not_added_to_query():
+    """lift_emphasis=balanced adds nothing to the query (it's the default)."""
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        retrieve(_ctx(lift_emphasis="balanced"), _plan(), conn=None, vector_loader=vl)
+
+    session_queries = [
+        call.kwargs.get("query") or call.args[0]
+        for call in vl.similarity_search.call_args_list
+        if "exercise selection" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+    ]
+    assert all("focus" not in q for q in session_queries), (
+        f"'balanced' should not add focus context: {session_queries}"
+    )
+
+
+# ── Vector search: strength_limiters searches ─────────────────────────────────
+
+def test_strength_limiters_trigger_extra_searches():
+    """Each strength limiter produces an additional vector search."""
+    vl = _mock_vector_loader()
+    limiters = ["squat_limited", "overhead_limited"]
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        retrieve(_ctx(strength_limiters=limiters), _plan(), conn=None, vector_loader=vl)
+
+    limiter_queries = [
+        call.kwargs.get("query") or call.args[0]
+        for call in vl.similarity_search.call_args_list
+        if "strength development" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+    ]
+    assert len(limiter_queries) == 2, (
+        f"Expected 2 limiter searches, got {len(limiter_queries)}: {limiter_queries}"
+    )
+    assert any("squat" in q for q in limiter_queries)
+    assert any("overhead" in q for q in limiter_queries)
+
+
+def test_strength_limiters_term_cleaned_in_query():
+    """'_limited' suffix is stripped from the query term (e.g. 'squat_limited' → 'squat')."""
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        retrieve(_ctx(strength_limiters=["squat_limited"]), _plan(), conn=None, vector_loader=vl)
+
+    limiter_queries = [
+        call.kwargs.get("query") or call.args[0]
+        for call in vl.similarity_search.call_args_list
+        if "strength development" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+    ]
+    assert len(limiter_queries) == 1
+    assert "squat_limited" not in limiter_queries[0]
+    assert "squat" in limiter_queries[0]
+
+
+def test_no_strength_limiters_no_extra_search():
+    """Empty strength_limiters list produces no limiter-specific searches."""
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        retrieve(_ctx(strength_limiters=[]), _plan(), conn=None, vector_loader=vl)
+
+    limiter_queries = [
+        call.kwargs.get("query") or call.args[0]
+        for call in vl.similarity_search.call_args_list
+        if "strength development" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+    ]
+    assert limiter_queries == []
+
+
+# ── Prompt: fault_correction_chunks in context block ─────────────────────────
+
+def test_fault_correction_chunks_returned_when_faults_present():
+    """fault_correction_chunks are populated from vector search when athlete has faults."""
+    fault_chunk = {
+        "id": 99, "chunk_type": "fault_correction",
+        "raw_content": "Forward lean is corrected by...", "similarity": 0.8,
+    }
+    vl = _mock_vector_loader(return_chunks=[fault_chunk])
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+        result = retrieve(
+            _ctx(faults=["forward_lean"]), _plan(), conn=None, vector_loader=vl
+        )
+    assert len(result.fault_correction_chunks) > 0
+    assert result.fault_correction_chunks[0]["chunk_type"] == "fault_correction"
+
+
+def test_fault_correction_chunks_empty_when_no_faults():
+    """fault_correction_chunks stay empty when athlete has no technical faults."""
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        result = retrieve(_ctx(faults=[]), _plan(), conn=None, vector_loader=vl)
+    assert result.fault_correction_chunks == []
 
 
 # ── Runner ───────────────────────────────────────────────────────────────────

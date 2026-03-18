@@ -447,6 +447,67 @@ Identified via automated codebase scan. Grouped by priority.
 
 ---
 
+## Phase 12 — Corpus Expansion + Agent Performance
+
+### 12a — Corpus Expansion ✅ COMPLETE
+
+| Item | Notes |
+|------|-------|
+| EPUB paragraph extraction fix | `epub_extractor.py` — `get_text(separator='\n')` produced single newlines between `<p>` tags; `_chunk_section` splits on `\n\n` so entire chapters became one chunk. Fixed by inserting `NavigableString('\n\n')` after block-level tags before `get_text(separator='')`. Everett: 198 → 587 chunks, 44 → 76 principles (source_id=1→507). |
+| `test_epub_extractor.py` — 4 new paragraph-break tests | 9 → 13 tests: `test_p_tags_produce_double_newlines`, `test_heading_tags_produce_double_newlines`, `test_inline_elements_no_spurious_breaks`, `test_many_p_tags_all_preserved_as_separate_paragraphs` (core regression test) |
+| Empty-string guard (three-layer) | (1) skip empty `page_text` before classifier in `pipeline.py`; (2) skip empty `section.content` before routing; (3) filter empty `chunk.content` before embedding in `vector_loader.py` — OpenAI returns 400 JSON parse error for empty strings |
+| `test_vector_loader.py` — 2 new empty-content tests | 6 → 8 tests: `test_empty_content_chunks_skipped_before_embed`, `test_mixed_empty_and_valid_chunks_only_valid_embedded` |
+| Israetel — *Scientific Principles of Hypertrophy Training* (EPUB) | ✅ Done — 206 chunks, 21 principles, source_id=504, programming profile |
+| Starrett — *Becoming a Supple Leopard* (EPUB) | ✅ Done — 137 chunks, 16 principles, source_id=505, theory_heavy profile |
+| Dan John — *Intervention* (PDF) | ✅ Done — 266 chunks, 0 principles, source_id=506, programming profile |
+| `SOURCE_PROFILE_MAP` additions | Added Israetel (programming), Starrett (theory_heavy), Dan John (programming) to `chunker.py` |
+| `KEYWORD_TO_TOPIC` expansion (Phase 12) | 60+ new entries for Israetel vocabulary (`hypertrophy`, `mev`, `mav`, `mrv`, `hard sets`, `reps in reserve`), Starrett vocabulary (`mobility`, `range of motion`, `soft tissue`, `hip mobility`, `ankle mobility`, `thoracic`, `dorsiflexion`), Dan John vocabulary (`loaded carry`, `farmer`, `goblet squat`, `kettlebell`, `hinge`, `gpp`, `conditioning`). `retag_chunks.py` applied — 96 newly tagged chunks. |
+| Retrieval eval expanded | 14 → 22 queries; all 8 new queries hit expected topics after KEYWORD_TO_TOPIC expansion |
+| **Final corpus** | **3,578 chunks · 151 principles · 439 sources** |
+
+### 12b — Agent Performance Improvements ✅ COMPLETE
+
+Identified via codebase audit of `assess.py`, `retrieve.py`, `generate.py`, `plan.py`, `validate.py`.
+
+**Group A — Dead data (already loaded, not wired up):** ✅ COMPLETE
+
+| Item | Priority | File | Notes |
+|------|----------|------|-------|
+| Wire `recent_logs` into generate prompt | High | `generate.py` | ✅ `## Recent Training (last 14 days)` section added — compact 1-line per entry (date, exercise, weight×sets, RPE, make rate); capped at `MAX_RECENT_LOGS_IN_PROMPT=10`; null RPE/make_rate guarded |
+| Wire `template_references` into prompt | Medium | `generate.py` | ✅ `## Similar Program Templates` section added — shows name + notes only (program_structure JSON excluded to control size); capped at 2 |
+| Explicit `make_rate_by_lift` instruction | High | `generate.py` | ✅ Directive line added after lift-by-lift breakdown when any lift < 75%: "→ X make rate was below 75% — reduce intensity on those lifts 3–5% below the week ceiling." |
+| Prompt length logging | — | `generate.py` | ✅ Char count + token estimate logged at DEBUG per session; WARNING if > `PROMPT_LENGTH_WARN_CHARS=20_000` (~5k tokens). New constants added to `shared/constants.py`. |
+| Test coverage | — | `tests/test_generate_utils.py` | ✅ 13 new tests (15 → 28 total): 5 recent_logs, 4 template_references, 4 make_rate_by_lift directive |
+
+**Group B — Smarter retrieval:** ✅ COMPLETE
+
+| Item | Priority | File | Notes |
+|------|----------|------|-------|
+| Expand vector search to all faults | Medium | `retrieve.py` | ✅ Removed `[:2]` cap — all faults searched; athletes with 4–5 faults get full fault_correction coverage |
+| Include `lift_emphasis` + `strength_limiters` in vector queries | Medium | `retrieve.py` | ✅ Session template queries enriched with lift emphasis (e.g. "snatch biased lift focus") and strength limiters context; balanced adds nothing to keep queries clean |
+| Strength-limiter dedicated searches | — | `retrieve.py` | ✅ One vector search per limiter (e.g. "squat strength development for intermediate weightlifter"); `_limited` suffix stripped |
+| Wire `fault_correction_chunks` into prompt | — | `generate.py` | ✅ Context block leads with up to 2 fault_correction chunks when faults present, fills remaining from programming_rationale; deduplicates by ID; hard cap 4 chunks |
+| Test coverage | — | `test_retrieve.py`, `test_generate_utils.py` | ✅ 9 new retrieve tests (10→19 total), 5 new generate context tests (28→33 total) |
+
+**Group C — Prompt clarity:** ✅ COMPLETE
+
+| Item | Priority | File | Notes |
+|------|----------|------|-------|
+| Explicit fault → exercise cross-reference | High | `generate.py` | ✅ `fault_block` restructured from family-grouped to fault-grouped: each fault gets its own line listing exercises that address it (`'forward_miss': Snatch Balance (…), Pause Snatch (…)`). Section header updated to prescriptive "Fault Correction Exercises (prescribe ≥1 per session)". |
+| Lift ratio context in prompt | Low | `generate.py` | ✅ `## Lift Ratios` section added after `## Current Maxes`: Sn/C&J (target 77–83%), Sn/BS (target 60–67%), C&J/BS (target 75–82%). Each line shows ratio %, target range, and ✓/↑/↓ status. Lines omitted when a max is missing. |
+| Test coverage | — | `tests/test_generate_utils.py` | ✅ 10 new tests (33 → 43 total): 5 fault cross-reference, 5 lift ratios |
+
+**Group D — Validation gaps:** ✅ COMPLETE
+
+| Item | Priority | File | Notes |
+|------|----------|------|-------|
+| RPE target vs intensity check | Medium | `validate.py` | ✅ Check 7 added: warning when ≥90% intensity has RPE <8.0, or 80–90% intensity has RPE <7.0 |
+| Warn if zero fault-addressing exercises selected | Medium | `validate.py` | ✅ Check 8 added: warning when athlete has faults and `fault_exercise_names` provided but no prescribed exercise matches; `fault_exercise_names` wired through `generate_session_with_retries` and orchestrator |
+| `strength_limiters` coverage check | Low | `validate.py` | ✅ Check 9 added: `_LIMITER_KEYWORDS` dict maps limiter key → exercise name keywords; warns per unaddressed limiter |
+| Test coverage | — | `tests/test_validate.py` | ✅ 14 new tests (26 → 40 total): 4 RPE, 4 fault coverage, 6 strength limiter; also fixed pre-existing floor warning test (65% → 68%, above warmup threshold) |
+
+---
+
 **Running the web UI:**
 ```bash
 cd oly-agent

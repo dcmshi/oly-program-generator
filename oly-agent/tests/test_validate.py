@@ -131,7 +131,7 @@ def test_intensity_at_ceiling_ok():
 
 
 def test_intensity_below_floor_comp_lift_warning():
-    exercises = [_ex("Snatch", 3, 3, 65)]  # 65% < floor 70%, comp lift
+    exercises = [_ex("Snatch", 3, 3, 68)]  # 68% < floor 70%, above warmup threshold (>65%), comp lift
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, "Should still be valid (warning only)"
     assert any("below week floor" in w for w in result.warnings), result.warnings
@@ -291,6 +291,157 @@ def test_duration_no_warning_within_limit():
     return True, ""
 
 
+# ── Check 7: RPE vs intensity ─────────────────────────────────
+
+def test_rpe_too_low_above_90_warning():
+    wt = dict(WEEK_TARGET, intensity_ceiling=95)
+    exercises = [{"exercise_name": "Snatch", "exercise_order": 1,
+                  "sets": 3, "reps": 2, "intensity_pct": 92,
+                  "intensity_reference": "snatch", "rest_seconds": 180,
+                  "rpe_target": 7.0}]  # RPE 7.0 at 92% — should warn
+    result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
+    assert any("RPE" in w and "8.0" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_rpe_ok_at_90_pct():
+    wt = dict(WEEK_TARGET, intensity_ceiling=95)
+    exercises = [{"exercise_name": "Snatch", "exercise_order": 1,
+                  "sets": 3, "reps": 2, "intensity_pct": 92,
+                  "intensity_reference": "snatch", "rest_seconds": 180,
+                  "rpe_target": 8.5}]  # RPE 8.5 at 92% — fine
+    result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
+    assert not any("RPE" in w and "8.0" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_rpe_too_low_80_to_90_warning():
+    exercises = [{"exercise_name": "Snatch", "exercise_order": 1,
+                  "sets": 4, "reps": 3, "intensity_pct": 83,
+                  "intensity_reference": "snatch", "rest_seconds": 180,
+                  "rpe_target": 6.5}]  # RPE 6.5 at 83% — should warn
+    wt = dict(WEEK_TARGET, intensity_ceiling=85)
+    result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
+    assert any("RPE" in w and "7.0" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_rpe_none_skipped():
+    # Exercises with no rpe_target should not trigger the check
+    exercises = [{"exercise_name": "Snatch", "exercise_order": 1,
+                  "sets": 3, "reps": 2, "intensity_pct": 92,
+                  "intensity_reference": "snatch", "rest_seconds": 180,
+                  "rpe_target": None}]
+    wt = dict(WEEK_TARGET, intensity_ceiling=95)
+    result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
+    assert not any("RPE" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+# ── Check 8: Fault-correction exercise coverage ───────────────
+
+def test_fault_coverage_warning_when_no_fault_exercise():
+    athlete = dict(ATHLETE, technical_faults=["forward_miss"])
+    exercises = [_ex("Back Squat", 4, 4, 75, ref="back_squat")]
+    fault_names = ["snatch balance", "muscle snatch"]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete,
+                              fault_exercise_names=fault_names)
+    assert any("fault" in w.lower() for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_fault_coverage_ok_when_fault_exercise_prescribed():
+    athlete = dict(ATHLETE, technical_faults=["forward_miss"])
+    exercises = [
+        _ex("Snatch Balance", 3, 3, 70),
+        _ex("Back Squat", 4, 4, 75, ref="back_squat"),
+    ]
+    fault_names = ["snatch balance", "muscle snatch"]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete,
+                              fault_exercise_names=fault_names)
+    assert not any("fault" in w.lower() and "no fault-correction" in w.lower()
+                   for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_fault_coverage_skipped_when_no_faults():
+    # Athlete has no faults — check should be skipped entirely
+    athlete = dict(ATHLETE, technical_faults=[])
+    exercises = [_ex("Snatch", 4, 3, 75)]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete,
+                              fault_exercise_names=["snatch balance"])
+    assert not any("fault" in w.lower() for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_fault_coverage_skipped_when_fault_names_none():
+    # fault_exercise_names=None (default) → check is skipped even with faults
+    athlete = dict(ATHLETE, technical_faults=["forward_miss"])
+    exercises = [_ex("Back Squat", 4, 4, 75, ref="back_squat")]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete,
+                              fault_exercise_names=None)
+    assert not any("no fault-correction" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+# ── Check 9: Strength limiter coverage ───────────────────────
+
+def test_strength_limiter_not_addressed_warning():
+    athlete = dict(ATHLETE, strength_limiters=["squat_limited"])
+    exercises = [_ex("Snatch", 4, 3, 75), _ex("Clean & Jerk", 3, 2, 78)]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
+    assert any("squat_limited" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_strength_limiter_addressed_no_warning():
+    athlete = dict(ATHLETE, strength_limiters=["squat_limited"])
+    exercises = [
+        _ex("Snatch", 4, 3, 75),
+        _ex("Back Squat", 4, 4, 75, ref="back_squat"),
+    ]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
+    assert not any("squat_limited" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_pull_limiter_addressed_by_deadlift():
+    athlete = dict(ATHLETE, strength_limiters=["pull_limited"])
+    exercises = [
+        _ex("Snatch", 4, 3, 75),
+        _ex("Snatch Deadlift", 4, 3, 85),
+    ]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
+    assert not any("pull_limited" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_multiple_limiters_each_checked():
+    athlete = dict(ATHLETE, strength_limiters=["squat_limited", "overhead_limited"])
+    exercises = [_ex("Snatch", 4, 3, 75)]  # addresses neither
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
+    limiter_warnings = [w for w in result.warnings if "limited" in w]
+    assert len(limiter_warnings) == 2, f"Expected 2 limiter warnings, got: {result.warnings}"
+    return True, ""
+
+
+def test_no_strength_limiters_no_warning():
+    athlete = dict(ATHLETE, strength_limiters=[])
+    exercises = [_ex("Snatch", 4, 3, 75)]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
+    assert not any("limiter" in w.lower() for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_unknown_limiter_skipped_gracefully():
+    # An unrecognised limiter key (no entry in _LIMITER_KEYWORDS) should not raise
+    athlete = dict(ATHLETE, strength_limiters=["unknown_limiter"])
+    exercises = [_ex("Snatch", 4, 3, 75)]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
+    assert result.is_valid, result.errors
+    return True, ""
+
+
 # ── Integration: clean session ────────────────────────────────
 
 def test_valid_session_no_errors():
@@ -357,6 +508,23 @@ TESTS = [
     ("Integration: clean session → valid", test_valid_session_no_errors),
     ("Integration: warmup sets → valid", test_valid_session_with_warmup_sets),
     ("Empty session: no exercises → error", test_empty_session_is_invalid),
+    # Check 7: RPE vs intensity
+    ("RPE: too low at ≥90% → warning", test_rpe_too_low_above_90_warning),
+    ("RPE: ok at ≥90% → no warning", test_rpe_ok_at_90_pct),
+    ("RPE: too low at 80–90% → warning", test_rpe_too_low_80_to_90_warning),
+    ("RPE: None → skipped", test_rpe_none_skipped),
+    # Check 8: fault-correction coverage
+    ("Fault coverage: missing → warning", test_fault_coverage_warning_when_no_fault_exercise),
+    ("Fault coverage: prescribed → ok", test_fault_coverage_ok_when_fault_exercise_prescribed),
+    ("Fault coverage: no faults → skipped", test_fault_coverage_skipped_when_no_faults),
+    ("Fault coverage: names=None → skipped", test_fault_coverage_skipped_when_fault_names_none),
+    # Check 9: strength limiter coverage
+    ("Limiter: not addressed → warning", test_strength_limiter_not_addressed_warning),
+    ("Limiter: addressed → ok", test_strength_limiter_addressed_no_warning),
+    ("Limiter: pull_limited by deadlift → ok", test_pull_limiter_addressed_by_deadlift),
+    ("Limiter: multiple, each checked", test_multiple_limiters_each_checked),
+    ("Limiter: none declared → ok", test_no_strength_limiters_no_warning),
+    ("Limiter: unknown key → skipped gracefully", test_unknown_limiter_skipped_gracefully),
 ]
 
 

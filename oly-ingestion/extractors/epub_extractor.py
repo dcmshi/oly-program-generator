@@ -43,10 +43,17 @@ def extract_text_from_epub(path: Path) -> list[str]:
             for tag in soup(["script", "style"]):
                 tag.decompose()
 
-            text = soup.get_text(separator="\n", strip=True)
+            # Insert double-newline markers after block-level elements so that
+            # _chunk_section (which splits on \n\n) can split within long chapters.
+            # insert_after adds a sibling NavigableString visible to get_text().
+            from bs4 import NavigableString
+            for tag in soup.find_all(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li"]):
+                tag.insert_after(NavigableString("\n\n"))
 
             import re
-            text = re.sub(r"\n{3,}", "\n\n", text)
+            text = soup.get_text(separator="")
+            text = re.sub(r"[ \t]+", " ", text)        # collapse horizontal whitespace
+            text = re.sub(r"\n{3,}", "\n\n", text)     # normalize 3+ newlines → \n\n
 
             if text.strip():
                 chapters.append(text)

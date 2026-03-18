@@ -131,6 +131,11 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
         logger.info("=== Step 3: RETRIEVE ===")
         retrieval_context = retrieve(athlete_context, program_plan, conn, vector_loader)
         available_exercise_names = [e["name"] for e in retrieval_context.available_exercises]
+        # Flat list of fault-correction exercise names for Check 8 in validate_session
+        fault_exercise_names: list[str] | None = (
+            [ex["name"] for exs in retrieval_context.fault_exercises.values() for ex in exs]
+            if retrieval_context.fault_exercises else None
+        )
 
         # ── Step 4+5: GENERATE + VALIDATE (session by session) ─
         logger.info("=== Step 4+5: GENERATE + VALIDATE ===")
@@ -195,6 +200,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     week_number=week_number,
                     day_number=day_number,
                     conn=conn,
+                    fault_exercise_names=fault_exercise_names,
                 )
 
                 cumulative_cost += estimate_cost(result.input_tokens, result.output_tokens)
