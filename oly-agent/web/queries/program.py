@@ -293,6 +293,28 @@ async def _get_exercise_id(conn, exercise_name: str) -> int | None:
     return None
 
 
+async def _write_athlete_max(
+    conn, athlete_id: int, exercise_id: int, weight_kg: float, date_achieved, notes: str | None = None
+):
+    """Upsert the 'current' max row for (athlete_id, exercise_id).
+
+    When notes is None the existing notes value is preserved (COALESCE).
+    """
+    from web.async_db import async_execute
+    await async_execute(
+        conn,
+        """
+        INSERT INTO athlete_maxes (athlete_id, exercise_id, weight_kg, max_type, date_achieved, notes)
+        VALUES ($1, $2, $3, 'current', $4, $5)
+        ON CONFLICT (athlete_id, exercise_id) WHERE max_type = 'current'
+        DO UPDATE SET weight_kg     = EXCLUDED.weight_kg,
+                      date_achieved = EXCLUDED.date_achieved,
+                      notes         = COALESCE(EXCLUDED.notes, athlete_maxes.notes)
+        """,
+        athlete_id, exercise_id, weight_kg, date_achieved, notes,
+    )
+
+
 async def upsert_athlete_max(
     conn, athlete_id: int, exercise_name: str, weight_kg: float, date_achieved
 ) -> tuple[bool, float | None]:
@@ -302,33 +324,20 @@ async def upsert_athlete_max(
     Raises ValueError if the exercise name is not found.
     Returns (is_pr, previous_kg) — is_pr is True when weight_kg beats the previous record.
     """
-    from web.async_db import async_fetch_one, async_execute
+    from web.async_db import async_fetch_one
     exercise_id = await _get_exercise_id(conn, exercise_name)
     if exercise_id is None:
         raise ValueError(f"Exercise '{exercise_name}' not found in exercises table")
 
     existing = await async_fetch_one(
         conn,
-        """
-        SELECT weight_kg FROM athlete_maxes
-        WHERE athlete_id = $1 AND exercise_id = $2 AND max_type = 'current'
-        """,
+        "SELECT weight_kg FROM athlete_maxes WHERE athlete_id = $1 AND exercise_id = $2 AND max_type = 'current'",
         athlete_id, exercise_id,
     )
     prev_kg = float(existing["weight_kg"]) if existing else None
     is_pr = prev_kg is None or weight_kg > prev_kg
 
-    await async_execute(
-        conn,
-        """
-        INSERT INTO athlete_maxes (athlete_id, exercise_id, weight_kg, date_achieved, max_type)
-        VALUES ($1, $2, $3, $4, 'current')
-        ON CONFLICT (athlete_id, exercise_id) WHERE max_type = 'current'
-        DO UPDATE SET weight_kg = EXCLUDED.weight_kg,
-                      date_achieved = EXCLUDED.date_achieved
-        """,
-        athlete_id, exercise_id, weight_kg, date_achieved,
-    )
+    await _write_athlete_max(conn, athlete_id, exercise_id, weight_kg, date_achieved)
     return is_pr, prev_kg
 
 

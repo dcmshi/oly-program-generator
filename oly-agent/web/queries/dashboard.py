@@ -4,6 +4,10 @@
 from datetime import date, timedelta
 
 
+def _f(v):
+    return float(v) if v is not None else None
+
+
 async def get_active_program(conn, athlete_id: int) -> dict | None:
     from web.async_db import async_fetch_one
     return await async_fetch_one(
@@ -78,9 +82,6 @@ async def get_lift_ratios(conn, athlete_id: int) -> list[dict]:
     )
     if not row:
         return []
-
-    def _f(v):
-        return float(v) if v is not None else None
 
     snatch      = _f(row["snatch"])
     cj          = _f(row["cj"])
@@ -166,9 +167,6 @@ async def get_goal_progress(conn, athlete_id: int) -> dict | None:
         """,
         athlete_id,
     )
-
-    def _f(v):
-        return float(v) if v is not None else None
 
     snatch_cur = _f(maxes["snatch"]) if maxes else None
     cj_cur     = _f(maxes["cj"])     if maxes else None

@@ -4,6 +4,28 @@
 from datetime import date
 
 
+def _float(v):
+    try:
+        return float(v) if v else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _int(v):
+    try:
+        return int(v) if v else None
+    except (ValueError, TypeError):
+        return None
+
+
+def _parse_log_date(form: dict) -> date:
+    log_date_str = form.get("log_date") or str(date.today())
+    try:
+        return date.fromisoformat(log_date_str)
+    except ValueError:
+        return date.today()
+
+
 async def get_session_with_exercises(conn, session_id: int) -> dict | None:
     from web.async_db import async_fetch_one, async_fetch_all
     session = await async_fetch_one(
@@ -64,18 +86,6 @@ async def get_exercise_log_entry(conn, tle_id: int) -> dict | None:
 async def update_exercise_log(conn, tle_id: int, form: dict):
     """Update a training_log_exercises row from form values, recomputing deviations."""
     from web.async_db import async_execute, async_fetch_one
-
-    def _float(v):
-        try:
-            return float(v) if v else None
-        except (ValueError, TypeError):
-            return None
-
-    def _int(v):
-        try:
-            return int(v) if v else None
-        except (ValueError, TypeError):
-            return None
 
     weight_kg = _float(form.get("weight_kg"))
     rpe = _float(form.get("rpe"))
@@ -155,23 +165,7 @@ async def get_logged_exercises(conn, log_id: int) -> list[dict]:
 async def create_session_log(conn, athlete_id: int, session_id: int, form: dict) -> int:
     from web.async_db import async_execute_returning
 
-    def _float(v):
-        try:
-            return float(v) if v else None
-        except (ValueError, TypeError):
-            return None
-
-    def _int(v):
-        try:
-            return int(v) if v else None
-        except (ValueError, TypeError):
-            return None
-
-    log_date_str = form.get("log_date") or str(date.today())
-    try:
-        log_date = date.fromisoformat(log_date_str)
-    except ValueError:
-        log_date = date.today()
+    log_date = _parse_log_date(form)
 
     return await async_execute_returning(
         conn,
@@ -202,7 +196,8 @@ async def maybe_promote_max(
 
     Returns True if a new max was recorded.
     """
-    from web.async_db import async_fetch_one, async_execute
+    from web.async_db import async_fetch_one
+    from web.queries.program import _write_athlete_max
 
     se = await async_fetch_one(
         conn,
@@ -216,28 +211,15 @@ async def maybe_promote_max(
 
     current = await async_fetch_one(
         conn,
-        """
-        SELECT weight_kg FROM athlete_maxes
-        WHERE athlete_id = $1 AND exercise_id = $2 AND max_type = 'current'
-        """,
+        "SELECT weight_kg FROM athlete_maxes WHERE athlete_id = $1 AND exercise_id = $2 AND max_type = 'current'",
         athlete_id, exercise_id,
     )
     if current and float(current["weight_kg"]) >= weight_kg:
         return False
 
-    await async_execute(
-        conn,
-        """
-        INSERT INTO athlete_maxes
-            (athlete_id, exercise_id, weight_kg, max_type, date_achieved, notes)
-        VALUES ($1, $2, $3, 'current', $4, 'Auto-promoted from max testing session')
-        ON CONFLICT (athlete_id, exercise_id) WHERE max_type = 'current'
-        DO UPDATE SET
-            weight_kg    = EXCLUDED.weight_kg,
-            date_achieved = EXCLUDED.date_achieved,
-            notes        = EXCLUDED.notes
-        """,
-        athlete_id, exercise_id, weight_kg, log_date,
+    await _write_athlete_max(
+        conn, athlete_id, exercise_id, weight_kg, log_date,
+        notes="Auto-promoted from max testing session",
     )
     return True
 
@@ -246,23 +228,7 @@ async def update_session_log(conn, log_id: int, form: dict):
     """Update an existing training_log row with new form values."""
     from web.async_db import async_execute
 
-    def _float(v):
-        try:
-            return float(v) if v else None
-        except (ValueError, TypeError):
-            return None
-
-    def _int(v):
-        try:
-            return int(v) if v else None
-        except (ValueError, TypeError):
-            return None
-
-    log_date_str = form.get("log_date") or str(date.today())
-    try:
-        log_date = date.fromisoformat(log_date_str)
-    except ValueError:
-        log_date = date.today()
+    log_date = _parse_log_date(form)
 
     await async_execute(
         conn,
@@ -287,18 +253,6 @@ async def update_session_log(conn, log_id: int, form: dict):
 async def create_exercise_log(conn, log_id: int, form: dict) -> int:
     """Insert a new training_log_exercises row. Returns the new row id."""
     from web.async_db import async_execute_returning
-
-    def _float(v):
-        try:
-            return float(v) if v else None
-        except (ValueError, TypeError):
-            return None
-
-    def _int(v):
-        try:
-            return int(v) if v else None
-        except (ValueError, TypeError):
-            return None
 
     se_id = _int(form.get("session_exercise_id"))
     exercise_name = form.get("exercise_name", "").strip()
