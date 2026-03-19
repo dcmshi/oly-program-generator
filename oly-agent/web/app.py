@@ -33,6 +33,7 @@ from web.routers import profile as profile_router
 from web.routers import export as export_router
 from web.routers import history as history_router
 from web.routers import health as health_router
+from web.routers import admin as admin_router
 
 logger = logging.getLogger(__name__)
 
@@ -208,3 +209,4 @@ app.include_router(generate.router)
 app.include_router(export_router.router)
 app.include_router(history_router.router)
 app.include_router(health_router.router)
+app.include_router(admin_router.router)

@@ -11,6 +11,7 @@ import argparse
 import json
 import logging
 import sys
+import time
 from dataclasses import asdict
 from datetime import date
 from pathlib import Path
@@ -69,11 +70,15 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
     try:
         # ── Step 1: ASSESS ────────────────────────────────────
         logger.info(f"=== Step 1: ASSESS (athlete {athlete_id}) ===")
+        _t0 = time.perf_counter()
         athlete_context = assess(athlete_id, conn)
+        logger.info("Step 1 complete", extra={"step": "assess", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         # ── Step 2: PLAN ──────────────────────────────────────
         logger.info("=== Step 2: PLAN ===")
+        _t0 = time.perf_counter()
         program_plan = plan(athlete_context, conn, settings)
+        logger.info("Step 2 complete", extra={"step": "plan", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         if dry_run:
             _print_plan(athlete_context, program_plan)
@@ -125,11 +130,13 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
             ),
         )
         conn.commit()
-        logger.info(f"Created program record: id={program_id}")
+        logger.info(f"Created program record: id={program_id}", extra={"program_id": program_id})
 
         # ── Step 3: RETRIEVE ──────────────────────────────────
         logger.info("=== Step 3: RETRIEVE ===")
+        _t0 = time.perf_counter()
         retrieval_context = retrieve(athlete_context, program_plan, conn, vector_loader)
+        logger.info("Step 3 complete", extra={"step": "retrieve", "program_id": program_id, "duration_seconds": round(time.perf_counter() - _t0, 2)})
         available_exercise_names = [e["name"] for e in retrieval_context.available_exercises]
         # Flat list of fault-correction exercise names for Check 8 in validate_session
         fault_exercise_names: list[str] | None = (
@@ -139,6 +146,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
 
         # ── Step 4+5: GENERATE + VALIDATE (session by session) ─
         logger.info("=== Step 4+5: GENERATE + VALIDATE ===")
+        _t_gen_start = time.perf_counter()
         cumulative_cost = 0.0
         all_sessions_data: list[dict] = []
 
@@ -286,8 +294,16 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                 "exercises": max_test_exercises,
             })
 
+        logger.info("Step 4+5 complete", extra={
+            "step": "generate_validate",
+            "program_id": program_id,
+            "duration_seconds": round(time.perf_counter() - _t_gen_start, 2),
+            "total_cost_usd": round(cumulative_cost, 4),
+        })
+
         # ── Step 6: EXPLAIN ───────────────────────────────────
         logger.info("=== Step 6: EXPLAIN ===")
+        _t0 = time.perf_counter()
         rationale = explain(
             athlete_context=athlete_context,
             plan=program_plan,
@@ -303,9 +319,11 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
         )
         conn.commit()
 
+        logger.info("Step 6 complete", extra={"step": "explain", "program_id": program_id, "duration_seconds": round(time.perf_counter() - _t0, 2)})
         logger.info(
             f"Program {program_id} complete. "
-            f"Total cost: ${cumulative_cost:.4f}"
+            f"Total cost: ${cumulative_cost:.4f}",
+            extra={"program_id": program_id, "total_cost_usd": round(cumulative_cost, 4)},
         )
         return program_id
 

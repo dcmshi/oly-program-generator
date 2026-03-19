@@ -1,0 +1,94 @@
+{% extends "base.html" %}
+{% block title %}Generation Jobs — Oly Agent{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-1">Generation Jobs</h1>
+<p class="text-gray-500 text-sm mb-6">Recent program generation runs — aggregated from <code>generation_log</code>.</p>
+
+{% if jobs %}
+<div class="overflow-x-auto">
+  <table class="w-full text-sm border-collapse">
+    <thead>
+      <tr class="text-left text-xs text-gray-500 border-b border-gray-200">
+        <th class="pb-2 pr-4 font-medium">Program</th>
+        <th class="pb-2 pr-4 font-medium">Athlete</th>
+        <th class="pb-2 pr-4 font-medium">Phase</th>
+        <th class="pb-2 pr-4 font-medium">Status</th>
+        <th class="pb-2 pr-4 font-medium">Sessions</th>
+        <th class="pb-2 pr-4 font-medium">Cost</th>
+        <th class="pb-2 pr-4 font-medium hidden sm:table-cell">Duration</th>
+        <th class="pb-2 pr-4 font-medium hidden md:table-cell">Started</th>
+        <th class="pb-2 font-medium">Errors</th>
+      </tr>
+    </thead>
+    <tbody class="divide-y divide-gray-100">
+      {% for job in jobs %}
+      <tr class="hover:bg-gray-50">
+        <td class="py-3 pr-4">
+          <a href="/admin/jobs/{{ job.program_id }}"
+             class="text-blue-600 hover:underline font-mono font-medium">#{{ job.program_id }}</a>
+        </td>
+        <td class="py-3 pr-4">
+          <span class="text-gray-800">{{ job.athlete_name }}</span>
+        </td>
+        <td class="py-3 pr-4">
+          {% if job.phase %}
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ job.phase | phase_color }}">
+            {{ job.phase }}
+          </span>
+          {% else %}
+          <span class="text-gray-400">—</span>
+          {% endif %}
+        </td>
+        <td class="py-3 pr-4">
+          <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ job.program_status | status_color }}">
+            {{ job.program_status }}
+          </span>
+        </td>
+        <td class="py-3 pr-4">
+          {% if job.failed_sessions > 0 %}
+          <span class="text-green-700 font-medium">{{ job.successful_sessions }}</span>
+          <span class="text-gray-400">/</span>
+          <span class="text-red-600">{{ job.failed_sessions }} failed</span>
+          {% else %}
+          <span class="text-green-700 font-medium">{{ job.successful_sessions }}</span>
+          {% endif %}
+        </td>
+        <td class="py-3 pr-4 font-mono text-gray-700">
+          ${{ "%.4f" | format(job.total_cost_usd | float) }}
+        </td>
+        <td class="py-3 pr-4 hidden sm:table-cell text-gray-500">
+          {% if job.duration_seconds is not none %}
+            {% set dur = job.duration_seconds | int %}
+            {% if dur >= 60 %}
+              {{ dur // 60 }}m {{ dur % 60 }}s
+            {% else %}
+              {{ dur }}s
+            {% endif %}
+          {% else %}
+          —
+          {% endif %}
+        </td>
+        <td class="py-3 pr-4 hidden md:table-cell text-gray-500 tabular-nums">
+          {{ job.started_at.strftime("%Y-%m-%d %H:%M") if job.started_at else "—" }}
+        </td>
+        <td class="py-3">
+          {% if job.last_error %}
+          <span class="text-red-600 text-xs" title="{{ job.last_error }}">
+            {{ job.last_error[:60] }}{% if job.last_error | length > 60 %}…{% endif %}
+          </span>
+          {% else %}
+          <span class="text-gray-300">—</span>
+          {% endif %}
+        </td>
+      </tr>
+      {% endfor %}
+    </tbody>
+  </table>
+</div>
+{% else %}
+<div class="bg-gray-50 border border-gray-200 rounded-xl p-8 text-center text-gray-400 text-sm">
+  No generation jobs found. Run <a href="/generate" class="text-blue-500 hover:underline">Generate Program</a> to create one.
+</div>
+{% endif %}
+{% endblock %}

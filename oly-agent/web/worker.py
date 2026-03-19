@@ -41,7 +41,10 @@ async def run_generation(ctx, athlete_id: int, dry_run: bool = False, request_id
     """
     token = request_id_var.set(request_id)
     start = datetime.now(timezone.utc)
-    logger.info(f"Worker: starting generation for athlete {athlete_id} (dry_run={dry_run})")
+    logger.info(
+        f"Worker: starting generation for athlete {athlete_id} (dry_run={dry_run})",
+        extra={"athlete_id": athlete_id, "dry_run": dry_run},
+    )
 
     def _sync():
         from shared.config import Settings
@@ -52,7 +55,10 @@ async def run_generation(ctx, athlete_id: int, dry_run: bool = False, request_id
         loop = asyncio.get_event_loop()
         program_id = await loop.run_in_executor(_executor, _sync)
         duration = round((datetime.now(timezone.utc) - start).total_seconds(), 1)
-        logger.info(f"Worker: completed in {duration}s — program_id={program_id}")
+        logger.info(
+            f"Worker: completed in {duration}s — program_id={program_id}",
+            extra={"athlete_id": athlete_id, "program_id": program_id, "duration_seconds": duration},
+        )
         return {"program_id": program_id, "duration_seconds": duration, "athlete_id": athlete_id}
     finally:
         request_id_var.reset(token)
