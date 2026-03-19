@@ -13,6 +13,7 @@ MIN_SESSION_REPS: int = 3                    # minimum reps to be a meaningful s
 
 # ── Vector search ────────────────────────────────────────────────
 VECTOR_SEARCH_DEFAULT_TOP_K: int = 5
+VECTOR_SEARCH_MIN_SIMILARITY: float = 0.45  # drop chunks below this cosine similarity
 
 # ── Prompt construction ──────────────────────────────────────────
 SNIPPET_MAX_CHARS: int = 600         # max chars of a knowledge chunk shown in prompt

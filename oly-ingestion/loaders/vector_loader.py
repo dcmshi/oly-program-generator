@@ -229,12 +229,17 @@ class VectorLoader:
         athlete_level: str | None = None,
         min_density: str | None = None,
         require_numbers: bool = False,
+        min_similarity: float | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve similar chunks with optional pre-filtering.
 
         Used downstream by the programming agent. Supports filtered
         similarity search: filter by metadata first, then rank by
         vector similarity within the filtered set.
+
+        min_similarity: if set, drops chunks whose cosine similarity falls
+        below the threshold before applying top_k. This prevents the agent
+        from receiving low-confidence chunks that waste prompt space.
         """
         query_embedding = self._embed(query)
         cursor = self.conn.cursor()
@@ -266,6 +271,10 @@ class VectorLoader:
 
         if require_numbers:
             where_clauses.append("contains_specific_numbers = TRUE")
+
+        if min_similarity is not None:
+            where_clauses.append("1 - (embedding <=> %s::vector) >= %s")
+            params.extend([query_embedding, min_similarity])
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 

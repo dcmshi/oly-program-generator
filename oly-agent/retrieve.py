@@ -16,7 +16,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.constants import VECTOR_SEARCH_DEFAULT_TOP_K
+from shared.constants import VECTOR_SEARCH_DEFAULT_TOP_K, VECTOR_SEARCH_MIN_SIMILARITY
 from shared.db import fetch_all
 from shared.prilepin import get_prilepin_zone, get_prilepin_data
 from models import AthleteContext, ProgramPlan, RetrievalContext
@@ -124,6 +124,7 @@ def retrieve(
                     ),
                     top_k=top_k,
                     chunk_types=["programming_rationale", "periodization"],
+                    min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                 )
                 for c in chunks:
                     if c.get("id") not in seen_chunk_ids:
@@ -141,6 +142,7 @@ def retrieve(
                         query=f"correcting {fault} in weightlifting, {level_context}",
                         top_k=top_k,
                         chunk_types=["fault_correction"],
+                        min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                     )
                     for c in chunks:
                         if c.get("id") not in fault_seen:
@@ -160,6 +162,7 @@ def retrieve(
                     ),
                     top_k=top_k,
                     chunk_types=["programming_rationale", "periodization", "methodology"],
+                    min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                 )
                 for c in chunks:
                     if c.get("id") not in seen_chunk_ids:

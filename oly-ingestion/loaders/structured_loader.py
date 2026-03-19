@@ -107,6 +107,15 @@ class StructuredLoader:
 
     def load_program(self, program: dict) -> int | None:
         """Load a program template into program_templates table."""
+        duration_weeks = program.get("duration_weeks", 0)
+        sessions_per_week = program.get("sessions_per_week", 0)
+        if duration_weeks < 1 or not (1 <= sessions_per_week <= 14):
+            logger.warning(
+                f"Skipping program '{program.get('name')}': "
+                f"duration_weeks={duration_weeks}, sessions_per_week={sessions_per_week} "
+                f"(must have duration_weeks>=1 and sessions_per_week 1-14)"
+            )
+            return None
         cursor = self.conn.cursor()
         try:
             cursor.execute(

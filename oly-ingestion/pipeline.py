@@ -137,6 +137,44 @@ TEXT:
 Respond ONLY with valid JSON, no other text."""
 
 
+_PROGRAM_CONTINUATION_PROMPT = """\
+You are extracting additional weeks from a weightlifting program template.
+The previous extraction already captured weeks 1\u2013{last_week}.
+
+Extract ONLY the remaining weeks from the text below as JSON:
+{{
+  "weeks": [
+    {{
+      "week_number": <int>,
+      "sessions": [
+        {{
+          "day": "<Monday|Tuesday|Wednesday|Thursday|Friday|Saturday|Sunday|Day N>",
+          "exercises": [
+            {{
+              "name": "<exercise name>",
+              "sets": <int>,
+              "reps": <int or "1-3" range string>,
+              "intensity_pct": <int, omit if not specified>,
+              "notes": "<optional notes>"
+            }}
+          ]
+        }}
+      ]
+    }}
+  ]
+}}
+
+Rules:
+- Only include weeks explicitly present in the text.
+- Only include weeks with week_number > {last_week}.
+- If no additional weeks are present, respond with {{"weeks": []}}.
+
+TEXT:
+{text}
+
+Respond ONLY with valid JSON, no other text."""
+
+
 @dataclass
 class SourceDocument:
     path: Path
@@ -425,14 +463,21 @@ class IngestionPipeline:
         return stats
 
     def _parse_program_template(self, section, source, source_id) -> dict:
-        """Convert a detected program section into structured JSONB format via LLM."""
-        prompt = _PROGRAM_PARSE_PROMPT.format(text=section.content[:6000])
-        parsed = {}
-        try:
-            client = self.principle_extractor._get_client()
+        """Convert a detected program section into structured JSONB format via LLM.
+
+        For sections exceeding CHUNK_SIZE, the first chunk is parsed normally for
+        metadata + initial weeks; subsequent chunks are parsed with a continuation
+        prompt that extracts only weeks after the last seen week_number.
+        """
+        CHUNK_SIZE = 5000
+        OVERLAP = 500
+        content = section.content
+        client = self.principle_extractor._get_client()
+
+        def _llm_call(prompt: str) -> dict:
             message = client.messages.create(
                 model=self.settings.llm_model,
-                max_tokens=2048,
+                max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
             raw = message.content[0].text.strip()
@@ -440,19 +485,60 @@ class IngestionPipeline:
                 raw = raw.split("```")[1]
                 if raw.startswith("json"):
                     raw = raw[4:]
-            parsed = json.loads(raw)
+            return json.loads(raw)
+
+        # --- First chunk: full parse for metadata + initial weeks ---
+        parsed = {}
+        try:
+            parsed = _llm_call(_PROGRAM_PARSE_PROMPT.format(text=content[:CHUNK_SIZE]))
         except Exception as e:
             logger.warning(f"Program template parsing failed for '{source.title}': {e}")
 
+        # --- Continuation chunks for oversized sections ---
+        if len(content) > CHUNK_SIZE and parsed.get("weeks"):
+            seen_weeks = {w["week_number"] for w in parsed["weeks"] if isinstance(w, dict) and "week_number" in w}
+            offset = CHUNK_SIZE - OVERLAP
+            while offset < len(content):
+                last_week = max(seen_weeks, default=0)
+                chunk = content[offset : offset + CHUNK_SIZE]
+                try:
+                    continuation = _llm_call(
+                        _PROGRAM_CONTINUATION_PROMPT.format(last_week=last_week, text=chunk)
+                    )
+                    new_weeks = [
+                        w for w in continuation.get("weeks", [])
+                        if isinstance(w, dict) and w.get("week_number", 0) not in seen_weeks
+                    ]
+                    if not new_weeks:
+                        break
+                    parsed["weeks"].extend(new_weeks)
+                    seen_weeks.update(w["week_number"] for w in new_weeks)
+                except Exception as e:
+                    logger.warning(f"Program template continuation failed for '{source.title}': {e}")
+                    break
+                offset += CHUNK_SIZE - OVERLAP
+
         program_structure = {k: v for k, v in parsed.items() if k not in PROGRAM_TEMPLATE_COLUMN_KEYS}
+
+        # Infer duration_weeks from parsed weeks array when LLM returned 0
+        duration_weeks = parsed.get("duration_weeks", section.metadata.get("duration_weeks", 0))
+        if duration_weeks == 0 and "weeks" in parsed:
+            duration_weeks = len(parsed["weeks"])
+
+        # Infer sessions_per_week from first week's session count when LLM returned 0
+        sessions_per_week = parsed.get("sessions_per_week", section.metadata.get("sessions_per_week", 0))
+        if sessions_per_week == 0 and parsed.get("weeks"):
+            first_week = parsed["weeks"][0]
+            if isinstance(first_week, dict) and "sessions" in first_week:
+                sessions_per_week = len(first_week["sessions"])
 
         return {
             "name": section.metadata.get("program_name", f"Program from {source.title}"),
             "source_id": source_id,
             "athlete_level": parsed.get("athlete_level", section.metadata.get("athlete_level", "any")),
             "goal": parsed.get("goal", section.metadata.get("goal", "general_strength")),
-            "duration_weeks": parsed.get("duration_weeks", section.metadata.get("duration_weeks", 0)),
-            "sessions_per_week": parsed.get("sessions_per_week", section.metadata.get("sessions_per_week", 0)),
+            "duration_weeks": duration_weeks,
+            "sessions_per_week": sessions_per_week,
             "program_structure": program_structure or {},
         }
 
