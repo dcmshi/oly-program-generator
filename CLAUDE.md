@@ -10,6 +10,7 @@ D:\oly-program-generator\
 ├── ARCHITECTURE.md                  # service architecture + Mermaid diagrams (services, sequence, ER, deployment)
 ├── SCALING.md                       # scaling + production readiness tracker
 ├── PROGRESS.md                      # implementation progress tracker
+├── RETRIEVAL_EVAL.md                # retrieval quality baseline scores + open issues tracker
 ├── oly-programming-pipeline.md      # ingestion pipeline design doc
 ├── oly-programming-agent.md         # agent design doc
 ├── oly-code-reference.md            # reference implementations by module
@@ -272,7 +273,11 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 - **`COMP_LIFT_REFS` lives in `shared/exercise_mapping.py`** — do not redefine inline. `validate.py` and any module that needs to identify competition lifts should import from there.
 - **Prilepin zones cover 55-100%** including the 65-70% transition band — `get_prilepin_zone()` returns `None` only below 55%. The fallback in `compute_session_rep_target` handles the sub-55% deload case only.
 - **`_rollback_connections()` in pipeline** — call this method (not inline try/except) whenever a section-level error requires cleaning up both loader connections. `ingest_web.py` has its own inline equivalent (no class structure).
-- **Magic numbers live in `shared/constants.py`** — do not hardcode Prilepin cap multiplier (1.5), session duration (90 min), top_k (5), snippet length (600), or rounding increment (0.5 kg) in agent modules.
+- **Magic numbers live in `shared/constants.py`** — do not hardcode Prilepin cap multiplier (1.5), session duration (90 min), top_k (5), snippet length (600), rounding increment (0.5 kg), or similarity threshold (0.45) in agent modules.
+- **`VECTOR_SEARCH_MIN_SIMILARITY = 0.45`** in `shared/constants.py` — passed as `min_similarity` to every `similarity_search()` call in `retrieve.py`. Filters in SQL (before top_k is applied) so low-confidence chunks don't consume result slots. Also used in `test_retrieval_eval.py` (overridable via `--min-similarity` flag). The threshold is conservative — don't raise above 0.50 without re-running the full eval.
+- **Program template incremental parsing** — `_parse_program_template()` in `pipeline.py` splits sections >5,000 chars into CHUNK_SIZE=5000/OVERLAP=500 chunks. First chunk uses `_PROGRAM_PARSE_PROMPT` (gets metadata + initial weeks). Subsequent chunks use `_PROGRAM_CONTINUATION_PROMPT` (extracts weeks with `week_number > last_seen`). New weeks are deduplicated via a `seen_weeks` set. `max_tokens` raised to 4096 for all program parse calls.
+- **Program template validation guard** — `structured_loader.load_program()` checks `duration_weeks >= 1` and `sessions_per_week` in `[1, 14]` before INSERT. Logs WARNING and returns None instead of hitting the DB check constraint and producing an ERROR. Also infers `duration_weeks` from `len(parsed["weeks"])` and `sessions_per_week` from first week's session count when LLM returns 0.
+- **`RETRIEVAL_EVAL.md`** at repo root — baseline similarity scores for all 22 eval queries (top_k=5, min_sim=0.45) + resolved open issues. Re-run `test_retrieval_eval.py` after any corpus or retrieval changes and update the baseline table.
 - **Prompt length budget** — worst-case realistic prompt is ~10,500 chars (~2,600 tokens), well under `PROMPT_LENGTH_WARN_CHARS=20,000`. The two dominant sections are Available Exercises (~78 chars/exercise) and Programming Context (4 chunks × 600 chars). If the exercise catalogue grows past ~100 exercises, add `MAX_EXERCISES_IN_PROMPT` to `shared/constants.py` and slice `retrieval_context.available_exercises` in `generate.py` at the `ex_lines` loop. The warning is already logged at DEBUG/WARNING level per session.
 - **`date_of_birth` replaces `age` in the athletes table** — `age` integer column is still present but no longer written to. All web code reads/writes `date_of_birth DATE`. Age can be computed dynamically as `EXTRACT(YEAR FROM AGE(date_of_birth))` in SQL or in Python. Do not add `age` back to INSERT/UPDATE queries.
 - **Extended athlete dimensions** — `lift_emphasis VARCHAR(20)`, `strength_limiters TEXT[]`, and `competition_experience VARCHAR(20)` were added to the athletes table. All three have defaults (`balanced`, `{}`, `none`). They are read by `generate.py:build_session_prompt()` and injected into the LLM prompt. Always include them in profile SELECT/UPDATE and setup INSERT queries.
@@ -311,15 +316,14 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 3. Drechsler / Weightlifting Encyclopedia (PDF) — ✅ Done (603 chunks, 6 principles, source_id=52, theory_heavy profile)
 4. Catalyst Athletics articles (web) — ✅ Done (418 articles, 446 chunks, 22 principles)
 5. Laputin (PDF, vision OCR) — ✅ Done (110 chunks, 3 principles, source_id=499, soviet profile, `--vision` flag)
-6. Takano — ⏳ File not available yet; use `programming` profile when obtained
+6. Takano — ✅ Done (218 chunks, 0 principles, 16 program templates, source_id=2, programming profile) — ingested 2026-03-19; no vision OCR needed (clean text PDF)
 7. Medvedev — ✅ Done (617 chunks, 0 principles, source_id=501, soviet profile + vision OCR)
 8. Everett — *Olympic Weightlifting for Sports* — ✅ Done (172 chunks, 11 exercises, source_id=502, programming profile)
-   - Added to address programming gap left by unavailable Takano book
 9. Israetel — *Scientific Principles of Hypertrophy Training* (EPUB) — ✅ Done (206 chunks, 21 principles, source_id=504, programming profile)
 10. Starrett — *Becoming a Supple Leopard* (EPUB) — ✅ Done (137 chunks, 16 principles, source_id=505, theory_heavy profile)
 11. Dan John — *Intervention* (PDF) — ✅ Done (266 chunks, 0 principles, source_id=506, programming profile)
 
-**Total corpus:** 3,578 chunks · 151 principles · 439 sources
+**Total corpus:** 3,796 chunks · 151 principles · 440 sources
 
 ## Chunk Sizing Reference
 

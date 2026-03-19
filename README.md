@@ -26,7 +26,7 @@ flowchart TB
     end
 
     subgraph DB["🗄  Postgres 16 + pgvector"]
-        KC[("knowledge_chunks<br/>3,578 chunks · embeddings")]
+        KC[("knowledge_chunks<br/>3,796 chunks · embeddings")]
         PP[("programming_principles<br/>167 extracted rules")]
         EX[("exercises · 50+<br/>substitutions · complexes")]
         PC[("prilepin_chart<br/>4 intensity zones")]
@@ -396,7 +396,10 @@ The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** �
 | Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 206 | 21 |
 | Starrett — *Becoming a Supple Leopard* | EPUB | 137 | 16 |
 | Dan John — *Intervention* | PDF | 266 | 0 |
-| **Total** | | **3,578** | **151** |
+| Takano — *Weightlifting Programming: A Winning Coach's Guide* | PDF | 218 | 0 |
+| **Total** | | **3,796** | **151** |
+
+> Retrieval quality baseline scores: [RETRIEVAL_EVAL.md](RETRIEVAL_EVAL.md)
 
 ---
 
