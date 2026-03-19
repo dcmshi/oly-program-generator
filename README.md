@@ -341,6 +341,40 @@ CLI generation only needs Postgres (no Redis, no web server, no ARQ worker).
 
 ---
 
+## Database Backup & Restore
+
+Backups are stored in `backups/` (gitignored). The custom format (`-Fc`) is compressed and supports selective restore.
+
+### Create a backup
+
+```bash
+docker exec oly-postgres pg_dump -U oly -d oly_programming -Fc > backups/oly_programming_$(date +%Y-%m-%d).dump
+```
+
+### Restore after data loss (DB intact, data lost)
+
+If the container is running but data was lost:
+
+```bash
+docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-exists < backups/oly_programming_2026-03-19.dump
+```
+
+### Full recovery (Docker wiped — `docker compose down -v`)
+
+If the volume was destroyed entirely, recreate the DB from schema first, then restore:
+
+```bash
+# 1. Start fresh — schema.sql auto-applies and creates an empty DB
+cd oly-ingestion && docker compose up -d
+
+# 2. Restore data on top
+docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-exists < backups/oly_programming_2026-03-19.dump
+```
+
+`--clean --if-exists` drops and recreates objects from the dump rather than erroring on tables that schema.sql already created.
+
+---
+
 ## Running Tests
 
 ```bash
