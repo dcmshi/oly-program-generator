@@ -6,6 +6,14 @@ An AI-powered training program generator for Olympic weightlifting. Ingests coac
 
 ---
 
+## Demo
+
+> **Add a short walkthrough here** — a GIF or screen recording (~60–90 s) showing: account setup → dashboard → program generation → session logging → exercise history.
+>
+> Tools: [LICEcap](https://www.cockos.com/licecap/) (Windows/macOS) or [Peek](https://github.com/phw/peek) (Linux) for GIF; [Loom](https://www.loom.com) or [OBS](https://obsproject.com) for video. Export at 800–1000 px wide and commit as `screenshots/demo.gif` or link to a YouTube/Loom URL.
+
+---
+
 ## Architecture
 
 ```mermaid
@@ -89,6 +97,12 @@ flowchart TB
     CLI --> TL & PS
     FEEDBACK --> GP
 ```
+
+> The diagram above renders natively on GitHub. If you're viewing this in a context that doesn't support Mermaid (e.g. a package registry or PDF export), generate a static PNG with:
+> ```bash
+> npm install -g @mermaid-js/mermaid-cli
+> mmdc -i README.md -o docs/architecture.png -w 1600
+> ```
 
 ---
 
