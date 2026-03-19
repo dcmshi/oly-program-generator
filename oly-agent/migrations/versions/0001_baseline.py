@@ -1,21 +1,20 @@
 """Baseline — full athlete/agent schema as of initial deployment.
 
 Revision ID: 0001_baseline
-Revises:
+Revises: 0000_ingestion_schema
 Create Date: 2026-03-16
 
 This migration captures the complete athlete/agent schema including all
 columns added in later phases (username, password_hash, date_of_birth,
 lift_emphasis, strength_limiters, competition_experience).
 
-Ingestion tables (schema.sql) are applied separately via Docker init scripts
-and are not managed by Alembic.
+Ingestion tables are now managed by 0000_ingestion_schema (the new root).
 
 ----
-EXISTING DATABASE: do NOT run this migration — instead stamp it as applied:
-    uv run alembic stamp 0001_baseline
+EXISTING DATABASE: stamp both migrations to mark them as already applied:
+    uv run alembic stamp 0002_athlete_cost_limit
 
-FRESH DATABASE: after applying schema.sql (ingestion tables), run:
+FRESH DATABASE: run only:
     uv run alembic upgrade head
 ----
 """
@@ -24,7 +23,7 @@ from typing import Sequence, Union
 from alembic import op
 
 revision: str = "0001_baseline"
-down_revision: Union[str, None] = None
+down_revision: Union[str, None] = "0000_ingestion_schema"
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
 

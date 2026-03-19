@@ -23,7 +23,6 @@ services:
       - "5432"                   # reachable within Docker network as db:5432
     volumes:
       - pgdata:/var/lib/postgresql/data
-      - ./schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-oly} -d ${POSTGRES_DB:-oly_programming}"]
       interval: 5s

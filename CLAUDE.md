@@ -7,8 +7,8 @@ D:\oly-program-generator\
 ├── CLAUDE.md                        # this file
 ├── README.md                        # project overview + Mermaid architecture diagram
 ├── ARCHITECTURE.md                  # service architecture + Mermaid diagrams (services, sequence, ER, deployment)
-├── schema.sql                       # ingestion schema DDL + seed data
-├── athlete_schema.sql               # athlete/program/log schema DDL
+├── schema.sql                       # ingestion schema DDL + seed data (reference; managed by Alembic 0000_ingestion_schema)
+├── athlete_schema.sql               # athlete/program/log DDL (reference; managed by Alembic 0001_baseline / 0002)
 │
 ├── docs/
 │   ├── CONTRIBUTING.md              # security audit, production readiness, test coverage
@@ -74,7 +74,7 @@ D:\oly-program-generator\
     ├── pyproject.toml               # uv project file
     ├── .venv/                       # managed by uv (never touch manually)
     ├── docker-compose.yml
-    ├── schema.sql                   # copy of ../schema.sql (auto-applied by Docker)
+    ├── schema.sql                   # reference DDL (now managed via Alembic — see oly-agent/migrations/)
     ├── .env                         # API keys — DO NOT COMMIT
     ├── pipeline.py                  # EPUB/PDF ingestion orchestrator
     ├── ingest_web.py                # web article ingestion (Catalyst Athletics)
@@ -201,9 +201,14 @@ PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 21 tests (signed sess
 ## Docker / Database
 
 ```bash
-# Start all services (from oly-ingestion/)
+# ── Fresh setup (first time) ─────────────────────────────────────────────
+# 1. Start services (from oly-ingestion/)
 docker compose up -d
 
+# 2. Apply all migrations (creates every table, index, seed data)
+cd oly-agent && uv run alembic upgrade head
+
+# ── Day-to-day ───────────────────────────────────────────────────────────
 # Stop
 docker compose down
 
@@ -218,8 +223,12 @@ docker exec oly-postgres psql -U oly -d oly_programming -c "
   SELECT id, status, chunks_created FROM ingestion_runs ORDER BY id DESC LIMIT 5;
 "
 
-# Reset DB (drops all data — re-applies schema.sql on next up)
-docker compose down -v && docker compose up -d
+# Reset DB (drops all data — re-run alembic upgrade head after)
+docker compose down -v && docker compose up -d && cd oly-agent && uv run alembic upgrade head
+
+# ── Alembic (existing DB — stamp if you haven't already) ────────────────
+# Mark all migrations as applied without running them (for existing databases):
+cd oly-agent && uv run alembic stamp 0002_athlete_cost_limit
 ```
 
 Ports:
