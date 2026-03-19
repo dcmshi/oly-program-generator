@@ -26,7 +26,7 @@ Identified during pre-deployment architecture review (2026-03-16).
 | S6 | No database migration tooling — schema changes applied as raw SQL with no history or rollback; add Alembic | `schema.sql` / `athlete_schema.sql` | ✅ Done (Alembic in `oly-agent/migrations/`; baseline migration `0001_baseline`; `env.py` reads `DATABASE_URL` from settings; `ALEMBIC_DATABASE_URL` override for direct Postgres port) |
 | S7 | Unstructured logging — plain text logs don't integrate with aggregation tools (CloudWatch, Datadog, Loki); one `logging.config` change adds JSON output | `oly-agent/web/logging_config.py` | ✅ Done (`LOG_FORMAT=json` for prod; `text` default for dev; JSON formatter in `logging_config.py`) |
 | S8 | No request ID / tracing — can't correlate a user's request across web server + ARQ worker logs; add `X-Request-ID` middleware | `oly-agent/web/app.py` | ✅ Done (`RequestIDMiddleware` stamps every request; contextvar propagates to all logs + ARQ worker jobs) |
-| S9 | No backup strategy — `pgdata` Docker volume has no backup config; use managed Postgres (RDS, Cloud SQL, Supabase) with automated backups in production | `oly-ingestion/docker-compose.yml` | ⬜ Open |
+| S9 | No backup strategy — `pgdata` Docker volume has no backup config; use managed Postgres (RDS, Cloud SQL, Supabase) with automated backups in production | `oly-ingestion/docker-compose.yml` | ✅ Done (local `pg_dump -Fc` procedure documented below; `.dump` files gitignored) |
 
 ## Low Priority / When Needed
 
@@ -54,3 +54,37 @@ SELECT indexname FROM pg_indexes WHERE tablename = 'knowledge_chunks';
 If missing, add: `CREATE INDEX ON knowledge_chunks USING hnsw (embedding vector_cosine_ops);`
 
 **S9 context** — in production, replace docker-compose Postgres with a managed service. All connection details flow through `DATABASE_URL` so no app code changes needed.
+
+**S9 local backup procedure** — use `pg_dump` binary format (captures schema + data + pgvector embeddings). The `>` redirect runs in the host shell so the file lands on your machine, not inside the container. The vector embeddings in `knowledge_chunks` are the most expensive asset to regenerate (~$X in OpenAI API calls) and must be included in any backup.
+
+```bash
+# ── Backup (run from project root or wherever you want the file) ──────────
+# Binary format — compact, faithful pgvector support, fastest restore
+docker exec oly-postgres pg_dump -U oly -Fc oly_programming > oly_backup_$(date +%Y%m%d).dump
+
+# Plain SQL — human-readable, portable, slightly larger
+docker exec oly-postgres pg_dump -U oly oly_programming > oly_backup_$(date +%Y%m%d).sql
+
+# ── Restore ───────────────────────────────────────────────────────────────
+# From binary dump — restores into existing (empty) database
+docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-exists oly_backup_YYYYMMDD.dump
+
+# From SQL dump
+docker exec -i oly-postgres psql -U oly oly_programming < oly_backup_YYYYMMDD.sql
+
+# Full restore after a volume wipe (docker compose down -v):
+# 1. docker compose up -d          (recreates volume + applies schema.sql)
+# 2. docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-exists < oly_backup_YYYYMMDD.dump
+
+# ── What's included ───────────────────────────────────────────────────────
+# ✅ All schema (tables, indexes, enums, functions)
+# ✅ All ingestion data (knowledge_chunks with pgvector embeddings, principles, sources)
+# ✅ All athlete data (athletes, programs, training logs, maxes)
+# ✅ Prilepin chart seed data
+# ❌ Not included: .env file, Docker volumes for Redis (ephemeral job state only)
+```
+
+On Windows, `$(date +%Y%m%d)` works in Git Bash. In CMD/PowerShell use a literal filename instead:
+```bash
+docker exec oly-postgres pg_dump -U oly -Fc oly_programming > oly_backup_20260318.dump
+```
