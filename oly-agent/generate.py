@@ -59,12 +59,13 @@ def parse_llm_response(raw_response: str) -> list[dict]:
     except json.JSONDecodeError:
         pass
 
-    # Find JSON array in response
+    # Find JSON array in response — skip empty arrays so [] inside a dict field
+    # doesn't shadow the real object that follows
     match = re.search(r"\[[\s\S]*\]", text)
     if match:
         try:
             result = json.loads(match.group())
-            if isinstance(result, list):
+            if isinstance(result, list) and len(result) > 0:
                 return result
         except json.JSONDecodeError:
             pass

@@ -13,12 +13,17 @@ import json
 import sys
 from datetime import date
 from pathlib import Path
+from types import SimpleNamespace
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from generate import build_session_prompt, parse_llm_response, validate_exercise_names
-from models import AthleteContext, RetrievalContext, WeekTarget, SessionTemplate
+from generate import (
+    build_session_prompt, parse_llm_response, validate_exercise_names,
+    generate_session_with_retries,
+)
+from models import AthleteContext, RetrievalContext, WeekTarget, SessionTemplate, GenerationResult
 from shared.constants import MAX_RECENT_LOGS_IN_PROMPT
 
 
@@ -597,6 +602,144 @@ def test_lift_ratios_fallback_when_no_maxes():
     return True, ""
 
 
+# ── T4: parse_llm_response fallback branches (lines 69-70, 75-80) ─────────────
+
+def test_parse_object_after_prose_hits_object_branch():
+    """Bare object embedded after prose preamble is extracted and wrapped (lines 75-78)."""
+    ex = dict(VALID_EXERCISE)
+    raw = f"Here is the exercise:\n{json.dumps(ex)}"
+    result = parse_llm_response(raw)
+    assert isinstance(result, list) and len(result) == 1
+    assert result[0]["exercise_name"] == "Snatch"
+    return True, ""
+
+
+def test_parse_invalid_array_falls_through_to_object_branch():
+    """Invalid JSON in array regex match causes exception (line 70) and falls to object branch."""
+    ex = dict(VALID_EXERCISE)
+    # "[not valid]" triggers array branch but fails json.loads; "{...}" succeeds in object branch
+    raw = f"[not valid json] {json.dumps(ex)}"
+    result = parse_llm_response(raw)
+    assert isinstance(result, list) and len(result) == 1
+    return True, ""
+
+
+def test_parse_invalid_object_raises_value_error():
+    """Invalid JSON in both array and object branches raises ValueError (line 80 hit)."""
+    try:
+        parse_llm_response("[invalid array] {invalid object}")
+        return False, "Expected ValueError was not raised"
+    except ValueError:
+        return True, ""
+
+
+# ── T5: generate_session_with_retries retry paths (lines 495-622) ─────────────
+
+_SIMPLE_WEEK_TARGET = {
+    "week_number": 1, "intensity_floor": 70, "intensity_ceiling": 80,
+    "volume_modifier": 1.0, "reps_per_set_range": [3, 5],
+    "is_deload": False, "total_competition_lift_reps": 18,
+}
+_SIMPLE_ATHLETE = {
+    "name": "Test", "session_duration_minutes": 90,
+    "exercise_preferences": {"avoid": []}, "technical_faults": [],
+    "strength_limiters": [],
+}
+_AVAILABLE_NAMES = ["Snatch", "Clean & Jerk", "Back Squat"]
+_VALID_SESSION = [{
+    "exercise_name": "Snatch", "exercise_order": 1,
+    "sets": 4, "reps": 3, "intensity_pct": 75, "intensity_reference": "snatch",
+    "rest_seconds": 180, "rpe_target": 7.5,
+    "selection_rationale": "Primary lift.", "source_principle_ids": [],
+}]
+
+
+def _make_settings(retries=1, parse_retries=1):
+    return SimpleNamespace(
+        max_generation_retries=retries,
+        max_parse_retries=parse_retries,
+        generation_model="claude-sonnet-4-6",
+        generation_max_tokens=2048,
+        generation_temperature=0.7,
+        retry_delay_seconds=0,
+    )
+
+
+def _make_llm_response(text):
+    r = MagicMock()
+    r.content = [MagicMock(text=text)]
+    r.usage.input_tokens = 100
+    r.usage.output_tokens = 50
+    return r
+
+
+def _call_generate(llm, settings=None):
+    return generate_session_with_retries(
+        prompt="test prompt",
+        llm_client=llm,
+        settings=settings or _make_settings(),
+        available_exercise_names=_AVAILABLE_NAMES,
+        week_target=_SIMPLE_WEEK_TARGET,
+        athlete=_SIMPLE_ATHLETE,
+        active_principles=[],
+        week_cumulative_reps={},
+        program_id=1,
+        week_number=1,
+        day_number=1,
+        conn=MagicMock(),
+    )
+
+
+def test_generate_session_success_first_attempt():
+    """Valid JSON on first attempt returns success result."""
+    llm = MagicMock()
+    llm.messages.create.return_value = _make_llm_response(json.dumps(_VALID_SESSION))
+    result = _call_generate(llm)
+    assert result.status == "success"
+    assert result.attempt_number == 1
+    return True, ""
+
+
+def test_generate_session_parse_error_retries():
+    """Parse error on first attempt triggers retry with modified prompt."""
+    llm = MagicMock()
+    llm.messages.create.side_effect = [
+        _make_llm_response("not json at all"),
+        _make_llm_response(json.dumps(_VALID_SESSION)),
+    ]
+    result = _call_generate(llm)
+    assert result.status == "success"
+    assert result.attempt_number == 2
+    second_call_prompt = llm.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
+    assert "not valid JSON" in second_call_prompt
+    return True, ""
+
+
+def test_generate_session_name_error_retries():
+    """Invalid exercise name triggers retry with error list in prompt."""
+    bad_session = [dict(_VALID_SESSION[0], exercise_name="Log Press")]
+    llm = MagicMock()
+    llm.messages.create.side_effect = [
+        _make_llm_response(json.dumps(bad_session)),
+        _make_llm_response(json.dumps(_VALID_SESSION)),
+    ]
+    result = _call_generate(llm)
+    assert result.status == "success"
+    second_call_prompt = llm.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
+    assert "Log Press" in second_call_prompt
+    return True, ""
+
+
+def test_generate_session_all_retries_exhausted():
+    """All retries exhausted returns GenerationResult with status=failed."""
+    llm = MagicMock()
+    llm.messages.create.return_value = _make_llm_response("not json")
+    result = _call_generate(llm, _make_settings(retries=1, parse_retries=1))
+    assert result.status == "failed"
+    assert result.exercises is None
+    return True, ""
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
@@ -651,6 +794,15 @@ TESTS = [
     ("prompt ratios: below target flags structural work", test_lift_ratios_below_target_flags_structural_work),
     ("prompt ratios: missing max → ratio omitted", test_lift_ratios_missing_max_skipped),
     ("prompt ratios: no maxes → fallback text", test_lift_ratios_fallback_when_no_maxes),
+    # T4: parse_llm_response fallback branches
+    ("parse: object after prose → object branch (lines 75-78)", test_parse_object_after_prose_hits_object_branch),
+    ("parse: invalid array falls through to object branch (line 70)", test_parse_invalid_array_falls_through_to_object_branch),
+    ("parse: both branches invalid → ValueError (line 80)", test_parse_invalid_object_raises_value_error),
+    # T5: generate_session_with_retries retry paths
+    ("generate: success on first attempt", test_generate_session_success_first_attempt),
+    ("generate: parse error triggers retry with JSON reminder", test_generate_session_parse_error_retries),
+    ("generate: name error triggers retry with error list", test_generate_session_name_error_retries),
+    ("generate: all retries exhausted → status=failed", test_generate_session_all_retries_exhausted),
 ]
 
 

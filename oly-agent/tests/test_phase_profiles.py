@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from phase_profiles import build_weekly_targets, PHASE_PROFILES
+from session_templates import get_session_templates, SESSION_DISTRIBUTIONS
 
 
 # ── Helpers ───────────────────────────────────────────────────
@@ -194,6 +195,51 @@ def test_realization_high_intensity():
     )
 
 
+# ── T9: get_session_templates — fallback branch (lines 142-143) ───────────────
+
+def test_get_session_templates_exact_3():
+    """sessions_per_week=3 returns 3-day templates directly (no fallback)."""
+    templates = get_session_templates(3)
+    return assert_eq("3-day template count", len(templates), 3)
+
+
+def test_get_session_templates_exact_4():
+    """sessions_per_week=4 returns 4-day templates directly (no fallback)."""
+    templates = get_session_templates(4)
+    return assert_eq("4-day template count", len(templates), 4)
+
+
+def test_get_session_templates_exact_5():
+    """sessions_per_week=5 returns 5-day templates directly (no fallback)."""
+    templates = get_session_templates(5)
+    return assert_eq("5-day template count", len(templates), 5)
+
+
+def test_get_session_templates_fallback_below_minimum():
+    """sessions_per_week=1 is below all keys — falls back to 3 (closest)."""
+    templates = get_session_templates(1)
+    return assert_eq("fallback-to-3 count", len(templates), 3)
+
+
+def test_get_session_templates_fallback_above_maximum():
+    """sessions_per_week=6 is above all keys — falls back to 5 (closest)."""
+    templates = get_session_templates(6)
+    return assert_eq("fallback-to-5 count", len(templates), 5)
+
+
+def test_get_session_templates_all_have_required_keys():
+    """Every template dict has day_number, primary_movement, session_volume_share."""
+    failures = []
+    for n in SESSION_DISTRIBUTIONS:
+        for tmpl in get_session_templates(n):
+            for key in ("day_number", "primary_movement", "session_volume_share"):
+                if key not in tmpl:
+                    failures.append(f"{n}-day template missing key '{key}'")
+    if failures:
+        return False, "; ".join(failures)
+    return True, ""
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
@@ -212,6 +258,13 @@ TESTS = [
     ("Shortened duration: deload still last", test_shortened_duration_deload_last),
     ("reps_per_set_range is always [low, high]", test_reps_per_set_range_is_pair),
     ("Realization peak intensity >= 90%", test_realization_high_intensity),
+    # T9: get_session_templates
+    ("get_session_templates: exact match 3", test_get_session_templates_exact_3),
+    ("get_session_templates: exact match 4", test_get_session_templates_exact_4),
+    ("get_session_templates: exact match 5", test_get_session_templates_exact_5),
+    ("get_session_templates: fallback to 3 when sessions=1", test_get_session_templates_fallback_below_minimum),
+    ("get_session_templates: fallback to 5 when sessions=6", test_get_session_templates_fallback_above_maximum),
+    ("get_session_templates: all templates have required keys", test_get_session_templates_all_have_required_keys),
 ]
 
 

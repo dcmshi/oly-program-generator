@@ -7,6 +7,11 @@ sources/
 *.pdf
 *.epub
 
+# Coverage
+.coverage
+.coverage.*
+htmlcov/
+
 # Python
 .venv/
 venv/
@@ -24,6 +29,10 @@ logs/
 
 # Docker volumes
 pgdata/
+
+# Postgres backups (local dumps — not for repo)
+*.dump
+oly_backup_*.sql
 
 # uv
 uv.lock

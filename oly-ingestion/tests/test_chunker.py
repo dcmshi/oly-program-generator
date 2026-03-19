@@ -144,6 +144,89 @@ def test_keep_together_soviet_notation():
     assert pattern.search("70%/3x3  75%/3x2  80%/2x2")
 
 
+# ── T8: validate_chunk edge cases (missing lines) ─────────────────────────────
+
+def test_validate_chunk_too_long():
+    """Chunk over 1500 tokens triggers a warning issue."""
+    from processors.chunker import Chunk
+    chunk = Chunk(content="A" * 6000, raw_content="A" * 6000, token_count=1600,
+                  topics=["snatch_technique"])
+    result = validate_chunk(chunk)
+    assert any("too long" in issue for issue in result.issues)
+
+
+def test_validate_chunk_many_rep_schemes():
+    """Chunk with 3+ rep schemes triggers routing suggestion."""
+    from processors.chunker import Chunk
+    text = "Snatch 5x3 @ 72%\nClean 4x2 @ 78%\nBack Squat 4x5 @ 80%"
+    chunk = Chunk(content=text, raw_content=text, token_count=200,
+                  topics=["snatch_programming"])
+    result = validate_chunk(chunk)
+    assert any("rep scheme" in issue.lower() for issue in result.issues)
+
+
+def test_validate_chunk_table_like_content():
+    """Chunk with 3+ pipe-delimited lines triggers table routing suggestion."""
+    from processors.chunker import Chunk
+    text = "Header | Col1 | Col2\nRow1 | A | B\nRow2 | C | D\nRow3 | E | F"
+    chunk = Chunk(content=text, raw_content=text, token_count=100,
+                  topics=["snatch_programming"])
+    result = validate_chunk(chunk)
+    assert any("table" in issue.lower() for issue in result.issues)
+
+
+def test_validate_chunk_starts_lowercase():
+    """Chunk starting with lowercase triggers mid-sentence split warning."""
+    from processors.chunker import Chunk
+    text = "the athlete should focus on strength during this block."
+    chunk = Chunk(content=text, raw_content=text, token_count=100,
+                  topics=["snatch_technique"])
+    result = validate_chunk(chunk)
+    assert any("lowercase" in issue.lower() or "mid-sentence" in issue.lower()
+               for issue in result.issues)
+
+
+# ── T8: _chunk_section / _would_split_pattern / _get_overlap ─────────────────
+
+def test_chunk_section_empty_returns_empty():
+    """_chunk_section returns empty list for empty or whitespace-only text."""
+    chunker = SemanticChunker()
+    assert chunker._chunk_section("") == []
+    assert chunker._chunk_section("   \n\n   ") == []
+
+
+def test_would_split_pattern_true_when_straddles_boundary():
+    """Returns True when a keep-together pattern spans the chunk/para boundary."""
+    chunker = SemanticChunker()
+    # "5" at end of chunk_end, "x3 @ 72%" at start of next_para
+    # boundary_zone = "...text before 5\n\nx3 @ 72%..."
+    # \d+\s*[xX×]\s*\d+ matches "5\n\nx3" — \s* crosses the boundary
+    result = chunker._would_split_pattern("text before 5", "x3 @ 72% more text")
+    assert result is True
+
+
+def test_would_split_pattern_false_when_no_match():
+    """Returns False when no keep-together pattern straddles the boundary."""
+    chunker = SemanticChunker()
+    result = chunker._would_split_pattern("Normal prose text here.", "More normal prose.")
+    assert result is False
+
+
+def test_get_overlap_returns_sentence_suffix():
+    """_get_overlap returns the last sentence(s) within the overlap token budget."""
+    chunker = SemanticChunker(chunk_overlap_override=15)
+    text = "This is a longer first sentence with many words in it. Short end."
+    overlap = chunker._get_overlap(text)
+    assert len(overlap) > 0
+    assert "Short end" in overlap
+
+
+def test_get_overlap_empty_text():
+    """_get_overlap on empty text returns empty string without error."""
+    chunker = SemanticChunker()
+    assert chunker._get_overlap("") == ""
+
+
 if __name__ == "__main__":
     # Run manually without pytest
     tests = [v for k, v in globals().items() if k.startswith("test_")]

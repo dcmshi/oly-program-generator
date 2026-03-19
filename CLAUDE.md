@@ -11,6 +11,7 @@ D:\oly-program-generator\
 ├── SCALING.md                       # scaling + production readiness tracker
 ├── PROGRESS.md                      # implementation progress tracker
 ├── RETRIEVAL_EVAL.md                # retrieval quality baseline scores + open issues tracker
+├── TESTING.md                       # coverage baseline + prioritised gap tracker (T1–T9)
 ├── oly-programming-pipeline.md      # ingestion pipeline design doc
 ├── oly-programming-agent.md         # agent design doc
 ├── oly-code-reference.md            # reference implementations by module

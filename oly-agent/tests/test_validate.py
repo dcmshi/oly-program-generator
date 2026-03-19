@@ -15,6 +15,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from validate import validate_session
+from models import WeekTarget
 
 # ── Fixtures ───────────────────────────────────────────────────
 
@@ -479,6 +480,49 @@ def test_empty_session_is_invalid():
     return True, ""
 
 
+# ── T3: deload / dataclass / comp-lift-null-pct (new coverage) ────────────────
+
+def test_deload_week_sub55_no_prilepin_error():
+    """Snatch at 50% falls below get_prilepin_zone threshold (returns None) — no Prilepin error."""
+    deload_target = dict(WEEK_TARGET, intensity_floor=40, intensity_ceiling=60, is_deload=True)
+    exercises = [_ex("Snatch", 5, 5, 50)]  # 50% → zone is None → Prilepin loop skipped
+    result = validate_session(exercises, deload_target, PRINCIPLES, ATHLETE)
+    assert not any("Prilepin" in e for e in result.errors), result.errors
+    assert not any("Prilepin" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_week_target_dataclass_converted():
+    """WeekTarget dataclass is accepted and converted via asdict (covers lines 79-81)."""
+    week_target_dc = WeekTarget(
+        week_number=1,
+        volume_modifier=1.0,
+        intensity_floor=70.0,
+        intensity_ceiling=80.0,
+        total_competition_lift_reps=18,
+        reps_per_set_range=[3, 5],
+        is_deload=False,
+    )
+    exercises = [_ex("Snatch", 4, 4, 75)]
+    # Must not raise AttributeError — dataclass is converted to dict internally
+    result = validate_session(exercises, week_target_dc, PRINCIPLES, ATHLETE)
+    assert result.is_valid, result.errors
+    return True, ""
+
+
+def test_comp_lift_null_pct_skipped_in_prilepin():
+    """Comp lift (snatch) with intensity_pct=None is skipped in Prilepin check (line 99)."""
+    exercises = [{
+        "exercise_name": "Snatch", "exercise_order": 1,
+        "sets": 3, "reps": 3, "intensity_pct": None,
+        "intensity_reference": "snatch", "rest_seconds": 120, "rpe_target": 7.0,
+    }]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not any("Prilepin" in e for e in result.errors), result.errors
+    assert result.session_comp_reps == {}, result.session_comp_reps
+    return True, ""
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
@@ -525,6 +569,10 @@ TESTS = [
     ("Limiter: multiple, each checked", test_multiple_limiters_each_checked),
     ("Limiter: none declared → ok", test_no_strength_limiters_no_warning),
     ("Limiter: unknown key → skipped gracefully", test_unknown_limiter_skipped_gracefully),
+    # T3: deload / dataclass / comp-lift-null-pct
+    ("Deload: 50% snatch → no Prilepin error (zone is None)", test_deload_week_sub55_no_prilepin_error),
+    ("WeekTarget dataclass: converted via asdict", test_week_target_dataclass_converted),
+    ("Comp lift + null pct: skipped in Prilepin (line 99)", test_comp_lift_null_pct_skipped_in_prilepin),
 ]
 
 

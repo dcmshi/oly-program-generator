@@ -20,6 +20,7 @@ from models import AthleteContext, ProgramPlan, WeekTarget, SessionTemplate
 from phase_profiles import build_weekly_targets
 from session_templates import get_session_templates
 from shared.prilepin import compute_session_rep_target
+from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
 
 RESULTS = []
 
@@ -331,6 +332,89 @@ def test_fault_correction_chunks_empty_when_no_faults():
     with patch("retrieve.fetch_all", side_effect=[[], []]):
         result = retrieve(_ctx(faults=[]), _plan(), conn=None, vector_loader=vl)
     assert result.fault_correction_chunks == []
+
+
+# ── T1: min_similarity kwarg asserted on every call site ─────────────────────
+
+def _get_call_query(call):
+    return call.kwargs.get("query") or (call.args[0] if call.args else "")
+
+
+def test_session_template_search_passes_min_similarity():
+    """similarity_search for session templates passes min_similarity=0.45."""
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        retrieve(_ctx(), _plan(), conn=None, vector_loader=vl)
+
+    session_calls = [c for c in vl.similarity_search.call_args_list
+                     if "exercise selection" in _get_call_query(c)]
+    assert len(session_calls) > 0
+    for call in session_calls:
+        assert call.kwargs.get("min_similarity") == VECTOR_SEARCH_MIN_SIMILARITY, (
+            f"Expected min_similarity={VECTOR_SEARCH_MIN_SIMILARITY}, "
+            f"got {call.kwargs.get('min_similarity')}"
+        )
+
+
+def test_fault_search_passes_min_similarity():
+    """similarity_search for fault correction passes min_similarity=0.45."""
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+        retrieve(_ctx(faults=["forward_lean"]), _plan(), conn=None, vector_loader=vl)
+
+    fault_calls = [c for c in vl.similarity_search.call_args_list
+                   if "correcting" in _get_call_query(c)]
+    assert len(fault_calls) > 0
+    for call in fault_calls:
+        assert call.kwargs.get("min_similarity") == VECTOR_SEARCH_MIN_SIMILARITY, (
+            f"Expected min_similarity={VECTOR_SEARCH_MIN_SIMILARITY}, "
+            f"got {call.kwargs.get('min_similarity')}"
+        )
+
+
+def test_limiter_search_passes_min_similarity():
+    """similarity_search for strength limiters passes min_similarity=0.45."""
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        retrieve(_ctx(strength_limiters=["squat_limited"]), _plan(), conn=None, vector_loader=vl)
+
+    limiter_calls = [c for c in vl.similarity_search.call_args_list
+                     if "strength development" in _get_call_query(c)]
+    assert len(limiter_calls) > 0
+    for call in limiter_calls:
+        assert call.kwargs.get("min_similarity") == VECTOR_SEARCH_MIN_SIMILARITY, (
+            f"Expected min_similarity={VECTOR_SEARCH_MIN_SIMILARITY}, "
+            f"got {call.kwargs.get('min_similarity')}"
+        )
+
+
+def test_session_template_search_exception_caught():
+    """similarity_search raising for session template is caught — not re-raised."""
+    vl = _mock_vector_loader()
+    vl.similarity_search.side_effect = RuntimeError("DB connection lost")
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        result = retrieve(_ctx(), _plan(), conn=None, vector_loader=vl)
+    assert result.programming_rationale == []
+
+
+def test_fault_search_exception_caught():
+    """similarity_search raising for fault search is caught — not re-raised."""
+    vl = _mock_vector_loader()
+    vl.similarity_search.side_effect = RuntimeError("Embedding API error")
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+        result = retrieve(_ctx(faults=["forward_lean"]), _plan(), conn=None, vector_loader=vl)
+    assert result.fault_correction_chunks == []
+
+
+def test_limiter_search_exception_caught():
+    """similarity_search raising for limiter search is caught — not re-raised."""
+    vl = _mock_vector_loader()
+    vl.similarity_search.side_effect = RuntimeError("timeout")
+    with patch("retrieve.fetch_all", side_effect=[[], []]):
+        result = retrieve(
+            _ctx(strength_limiters=["squat_limited"]), _plan(), conn=None, vector_loader=vl
+        )
+    assert result.programming_rationale == []
 
 
 # ── Runner ───────────────────────────────────────────────────────────────────
