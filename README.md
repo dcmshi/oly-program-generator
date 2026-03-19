@@ -214,3 +214,18 @@ make coverage # coverage report
 ```
 
 > Full service and deployment architecture: [ARCHITECTURE.md](ARCHITECTURE.md)
+
+---
+
+## Roadmap
+
+The system is production-capable as a single-user app. These are the extensions that would make it genuinely deployable and architecturally interesting:
+
+| # | Area | Description |
+|---|------|-------------|
+| 1 | **Cloud deployment** | Stack is already containerised with Docker Compose, PgBouncer, Redis, and a `/health` endpoint. Next step is Fly.io / Railway for low-friction deploy, or ECS + RDS + ElastiCache for a stronger AWS infrastructure story. `SCALING.md` tracks the remaining gaps. |
+| 2 | **Multi-agent pipeline** | Current pipeline is a linear chain. Natural evolution: run all session generations in parallel, add a Validation Agent that acts as a critic and sends specific sessions back for targeted revision (rather than retrying with appended errors). LangGraph would fit cleanly on the Anthropic stack and produces visualisable agent graphs. |
+| 3 | **Real-time autoregulation** | Feedback loop currently operates between programs. V2 would adjust within a running program: RPE consistently above target → reduce next session's intensity by 3–5% automatically, with a confirmation step before applying. Open design question around how much autonomy to grant vs. requiring athlete sign-off. |
+| 4 | **Coach mode** | Multi-athlete dashboard showing progression, flagging declining make rates, missed sessions, and RPE drift across athletes. Data model already supports it (athletes table is normalised, auth is in place) — primarily a permissions layer and aggregate query work. |
+| 5 | **Retrieval feedback loop** | `source_chunk_ids` and `source_principle_ids` on each session exercise capture which knowledge was used. Chunks cited in high-outcome programs (strong adherence, max improvements) could be boosted in future similarity searches — a lightweight RLHF loop on the RAG pipeline. |
+| 6 | **Mobile PWA / API-first** | Athletes log training in the gym on their phones. Either a PWA with offline session logging (sync on reconnect) or an API-first refactor exposing REST endpoints for a React Native / Flutter frontend — both would demonstrate real-world UX thinking and enable integrations with existing training log tools. |
