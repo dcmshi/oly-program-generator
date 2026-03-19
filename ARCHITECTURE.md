@@ -52,6 +52,8 @@ flowchart TB
     Ing -->|classify + principles| Anthropic
 ```
 
+> _Static PNG: [docs/arch-services.png](docs/arch-services.png)_
+
 ---
 
 ## Program Generation Flow
@@ -99,6 +101,8 @@ sequenceDiagram
     UI-->>User: link to /program/N
 ```
 
+> _Static PNG: [docs/arch-sequence.png](docs/arch-sequence.png)_
+
 ---
 
 ## Ingestion Pipeline Flow
@@ -143,6 +147,8 @@ flowchart LR
     CLASS -->|mixed| CHUNK & PEX
 ```
 
+> _Static PNG: [docs/arch-ingestion.png](docs/arch-ingestion.png)_
+
 ---
 
 ## Database Schema (20 tables)
@@ -170,6 +176,8 @@ erDiagram
     training_logs ||--o{ training_log_exercises : has
     training_log_exercises }o--o| session_exercises : references
 ```
+
+> _Static PNG: [docs/arch-er.png](docs/arch-er.png)_
 
 ---
 

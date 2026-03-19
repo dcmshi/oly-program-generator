@@ -98,11 +98,7 @@ flowchart TB
     FEEDBACK --> GP
 ```
 
-> The diagram above renders natively on GitHub. If you're viewing this in a context that doesn't support Mermaid (e.g. a package registry or PDF export), generate a static PNG with:
-> ```bash
-> npm install -g @mermaid-js/mermaid-cli
-> mmdc -i README.md -o docs/architecture.png -w 1600
-> ```
+> _If the diagram above doesn't render, see the static PNG: [docs/arch-main.png](docs/arch-main.png)_
 
 ---
 
