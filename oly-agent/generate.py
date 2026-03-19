@@ -31,6 +31,7 @@ from models import (
     AthleteContext, ProgramPlan, RetrievalContext,
     WeekTarget, SessionTemplate, GenerationResult,
 )
+from schemas import OutcomeSummary
 from validate import validate_session
 
 logger = logging.getLogger(__name__)
@@ -293,36 +294,31 @@ def build_session_prompt(
     # ── Previous program summary ──────────────────────────────
     prev_prog = athlete_context.previous_program
     if prev_prog:
-        outcome = prev_prog.get("outcome_summary") or {}
+        outcome = OutcomeSummary.model_validate(prev_prog.get("outcome_summary") or {})
         prev_lines = [
             f"  Phase: {prev_prog.get('phase', 'unknown')} ({prev_prog.get('duration_weeks', '?')} weeks)",
-            f"  Adherence: {outcome.get('adherence_pct', 'N/A')}%",
-            f"  Avg make rate on competition lifts: {outcome.get('avg_make_rate', 'N/A')}",
+            f"  Adherence: {outcome.adherence_pct}%",
+            f"  Avg make rate on competition lifts: {outcome.avg_make_rate}",
         ]
-        by_lift = outcome.get("make_rate_by_lift") or {}
-        if by_lift:
-            lift_parts = [f"{k.replace('_', ' ')} {v:.0%}" for k, v in by_lift.items()]
+        if outcome.make_rate_by_lift:
+            lift_parts = [f"{k.replace('_', ' ')} {v:.0%}" for k, v in outcome.make_rate_by_lift.items()]
             prev_lines.append(f"  Make rate by lift: {', '.join(lift_parts)}")
-            weak_lifts = [k.replace("_", " ") for k, v in by_lift.items() if v < 0.75]
+            weak_lifts = [k.replace("_", " ") for k, v in outcome.make_rate_by_lift.items() if v < 0.75]
             if weak_lifts:
                 prev_lines.append(
                     f"  → {', '.join(weak_lifts)} make rate was below 75% — "
                     f"reduce intensity on those lifts 3–5% below the week ceiling."
                 )
         prev_lines += [
-            f"  Avg RPE deviation: {outcome.get('avg_rpe_deviation', 'N/A'):+.2f}"
-            if isinstance(outcome.get("avg_rpe_deviation"), (int, float)) else
-            f"  Avg RPE deviation: N/A",
-            f"  RPE trend: {outcome.get('rpe_trend', 'N/A')}",
-            f"  Make rate trend: {outcome.get('make_rate_trend', 'N/A')}",
+            f"  Avg RPE deviation: {outcome.avg_rpe_deviation:+.2f}",
+            f"  RPE trend: {outcome.rpe_trend}",
+            f"  Make rate trend: {outcome.make_rate_trend}",
         ]
-        deltas = outcome.get("maxes_delta") or {}
-        if deltas:
-            delta_parts = [f"{k} {v:+.1f}kg" for k, v in deltas.items()]
+        if outcome.maxes_delta:
+            delta_parts = [f"{k} {v:+.1f}kg" for k, v in outcome.maxes_delta.items()]
             prev_lines.append(f"  Strength progress: {', '.join(delta_parts)}")
-        feedback = outcome.get("athlete_feedback")
-        if feedback:
-            prev_lines.append(f'  Athlete notes: "{feedback[:200]}"')
+        if outcome.athlete_feedback:
+            prev_lines.append(f'  Athlete notes: "{outcome.athlete_feedback[:200]}"')
         prev_program_block = "\n".join(prev_lines)
     else:
         prev_program_block = "  None — this is the athlete's first program."

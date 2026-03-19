@@ -12,10 +12,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from pydantic import ValidationError
 from shared.db import fetch_all
 from shared.prilepin import compute_session_rep_target
 from models import AthleteContext, ProgramPlan, WeekTarget, SessionTemplate
 from phase_profiles import build_weekly_targets
+from schemas import OutcomeSummary
 from session_templates import get_session_templates
 
 logger = logging.getLogger(__name__)
@@ -147,7 +149,12 @@ def _select_phase_and_duration(ctx: AthleteContext) -> tuple[str, int]:
     # Advance phase from previous program when no competition date
     if ctx.previous_program is not None:
         prev_phase = ctx.previous_program.get("phase")
-        outcome = ctx.previous_program.get("outcome_summary") or {}
+        raw_outcome = ctx.previous_program.get("outcome_summary") or {}
+        try:
+            outcome = OutcomeSummary.model_validate(raw_outcome)
+        except ValidationError as exc:
+            logger.warning("outcome_summary validation failed — using defaults: %s", exc)
+            outcome = OutcomeSummary()
         next_phase, next_duration = _advance_phase(prev_phase, outcome, goal)
         logger.info(f"Phase progression: {prev_phase} -> {next_phase} ({next_duration} wks)")
         return next_phase, next_duration
@@ -167,7 +174,7 @@ def _select_phase_and_duration(ctx: AthleteContext) -> tuple[str, int]:
 _PHASE_SEQUENCE = ["general_prep", "accumulation", "intensification", "realization"]
 
 
-def _advance_phase(prev_phase: str | None, outcome: dict, goal: str | None) -> tuple[str, int]:
+def _advance_phase(prev_phase: str | None, outcome: OutcomeSummary, goal: str | None) -> tuple[str, int]:
     """Select the next phase given the previous phase and outcome signals.
 
     Rules:
@@ -177,9 +184,9 @@ def _advance_phase(prev_phase: str | None, outcome: dict, goal: str | None) -> t
     """
     from phase_profiles import PHASE_PROFILES
 
-    adherence = outcome.get("adherence_pct", 100.0)
-    make_rate = outcome.get("avg_make_rate", 1.0)
-    rpe_dev = outcome.get("avg_rpe_deviation", 0.0)
+    adherence = outcome.adherence_pct
+    make_rate = outcome.avg_make_rate
+    rpe_dev = outcome.avg_rpe_deviation
 
     # Performance gate: advance only if athlete is ready
     ready_to_advance = adherence >= 70.0 and make_rate >= 0.75
@@ -219,13 +226,18 @@ def _apply_outcome_adjustments(raw_targets: list[dict], previous_program: dict) 
     - High RPE deviation (>1.0): reduce volume_modifier by 5% (program was too fatiguing)
     - Excellent performance (adherence >90%, make_rate >0.85): small intensity boost (+2%)
     """
-    outcome = previous_program.get("outcome_summary") or {}
-    if not outcome:
+    raw_outcome = previous_program.get("outcome_summary") or {}
+    if not raw_outcome:
+        return raw_targets
+    try:
+        outcome = OutcomeSummary.model_validate(raw_outcome)
+    except ValidationError as exc:
+        logger.warning("outcome_summary validation failed — applying no adjustments: %s", exc)
         return raw_targets
 
-    adherence = outcome.get("adherence_pct", 100.0)
-    make_rate = outcome.get("avg_make_rate", 1.0)
-    rpe_dev = outcome.get("avg_rpe_deviation", 0.0)
+    adherence = outcome.adherence_pct
+    make_rate = outcome.avg_make_rate
+    rpe_dev = outcome.avg_rpe_deviation
 
     vol_delta = 0.0
     int_delta = 0.0

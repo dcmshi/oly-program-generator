@@ -18,6 +18,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from plan import plan, _select_phase_and_duration, _advance_phase, _apply_outcome_adjustments
 from models import AthleteContext
+from schemas import OutcomeSummary
 
 RESULTS = []
 
@@ -154,7 +155,7 @@ def test_returning_athlete_no_intensity_override():
 def _good_outcome(**kwargs):
     base = {"adherence_pct": 90.0, "avg_make_rate": 0.85, "avg_rpe_deviation": 0.2}
     base.update(kwargs)
-    return base
+    return OutcomeSummary.model_validate(base)
 
 def test_accumulation_advances_to_intensification():
     phase, _ = _advance_phase("accumulation", _good_outcome(), None)

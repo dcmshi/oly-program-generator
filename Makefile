@@ -82,7 +82,8 @@ AGENT_TESTS := \
 	tests/test_retrieve.py \
 	tests/test_explain.py \
 	tests/test_orchestrator.py \
-	tests/test_web_routers.py
+	tests/test_web_routers.py \
+	tests/test_schemas.py
 
 INGESTION_TESTS := \
 	tests/test_chunker.py \

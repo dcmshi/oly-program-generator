@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.db import fetch_all, fetch_one, execute
 from models import ProgramOutcome
+from schemas import OutcomeSummary, PhaseVerdict
 
 logger = logging.getLogger(__name__)
 
@@ -207,8 +208,27 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
 
 
 def save_outcome(outcome: ProgramOutcome, conn):
-    """Persist outcome summary to generated_programs.outcome_summary."""
-    import json
+    """Persist outcome summary to generated_programs.outcome_summary.
+
+    Builds and validates an OutcomeSummary model before serialising — any
+    schema mismatch raises immediately rather than silently storing bad data
+    that would corrupt future planning decisions.
+    """
+    summary = OutcomeSummary(
+        adherence_pct=outcome.adherence_pct,
+        avg_rpe_deviation=outcome.avg_rpe_deviation,
+        avg_make_rate=outcome.avg_make_rate,
+        make_rate_by_lift=outcome.make_rate_by_lift,
+        avg_weekly_reps=outcome.avg_weekly_reps,
+        rpe_trend=outcome.rpe_trend,
+        make_rate_trend=outcome.make_rate_trend,
+        maxes_delta=outcome.maxes_delta,
+        athlete_feedback=outcome.athlete_feedback,
+        phase_verdict=(
+            PhaseVerdict.model_validate(outcome.phase_verdict)
+            if outcome.phase_verdict else None
+        ),
+    )
     execute(
         conn,
         """
@@ -216,21 +236,7 @@ def save_outcome(outcome: ProgramOutcome, conn):
         SET outcome_summary = %s, status = 'completed', updated_at = NOW()
         WHERE id = %s
         """,
-        (
-            json.dumps({
-                "maxes_delta":        outcome.maxes_delta,
-                "adherence_pct":      outcome.adherence_pct,
-                "avg_rpe_deviation":  outcome.avg_rpe_deviation,
-                "avg_make_rate":      outcome.avg_make_rate,
-                "make_rate_by_lift":  outcome.make_rate_by_lift,
-                "phase_verdict":      outcome.phase_verdict,
-                "avg_weekly_reps":    outcome.avg_weekly_reps,
-                "rpe_trend":          outcome.rpe_trend,
-                "make_rate_trend":    outcome.make_rate_trend,
-                "athlete_feedback":   outcome.athlete_feedback,
-            }),
-            outcome.program_id,
-        ),
+        (summary.model_dump_json(), outcome.program_id),
     )
     conn.commit()
     logger.info(f"Saved outcome for program {outcome.program_id}")
