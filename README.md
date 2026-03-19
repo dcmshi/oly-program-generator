@@ -121,6 +121,7 @@ flowchart TB
 ```
 oly-program-generator/
 ├── README.md
+├── Makefile                         # Common dev tasks: make web, make test, make up …
 ├── CLAUDE.md                        # Claude Code project instructions
 ├── ARCHITECTURE.md                  # Service architecture + Mermaid diagrams
 ├── schema.sql                       # Ingestion schema DDL (seed data included)
@@ -225,46 +226,28 @@ oly-program-generator/
 - [uv](https://docs.astral.sh/uv/) — `pip install uv`
 - Docker Desktop (for Postgres + Redis)
 - API keys: `OPENAI_API_KEY` (embeddings) and `ANTHROPIC_API_KEY` (LLM)
-
-> **Windows note:** Always prefix Python commands with `PYTHONUTF8=1` to avoid cp1252 encoding errors.
+- `make` — available in most shells; on Windows install via `winget install GnuWin32.Make` or use Git Bash with make from the Git SDK
 
 ---
 
 ## Local Setup
 
-### 1. Start infrastructure (Postgres + Redis)
-
-```bash
-cd oly-ingestion
-docker compose up -d
-```
-
-This starts:
-- **Postgres 16 + pgvector** on `localhost:5432` — stores all knowledge, programs, athlete data
-- **Redis 7** on `localhost:6379` — backs the ARQ job queue for program generation
-
-### 2. Install dependencies
-
-```bash
-# Ingestion pipeline
-cd oly-ingestion
-uv sync --extra dev
-
-# Agent + web UI
-cd ../oly-agent
-uv sync --extra web --extra dev
-```
-
-### 3. Configure environment
+### 1. Configure environment
 
 ```bash
 cd oly-ingestion
 cp .env.example .env
 ```
 
-Edit `.env` and fill in real values — at minimum set `POSTGRES_PASSWORD`, `SECRET_KEY`, and the API keys. The file is gitignored and never committed.
+Edit `.env` and fill in real values — at minimum `POSTGRES_PASSWORD`, `SECRET_KEY`, and the API keys. The file is gitignored and never committed. `shared/config.py` loads it automatically for both subsystems.
 
-`shared/config.py` loads this `.env` automatically for both subsystems.
+### 2. Install dependencies + start infrastructure
+
+```bash
+make sync   # uv sync for both subsystems
+make up     # docker compose up -d (Postgres + PgBouncer + Redis)
+make migrate  # alembic upgrade head (creates all tables + seed data)
+```
 
 ---
 
@@ -272,21 +255,10 @@ Edit `.env` and fill in real values — at minimum set `POSTGRES_PASSWORD`, `SEC
 
 The web UI requires **three processes** running simultaneously. Open three terminals:
 
-**Terminal 1 — Infrastructure** (if not already up):
 ```bash
-cd oly-ingestion && docker compose up -d
-```
-
-**Terminal 2 — Web server:**
-```bash
-cd oly-agent
-PYTHONUTF8=1 uv run uvicorn web.app:app --reload --port 8080
-```
-
-**Terminal 3 — ARQ worker** (handles background program generation):
-```bash
-cd oly-agent
-PYTHONUTF8=1 uv run arq web.worker.WorkerSettings
+make up      # Terminal 1: infrastructure (if not already running)
+make web     # Terminal 2: uvicorn on :8080 (--reload)
+make worker  # Terminal 3: ARQ background worker
 ```
 
 Open `http://localhost:8080`. Create an account at `/setup` or log in at `/login`.
@@ -309,22 +281,23 @@ The web server and ARQ worker are **separate processes** — both connect to the
 If you only want to ingest source material (no web UI needed):
 
 ```bash
-# Start Postgres only (Redis not required for ingestion)
-cd oly-ingestion && docker compose up -d
+make up   # Postgres only needed; Redis is not required for ingestion
+
+cd oly-ingestion
 
 # EPUB / PDF book
-PYTHONUTF8=1 uv run python pipeline.py \
+uv run python pipeline.py \
   --source "./sources/book.epub" --title "Title" --author "Author" --type book
 
 # PDF with vision OCR fallback (scanned / image-only PDFs)
-PYTHONUTF8=1 uv run python pipeline.py \
+uv run python pipeline.py \
   --source "./sources/book.pdf" --title "Title" --author "Author" --type book --vision
 
 # Catalyst Athletics web articles
-PYTHONUTF8=1 uv run python ingest_web.py
+uv run python ingest_web.py
 ```
 
-Ingestion only needs Postgres — Redis is only required when running the web UI + worker.
+> On Windows outside of `make`, prefix with `PYTHONUTF8=1` to avoid cp1252 errors.
 
 ---
 
@@ -336,14 +309,14 @@ To generate programs or log sessions without the web UI:
 cd oly-agent
 
 # Generate a program
-PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
-PYTHONUTF8=1 uv run python orchestrator.py --athlete-id 1             # full generation
+uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
+uv run python orchestrator.py --athlete-id 1             # full generation
 
 # Training log
-PYTHONUTF8=1 uv run python log.py show    --athlete-id 1   # view current week
-PYTHONUTF8=1 uv run python log.py session --athlete-id 1   # log a session (interactive)
-PYTHONUTF8=1 uv run python log.py status  --athlete-id 1   # RPE / make-rate warnings
-PYTHONUTF8=1 uv run python log.py history --athlete-id 1   # recent session history
+uv run python log.py show    --athlete-id 1   # view current week
+uv run python log.py session --athlete-id 1   # log a session (interactive)
+uv run python log.py status  --athlete-id 1   # RPE / make-rate warnings
+uv run python log.py history --athlete-id 1   # recent session history
 ```
 
 CLI generation only needs Postgres (no Redis, no web server, no ARQ worker).
@@ -370,11 +343,11 @@ docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-ex
 
 ### Full recovery (Docker wiped — `docker compose down -v`)
 
-If the volume was destroyed entirely, recreate the DB from schema first, then restore:
+If the volume was destroyed entirely, recreate the schema first, then restore:
 
 ```bash
-# 1. Start fresh — schema.sql auto-applies and creates an empty DB
-cd oly-ingestion && docker compose up -d
+# 1. Start fresh and apply all migrations (creates tables + seed data)
+make up && make migrate
 
 # 2. Restore data on top
 docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-exists < backups/oly_programming_2026-03-19.dump
@@ -387,26 +360,18 @@ docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-ex
 ## Running Tests
 
 ```bash
-# Agent tests (no DB or API keys needed)
-cd oly-agent
-PYTHONUTF8=1 uv run python tests/test_validate.py        # 40 tests
-PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
-PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 25 tests
-PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 43 tests
-PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
-PYTHONUTF8=1 uv run python tests/test_plan.py            # 35 tests
-PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 19 tests
-PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
-PYTHONUTF8=1 uv run python tests/test_orchestrator.py    # 12 tests (all 6 steps mocked)
-PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 21 tests (mocked — no DB needed)
+make test              # all no-key/no-DB tests (both subsystems)
+make test-agent        # oly-agent unit + web router tests
+make test-ingestion    # oly-ingestion unit tests
 
-# Agent tests (live DB)
-PYTHONUTF8=1 uv run python tests/test_feedback.py        # 19 tests
+make coverage          # full coverage report for both subsystems
+```
 
-# Ingestion tests (no API keys needed)
-cd oly-ingestion
-PYTHONUTF8=1 uv run python tests/test_chunker.py         # 14 tests
-PYTHONUTF8=1 uv run python tests/test_classifier.py      # 6 heuristic tests
+Tests that need a live DB (`test_feedback.py`, `test_structured_loader.py`) or API keys (`test_vector_loader.py`, `test_principle_extractor.py`, `test_pipeline.py`, `test_retrieval_eval.py`) are not included in `make test` — run them directly after `make up`:
+
+```bash
+cd oly-agent    && uv run pytest tests/test_feedback.py
+cd oly-ingestion && uv run pytest tests/test_structured_loader.py
 ```
 
 ---

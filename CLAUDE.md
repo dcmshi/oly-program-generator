@@ -6,6 +6,7 @@
 D:\oly-program-generator\
 ├── CLAUDE.md                        # this file
 ├── README.md                        # project overview + Mermaid architecture diagram
+├── Makefile                         # common dev tasks (sets PYTHONUTF8=1 automatically)
 ├── ARCHITECTURE.md                  # service architecture + Mermaid diagrams (services, sequence, ER, deployment)
 ├── schema.sql                       # ingestion schema DDL + seed data (reference; managed by Alembic 0000_ingestion_schema)
 ├── athlete_schema.sql               # athlete/program/log DDL (reference; managed by Alembic 0001_baseline / 0002)
@@ -107,7 +108,18 @@ D:\oly-program-generator\
 
 ## How to Run Things
 
-**Always prefix with `PYTHONUTF8=1` on Windows** to avoid cp1252 encoding errors with Unicode output.
+**Preferred: use the root `Makefile`** — it sets `PYTHONUTF8=1` automatically for all targets.
+
+```bash
+make up        # start Docker services
+make migrate   # alembic upgrade head
+make web       # uvicorn :8080
+make worker    # ARQ worker
+make test      # all no-key/no-DB tests
+make coverage  # coverage report
+```
+
+When running `uv run` directly (e.g. during debugging or ingestion), **prefix with `PYTHONUTF8=1` on Windows** to avoid cp1252 encoding errors.
 
 Each subsystem manages its own venv via `uv`. Use `uv run` from the respective directory — never call the interpreter directly by path.
 
