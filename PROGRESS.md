@@ -87,7 +87,7 @@ Reference: implementation order in `oly-programming-pipeline.md` § Implementati
 | Step | Task | Status |
 |------|------|--------|
 | 19 | Ingest Zatsiorsky — theory-heavy profile | ✅ Done — 430 chunks, 7 principles, source_id=51 |
-| 20 | Ingest Takano — principles extraction focus | ⏳ File not available; substituted Drechsler |
+| 20 | Ingest Takano — principles extraction focus | ✅ Done — 218 chunks, 16 program templates, source_id=2 (ingested 2026-03-19; file obtained) |
 | 20b | Ingest Drechsler (Weightlifting Encyclopedia) — theory-heavy profile | ✅ Done — 603 chunks, 6 principles, source_id=52 |
 | 21 | Ingest Laputin — OCR pipeline | ✅ Done — 110 chunks, 3 principles, source_id=499 (Claude vision OCR) |
 | 22 | Ingest web content — Catalyst Athletics articles | ✅ Done — 418 articles, 446 chunks, 22 principles |
@@ -442,7 +442,7 @@ Identified via automated codebase scan. Grouped by priority.
 
 | Task | Priority | Notes |
 |------|----------|-------|
-| Takano ingestion | ❌ Permanently skipped | File unavailable online. Programming gap closed by *Olympic Weightlifting for Sports* (Everett) + Catalyst. |
+| Takano ingestion | ✅ Done | 218 chunks, 16 program templates, source_id=2. Ingested 2026-03-19 after file was obtained. |
 | Projected maxes in peaking-phase weight calc | ✅ Done | `weight_resolver.apply_projected_maxes()` overrides snatch/C&J maxes with `target_snatch_kg`/`target_cj_kg` from `athlete_goals` in realization phase; only applies when target > current max (no downgrade); orchestrator computes `effective_maxes` after PLAN and uses it for `resolve_weights()` and prompt; prompt labels the section "Working Maxes" with "← target" annotation; 7 new tests in `test_weight_resolver.py` (25 total). |
 
 ---

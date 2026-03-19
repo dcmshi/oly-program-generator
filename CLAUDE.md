@@ -323,7 +323,7 @@ Re-running pipeline on the same source skips already-ingested chunks before the 
 10. Starrett — *Becoming a Supple Leopard* (EPUB) — ✅ Done (137 chunks, 16 principles, source_id=505, theory_heavy profile)
 11. Dan John — *Intervention* (PDF) — ✅ Done (266 chunks, 0 principles, source_id=506, programming profile)
 
-**Total corpus:** 3,796 chunks · 151 principles · 440 sources
+**Total corpus:** 3,796 chunks · 151 principles · 439 sources
 
 ## Chunk Sizing Reference
 

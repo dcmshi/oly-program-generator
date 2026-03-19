@@ -178,10 +178,17 @@ oly-program-generator/
     ├── feedback.py                  # ProgramOutcome computation + max promotion
     ├── log.py                       # Training log CLI
     ├── tests/                       # Unit tests (no DB/API needed)
-    │   ├── test_validate.py         # 25 tests — all 6 validation checks
+    │   ├── test_validate.py         # 40 tests — all 6 validation checks
     │   ├── test_phase_profiles.py   # 15 tests — weekly target computation
-    │   ├── test_weight_resolver.py  # 18 tests — weight resolution + ID lookup
-    │   └── test_generate_utils.py   # 15 tests — JSON parsing + name validation
+    │   ├── test_weight_resolver.py  # 25 tests — weight resolution + ID lookup
+    │   ├── test_generate_utils.py   # 43 tests — JSON parsing + name validation
+    │   ├── test_assess.py           # 16 tests
+    │   ├── test_plan.py             # 35 tests
+    │   ├── test_retrieve.py         # 19 tests
+    │   ├── test_explain.py          # 13 tests
+    │   ├── test_orchestrator.py     # 12 tests (all 6 steps mocked)
+    │   ├── test_feedback.py         # 19 tests (live DB)
+    │   └── test_web_routers.py      # 21 tests (signed session cookies, mocked queries)
     └── web/                         # FastAPI web UI
         ├── app.py                   # Application factory + middleware + Jinja2 filters
         ├── auth.py                  # bcrypt helpers + get_current_athlete_id dependency
@@ -380,11 +387,19 @@ docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-ex
 ```bash
 # Agent tests (no DB or API keys needed)
 cd oly-agent
-PYTHONUTF8=1 uv run python tests/test_validate.py        # 25 tests
+PYTHONUTF8=1 uv run python tests/test_validate.py        # 40 tests
 PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
-PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 18 tests
-PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 15 tests
+PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 25 tests
+PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 43 tests
+PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
+PYTHONUTF8=1 uv run python tests/test_plan.py            # 35 tests
+PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 19 tests
+PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
+PYTHONUTF8=1 uv run python tests/test_orchestrator.py    # 12 tests (all 6 steps mocked)
 PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 21 tests (mocked — no DB needed)
+
+# Agent tests (live DB)
+PYTHONUTF8=1 uv run python tests/test_feedback.py        # 19 tests
 
 # Ingestion tests (no API keys needed)
 cd oly-ingestion
