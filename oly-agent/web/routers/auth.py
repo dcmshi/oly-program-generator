@@ -33,7 +33,7 @@ async def login_submit(
     from web.app import templates
     row = await async_fetch_one(
         conn,
-        "SELECT id, name, password_hash FROM athletes WHERE username = $1",
+        "SELECT id, name, password_hash, is_admin FROM athletes WHERE username = $1",
         username.strip(),
     )
     if not row or not verify_password(password, row["password_hash"]):
@@ -45,7 +45,8 @@ async def login_submit(
         )
     request.session["athlete_id"] = row["id"]
     request.session["athlete_name"] = row["name"]
-    logger.info(f"Login: athlete_id={row['id']} ({row['name']})")
+    request.session["is_admin"] = bool(row["is_admin"])
+    logger.info(f"Login: athlete_id={row['id']} ({row['name']}) is_admin={row['is_admin']}")
     return RedirectResponse("/", status_code=303)
 
 

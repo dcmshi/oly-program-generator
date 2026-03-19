@@ -162,7 +162,7 @@ def test_login_invalid_credentials_returns_401():
 def test_login_valid_credentials_redirects():
     import bcrypt
     hashed = bcrypt.hashpw(b"secret", bcrypt.gensalt()).decode()
-    mock_athlete = {"id": 1, "name": "Test", "password_hash": hashed}
+    mock_athlete = {"id": 1, "name": "Test", "password_hash": hashed, "is_admin": True}
     client = TestClient(app, follow_redirects=False)
     with patch("web.routers.auth.async_fetch_one", return_value=mock_athlete):
         r = client.post("/login", data={"username": "test", "password": "secret"})
