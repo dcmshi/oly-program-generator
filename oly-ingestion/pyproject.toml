@@ -31,6 +31,31 @@ dev = [
     "coverage>=7.4.0",
 ]
 
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+python_functions = ["test_*"]
+addopts = "--tb=short -q"
+markers = [
+    "live_db: requires live Postgres connection",
+    "live_api: requires ANTHROPIC_API_KEY or OPENAI_API_KEY",
+    "integration: requires INTEGRATION_TESTS=1",
+]
+
+[tool.coverage.run]
+source = ["."]
+omit = ["tests/*", ".venv/*", "*/site-packages/*"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_lines = [
+    "pragma: no cover",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "\\.\\.\\.",
+]
+
 [tool.uv]
 package = false
 

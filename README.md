@@ -116,18 +116,20 @@ flowchart TB
 
 ## Project Structure
 
-> Full database schema with ER diagrams: [SCHEMA.md](SCHEMA.md)
+> Full database schema with ER diagrams: [docs/SCHEMA.md](docs/SCHEMA.md)
 
 ```
 oly-program-generator/
 ├── README.md
 ├── CLAUDE.md                        # Claude Code project instructions
-├── PROGRESS.md                      # Implementation progress tracker
+├── ARCHITECTURE.md                  # Service architecture + Mermaid diagrams
 ├── schema.sql                       # Ingestion schema DDL (seed data included)
 ├── athlete_schema.sql               # Athlete / program schema DDL
-├── SCHEMA.md                        # ER diagrams + table reference (20 tables)
-├── oly-programming-pipeline.md      # Ingestion pipeline design doc
-├── oly-programming-agent.md         # Agent design doc
+├── docs/
+│   ├── CONTRIBUTING.md              # Security audit, scaling checklist, test coverage
+│   ├── SCHEMA.md                    # ER diagrams + table reference (20 tables)
+│   ├── RETRIEVAL_EVAL.md            # Retrieval quality baseline scores
+│   └── design/                      # Historical build docs (pipeline, agent, code reference)
 │
 ├── shared/                          # Shared modules (imported by both subsystems)
 │   ├── config.py                    # Unified Settings dataclass (reads .env)
@@ -448,7 +450,7 @@ The agent ships with a browser interface built on **FastAPI + HTMX + Jinja2** �
 | Takano — *Weightlifting Programming: A Winning Coach's Guide* | PDF | 218 | 0 |
 | **Total** | | **3,796** | **151** |
 
-> Retrieval quality baseline scores: [RETRIEVAL_EVAL.md](RETRIEVAL_EVAL.md)
+> Retrieval quality baseline scores: [docs/RETRIEVAL_EVAL.md](docs/RETRIEVAL_EVAL.md)
 
 ---
 
