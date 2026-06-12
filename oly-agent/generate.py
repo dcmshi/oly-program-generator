@@ -36,7 +36,7 @@ from shared.constants import (
     PROMPT_LENGTH_WARN_CHARS,
     SNIPPET_MAX_CHARS,
 )
-from shared.llm import estimate_cost
+from shared.llm import create_message_with_retries, estimate_cost
 
 logger = logging.getLogger(__name__)
 
@@ -503,7 +503,9 @@ def generate_session_with_retries(
 
         # ── LLM call ─────────────────────────────────────────
         try:
-            response = llm_client.messages.create(
+            response = create_message_with_retries(
+                llm_client,
+                base_delay=settings.retry_delay_seconds,
                 model=settings.generation_model,
                 max_tokens=settings.generation_max_tokens,
                 temperature=settings.generation_temperature,

@@ -24,6 +24,8 @@ from processors.chunker import SemanticChunker, validate_chunk
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
 
+from shared.llm import create_message_with_retries
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -474,7 +476,8 @@ class IngestionPipeline:
         client = self.principle_extractor._get_client()
 
         def _llm_call(prompt: str) -> dict:
-            message = client.messages.create(
+            message = create_message_with_retries(
+                client,
                 model=self.settings.llm_model,
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],

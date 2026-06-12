@@ -15,6 +15,14 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models import ProgramOutcome
 from schemas import OutcomeSummary, PhaseVerdict
 
+from shared.constants import (
+    ADJUST_RPE_DEVIATION,
+    ADVANCE_MAX_RPE_DEVIATION,
+    ADVANCE_MIN_ADHERENCE_PCT,
+    ADVANCE_MIN_MAKE_RATE,
+    EXCELLENT_ADHERENCE_PCT,
+    EXCELLENT_MAKE_RATE,
+)
 from shared.db import execute, fetch_all, fetch_one
 
 logger = logging.getLogger(__name__)
@@ -264,27 +272,27 @@ def _compute_phase_verdict(
             "metric":    "Adherence",
             "value":     round(adherence_pct, 1),
             "display":   f"{adherence_pct:.0f}%",
-            "threshold": "≥ 70%",
-            "passed":    adherence_pct >= 70.0,
+            "threshold": f"≥ {ADVANCE_MIN_ADHERENCE_PCT:.0f}%",
+            "passed":    adherence_pct >= ADVANCE_MIN_ADHERENCE_PCT,
         },
         {
             "metric":    "Make rate",
             "value":     round(avg_make_rate, 2),
             "display":   f"{avg_make_rate:.0%}",
-            "threshold": "≥ 75%",
-            "passed":    avg_make_rate >= 0.75,
+            "threshold": f"≥ {ADVANCE_MIN_MAKE_RATE:.0%}",
+            "passed":    avg_make_rate >= ADVANCE_MIN_MAKE_RATE,
         },
         {
             "metric":    "RPE deviation",
             "value":     round(avg_rpe_deviation, 2),
             "display":   f"{avg_rpe_deviation:+.2f}",
-            "threshold": "≤ +1.5",
-            "passed":    avg_rpe_deviation <= 1.5,
+            "threshold": f"≤ +{ADVANCE_MAX_RPE_DEVIATION:.1f}",
+            "passed":    avg_rpe_deviation <= ADVANCE_MAX_RPE_DEVIATION,
         },
     ]
 
-    ready = adherence_pct >= 70.0 and avg_make_rate >= 0.75
-    rpe_blocked = avg_rpe_deviation > 1.5
+    ready = adherence_pct >= ADVANCE_MIN_ADHERENCE_PCT and avg_make_rate >= ADVANCE_MIN_MAKE_RATE
+    rpe_blocked = avg_rpe_deviation > ADVANCE_MAX_RPE_DEVIATION
 
     if prev_phase not in _PHASE_SEQUENCE:
         next_phase = "accumulation"
@@ -311,13 +319,13 @@ def _compute_phase_verdict(
 
     # Next-program load adjustments (mirrors _apply_outcome_adjustments)
     adjustments = []
-    if adherence_pct < 70.0:
+    if adherence_pct < ADVANCE_MIN_ADHERENCE_PCT:
         adjustments.append("Volume −10% (low adherence)")
-    if avg_make_rate < 0.75:
+    if avg_make_rate < ADVANCE_MIN_MAKE_RATE:
         adjustments.append("Intensity ceiling −3% (low make rate)")
-    if avg_rpe_deviation > 1.0:
+    if avg_rpe_deviation > ADJUST_RPE_DEVIATION:
         adjustments.append("Volume −5% (high RPE deviation)")
-    if adherence_pct >= 90.0 and avg_make_rate >= 0.85:
+    if adherence_pct >= EXCELLENT_ADHERENCE_PCT and avg_make_rate >= EXCELLENT_MAKE_RATE:
         adjustments.append("Intensity ceiling +2% (excellent performance)")
 
     return {

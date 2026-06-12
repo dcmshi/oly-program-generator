@@ -14,8 +14,13 @@ The classifier uses a two-pass approach:
 
 import logging
 import re
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
+from shared.llm import create_message_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -240,7 +245,8 @@ Respond with JSON only, no other text:
 
         try:
             client = self._get_client()
-            message = client.messages.create(
+            message = create_message_with_retries(
+                client,
                 model=self.settings.llm_model,
                 max_tokens=128,
                 messages=[{"role": "user", "content": prompt}],

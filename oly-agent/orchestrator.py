@@ -150,6 +150,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
         _t_gen_start = time.perf_counter()
         cumulative_cost = 0.0
         all_sessions_data: list[dict] = []
+        failed_sessions: list[str] = []
 
         for week_target in program_plan.weekly_targets:
             week_number = week_target.week_number
@@ -215,6 +216,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                 cumulative_cost += estimate_cost(result.input_tokens, result.output_tokens)
 
                 if result.exercises is None:
+                    failed_sessions.append(f"W{week_number}D{day_number}")
                     logger.warning(
                         f"  W{week_number}D{day_number} generation failed — "
                         f"storing empty session"
@@ -302,6 +304,16 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
             "total_cost_usd": round(cumulative_cost, 4),
         })
 
+        # Sessions that exhausted their retries were stored empty. The program
+        # stays in 'draft' (its creation status); surface the gap loudly here
+        # and in the rationale below so it isn't activated with holes in it.
+        if failed_sessions:
+            logger.error(
+                f"Program {program_id} incomplete: {len(failed_sessions)} session(s) "
+                f"failed generation ({', '.join(failed_sessions)}). "
+                f"Re-run generation or fill the sessions in manually."
+            )
+
         # ── Step 6: EXPLAIN ───────────────────────────────────
         logger.info("=== Step 6: EXPLAIN ===")
         _t0 = time.perf_counter()
@@ -312,6 +324,14 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
             llm_client=llm_client,
             settings=settings,
         )
+
+        if failed_sessions:
+            rationale = (
+                f"# Generation Warning\n"
+                f"{len(failed_sessions)} session(s) could not be generated and were stored "
+                f"empty: {', '.join(failed_sessions)}. Re-run generation before activating "
+                f"this program.\n\n" + rationale
+            )
 
         execute(
             conn,

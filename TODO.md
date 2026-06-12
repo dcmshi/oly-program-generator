@@ -23,17 +23,17 @@ Work order: top to bottom. Check items off as they land.
 
 ## 3. Medium — robustness
 
-- [ ] **Anthropic retry/backoff in ingestion** — `processors/principle_extractor.py`, `processors/classifier.py`, `pipeline.py:_llm_call` call `messages.create` bare; add shared retry helper (exponential backoff on rate-limit/overload/timeout)
-- [ ] **`explain.py` retry + cost logging** — failures currently return a placeholder with no retry and no token logging
-- [ ] **Consolidate phase-advancement thresholds** — adherence 70%, make-rate 75%, RPE-dev 1.5/1.0, excellent 90%/85% duplicated between `plan.py` and `feedback.py`; move to `shared/constants.py`
-- [ ] **Orchestrator partial-failure handling** (`orchestrator.py`) — failed session generation stores an empty session and continues silently; mark program status accordingly and log clearly
-- [ ] **Security headers middleware** (`web/app.py`) — X-Content-Type-Options, X-Frame-Options, Referrer-Policy (+ HSTS when HTTPS_ONLY)
-- [ ] **Custom error pages** — 404/500 templates + exception handlers in `web/app.py`
+- [x] **Anthropic retry/backoff in ingestion** — `processors/principle_extractor.py`, `processors/classifier.py`, `pipeline.py:_llm_call` call `messages.create` bare; add shared retry helper (exponential backoff on rate-limit/overload/timeout)
+- [x] **`explain.py` retry + cost logging** — failures currently return a placeholder with no retry and no token logging
+- [x] **Consolidate phase-advancement thresholds** — adherence 70%, make-rate 75%, RPE-dev 1.5/1.0, excellent 90%/85% duplicated between `plan.py` and `feedback.py`; move to `shared/constants.py`
+- [x] **Orchestrator partial-failure handling** (`orchestrator.py`) — failed session generation stores an empty session and continues silently; mark program status accordingly and log clearly
+- [x] **Security headers middleware** (`web/app.py`) — X-Content-Type-Options, X-Frame-Options, Referrer-Policy (+ HSTS when HTTPS_ONLY)
+- [x] **Custom error pages** — 404/500 templates + exception handlers in `web/app.py`
 
 ## 4. Low priority / polish
 
 - [ ] **Prilepin zone boundary overlap** (`shared/prilepin.py:10-16`) — 65 and 70 each match two zones; make boundaries exclusive
-- [ ] **Floor-clamp `intensity_ceiling`** (`plan.py:267`) — clamps at 100 but not at 0
+- [x] **Floor-clamp `intensity_ceiling`** (`plan.py:267`) — clamps at 100 but not at 0
 - [ ] **Fix dedup stats math** (`loaders/structured_loader.py:365`) — `chunks_skipped_dedup` derived from values that don't track dedup; have `vector_loader.load_chunks()` return the skipped count
 - [ ] **Pin dependency major versions** — both `pyproject.toml`s use bare `>=`; add upper bounds for anthropic/openai/fastapi etc.
 - [ ] **Pagination on unbounded lists** — program list + exercise history have no LIMIT

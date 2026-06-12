@@ -18,6 +18,14 @@ from pydantic import ValidationError
 from schemas import OutcomeSummary
 from session_templates import get_session_templates
 
+from shared.constants import (
+    ADJUST_RPE_DEVIATION,
+    ADVANCE_MAX_RPE_DEVIATION,
+    ADVANCE_MIN_ADHERENCE_PCT,
+    ADVANCE_MIN_MAKE_RATE,
+    EXCELLENT_ADHERENCE_PCT,
+    EXCELLENT_MAKE_RATE,
+)
 from shared.db import fetch_all
 from shared.prilepin import compute_session_rep_target
 
@@ -190,7 +198,7 @@ def _advance_phase(prev_phase: str | None, outcome: OutcomeSummary, goal: str | 
     rpe_dev = outcome.avg_rpe_deviation
 
     # Performance gate: advance only if athlete is ready
-    ready_to_advance = adherence >= 70.0 and make_rate >= 0.75
+    ready_to_advance = adherence >= ADVANCE_MIN_ADHERENCE_PCT and make_rate >= ADVANCE_MIN_MAKE_RATE
 
     if not ready_to_advance:
         logger.info(
@@ -210,7 +218,7 @@ def _advance_phase(prev_phase: str | None, outcome: OutcomeSummary, goal: str | 
         next_phase = prev_phase
 
     # Exceptionally high RPE deviation → don't advance even if make rate was ok
-    if rpe_dev > 1.5 and next_phase != prev_phase:
+    if rpe_dev > ADVANCE_MAX_RPE_DEVIATION and next_phase != prev_phase:
         logger.info(f"RPE deviation too high ({rpe_dev:+.2f}) — staying in {prev_phase}")
         next_phase = prev_phase
 
@@ -243,16 +251,16 @@ def _apply_outcome_adjustments(raw_targets: list[dict], previous_program: dict) 
     vol_delta = 0.0
     int_delta = 0.0
 
-    if adherence < 70.0:
+    if adherence < ADVANCE_MIN_ADHERENCE_PCT:
         vol_delta -= 0.10
         logger.info(f"Outcome adjustment: adherence={adherence:.0f}% → volume -10%")
-    if make_rate < 0.75:
+    if make_rate < ADVANCE_MIN_MAKE_RATE:
         int_delta -= 3.0
         logger.info(f"Outcome adjustment: make_rate={make_rate:.0%} → intensity ceiling -3%")
-    if rpe_dev > 1.0:
+    if rpe_dev > ADJUST_RPE_DEVIATION:
         vol_delta -= 0.05
         logger.info(f"Outcome adjustment: rpe_deviation={rpe_dev:+.2f} → volume -5%")
-    if adherence >= 90.0 and make_rate >= 0.85:
+    if adherence >= EXCELLENT_ADHERENCE_PCT and make_rate >= EXCELLENT_MAKE_RATE:
         int_delta += 2.0
         logger.info("Outcome adjustment: excellent performance → intensity ceiling +2%")
 
@@ -265,7 +273,9 @@ def _apply_outcome_adjustments(raw_targets: list[dict], previous_program: dict) 
             adjusted.append(t)
             continue
         new_vol = round(max(0.4, t["volume_modifier"] + vol_delta), 2)
-        new_ceil = round(min(100.0, t["intensity_ceiling"] + int_delta), 1)
+        # Clamp to [intensity_floor, 100] — repeated negative nudges must not
+        # push the ceiling below the week's floor
+        new_ceil = round(max(t.get("intensity_floor", 0.0), min(100.0, t["intensity_ceiling"] + int_delta)), 1)
         adjusted.append({**t, "volume_modifier": new_vol, "intensity_ceiling": new_ceil})
     return adjusted
 

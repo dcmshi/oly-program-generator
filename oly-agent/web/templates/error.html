@@ -1,0 +1,42 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>{{ status_code }} — Oly Agent</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Barlow+Condensed:wght@600;700&family=DM+Sans:opsz,wght@9..40,300;400;500;600&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg:         #F4F0EA;
+      --card:       #FDFBF8;
+      --navy:       #1C2B3A;
+      --navy-hov:   #273D52;
+      --text:       #1C2128;
+      --text-sec:   #5C5750;
+    }
+    body {
+      background-color: var(--bg);
+      font-family: 'DM Sans', sans-serif;
+      -webkit-font-smoothing: antialiased;
+    }
+    h1 { font-family: 'Barlow Condensed', sans-serif; font-weight: 700; letter-spacing: -0.01em; }
+  </style>
+</head>
+<body class="min-h-screen flex items-center justify-center px-4">
+  <div class="text-center max-w-md">
+    <p class="text-6xl mb-4">🏋️</p>
+    <h1 class="text-5xl mb-2" style="color: var(--text)">{{ status_code }}</h1>
+    <p class="mb-6" style="color: var(--text-sec)">{{ message }}</p>
+    <a href="/"
+       class="inline-block px-5 py-2.5 rounded-lg text-sm font-medium text-white"
+       style="background-color: var(--navy)"
+       onmouseover="this.style.backgroundColor='var(--navy-hov)'"
+       onmouseout="this.style.backgroundColor='var(--navy)'">
+      Back to dashboard
+    </a>
+  </div>
+</body>
+</html>

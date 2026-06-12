@@ -208,7 +208,7 @@ def test_competition_date_overrides_phase_progression():
 
 def _dummy_targets(n=4):
     return [
-        {"week_number": i, "volume_modifier": 1.0, "intensity_ceiling": 80.0, "is_deload": i == n}
+        {"week_number": i, "volume_modifier": 1.0, "intensity_floor": 70.0, "intensity_ceiling": 80.0, "is_deload": i == n}
         for i in range(1, n + 1)
     ]
 

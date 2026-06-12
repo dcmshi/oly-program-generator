@@ -76,6 +76,21 @@ class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
 app.add_middleware(ContentSizeLimitMiddleware)
 
 
+# ── Security headers ───────────────────────────────────────────
+class SecurityHeadersMiddleware(BaseHTTPMiddleware):
+    async def dispatch(self, request: Request, call_next):
+        response = await call_next(request)
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        response.headers["X-Frame-Options"] = "DENY"
+        response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+        if get_settings().https_only:
+            response.headers["Strict-Transport-Security"] = "max-age=31536000; includeSubDomains"
+        return response
+
+
+app.add_middleware(SecurityHeadersMiddleware)
+
+
 # ── Auth guard — redirects unauthenticated requests to /login ──
 _PUBLIC_PATHS = {"/login", "/setup", "/health"}
 
@@ -191,6 +206,42 @@ templates.env.filters["reps_list"]        = _reps_list
 templates.env.filters["status_color"]     = _status_color
 templates.env.filters["phase_color"]      = _phase_color
 templates.env.filters["parse_rationale"]  = _parse_rationale
+
+# ── Error pages ───────────────────────────────────────────────
+# HTMX requests get a small text fragment (a full page would be swapped into
+# the target element); normal navigation gets the styled error page.
+from starlette.exceptions import HTTPException as StarletteHTTPException  # noqa: E402
+
+_ERROR_MESSAGES = {
+    404: "That page doesn't exist — the bar might have been loaded somewhere else.",
+    500: "Something went wrong on our end. The error has been logged.",
+}
+
+
+@app.exception_handler(StarletteHTTPException)
+async def http_exception_handler(request: Request, exc: StarletteHTTPException):
+    if exc.status_code in _ERROR_MESSAGES:
+        if request.headers.get("HX-Request"):
+            return HTMLResponse(exc.detail or "Error", status_code=exc.status_code)
+        return templates.TemplateResponse("error.html", {
+            "request": request,
+            "status_code": exc.status_code,
+            "message": exc.detail or _ERROR_MESSAGES[exc.status_code],
+        }, status_code=exc.status_code)
+    return HTMLResponse(exc.detail or "Error", status_code=exc.status_code)
+
+
+@app.exception_handler(Exception)
+async def unhandled_exception_handler(request: Request, exc: Exception):
+    logger.exception(f"Unhandled error on {request.method} {request.url.path}: {exc}")
+    if request.headers.get("HX-Request"):
+        return HTMLResponse("Internal server error", status_code=500)
+    return templates.TemplateResponse("error.html", {
+        "request": request,
+        "status_code": 500,
+        "message": _ERROR_MESSAGES[500],
+    }, status_code=500)
+
 
 # ── Favicon redirect (browsers that request /favicon.ico directly) ─────────
 @app.get("/favicon.ico", include_in_schema=False)

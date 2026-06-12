@@ -35,6 +35,8 @@ def _test(name, fn):
 class _FakeSettings:
     explanation_model = "claude-sonnet-4-6"
     explanation_temperature = 0.7
+    max_generation_retries = 2
+    retry_delay_seconds = 0.0
 
 def _ctx(level="intermediate", faults=None, weeks_to_comp=None, goal="general_strength",
          sessions_per_week=4):

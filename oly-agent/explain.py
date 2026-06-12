@@ -14,6 +14,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan
 
+from shared.llm import create_message_with_retries, estimate_cost
+
 logger = logging.getLogger(__name__)
 
 
@@ -39,20 +41,25 @@ def explain(
     prompt = _build_explain_prompt(athlete_context, plan, program_sessions)
 
     try:
-        response = llm_client.messages.create(
+        response = create_message_with_retries(
+            llm_client,
+            max_attempts=settings.max_generation_retries + 1,
+            base_delay=settings.retry_delay_seconds,
             model=settings.explanation_model,
             max_tokens=1024,
             temperature=settings.explanation_temperature,
             messages=[{"role": "user", "content": prompt}],
         )
         rationale = response.content[0].text.strip()
+        cost = estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
         logger.info(
             f"Generated rationale ({len(rationale)} chars, "
-            f"{response.usage.input_tokens} in / {response.usage.output_tokens} out)"
+            f"{response.usage.input_tokens} in / {response.usage.output_tokens} out, "
+            f"~${cost:.4f})"
         )
         return rationale
     except Exception as e:
-        logger.error(f"Explain step failed: {e}")
+        logger.error(f"Explain step failed after retries: {e}")
         return f"[Rationale generation failed: {e}]"
 
 

@@ -23,3 +23,13 @@ PROMPT_LENGTH_WARN_CHARS: int = 20_000  # log warning if prompt exceeds this (~5
 
 # ── Weight resolution ────────────────────────────────────────────
 WEIGHT_ROUND_INCREMENT: float = 0.5  # round absolute weights to nearest 0.5 kg
+
+# ── Phase advancement & outcome adjustments ─────────────────────
+# Used by plan._advance_phase / plan._apply_outcome_adjustments and mirrored
+# by feedback._compute_phase_verdict — keep both reading from here.
+ADVANCE_MIN_ADHERENCE_PCT: float = 70.0   # adherence required to advance phase
+ADVANCE_MIN_MAKE_RATE: float = 0.75       # make rate required to advance phase
+ADVANCE_MAX_RPE_DEVIATION: float = 1.5    # RPE deviation above this blocks advancement
+ADJUST_RPE_DEVIATION: float = 1.0         # RPE deviation above this triggers volume reduction
+EXCELLENT_ADHERENCE_PCT: float = 90.0     # adherence for "excellent performance" intensity boost
+EXCELLENT_MAKE_RATE: float = 0.85         # make rate for "excellent performance" intensity boost
