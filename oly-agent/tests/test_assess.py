@@ -16,7 +16,7 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from assess import assess, estimate_missing_maxes, MAX_ESTIMATION_RATIOS
+from assess import MAX_ESTIMATION_RATIOS, assess, estimate_missing_maxes
 
 RESULTS = []
 
@@ -99,7 +99,7 @@ def test_assess_raises_for_missing_athlete():
     with patch("assess.fetch_one", return_value=None):
         try:
             assess(999, None)
-            assert False, "Expected ValueError"
+            raise AssertionError("Expected ValueError")
         except ValueError as e:
             assert "999" in str(e)
 

@@ -1,9 +1,9 @@
 # web/routers/log_session.py
 import logging
 from datetime import date
-from fastapi import APIRouter, Depends, Request, Form, HTTPException
-from fastapi.responses import HTMLResponse
 
+from fastapi import APIRouter, Depends, HTTPException, Request
+from fastapi.responses import HTMLResponse
 from web.auth import get_current_athlete_id
 from web.deps import get_db, limiter
 from web.queries import log_session as q
@@ -91,15 +91,16 @@ async def submit_exercise_log(
     conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
-    from web.app import templates
     from datetime import date as _date
+
+    from web.app import templates
     log = await _get_owned_log(conn, log_id, athlete_id)
     form = await request.form()
     tle_id = await q.create_exercise_log(conn, log_id, dict(form))
     exercise_name = form.get("exercise_name", "Exercise")
     weight_kg_raw = form.get("weight_kg", "")
     rpe = form.get("rpe", "")
-    logger.info(f"Exercise logged: log_id={log_id}, {exercise_name} {weight_kg_raw}kg RPE={rpe}")
+    logger.info(f"Exercise logged: log_id={log_id}, tle_id={tle_id}, {exercise_name} {weight_kg_raw}kg RPE={rpe}")
 
     # Auto-promote new max if this is a max attempt exercise
     try:
@@ -160,8 +161,9 @@ async def update_exercise_log(
     conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
-    from web.app import templates
     from datetime import date as _date
+
+    from web.app import templates
     log = await _get_owned_log(conn, log_id, athlete_id)
     form = await request.form()
     await q.update_exercise_log(conn, tle_id, dict(form), log_id)

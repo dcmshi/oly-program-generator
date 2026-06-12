@@ -7,7 +7,6 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import StreamingResponse
-
 from web.auth import get_current_athlete_id
 from web.deps import get_db
 from web.queries.export import get_full_training_log, get_program_for_export

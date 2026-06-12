@@ -12,10 +12,11 @@ Checks:
 """
 
 import sys
-from dataclasses import dataclass, field
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
+
+from models import ValidationResult
 
 from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
@@ -23,9 +24,7 @@ from shared.constants import (
     SESSION_DURATION_TOLERANCE,
 )
 from shared.exercise_mapping import COMP_LIFT_REFS
-from shared.prilepin import get_prilepin_zone, get_prilepin_data
-from models import ValidationResult
-
+from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
 # Keywords used to detect whether a prescribed exercise addresses a strength limiter.
 # Checked against the exercise name (lowercase). First keyword is used in warning text.
@@ -82,7 +81,6 @@ def validate_session(
 
     intensity_ceiling = week_target.get("intensity_ceiling", 100)
     intensity_floor = week_target.get("intensity_floor", 0)
-    is_deload = week_target.get("is_deload", False)
 
     # ── Check 1: Prilepin's per-session volume compliance ─────
     # Prilepin's chart gives rep targets PER SESSION, not per week.

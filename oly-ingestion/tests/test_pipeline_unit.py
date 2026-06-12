@@ -10,12 +10,11 @@ Run: PYTHONUTF8=1 uv run python tests/test_pipeline_unit.py
 import json
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipeline import IngestionPipeline
-
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
 
@@ -253,6 +252,8 @@ if __name__ == "__main__":
             passed += 1
         except Exception as e:
             print(f"  FAIL  {name}: {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+
+            traceback.print_exc()
             failed += 1
     print(f"\n{passed} passed, {failed} failed")

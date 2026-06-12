@@ -12,13 +12,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from pydantic import ValidationError
-from shared.db import fetch_all
-from shared.prilepin import compute_session_rep_target
-from models import AthleteContext, ProgramPlan, WeekTarget, SessionTemplate
+from models import AthleteContext, ProgramPlan, SessionTemplate, WeekTarget
 from phase_profiles import build_weekly_targets
+from pydantic import ValidationError
 from schemas import OutcomeSummary
 from session_templates import get_session_templates
+
+from shared.db import fetch_all
+from shared.prilepin import compute_session_rep_target
 
 logger = logging.getLogger(__name__)
 
@@ -253,7 +254,7 @@ def _apply_outcome_adjustments(raw_targets: list[dict], previous_program: dict) 
         logger.info(f"Outcome adjustment: rpe_deviation={rpe_dev:+.2f} → volume -5%")
     if adherence >= 90.0 and make_rate >= 0.85:
         int_delta += 2.0
-        logger.info(f"Outcome adjustment: excellent performance → intensity ceiling +2%")
+        logger.info("Outcome adjustment: excellent performance → intensity ceiling +2%")
 
     if vol_delta == 0.0 and int_delta == 0.0:
         return raw_targets

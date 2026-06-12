@@ -16,8 +16,8 @@ from unittest.mock import patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from plan import plan, _select_phase_and_duration, _advance_phase, _apply_outcome_adjustments
 from models import AthleteContext
+from plan import _advance_phase, _apply_outcome_adjustments, _select_phase_and_duration, plan
 from schemas import OutcomeSummary
 
 RESULTS = []

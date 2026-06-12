@@ -10,7 +10,7 @@ import asyncio
 import logging
 import sys
 from concurrent.futures import ThreadPoolExecutor
-from datetime import datetime, timezone
+from datetime import UTC, datetime
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
@@ -40,21 +40,22 @@ async def run_generation(ctx, athlete_id: int, dry_run: bool = False, request_id
     Return value is stored in Redis by ARQ for the web server to fetch.
     """
     token = request_id_var.set(request_id)
-    start = datetime.now(timezone.utc)
+    start = datetime.now(UTC)
     logger.info(
         f"Worker: starting generation for athlete {athlete_id} (dry_run={dry_run})",
         extra={"athlete_id": athlete_id, "dry_run": dry_run},
     )
 
     def _sync():
-        from shared.config import Settings
         import orchestrator
+
+        from shared.config import Settings
         return orchestrator.run(athlete_id, Settings(), dry_run=dry_run)
 
     try:
         loop = asyncio.get_event_loop()
         program_id = await loop.run_in_executor(_executor, _sync)
-        duration = round((datetime.now(timezone.utc) - start).total_seconds(), 1)
+        duration = round((datetime.now(UTC) - start).total_seconds(), 1)
         logger.info(
             f"Worker: completed in {duration}s — program_id={program_id}",
             extra={"athlete_id": athlete_id, "program_id": program_id, "duration_seconds": duration},

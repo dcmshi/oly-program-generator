@@ -14,9 +14,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.config import Settings
-from shared.db import get_connection, execute, fetch_one
 from web.auth import hash_password
+
+from shared.config import Settings
+from shared.db import execute, fetch_one, get_connection
 
 
 def main():

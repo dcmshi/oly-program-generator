@@ -14,18 +14,20 @@ import sys
 from datetime import date
 from pathlib import Path
 from types import SimpleNamespace
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from generate import (
-    build_session_prompt, parse_llm_response, validate_exercise_names,
+    build_session_prompt,
     generate_session_with_retries,
+    parse_llm_response,
+    validate_exercise_names,
 )
-from models import AthleteContext, RetrievalContext, WeekTarget, SessionTemplate, GenerationResult
-from shared.constants import MAX_RECENT_LOGS_IN_PROMPT
+from models import AthleteContext, RetrievalContext, SessionTemplate, WeekTarget
 
+from shared.constants import MAX_RECENT_LOGS_IN_PROMPT
 
 # ── Prompt builder helpers ────────────────────────────────────
 
@@ -830,7 +832,7 @@ def main():
     passed = total - len(failures)
     print(f"\n{passed}/{total} passed")
     if failures:
-        print(f"\nFailed:")
+        print("\nFailed:")
         for f in failures:
             print(f"  - {f}")
         sys.exit(1)

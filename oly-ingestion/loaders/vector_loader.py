@@ -15,7 +15,6 @@ from typing import Any
 
 import psycopg2
 from pgvector.psycopg2 import register_vector
-
 from processors.chunker import Chunk
 
 logger = logging.getLogger(__name__)
@@ -114,7 +113,7 @@ class VectorLoader:
         # Collect log entries and write them after committing so the FK is satisfied.
         pending_log: list[tuple] = []  # (chunk_id, page_number, section_title, classification)
 
-        for (chunk, content_hash), embedding in zip(new_chunks, all_embeddings):
+        for (chunk, content_hash), embedding in zip(new_chunks, all_embeddings, strict=True):
             cursor.execute(
                 """
                 INSERT INTO knowledge_chunks
@@ -293,7 +292,7 @@ class VectorLoader:
         )
 
         columns = [desc[0] for desc in cursor.description]
-        results = [dict(zip(columns, row)) for row in cursor.fetchall()]
+        results = [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
         cursor.close()
         return results
 

@@ -5,7 +5,6 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-
 from web.async_db import async_fetch_one
 from web.auth import get_current_athlete_id, hash_password, verify_password
 from web.deps import get_db, limiter

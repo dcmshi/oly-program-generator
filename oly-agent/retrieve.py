@@ -16,10 +16,11 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from models import AthleteContext, ProgramPlan, RetrievalContext
+
 from shared.constants import VECTOR_SEARCH_DEFAULT_TOP_K, VECTOR_SEARCH_MIN_SIMILARITY
 from shared.db import fetch_all
-from shared.prilepin import get_prilepin_zone, get_prilepin_data
-from models import AthleteContext, ProgramPlan, RetrievalContext
+from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
 logger = logging.getLogger(__name__)
 

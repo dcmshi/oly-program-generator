@@ -186,9 +186,9 @@ def _search_principles(conn, keywords: list[str], limit: int = 3) -> list[dict]:
 
 def run_eval(top_k: int = 5, min_similarity: float = MIN_SIMILARITY):
     """Run all evaluation queries and print a report."""
-    from loaders.vector_loader import VectorLoader
-    from config import Settings
     import psycopg2
+    from config import Settings
+    from loaders.vector_loader import VectorLoader
 
     settings = Settings()
     loader = VectorLoader(settings)

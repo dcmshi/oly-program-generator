@@ -39,6 +39,11 @@ def _test(name, fn):
 
 def _integration_only():
     if not _INTEGRATION:
+        # Under pytest, use its skip mechanism; the standalone runner catches _Skip.
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            import pytest
+
+            pytest.skip("set INTEGRATION_TESTS=1 to enable (needs ANTHROPIC_API_KEY)")
         raise _Skip("set INTEGRATION_TESTS=1 to enable (needs ANTHROPIC_API_KEY)")
 
 
@@ -217,7 +222,7 @@ def test_vision_ocr_requires_anthropic_client():
     extractor = PDFExtractor(anthropic_client=None)
     try:
         extractor._extract_with_vision(Path("nonexistent.pdf"))
-        assert False, "Should have failed without fitz or client"
+        raise AssertionError("Should have failed without fitz or client")
     except Exception:
         pass  # expected — any failure is acceptable here
 

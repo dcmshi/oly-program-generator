@@ -10,9 +10,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from fastapi import HTTPException, Request
 from slowapi import Limiter
 from slowapi.util import get_remote_address
+from web.async_db import get_async_pool
 
 from shared.config import Settings
-from web.async_db import get_async_pool
 
 logger = logging.getLogger(__name__)
 

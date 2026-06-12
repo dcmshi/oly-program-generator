@@ -11,7 +11,6 @@ Usage:
 """
 
 import argparse
-import json
 import sys
 from datetime import date, datetime, timedelta
 from pathlib import Path
@@ -19,8 +18,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.config import Settings
-from shared.db import get_connection, fetch_one, fetch_all, execute, execute_returning
-
+from shared.db import execute, execute_returning, fetch_all, fetch_one, get_connection
 
 # ── Helpers ─────────────────────────────────────────────────────
 
@@ -277,7 +275,7 @@ def cmd_exercise(log_id: int, conn, session_id: int | None = None) -> None:
     while True:
         print(f"  --- Exercise {order} ---")
         if prescribed:
-            raw_link = input(f"  Link to session_exercise_id (or Enter to skip): ").strip()
+            raw_link = input("  Link to session_exercise_id (or Enter to skip): ").strip()
             linked_ex = prescribed.get(int(raw_link)) if raw_link.isdigit() else None
         else:
             linked_ex = None
@@ -338,7 +336,7 @@ def cmd_exercise(log_id: int, conn, session_id: int | None = None) -> None:
             ),
         )
         conn.commit()
-        print(f"    Saved.")
+        print("    Saved.")
         order += 1
 
     print(f"\n  Done. {order - 1} exercise(s) logged for log_id={log_id}.")
@@ -449,7 +447,7 @@ def cmd_status(athlete_id: int, conn) -> None:
                     )
 
         if warnings:
-            print(f"\n  ⚠  Warnings:\n")
+            print("\n  ⚠  Warnings:\n")
             for w in warnings:
                 print(f"    • {w}")
         else:
@@ -480,10 +478,10 @@ def cmd_status(athlete_id: int, conn) -> None:
         (program_id, current_week),
     )
     p = prescribed_count["cnt"] if prescribed_count else 0
-    l = logged_count["cnt"] if logged_count else 0
+    n_logged = logged_count["cnt"] if logged_count else 0
     if p > 0:
-        pct = round(l / p * 100)
-        print(f"\n  Adherence through week {current_week}: {l}/{p} sessions logged ({pct}%)")
+        pct = round(n_logged / p * 100)
+        print(f"\n  Adherence through week {current_week}: {n_logged}/{p} sessions logged ({pct}%)")
     print()
 
 

@@ -15,8 +15,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import Settings
-from processors.principle_extractor import PrincipleExtractor, ExtractedPrinciple
 from loaders.structured_loader import StructuredLoader
+from processors.principle_extractor import ExtractedPrinciple, PrincipleExtractor
 
 TEST_PREFIX = "__test__"
 
@@ -139,7 +139,6 @@ def test_extracts_multiple_principles_from_deload_passage():
     assert len(principles) >= 2, \
         f"Expected >= 2 principles from deload passage, got {len(principles)}"
 
-    names = [p.principle_name for p in principles]
     print(f"  deload passage: {len(principles)} principle(s)")
     for p in principles:
         print(f"    - [{p.rule_type}] {p.principle_name}")
@@ -165,7 +164,7 @@ def test_recommendation_fields_are_valid():
     assert has_numeric, \
         f"Expected at least one numeric recommendation field. Got: {[p.recommendation for p in principles]}"
 
-    print(f"  recommendation fields: numeric values present OK")
+    print("  recommendation fields: numeric values present OK")
 
 
 def test_load_extracted_principles_into_db():
@@ -226,6 +225,8 @@ if __name__ == "__main__":
             passed += 1
         except Exception as e:
             print(f"  FAIL  {test.__name__}: {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+
+            traceback.print_exc()
             failed += 1
     print(f"\n{passed} passed, {failed} failed")

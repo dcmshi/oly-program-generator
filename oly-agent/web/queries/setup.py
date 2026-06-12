@@ -65,7 +65,7 @@ async def create_athlete(conn, data: dict, password_hash: str) -> int:
 
 async def create_maxes(conn, athlete_id: int, name_weight_pairs: list[tuple[str, float]]):
     """Bulk-insert current maxes for a new athlete, looking up exercise IDs by name."""
-    from web.async_db import async_fetch_all, async_execute
+    from web.async_db import async_execute, async_fetch_all
 
     if not name_weight_pairs:
         return

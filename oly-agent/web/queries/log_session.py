@@ -27,7 +27,7 @@ def _parse_log_date(form: dict) -> date:
 
 
 async def get_session_with_exercises(conn, session_id: int) -> dict | None:
-    from web.async_db import async_fetch_one, async_fetch_all
+    from web.async_db import async_fetch_all, async_fetch_one
     session = await async_fetch_one(
         conn,
         """

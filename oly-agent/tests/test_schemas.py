@@ -17,7 +17,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from schemas import OutcomeSummary, PhaseCheck, PhaseVerdict
 
-
 # ── PhaseCheck ───────────────────────────────────────────────────────────────
 
 def test_phase_check_valid():

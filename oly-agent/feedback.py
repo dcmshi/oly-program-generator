@@ -12,9 +12,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.db import fetch_all, fetch_one, execute
 from models import ProgramOutcome
 from schemas import OutcomeSummary, PhaseVerdict
+
+from shared.db import execute, fetch_all, fetch_one
 
 logger = logging.getLogger(__name__)
 

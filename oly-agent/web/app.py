@@ -21,19 +21,18 @@ from slowapi.middleware import SlowAPIMiddleware
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.middleware.sessions import SessionMiddleware
 from starlette.responses import Response as StarletteResponse
-
-from web.async_db import init_async_pool, close_async_pool
-from web.jobs import init_arq_pool, close_arq_pool
+from web.async_db import close_async_pool, init_async_pool
 from web.deps import get_settings, limiter
+from web.jobs import close_arq_pool, init_arq_pool
 from web.logging_config import configure_logging, request_id_var
-from web.routers import dashboard, program, log_session, generate
-from web.routers import auth as auth_router
-from web.routers import setup as setup_router
-from web.routers import profile as profile_router
-from web.routers import export as export_router
-from web.routers import history as history_router
-from web.routers import health as health_router
 from web.routers import admin as admin_router
+from web.routers import auth as auth_router
+from web.routers import dashboard, generate, log_session, program
+from web.routers import export as export_router
+from web.routers import health as health_router
+from web.routers import history as history_router
+from web.routers import profile as profile_router
+from web.routers import setup as setup_router
 
 logger = logging.getLogger(__name__)
 
@@ -183,6 +182,7 @@ def _parse_rationale(text: str) -> list[dict]:
     return sections
 
 from urllib.parse import quote_plus
+
 templates.env.filters["urlencode"]        = quote_plus
 templates.env.filters["fmt_weight"]       = _fmt_weight
 templates.env.filters["fmt_rpe"]          = _fmt_rpe

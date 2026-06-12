@@ -8,7 +8,7 @@ async def get_program_for_export(conn, program_id: int, athlete_id: int) -> tupl
     exercise_rows has one entry per session exercise, ordered by week → day → exercise_order.
     Returns (None, []) if the program doesn't exist or belongs to another athlete.
     """
-    from web.async_db import async_fetch_one, async_fetch_all
+    from web.async_db import async_fetch_all, async_fetch_one
 
     program = await async_fetch_one(
         conn,

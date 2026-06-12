@@ -1,11 +1,11 @@
 # web/routers/generate.py
 import logging
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-
+from web import jobs
 from web.auth import get_current_athlete_id
 from web.deps import get_db, limiter
-from web import jobs
 from web.queries import program as qp
 
 logger = logging.getLogger(__name__)

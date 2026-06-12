@@ -12,7 +12,7 @@ Run: python tests/test_retag_chunks.py
 import os
 import sys
 from pathlib import Path
-from unittest.mock import MagicMock, call, patch
+from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
@@ -38,6 +38,11 @@ def _test(name, fn):
 
 def _integration_only():
     if not _INTEGRATION:
+        # Under pytest, use its skip mechanism; the standalone runner catches _Skip.
+        if os.environ.get("PYTEST_CURRENT_TEST"):
+            import pytest
+
+            pytest.skip("set INTEGRATION_TESTS=1 to enable (needs live DB)")
         raise _Skip("set INTEGRATION_TESTS=1 to enable (needs live DB)")
 
 
@@ -205,9 +210,10 @@ def test_integration_retag_dry_run_does_not_modify_db():
     """Dry-run against the live DB should not change any topics."""
     _integration_only()
 
-    from retag_chunks import retag
     # Import direct — no mock
     import psycopg2
+    from retag_chunks import retag
+
     from shared.config import Settings
     s = Settings()
     conn = psycopg2.connect(s.database_url)

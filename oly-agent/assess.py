@@ -14,9 +14,10 @@ from pathlib import Path
 # Make shared/ importable when running from oly-agent/ or the repo root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.db import fetch_one, fetch_all
 from models import AthleteContext
 from weight_resolver import build_maxes_dict
+
+from shared.db import fetch_all, fetch_one
 
 logger = logging.getLogger(__name__)
 

@@ -13,7 +13,7 @@
 export PYTHONUTF8 := 1
 
 .PHONY: help up down reset migrate sync web worker \
-        test test-agent test-ingestion \
+        test test-agent test-ingestion lint \
         coverage coverage-agent coverage-ingestion
 
 # ── Help ──────────────────────────────────────────────────────────────────────
@@ -35,6 +35,7 @@ help:
 	@echo "    make test             run both test suites"
 	@echo "    make test-agent       oly-agent unit + web router tests"
 	@echo "    make test-ingestion   oly-ingestion unit tests"
+	@echo "    make lint             ruff check (config in ruff.toml)"
 	@echo ""
 	@echo "  Coverage"
 	@echo "    make coverage         coverage for both subsystems"
@@ -97,6 +98,9 @@ INGESTION_TESTS := \
 	tests/test_structured_loader_unit.py
 
 test: test-agent test-ingestion
+
+lint:
+	uvx ruff check .
 
 test-agent:
 	cd oly-agent && uv run pytest $(AGENT_TESTS) -q

@@ -8,7 +8,6 @@ bs4 must be installed (it is a pipeline dependency).
 Run: python tests/test_epub_extractor.py
 """
 
-import os
 import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -166,7 +165,7 @@ def test_import_error_for_missing_ebooklib():
     with patch.dict(sys.modules, {"ebooklib": None, "ebooklib.epub": None}):
         try:
             extract_text_from_epub(Path("test.epub"))
-            assert False, "Expected ImportError"
+            raise AssertionError("Expected ImportError")
         except ImportError as e:
             assert "ebooklib" in str(e).lower()
         except Exception:

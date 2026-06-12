@@ -3,7 +3,6 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-
 from web.auth import hash_password
 from web.deps import get_db, limiter
 from web.queries import setup as q

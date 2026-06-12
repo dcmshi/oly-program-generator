@@ -11,12 +11,13 @@ Usage:
 """
 import argparse
 import sys
-import psycopg2
 from pathlib import Path
 
+import psycopg2
+
 sys.path.insert(0, str(Path(__file__).parent))
-from processors.chunker import keyword_tag
 from config import Settings
+from processors.chunker import keyword_tag
 
 
 def retag(source_id: int | None, dry_run: bool) -> None:

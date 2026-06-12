@@ -24,13 +24,13 @@ def extract_text_from_epub(path: Path) -> list[str]:
     """
     try:
         import ebooklib
-        from ebooklib import epub
         from bs4 import BeautifulSoup
+        from ebooklib import epub
     except ImportError:
         raise ImportError(
             "ebooklib is required for EPUB extraction. "
             "Install it: pip install ebooklib"
-        )
+        ) from None
 
     book = epub.read_epub(str(path))
     chapters = []

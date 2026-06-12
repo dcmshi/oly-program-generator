@@ -1,9 +1,9 @@
 # web/routers/dashboard.py
 import logging
 from datetime import date
+
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
-
 from web.auth import get_current_athlete_id
 from web.deps import get_db
 from web.queries import dashboard as q

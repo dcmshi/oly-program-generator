@@ -15,11 +15,11 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from retrieve import retrieve
-from models import AthleteContext, ProgramPlan, WeekTarget, SessionTemplate
+from models import AthleteContext, ProgramPlan, SessionTemplate, WeekTarget
 from phase_profiles import build_weekly_targets
+from retrieve import retrieve
 from session_templates import get_session_templates
-from shared.prilepin import compute_session_rep_target
+
 from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
 
 RESULTS = []

@@ -2,14 +2,13 @@
 """Admin pages — visible to any authenticated user."""
 
 import logging
-
-from fastapi import APIRouter, Depends, HTTPException, Request
-from fastapi.responses import HTMLResponse
-from fastapi.templating import Jinja2Templates
 from pathlib import Path
 
+from fastapi import APIRouter, Depends, Request
+from fastapi.responses import HTMLResponse
+from fastapi.templating import Jinja2Templates
 from web.deps import get_db, get_settings, require_admin
-from web.queries.admin import get_recent_jobs, get_job_detail
+from web.queries.admin import get_job_detail, get_recent_jobs
 
 router = APIRouter(prefix="/admin", tags=["admin"], dependencies=[Depends(require_admin)])
 templates = Jinja2Templates(directory=Path(__file__).parent.parent / "templates")

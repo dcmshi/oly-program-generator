@@ -15,13 +15,12 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from weight_resolver import (
+    apply_projected_maxes,
+    attach_source_chunk_ids,
     build_maxes_dict,
     resolve_exercise_ids,
     resolve_weights,
-    attach_source_chunk_ids,
-    apply_projected_maxes,
 )
-
 
 # ── Fixtures ───────────────────────────────────────────────────
 
@@ -352,7 +351,7 @@ def main():
     passed = total - len(failures)
     print(f"\n{passed}/{total} passed")
     if failures:
-        print(f"\nFailed:")
+        print("\nFailed:")
         for f in failures:
             print(f"  - {f}")
         sys.exit(1)

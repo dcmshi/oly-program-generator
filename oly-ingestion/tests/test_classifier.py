@@ -10,8 +10,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from processors.classifier import ContentClassifier, ContentType
 from config import Settings
+from processors.classifier import ContentClassifier, ContentType
 
 
 def make_classifier() -> ContentClassifier:
@@ -206,7 +206,9 @@ if __name__ == "__main__":
             passed += 1
         except Exception as e:
             print(f"  FAIL  {test.__name__}: {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+
+            traceback.print_exc()
             failed += 1
     if not run_llm:
         print(f"\n{passed} passed, {failed} failed  (LLM tests skipped — run with --llm to include)")

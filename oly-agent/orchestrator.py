@@ -18,18 +18,19 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.config import Settings
-from shared.db import get_connection, fetch_all, execute, execute_returning
-from shared.llm import create_llm_client, estimate_cost
 from assess import assess
+from explain import explain
+from generate import build_session_prompt, generate_session_with_retries
+from models import AthleteContext, ProgramPlan, SessionTemplate
+from phase_profiles import PHASE_PROFILES
 from plan import plan
 from retrieve import retrieve
-from generate import generate_session_with_retries, build_session_prompt
 from validate import validate_session
-from explain import explain
-from weight_resolver import resolve_exercise_ids, resolve_weights, attach_source_chunk_ids, apply_projected_maxes
-from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate
-from phase_profiles import PHASE_PROFILES
+from weight_resolver import apply_projected_maxes, attach_source_chunk_ids, resolve_exercise_ids, resolve_weights
+
+from shared.config import Settings
+from shared.db import execute, execute_returning, fetch_all, get_connection
+from shared.llm import create_llm_client, estimate_cost
 
 logging.basicConfig(
     level=logging.INFO,
@@ -510,7 +511,7 @@ def _print_plan(ctx: AthleteContext, p: ProgramPlan):
     print(f"Athlete: {ctx.athlete['name']} ({ctx.level})")
     print(f"Sessions/week: {p.sessions_per_week}")
     print(f"Cold start: {'yes' if ctx.previous_program is None else 'no'}")
-    print(f"\nWeekly targets:")
+    print("\nWeekly targets:")
     for wt in p.weekly_targets:
         deload = " [DELOAD]" if wt.is_deload else ""
         print(
@@ -519,7 +520,7 @@ def _print_plan(ctx: AthleteContext, p: ProgramPlan):
             f"vol={wt.volume_modifier:.0%} | "
             f"target {wt.total_competition_lift_reps} comp reps"
         )
-    print(f"\nSession templates:")
+    print("\nSession templates:")
     for st in p.session_templates:
         print(f"  D{st.day_number}: {st.label} ({st.session_volume_share:.0%} volume)")
     print(f"\nPrinciples loaded: {len(p.active_principles)}")

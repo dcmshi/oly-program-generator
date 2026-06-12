@@ -1,0 +1,29 @@
+# Ruff config — applies to shared/, oly-agent/, and oly-ingestion/
+# Run: make lint  (or: uvx ruff check .)
+
+target-version = "py311"
+line-length = 120
+
+extend-exclude = [
+    ".venv",
+    "oly-agent/migrations/versions",
+]
+
+[lint]
+select = [
+    "E",   # pycodestyle errors
+    "F",   # pyflakes
+    "W",   # pycodestyle warnings
+    "I",   # isort
+    "B",   # flake8-bugbear
+    "UP",  # pyupgrade
+]
+ignore = [
+    "E501",  # line length — templates/prompts have long literal strings
+    "E402",  # module-level import not at top — sys.path bootstrapping pattern used throughout
+    "B008",  # function call in default arg — FastAPI Depends() idiom
+]
+
+[lint.per-file-ignores]
+# Test files import fixtures/modules after sys.path setup and shadow names freely
+"**/tests/*" = ["F811"]

@@ -10,11 +10,9 @@ Key design decisions:
 - Two-pass topic tagging: keyword matching (fast) + LLM fallback (accurate)
 """
 
-import json
 import re
 from dataclasses import dataclass, field
 from enum import Enum
-
 
 # ──────────────────────────────────────────────────────────────
 # Data classes
@@ -271,7 +269,6 @@ KEYWORD_TO_TOPIC: dict[str, list[str]] = {
     "class ii": ["intermediate_development"],
     "class i": ["intermediate_development"],
     "candidate master of sport": ["advanced_development"],
-    "training block": ["periodization_models"],
     "loading scheme": ["volume_management", "intensity_prescription"],
     "exercise classification": ["periodization_models"],
     "coordination structure": ["snatch_technique", "clean_technique"],
@@ -448,7 +445,7 @@ def validate_chunk(chunk: Chunk) -> ChunkValidationResult:
 
     # Contains a table
     lines = chunk.raw_content.split("\n")
-    table_like = [l for l in lines if l.count("|") >= 2 or l.count("\t") >= 2]
+    table_like = [ln for ln in lines if ln.count("|") >= 2 or ln.count("\t") >= 2]
     if len(table_like) >= 3:
         issues.append(
             "Contains what looks like a table. Consider parsing as structured data."

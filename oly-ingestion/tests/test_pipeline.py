@@ -23,8 +23,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import Settings
-from pipeline import IngestionPipeline, SourceDocument
 from loaders.structured_loader import StructuredLoader
+from pipeline import IngestionPipeline, SourceDocument
 
 TEST_AUTHOR = "__test__ Author"
 
@@ -248,7 +248,7 @@ def test_pipeline_fail_run_on_bad_source():
         )
         try:
             pipeline.ingest(doc)
-            assert False, "Expected ingest to raise an exception"
+            raise AssertionError("Expected ingest to raise an exception")
         except Exception:
             pass  # expected
 
@@ -261,7 +261,7 @@ def test_pipeline_fail_run_on_bad_source():
         row = cur.fetchone()
         assert row is not None
         assert row[0] == "failed", f"Expected 'failed', got '{row[0]}'"
-        print(f"  fail_run: bad source correctly marked as failed")
+        print("  fail_run: bad source correctly marked as failed")
         cur.close()
         loader2.close()
     finally:
@@ -285,6 +285,8 @@ if __name__ == "__main__":
             passed += 1
         except Exception as e:
             print(f"  FAIL  {test.__name__}: {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+
+            traceback.print_exc()
             failed += 1
     print(f"\n{passed} passed, {failed} failed")

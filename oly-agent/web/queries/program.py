@@ -150,8 +150,9 @@ async def complete_program(conn, program_id: int, athlete_id: int) -> dict:
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from feedback import compute_outcome, save_outcome
-    from shared.db import get_connection
     from web.deps import get_settings
+
+    from shared.db import get_connection
 
     sync_conn = get_connection(get_settings().database_url)
     try:
@@ -223,10 +224,11 @@ async def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
     import sys
     from pathlib import Path
     sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-    from web.async_db import async_fetch_all
-    from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF
-    from weight_resolver import build_maxes_dict
     from assess import estimate_missing_maxes
+    from web.async_db import async_fetch_all
+    from weight_resolver import build_maxes_dict
+
+    from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF
 
     rows = await async_fetch_all(
         conn,

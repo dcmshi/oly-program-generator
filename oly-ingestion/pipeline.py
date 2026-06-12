@@ -13,17 +13,16 @@ import hashlib
 import json
 import logging
 import re
-import time
 from dataclasses import dataclass
 from pathlib import Path
 
+from config import Settings
 from extractors.pdf_extractor import PDFExtractor
+from loaders.structured_loader import StructuredLoader
+from loaders.vector_loader import VectorLoader
 from processors.chunker import SemanticChunker, validate_chunk
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
-from loaders.vector_loader import VectorLoader
-from loaders.structured_loader import StructuredLoader
-from config import Settings
 
 logging.basicConfig(
     level=logging.INFO,

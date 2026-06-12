@@ -18,8 +18,8 @@ Work order: top to bottom. Check items off as they land.
 
 ## 2. Medium — portfolio/devex
 
-- [ ] **CI**: add `.github/workflows/ci.yml` running the no-key/no-DB test suites for both subsystems + ruff; add badge to README
-- [ ] **Linting**: add ruff config to both `pyproject.toml`s, fix any findings, add `make lint` target
+- [x] **CI**: add `.github/workflows/ci.yml` running the no-key/no-DB test suites for both subsystems + ruff; add badge to README
+- [x] **Linting**: add ruff config to both `pyproject.toml`s, fix any findings, add `make lint` target
 
 ## 3. Medium — robustness
 

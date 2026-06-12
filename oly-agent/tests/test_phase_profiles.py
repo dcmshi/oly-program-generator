@@ -13,9 +13,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from phase_profiles import build_weekly_targets, PHASE_PROFILES
-from session_templates import get_session_templates, SESSION_DISTRIBUTIONS
-
+from phase_profiles import PHASE_PROFILES, build_weekly_targets
+from session_templates import SESSION_DISTRIBUTIONS, get_session_templates
 
 # ── Helpers ───────────────────────────────────────────────────
 
@@ -28,7 +27,7 @@ def assert_eq(label, actual, expected):
 
 def assert_true(label, condition, msg=""):
     if not condition:
-        return False, msg or f"assertion failed"
+        return False, msg or "assertion failed"
     return True, ""
 
 
@@ -64,7 +63,6 @@ def test_deload_week_flagged():
         n = profile["default_weeks"]
         targets = build_weekly_targets(phase, n, "intermediate")
         deload_targets = [t for t in targets if t["is_deload"]]
-        non_deload_targets = [t for t in targets if not t["is_deload"]]
         if len(deload_targets) != 1:
             return False, f"{phase}: expected 1 deload week, got {len(deload_targets)}"
         if deload_targets[0]["week_number"] != n:
@@ -111,7 +109,7 @@ def test_level_beginner_lower_intensity():
         n = PHASE_PROFILES[phase]["default_weeks"]
         inter = build_weekly_targets(phase, n, "intermediate")
         begin = build_weekly_targets(phase, n, "beginner")
-        for i, e in zip(inter, begin):
+        for i, e in zip(inter, begin, strict=True):
             if e["intensity_ceiling"] >= i["intensity_ceiling"]:
                 return False, f"{phase} W{i['week_number']}: beginner ceiling not lower than intermediate"
     return True, ""
@@ -123,7 +121,7 @@ def test_level_elite_higher_intensity():
         n = PHASE_PROFILES[phase]["default_weeks"]
         inter = build_weekly_targets(phase, n, "intermediate")
         elite = build_weekly_targets(phase, n, "elite")
-        for i, e in zip(inter, elite):
+        for i, e in zip(inter, elite, strict=True):
             # Elite ceiling >= intermediate ceiling (may be equal at cap of 100)
             if e["intensity_ceiling"] < i["intensity_ceiling"]:
                 return False, f"{phase} W{i['week_number']}: elite ceiling lower than intermediate"
@@ -292,7 +290,7 @@ def main():
     passed = total - len(failures)
     print(f"\n{passed}/{total} passed")
     if failures:
-        print(f"\nFailed:")
+        print("\nFailed:")
         for f in failures:
             print(f"  - {f}")
         sys.exit(1)

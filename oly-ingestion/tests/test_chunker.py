@@ -11,13 +11,12 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from processors.chunker import (
+    KEEP_TOGETHER_PATTERNS,
     SemanticChunker,
     SourceProfile,
-    validate_chunk,
     keyword_tag,
-    KEEP_TOGETHER_PATTERNS,
+    validate_chunk,
 )
-
 
 # ── Fixtures ──────────────────────────────────────────────────
 

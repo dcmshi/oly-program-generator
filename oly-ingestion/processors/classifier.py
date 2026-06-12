@@ -12,8 +12,8 @@ The classifier uses a two-pass approach:
 2. LLM-assisted classification (slower) — handles ambiguous / mixed content
 """
 
-import re
 import logging
+import re
 from dataclasses import dataclass, field
 from enum import Enum
 

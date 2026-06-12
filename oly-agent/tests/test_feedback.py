@@ -17,8 +17,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root → sh
 sys.path.insert(0, str(Path(__file__).parent.parent))          # oly-agent  → models, feedback
 
 import psycopg2
+from feedback import _compute_trend, compute_outcome, save_outcome
+
 from shared.config import Settings
-from feedback import compute_outcome, save_outcome, _compute_trend
 
 # ── Constants pulled from the live DB ─────────────────────────────────────────
 # program_id=4, athlete_id=1 (David), W1D1 session_id=41
@@ -195,7 +196,6 @@ class TestSaveOutcome(unittest.TestCase):
         cls.conn.close()
 
     def test_save_and_read_back(self):
-        import json
         outcome = compute_outcome(PROGRAM_ID, ATHLETE_ID, self.conn)
         save_outcome(outcome, self.conn)
 

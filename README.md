@@ -1,5 +1,7 @@
 # Olympic Weightlifting Program Generator
 
+[![CI](https://github.com/dcmshi/oly-program-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/dcmshi/oly-program-generator/actions/workflows/ci.yml)
+
 Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on 3,796 chunks of coaching literature across 11 sources. A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and 275 unit tests.
 
 **Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · Claude (`claude-sonnet-4-6`) · OpenAI embeddings · Alembic · uv · Docker

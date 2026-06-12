@@ -15,8 +15,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import Settings
-from loaders.vector_loader import VectorLoader
 from loaders.structured_loader import StructuredLoader
+from loaders.vector_loader import VectorLoader
 from processors.chunker import Chunk
 
 TEST_PREFIX = "__test__"
@@ -215,7 +215,7 @@ def test_similarity_search_with_filters():
     source_ids = [r["source_id"] for r in results_match]
     assert sid in source_ids, "fault_correction filter should return our chunk"
 
-    print(f"  chunk_type filter: methodology excluded, fault_correction included OK")
+    print("  chunk_type filter: methodology excluded, fault_correction included OK")
     cleanup(vl, sl, sid)
     vl.close()
     sl.close()
@@ -244,7 +244,7 @@ def test_load_with_run_logging():
     cur.close()
     assert count == 1, f"Expected 1 log entry, got {count}"
 
-    print(f"  run logging: 1 chunk logged to ingestion_chunk_log OK")
+    print("  run logging: 1 chunk logged to ingestion_chunk_log OK")
     cleanup(vl, sl, sid)
     vl.close()
     sl.close()
@@ -291,7 +291,7 @@ def test_empty_content_chunks_skipped_before_embed():
     cur.close()
     assert count == 0, f"Expected no chunks stored for empty content, found {count}"
 
-    print(f"  empty_chunk_filter: 0 loaded, embed not called, DB clean OK")
+    print("  empty_chunk_filter: 0 loaded, embed not called, DB clean OK")
     cleanup(vl, sl, sid)
     vl.close()
     sl.close()
@@ -299,7 +299,6 @@ def test_empty_content_chunks_skipped_before_embed():
 
 def test_mixed_empty_and_valid_chunks_only_valid_embedded():
     """When a batch has both empty and valid chunks, only valid ones are embedded and stored."""
-    from unittest.mock import patch
 
     vl, sl = make_loaders()
     sid = sl.upsert_source(f"{TEST_PREFIX}Mixed Chunk Book", "Test Author", "book")
@@ -355,6 +354,8 @@ if __name__ == "__main__":
             passed += 1
         except Exception as e:
             print(f"  FAIL  {test.__name__}: {e}")
-            import traceback; traceback.print_exc()
+            import traceback
+
+            traceback.print_exc()
             failed += 1
     print(f"\n{passed} passed, {failed} failed")

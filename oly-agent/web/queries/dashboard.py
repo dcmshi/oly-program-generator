@@ -56,8 +56,8 @@ async def get_adherence(conn, program_id: int, week_number: int) -> dict:
         program_id, week_number,
     )
     p = (prescribed or {}).get("cnt", 0)
-    l = (logged or {}).get("cnt", 0)
-    return {"prescribed": p, "logged": l, "pct": round(l / p * 100) if p else 0}
+    n_logged = (logged or {}).get("cnt", 0)
+    return {"prescribed": p, "logged": n_logged, "pct": round(n_logged / p * 100) if p else 0}
 
 
 async def get_lift_ratios(conn, athlete_id: int) -> list[dict]:

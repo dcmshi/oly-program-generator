@@ -11,7 +11,6 @@ Run: python tests/test_orchestrator.py
 import os
 import sys
 from contextlib import ExitStack
-from dataclasses import dataclass, field
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
@@ -45,11 +44,17 @@ def _integration_only():
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
-from shared.config import Settings
 from models import (
-    AthleteContext, ProgramPlan, RetrievalContext,
-    GenerationResult, ValidationResult, WeekTarget, SessionTemplate,
+    AthleteContext,
+    GenerationResult,
+    ProgramPlan,
+    RetrievalContext,
+    SessionTemplate,
+    ValidationResult,
+    WeekTarget,
 )
+
+from shared.config import Settings
 
 
 def _settings():
@@ -244,7 +249,7 @@ def test_dry_run_calls_assess_and_plan():
 
 def test_full_generation_returns_program_id():
     with ExitStack() as stack:
-        mocks = _full_mock_stack(stack)
+        _full_mock_stack(stack)
         result = run(1, _settings())
     assert result == 42
 
@@ -267,7 +272,7 @@ def test_generation_failure_exercises_stores_empty_session():
     failed_result.exercises = None
 
     with ExitStack() as stack:
-        mocks = _full_mock_stack(stack, overrides={"generate": failed_result})
+        _full_mock_stack(stack, overrides={"generate": failed_result})
         result = run(1, _settings())
     # Program should still be created (not None)
     assert result == 42

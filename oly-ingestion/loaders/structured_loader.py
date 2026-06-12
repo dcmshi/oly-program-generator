@@ -6,10 +6,8 @@ Handles: sources, exercises, percentage_schemes, programming_principles,
 program_templates, exercise_substitutions, exercise_complexes.
 """
 
-import hashlib
 import json
 import logging
-import time
 from pathlib import Path
 
 import psycopg2

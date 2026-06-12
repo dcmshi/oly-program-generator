@@ -7,14 +7,12 @@ Run: python tests/test_parse_exercise.py
 """
 
 import sys
-import types
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from pipeline import IngestionPipeline
 from processors.classifier import ClassifiedSection, ContentType
-
 
 # ---------------------------------------------------------------------------
 # Minimal stub so we can instantiate IngestionPipeline without real settings

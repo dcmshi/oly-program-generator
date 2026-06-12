@@ -27,13 +27,12 @@ from pathlib import Path
 
 import requests
 from bs4 import BeautifulSoup
-
 from config import Settings
+from loaders.structured_loader import StructuredLoader
+from loaders.vector_loader import VectorLoader
 from processors.chunker import SemanticChunker
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
-from loaders.vector_loader import VectorLoader
-from loaders.structured_loader import StructuredLoader
 
 logging.basicConfig(
     level=logging.INFO,
@@ -179,7 +178,7 @@ def fetch_article(url: str) -> dict | None:
     # ── Author — second non-empty line in the container, or default ──
     author = "Greg Everett"
     if main:
-        lines = [l.strip() for l in main.get_text(separator="\n", strip=True).split("\n") if l.strip()]
+        lines = [ln.strip() for ln in main.get_text(separator="\n", strip=True).split("\n") if ln.strip()]
         # Author line is typically the second line (after title), before the date
         if len(lines) > 1:
             candidate = lines[1]
@@ -394,7 +393,7 @@ def main():
     save_progress(ingested_urls)
 
     # ── Summary ──
-    print(f"\nWeb ingestion complete:")
+    print("\nWeb ingestion complete:")
     print(f"  Articles ingested: {run_stats['articles_ingested']}")
     print(f"  Chunks loaded:     {run_stats['chunks_total']}")
     print(f"  Principles:        {run_stats['principles_total']}")

@@ -37,7 +37,7 @@ async def get_active_goal(conn, athlete_id: int) -> dict | None:
 
 async def upsert_goal(conn, athlete_id: int, data: dict):
     """Update the active goal row if one exists, otherwise insert a new one."""
-    from web.async_db import async_fetch_one, async_execute
+    from web.async_db import async_execute, async_fetch_one
 
     def _float(v):
         try:
@@ -166,7 +166,7 @@ async def update_password(conn, athlete_id: int, new_hash: str):
 
 
 async def update_username(conn, athlete_id: int, new_username: str):
-    from web.async_db import async_fetch_one, async_execute
+    from web.async_db import async_execute, async_fetch_one
     existing = await async_fetch_one(
         conn,
         "SELECT id FROM athletes WHERE username = $1 AND id != $2",

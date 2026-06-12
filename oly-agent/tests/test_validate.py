@@ -14,8 +14,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from validate import validate_session
 from models import WeekTarget
+from validate import validate_session
 
 # ── Fixtures ───────────────────────────────────────────────────
 
@@ -600,7 +600,7 @@ def main():
     passed = total - len(failures)
     print(f"\n{passed}/{total} passed")
     if failures:
-        print(f"\nFailed:")
+        print("\nFailed:")
         for f in failures:
             print(f"  - {f}")
         sys.exit(1)

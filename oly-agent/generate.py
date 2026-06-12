@@ -19,6 +19,16 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from models import (
+    AthleteContext,
+    GenerationResult,
+    RetrievalContext,
+    SessionTemplate,
+    WeekTarget,
+)
+from schemas import OutcomeSummary
+from validate import validate_session
+
 from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
     MAX_PRINCIPLES_IN_PROMPT,
@@ -27,12 +37,6 @@ from shared.constants import (
     SNIPPET_MAX_CHARS,
 )
 from shared.llm import estimate_cost
-from models import (
-    AthleteContext, ProgramPlan, RetrievalContext,
-    WeekTarget, SessionTemplate, GenerationResult,
-)
-from schemas import OutcomeSummary
-from validate import validate_session
 
 logger = logging.getLogger(__name__)
 
