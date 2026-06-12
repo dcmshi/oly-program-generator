@@ -206,12 +206,12 @@ async def delete_program(conn, program_id: int, athlete_id: int):
     )
 
 
-async def abandon_program(conn, program_id: int):
+async def abandon_program(conn, program_id: int, athlete_id: int):
     from web.async_db import async_execute
     await async_execute(
         conn,
-        "UPDATE generated_programs SET status = 'abandoned', updated_at = NOW() WHERE id = $1",
-        program_id,
+        "UPDATE generated_programs SET status = 'abandoned', updated_at = NOW() WHERE id = $1 AND athlete_id = $2",
+        program_id, athlete_id,
     )
 
 
@@ -354,6 +354,6 @@ async def activate_program(conn, program_id: int, athlete_id: int):
     )
     await async_execute(
         conn,
-        "UPDATE generated_programs SET status = 'active', updated_at = NOW() WHERE id = $1",
-        program_id,
+        "UPDATE generated_programs SET status = 'active', updated_at = NOW() WHERE id = $1 AND athlete_id = $2",
+        program_id, athlete_id,
     )

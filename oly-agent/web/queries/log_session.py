@@ -83,8 +83,11 @@ async def get_exercise_log_entry(conn, tle_id: int) -> dict | None:
     )
 
 
-async def update_exercise_log(conn, tle_id: int, form: dict):
-    """Update a training_log_exercises row from form values, recomputing deviations."""
+async def update_exercise_log(conn, tle_id: int, form: dict, log_id: int):
+    """Update a training_log_exercises row from form values, recomputing deviations.
+
+    Scoped by log_id so a tle_id belonging to another athlete's log cannot be modified.
+    """
     from web.async_db import async_execute, async_fetch_one
 
     weight_kg = _float(form.get("weight_kg"))
@@ -101,8 +104,8 @@ async def update_exercise_log(conn, tle_id: int, form: dict):
     # Fetch stored prescribed values to recompute deviations
     existing = await async_fetch_one(
         conn,
-        "SELECT prescribed_weight_kg, session_exercise_id FROM training_log_exercises WHERE id = $1",
-        tle_id,
+        "SELECT prescribed_weight_kg, session_exercise_id FROM training_log_exercises WHERE id = $1 AND log_id = $2",
+        tle_id, log_id,
     )
     prescribed_weight = float(existing["prescribed_weight_kg"]) if existing and existing["prescribed_weight_kg"] else None
     prescribed_rpe = None
@@ -125,14 +128,14 @@ async def update_exercise_log(conn, tle_id: int, form: dict):
         SET sets_completed = $1, reps_per_set = $2, weight_kg = $3, rpe = $4,
             make_rate = $5, technical_notes = $6,
             weight_deviation_kg = $7, rpe_deviation = $8
-        WHERE id = $9
+        WHERE id = $9 AND log_id = $10
         """,
         _int(form.get("sets_completed")),
         reps_per_set or None,
         weight_kg, rpe, make_rate,
         form.get("technical_notes") or None,
         weight_deviation, rpe_deviation,
-        tle_id,
+        tle_id, log_id,
     )
 
 
@@ -141,9 +144,13 @@ async def get_log_by_id(conn, log_id: int) -> dict | None:
     return await async_fetch_one(conn, "SELECT * FROM training_logs WHERE id = $1", log_id)
 
 
-async def delete_exercise_log(conn, tle_id: int):
+async def delete_exercise_log(conn, tle_id: int, log_id: int):
     from web.async_db import async_execute
-    await async_execute(conn, "DELETE FROM training_log_exercises WHERE id = $1", tle_id)
+    await async_execute(
+        conn,
+        "DELETE FROM training_log_exercises WHERE id = $1 AND log_id = $2",
+        tle_id, log_id,
+    )
 
 
 async def get_logged_exercises(conn, log_id: int) -> list[dict]:

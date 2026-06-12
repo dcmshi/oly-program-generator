@@ -112,7 +112,8 @@ def _session_detail():
     return {
         "id": 1, "week_number": 1, "day_number": 1,
         "session_label": "Snatch Day", "estimated_duration_minutes": 60,
-        "focus_area": "snatch", "program_id": 1,
+        "focus_area": "snatch", "program_id": 1, "athlete_id": 1,
+        "program_name": "Accumulation Block",
         "exercises": [{
             "id": 1, "exercise_order": 1, "exercise_name": "Snatch",
             "sets": 4, "reps": 3, "intensity_pct": 75.0,
@@ -248,6 +249,72 @@ def test_program_abandon():
         with patch("web.queries.program.abandon_program", return_value=None):
             r = _client.post("/program/1/abandon")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+
+
+# ── Ownership checks (IDOR regression tests) ──────────────────────────────────
+
+def test_program_detail_404_for_unowned():
+    with patch("web.queries.program.get_program", return_value=_program(athlete_id=2)):
+        r = _client.get("/program/1")
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+
+
+def test_program_activate_404_for_unowned():
+    with patch("web.queries.program.get_program", return_value=_program(athlete_id=2)):
+        with patch("web.queries.program.activate_program", return_value=None) as mock_activate:
+            r = _client.post("/program/1/activate")
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+    assert not mock_activate.called, "activate_program must not run for unowned program"
+
+
+def test_program_complete_404_for_unowned():
+    with patch("web.queries.program.get_program", return_value=_program(athlete_id=2)):
+        with patch("web.queries.program.complete_program", return_value=None) as mock_complete:
+            r = _client.post("/program/1/complete")
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+    assert not mock_complete.called, "complete_program must not run for unowned program"
+
+
+def test_program_abandon_404_for_unowned():
+    with patch("web.queries.program.get_program", return_value=_program(athlete_id=2)):
+        with patch("web.queries.program.abandon_program", return_value=None) as mock_abandon:
+            r = _client.post("/program/1/abandon")
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+    assert not mock_abandon.called, "abandon_program must not run for unowned program"
+
+
+def test_log_form_404_for_unowned_session():
+    unowned = {**_session_detail(), "athlete_id": 2}
+    with patch("web.queries.log_session.get_session_with_exercises", return_value=unowned):
+        r = _client.get("/log/1")
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+
+
+def test_submit_session_log_404_for_unowned_session():
+    unowned = {**_session_detail(), "athlete_id": 2}
+    with patch("web.queries.log_session.get_session_with_exercises", return_value=unowned):
+        with patch("web.queries.log_session.create_session_log", return_value=10) as mock_create:
+            r = _client.post("/log/1", data={"overall_rpe": "7", "notes": ""})
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+    assert not mock_create.called, "create_session_log must not run for unowned session"
+
+
+def test_delete_exercise_log_404_for_unowned_log():
+    unowned_log = {**_log(), "athlete_id": 2}
+    with patch("web.queries.log_session.get_log_by_id", return_value=unowned_log):
+        with patch("web.queries.log_session.delete_exercise_log", return_value=None) as mock_delete:
+            r = _client.delete("/log/10/exercise/5")
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+    assert not mock_delete.called, "delete_exercise_log must not run for unowned log"
+
+
+def test_update_exercise_log_404_for_unowned_log():
+    unowned_log = {**_log(), "athlete_id": 2}
+    with patch("web.queries.log_session.get_log_by_id", return_value=unowned_log):
+        with patch("web.queries.log_session.update_exercise_log", return_value=None) as mock_update:
+            r = _client.post("/log/10/exercise/5", data={"weight_kg": "80"})
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+    assert not mock_update.called, "update_exercise_log must not run for unowned log"
 
 
 # ── Session log ───────────────────────────────────────────────────────────────

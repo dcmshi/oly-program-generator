@@ -12,13 +12,31 @@ logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/log")
 
 
-@router.get("/{session_id}", response_class=HTMLResponse)
-async def log_form(session_id: int, request: Request, conn=Depends(get_db)):
-    from web.app import templates
+async def _get_owned_session(conn, session_id: int, athlete_id: int) -> dict:
     session = await q.get_session_with_exercises(conn, session_id)
-    if not session:
-        logger.warning(f"Session {session_id} not found")
+    if not session or session["athlete_id"] != athlete_id:
+        logger.warning(f"Session {session_id} not found or not owned by athlete {athlete_id}")
         raise HTTPException(status_code=404, detail="Session not found")
+    return session
+
+
+async def _get_owned_log(conn, log_id: int, athlete_id: int) -> dict:
+    log = await q.get_log_by_id(conn, log_id)
+    if not log or log["athlete_id"] != athlete_id:
+        logger.warning(f"Log {log_id} not found or not owned by athlete {athlete_id}")
+        raise HTTPException(status_code=404, detail="Log not found")
+    return log
+
+
+@router.get("/{session_id}", response_class=HTMLResponse)
+async def log_form(
+    session_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
+    from web.app import templates
+    session = await _get_owned_session(conn, session_id, athlete_id)
     existing_log = await q.get_existing_log(conn, session_id)
     logged_exercises = await q.get_logged_exercises(conn, existing_log["id"]) if existing_log else []
     logger.info(f"Log form: session {session_id}, already_logged={existing_log is not None}")
@@ -43,10 +61,7 @@ async def submit_session_log(
 ):
     from web.app import templates
     form = await request.form()
-    session = await q.get_session_with_exercises(conn, session_id)
-    if not session:
-        logger.warning(f"Session log submit: session {session_id} not found")
-        raise HTTPException(status_code=404, detail="Session not found")
+    session = await _get_owned_session(conn, session_id, athlete_id)
 
     existing = await q.get_existing_log(conn, session_id)
     if existing:
@@ -78,6 +93,7 @@ async def submit_exercise_log(
 ):
     from web.app import templates
     from datetime import date as _date
+    log = await _get_owned_log(conn, log_id, athlete_id)
     form = await request.form()
     tle_id = await q.create_exercise_log(conn, log_id, dict(form))
     exercise_name = form.get("exercise_name", "Exercise")
@@ -100,7 +116,6 @@ async def submit_exercise_log(
     except Exception as e:
         logger.warning(f"Max promotion check failed (non-fatal): {e}")
 
-    log = await q.get_log_by_id(conn, log_id)
     session = await q.get_session_with_exercises(conn, log["session_id"])
     logged_exercises = await q.get_logged_exercises(conn, log_id)
     return templates.TemplateResponse("partials/exercise_log_section.html", {
@@ -119,11 +134,12 @@ async def delete_exercise_log(
     tle_id: int,
     request: Request,
     conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
-    await q.delete_exercise_log(conn, tle_id)
+    log = await _get_owned_log(conn, log_id, athlete_id)
+    await q.delete_exercise_log(conn, tle_id, log_id)
     logger.info(f"Exercise deleted: tle_id={tle_id}, log_id={log_id}")
-    log = await q.get_log_by_id(conn, log_id)
     session = await q.get_session_with_exercises(conn, log["session_id"])
     logged_exercises = await q.get_logged_exercises(conn, log_id)
     return templates.TemplateResponse("partials/exercise_log_section.html", {
@@ -146,8 +162,9 @@ async def update_exercise_log(
 ):
     from web.app import templates
     from datetime import date as _date
+    log = await _get_owned_log(conn, log_id, athlete_id)
     form = await request.form()
-    await q.update_exercise_log(conn, tle_id, dict(form))
+    await q.update_exercise_log(conn, tle_id, dict(form), log_id)
     logger.info(f"Exercise updated: tle_id={tle_id}, log_id={log_id}")
 
     # Auto-promote new max if this is a max attempt exercise
@@ -164,10 +181,9 @@ async def update_exercise_log(
         logger.warning(f"Max promotion check on edit failed (non-fatal): {e}")
 
     tle = await q.get_exercise_log_entry(conn, tle_id)
-    log = await q.get_log_by_id(conn, log_id)
     return templates.TemplateResponse("partials/exercise_log_entry.html", {
         "request": request,
         "tle": tle,
         "log_id": log_id,
-        "session_id": log["session_id"] if log else None,
+        "session_id": log["session_id"],
     })

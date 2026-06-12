@@ -58,6 +58,9 @@ async def activate(
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
+    program = await q.get_program(conn, program_id)
+    if not program or program["athlete_id"] != athlete_id:
+        raise HTTPException(status_code=404, detail="Program not found")
     await q.activate_program(conn, program_id, athlete_id)
     program = await q.get_program(conn, program_id)
     logger.info(f"Program {program_id} activated for athlete {athlete_id}")
@@ -76,8 +79,8 @@ async def complete(
 ):
     from web.app import templates
     program = await q.get_program(conn, program_id)
-    if not program:
-        logger.warning(f"Complete requested for missing program {program_id}")
+    if not program or program["athlete_id"] != athlete_id:
+        logger.warning(f"Complete requested for missing/unowned program {program_id}")
         raise HTTPException(status_code=404, detail="Program not found")
     logger.info(f"Completing program {program_id} for athlete {athlete_id}")
     outcome = await q.complete_program(conn, program_id, athlete_id)
@@ -112,7 +115,7 @@ async def abandon(
     program = await q.get_program(conn, program_id)
     if not program or program["athlete_id"] != athlete_id:
         raise HTTPException(status_code=404, detail="Program not found")
-    await q.abandon_program(conn, program_id)
+    await q.abandon_program(conn, program_id, athlete_id)
     logger.info(f"Program {program_id} abandoned by athlete {athlete_id}")
     return templates.TemplateResponse("partials/status_badge.html", {
         "request": request, "status": "abandoned",
