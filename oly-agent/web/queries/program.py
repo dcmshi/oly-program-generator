@@ -16,8 +16,9 @@ async def get_program(conn, program_id: int) -> dict | None:
 
 
 async def get_all_programs(conn, athlete_id: int) -> list[dict]:
-    from shared.constants import MAX_PROGRAM_LIST_ROWS
     from web.async_db import async_fetch_all
+
+    from shared.constants import MAX_PROGRAM_LIST_ROWS
     return await async_fetch_all(
         conn,
         f"""

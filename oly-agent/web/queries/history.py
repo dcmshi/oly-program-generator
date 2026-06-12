@@ -4,8 +4,9 @@
 
 async def get_exercise_history(conn, athlete_id: int, exercise_name: str) -> list[dict]:
     """Logged entries for a given exercise, most recent first (capped at MAX_HISTORY_ROWS)."""
-    from shared.constants import MAX_HISTORY_ROWS
     from web.async_db import async_fetch_all
+
+    from shared.constants import MAX_HISTORY_ROWS
 
     return await async_fetch_all(
         conn,
