@@ -35,7 +35,6 @@ pgdata/
 oly_backup_*.sql
 
 # uv
-uv.lock
 
 # IDE
 .idea/

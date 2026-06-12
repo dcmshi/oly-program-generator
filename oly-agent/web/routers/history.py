@@ -37,7 +37,7 @@ async def exercise_history(
     summary = compute_history_summary(rows)
     logger.info(f"History: athlete={athlete_id}, exercise={exercise!r}, rows={len(rows)}")
 
-    return templates.TemplateResponse("history.html", {
+    return templates.TemplateResponse(request, "history.html", {
         "request":  request,
         "exercise": exercise,
         "rows":     rows,

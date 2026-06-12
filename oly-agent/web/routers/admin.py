@@ -22,7 +22,7 @@ async def jobs_page(
     conn=Depends(get_db),
 ):
     jobs = await get_recent_jobs(conn)
-    return templates.TemplateResponse(
+    return templates.TemplateResponse(request,
         "admin_jobs.html",
         {"request": request, "jobs": jobs},
     )
@@ -35,7 +35,7 @@ async def job_detail(
     conn=Depends(get_db),
 ):
     rows = await get_job_detail(conn, program_id)
-    return templates.TemplateResponse(
+    return templates.TemplateResponse(request,
         "admin_job_detail.html",
         {"request": request, "program_id": program_id, "rows": rows},
     )

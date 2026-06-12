@@ -23,7 +23,7 @@ async def profile_page(
     from web.app import templates
     athlete = await q.get_athlete(conn, athlete_id)
     goal = await q.get_active_goal(conn, athlete_id)
-    return templates.TemplateResponse("profile.html", {
+    return templates.TemplateResponse(request, "profile.html", {
         "request": request,
         "athlete": athlete,
         "goal": goal,
@@ -85,7 +85,7 @@ async def update_profile(
     if not data["name"]:
         athlete = await q.get_athlete(conn, athlete_id)
         goal = await q.get_active_goal(conn, athlete_id)
-        return templates.TemplateResponse("profile.html", {
+        return templates.TemplateResponse(request, "profile.html", {
             "request": request,
             "athlete": athlete,
             "goal": goal,
@@ -117,7 +117,7 @@ async def update_password(
     goal = await q.get_active_goal(conn, athlete_id)
 
     def _err(msg):
-        return templates.TemplateResponse("profile.html", {
+        return templates.TemplateResponse(request, "profile.html", {
             "request": request,
             "athlete": athlete,
             "goal": goal,
@@ -155,7 +155,7 @@ async def update_username(
     goal = await q.get_active_goal(conn, athlete_id)
 
     def _err(msg):
-        return templates.TemplateResponse("profile.html", {
+        return templates.TemplateResponse(request, "profile.html", {
             "request": request,
             "athlete": athlete,
             "goal": goal,

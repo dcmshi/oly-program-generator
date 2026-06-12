@@ -61,7 +61,7 @@ def _template_ctx(request, errors=None, form=None):
 @router.get("/setup", response_class=HTMLResponse)
 async def setup_page(request: Request):
     from web.app import templates
-    return templates.TemplateResponse("setup.html", _template_ctx(request))
+    return templates.TemplateResponse(request, "setup.html", _template_ctx(request))
 
 
 @router.post("/setup", response_class=HTMLResponse)
@@ -105,7 +105,7 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         errors.append("Please select a training level.")
 
     if errors:
-        return templates.TemplateResponse(
+        return templates.TemplateResponse(request,
             "setup.html", _template_ctx(request, errors, form), status_code=422
         )
 

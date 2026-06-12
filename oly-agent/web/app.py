@@ -223,7 +223,7 @@ async def http_exception_handler(request: Request, exc: StarletteHTTPException):
     if exc.status_code in _ERROR_MESSAGES:
         if request.headers.get("HX-Request"):
             return HTMLResponse(exc.detail or "Error", status_code=exc.status_code)
-        return templates.TemplateResponse("error.html", {
+        return templates.TemplateResponse(request, "error.html", {
             "request": request,
             "status_code": exc.status_code,
             "message": exc.detail or _ERROR_MESSAGES[exc.status_code],
@@ -236,7 +236,7 @@ async def unhandled_exception_handler(request: Request, exc: Exception):
     logger.exception(f"Unhandled error on {request.method} {request.url.path}: {exc}")
     if request.headers.get("HX-Request"):
         return HTMLResponse("Internal server error", status_code=500)
-    return templates.TemplateResponse("error.html", {
+    return templates.TemplateResponse(request, "error.html", {
         "request": request,
         "status_code": 500,
         "message": _ERROR_MESSAGES[500],

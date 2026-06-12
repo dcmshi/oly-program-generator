@@ -21,7 +21,7 @@ async def generate_page(
     from web.app import templates
     programs = await qp.get_all_programs(conn, athlete_id)
     last = programs[0] if programs else None
-    return templates.TemplateResponse("generate.html", {
+    return templates.TemplateResponse(request, "generate.html", {
         "request": request, "last_program": last,
     })
 
@@ -38,7 +38,7 @@ async def run_generation(
     request_id = getattr(request.state, "request_id", "-")
     job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run, request_id=request_id)
     logger.info(f"Generation submitted: job_id={job_id}, athlete={athlete_id}, dry_run={dry_run}")
-    return templates.TemplateResponse("partials/generate_result.html", {
+    return templates.TemplateResponse(request, "partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": {"status": "running"},
     })
 
@@ -51,6 +51,6 @@ async def generation_status(
 ):
     from web.app import templates
     job = await jobs.get_job_status(job_id, athlete_id)
-    return templates.TemplateResponse("partials/generate_result.html", {
+    return templates.TemplateResponse(request, "partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": job,
     })

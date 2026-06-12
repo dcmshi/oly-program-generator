@@ -15,7 +15,7 @@ router = APIRouter()
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     from web.app import templates
-    return templates.TemplateResponse("login.html", {
+    return templates.TemplateResponse(request, "login.html", {
         "request": request,
         "error": request.query_params.get("error"),
     })
@@ -37,7 +37,7 @@ async def login_submit(
     )
     if not row or not verify_password(password, row["password_hash"]):
         logger.warning("Failed login attempt — invalid credentials")
-        return templates.TemplateResponse(
+        return templates.TemplateResponse(request,
             "login.html",
             {"request": request, "error": "Invalid username or password"},
             status_code=401,

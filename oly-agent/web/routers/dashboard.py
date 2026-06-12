@@ -49,4 +49,4 @@ async def dashboard(
         })
 
     logger.info(f"Dashboard: athlete {athlete_id}, program={program['id'] if program else None}, week={ctx['current_week']}")
-    return templates.TemplateResponse("dashboard.html", ctx)
+    return templates.TemplateResponse(request, "dashboard.html", ctx)

@@ -40,7 +40,7 @@ async def log_form(
     existing_log = await q.get_existing_log(conn, session_id)
     logged_exercises = await q.get_logged_exercises(conn, existing_log["id"]) if existing_log else []
     logger.info(f"Log form: session {session_id}, already_logged={existing_log is not None}")
-    return templates.TemplateResponse("log_session.html", {
+    return templates.TemplateResponse(request, "log_session.html", {
         "request": request,
         "session": session,
         "existing_log": existing_log,
@@ -74,7 +74,7 @@ async def submit_session_log(
 
     log = await q.get_existing_log(conn, session_id)
     logged_exercises = await q.get_logged_exercises(conn, log_id)
-    return templates.TemplateResponse("partials/exercise_log_section.html", {
+    return templates.TemplateResponse(request, "partials/exercise_log_section.html", {
         "request": request,
         "session": session,
         "log": log,
@@ -119,7 +119,7 @@ async def submit_exercise_log(
 
     session = await q.get_session_with_exercises(conn, log["session_id"])
     logged_exercises = await q.get_logged_exercises(conn, log_id)
-    return templates.TemplateResponse("partials/exercise_log_section.html", {
+    return templates.TemplateResponse(request, "partials/exercise_log_section.html", {
         "request": request,
         "session": session,
         "log": log,
@@ -143,7 +143,7 @@ async def delete_exercise_log(
     logger.info(f"Exercise deleted: tle_id={tle_id}, log_id={log_id}")
     session = await q.get_session_with_exercises(conn, log["session_id"])
     logged_exercises = await q.get_logged_exercises(conn, log_id)
-    return templates.TemplateResponse("partials/exercise_log_section.html", {
+    return templates.TemplateResponse(request, "partials/exercise_log_section.html", {
         "request": request,
         "session": session,
         "log": log,
@@ -183,7 +183,7 @@ async def update_exercise_log(
         logger.warning(f"Max promotion check on edit failed (non-fatal): {e}")
 
     tle = await q.get_exercise_log_entry(conn, tle_id)
-    return templates.TemplateResponse("partials/exercise_log_entry.html", {
+    return templates.TemplateResponse(request, "partials/exercise_log_entry.html", {
         "request": request,
         "tle": tle,
         "log_id": log_id,
