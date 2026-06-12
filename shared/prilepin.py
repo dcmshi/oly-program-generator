@@ -20,21 +20,24 @@ PRILEPIN_ZONES = [
 def get_prilepin_zone(intensity_pct: float) -> str | None:
     """Map an intensity percentage to its Prilepin zone string.
 
+    Zones are half-open ranges [low, high) so boundary values map to exactly
+    one zone — the heavier one (65 -> "65-70", 80 -> "80-90"). The top zone
+    includes 100, and intensities above 100% (pulls) also map to it.
+
     Returns the zone key (e.g., "80-90") or None if below 55%.
-    Intensities above 100% (pulls) map to the 90-100 zone.
 
     Examples:
-        get_prilepin_zone(67)  -> "65-70"
+        get_prilepin_zone(65)  -> "65-70"
         get_prilepin_zone(73)  -> "70-80"
         get_prilepin_zone(85)  -> "80-90"
         get_prilepin_zone(95)  -> "90-100"
         get_prilepin_zone(105) -> "90-100"  (supramaximal pulls)
         get_prilepin_zone(50)  -> None       (below chart)
     """
-    if intensity_pct > 100:
+    if intensity_pct >= 90:  # top zone is inclusive of 100 and supramaximal pulls
         return "90-100"
     for zone in PRILEPIN_ZONES:
-        if zone["low"] <= intensity_pct <= zone["high"]:
+        if zone["low"] <= intensity_pct < zone["high"]:
             return zone["zone"]
     return None  # below 55%
 

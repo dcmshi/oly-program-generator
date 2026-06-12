@@ -237,6 +237,7 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
 
         sections = classifier.classify_sections(text, title)
         chunks_loaded = 0
+        chunks_skipped = 0
         principles_count = 0
 
         for section in sections:
@@ -256,6 +257,7 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
                         structured_loader=sl,
                     )
                     chunks_loaded += loaded
+                    chunks_skipped += vl.last_skipped_count
 
                 if section.content_type in (ContentType.PRINCIPLE, ContentType.MIXED):
                     principles = principle_extractor.extract(
@@ -276,8 +278,9 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
 
         sl.complete_run(run_id, {
             "chunks_loaded": chunks_loaded,
-            "prose_chunks": chunks_loaded,
-            "prose_chunks_valid": chunks_loaded,
+            "prose_chunks": chunks_loaded + chunks_skipped,
+            "prose_chunks_valid": chunks_loaded + chunks_skipped,
+            "chunks_skipped_dedup": chunks_skipped,
             "principles": principles_count,
         })
 

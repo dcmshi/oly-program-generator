@@ -39,6 +39,7 @@ class VectorLoader:
                 "Set it in .env or pass via environment variable."
             )
         self.embed_client = OpenAI(api_key=settings.openai_api_key)
+        self.last_skipped_count = 0  # dedup-skip count from the most recent load_chunks call
 
     def load_chunks(
         self,
@@ -65,6 +66,7 @@ class VectorLoader:
         cursor = self.conn.cursor()
         loaded = 0
         skipped = 0
+        self.last_skipped_count = 0  # exposed so callers can track dedup stats
 
         # Step 1: Filter out duplicates before hitting the embedding API.
         new_chunks: list[tuple[Chunk, str]] = []  # (chunk, content_hash)
@@ -171,6 +173,7 @@ class VectorLoader:
                                             page_number=entry[1], section_title=entry[2],
                                             classification=entry[3])
         cursor.close()
+        self.last_skipped_count = skipped
         logger.info(f"  Loaded {loaded} chunks into knowledge_chunks")
         return loaded
 

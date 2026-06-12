@@ -24,6 +24,10 @@ PROMPT_LENGTH_WARN_CHARS: int = 20_000  # log warning if prompt exceeds this (~5
 # ── Weight resolution ────────────────────────────────────────────
 WEIGHT_ROUND_INCREMENT: float = 0.5  # round absolute weights to nearest 0.5 kg
 
+# ── Web list caps ────────────────────────────────────────────────
+MAX_PROGRAM_LIST_ROWS: int = 100   # program list page (most recent first)
+MAX_HISTORY_ROWS: int = 200        # per-exercise history page (most recent first)
+
 # ── Phase advancement & outcome adjustments ─────────────────────
 # Used by plan._advance_phase / plan._apply_outcome_adjustments and mirrored
 # by feedback._compute_phase_verdict — keep both reading from here.

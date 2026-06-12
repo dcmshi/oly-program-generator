@@ -461,6 +461,9 @@ class IngestionPipeline:
         stats["prose_chunks"] += len(chunks)
         stats["prose_chunks_valid"] += len(valid_chunks)
         stats["chunks_loaded"] = stats.get("chunks_loaded", 0) + loaded
+        stats["chunks_skipped_dedup"] = (
+            stats.get("chunks_skipped_dedup", 0) + self.vector_loader.last_skipped_count
+        )
         return stats
 
     def _parse_program_template(self, section, source, source_id) -> dict:

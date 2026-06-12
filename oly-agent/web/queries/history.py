@@ -3,12 +3,13 @@
 
 
 async def get_exercise_history(conn, athlete_id: int, exercise_name: str) -> list[dict]:
-    """All logged entries for a given exercise, most recent first."""
+    """Logged entries for a given exercise, most recent first (capped at MAX_HISTORY_ROWS)."""
+    from shared.constants import MAX_HISTORY_ROWS
     from web.async_db import async_fetch_all
 
     return await async_fetch_all(
         conn,
-        """
+        f"""
         SELECT
             tl.log_date,
             gp.name         AS program_name,
@@ -30,6 +31,7 @@ async def get_exercise_history(conn, athlete_id: int, exercise_name: str) -> lis
         WHERE tl.athlete_id = $1
           AND LOWER(tle.exercise_name) = LOWER($2)
         ORDER BY tl.log_date DESC, tl.id DESC
+        LIMIT {MAX_HISTORY_ROWS}
         """,
         athlete_id, exercise_name,
     )

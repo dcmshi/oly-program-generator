@@ -360,7 +360,7 @@ class StructuredLoader:
             """,
             (
                 stats.get("chunks_loaded", stats.get("prose_chunks_valid", 0)),
-                stats.get("prose_chunks_valid", 0) - stats.get("chunks_loaded", stats.get("prose_chunks_valid", 0)),
+                stats.get("chunks_skipped_dedup", 0),
                 stats.get("prose_chunks_quarantined", 0),
                 stats.get("principles", 0),
                 stats.get("programs", 0),
