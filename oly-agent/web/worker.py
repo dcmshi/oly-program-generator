@@ -75,5 +75,6 @@ class WorkerSettings:
     @classmethod
     def redis_settings(cls) -> RedisSettings:
         from shared.config import Settings
-        url = Settings().redis_url or "redis://localhost:6379"
+        # 127.0.0.1 not localhost — see note in web/jobs.py:init_arq_pool
+        url = Settings().redis_url or "redis://127.0.0.1:6379"
         return RedisSettings.from_dsn(url)

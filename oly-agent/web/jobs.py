@@ -18,7 +18,10 @@ async def init_arq_pool(redis_url: str = "") -> None:
     global _arq_pool
     from arq import create_pool
     from arq.connections import RedisSettings
-    settings = RedisSettings.from_dsn(redis_url or "redis://localhost:6379")
+    # Default to 127.0.0.1 not localhost: on Windows, localhost resolves to
+    # IPv6 ::1 first, which Docker doesn't bind, and arq's 1s conn_timeout
+    # expires before the IPv4 fallback. Production sets REDIS_URL explicitly.
+    settings = RedisSettings.from_dsn(redis_url or "redis://127.0.0.1:6379")
     _arq_pool = await create_pool(settings)
     logger.info("ARQ Redis pool initialised")
 
