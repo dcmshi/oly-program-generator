@@ -5,9 +5,31 @@ Strips navigation, headers, footers, and other boilerplate.
 """
 
 import logging
+import re
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+
+def block_text(element) -> str:
+    """Extract text with real paragraph breaks from a BeautifulSoup element.
+
+    ``get_text(separator="\\n")`` yields only single newlines between text
+    nodes, but the chunker splits paragraphs on ``\\n\\n`` — without this fix
+    an entire article collapses into one oversized chunk (same bug fixed in
+    epub_extractor). Inserts ``\\n\\n`` markers after block-level tags before
+    extracting. Mutates the element (call after any other get_text() reads).
+    """
+    from bs4 import NavigableString
+
+    for tag in element.find_all(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li"]):
+        tag.insert_after(NavigableString("\n\n"))
+
+    text = element.get_text(separator="")
+    text = re.sub(r"[ \t]+", " ", text)         # collapse horizontal whitespace
+    text = re.sub(r" ?\n ?", "\n", text)        # trim spaces around newlines
+    text = re.sub(r"\n{3,}", "\n\n", text)      # normalize 3+ newlines → \n\n
+    return text.strip()
 
 
 def extract_text_from_html(path: Path) -> str:
@@ -43,11 +65,7 @@ def extract_text_from_html(path: Path) -> str:
         logger.warning(f"Could not find main content element in {path.name}, using full body")
         main = soup
 
-    text = main.get_text(separator="\n", strip=True)
-
-    # Collapse excessive blank lines
-    import re
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    text = block_text(main)
 
     logger.info(f"Extracted {len(text):,} characters from {path.name}")
     return text

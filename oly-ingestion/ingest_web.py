@@ -28,6 +28,7 @@ from pathlib import Path
 import requests
 from bs4 import BeautifulSoup
 from config import Settings
+from extractors.html_extractor import block_text
 from loaders.structured_loader import StructuredLoader
 from loaders.vector_loader import VectorLoader
 from processors.chunker import SemanticChunker
@@ -190,8 +191,9 @@ def fetch_article(url: str) -> dict | None:
         logger.warning(f"No content element found for {url}")
         return None
 
-    text = main.get_text(separator="\n", strip=True)
-    text = re.sub(r"\n{3,}", "\n\n", text)
+    # block_text inserts \n\n paragraph markers so the chunker can split within
+    # long articles (mutates `main` — must run after the title/author reads above)
+    text = block_text(main)
 
     if len(text) < 200:
         logger.warning(f"Very short article ({len(text)} chars) at {url} — skipping")

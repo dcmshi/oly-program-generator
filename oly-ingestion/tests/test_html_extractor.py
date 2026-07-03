@@ -13,7 +13,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from extractors.html_extractor import extract_text_from_html
+from extractors.html_extractor import block_text, extract_text_from_html
 
 RESULTS = []
 
@@ -147,6 +147,41 @@ def test_unicode_content_preserved():
     text = extract_text_from_html(p)
     assert "100 kg" in text
     assert "техника" in text
+
+
+# ── Paragraph separation (chunking regression) ───────────────────────────────
+# Before the fix, get_text(separator="\n") produced only single newlines, so
+# _chunk_section (which splits on \n\n) treated an entire article as one
+# paragraph → one oversized chunk per article regardless of length.
+
+def test_paragraphs_separated_by_blank_lines():
+    p = _write_html(
+        "<html><body><article>"
+        + "".join(f"<p>Paragraph {i} with some text.</p>" for i in range(10))
+        + "</article></body></html>"
+    )
+    text = extract_text_from_html(p)
+    paragraphs = [b for b in text.split("\n\n") if b.strip()]
+    assert len(paragraphs) >= 10, f"Expected >=10 paragraphs, got {len(paragraphs)}"
+
+
+def test_inline_tags_do_not_break_sentences():
+    p = _write_html(
+        "<html><body><p>See <em>this</em> point and <a href='#'>that</a> link.</p></body></html>"
+    )
+    text = extract_text_from_html(p)
+    assert "See this point and that link." in text
+
+
+def test_block_text_on_soup_element():
+    # Direct test of the helper ingest_web.fetch_article uses.
+    from bs4 import BeautifulSoup
+
+    html = "<div>" + "".join(f"<p>Para {i}.</p>" for i in range(5)) + "</div>"
+    soup = BeautifulSoup(html, "lxml")
+    text = block_text(soup.find("div"))
+    paragraphs = [b for b in text.split("\n\n") if b.strip()]
+    assert len(paragraphs) == 5, f"Expected 5 paragraphs, got {len(paragraphs)}"
 
 
 # ── Runner ───────────────────────────────────────────────────────────────────

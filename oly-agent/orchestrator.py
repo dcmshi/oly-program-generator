@@ -184,6 +184,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     session_rep_target=session_rep_target,
                     cumulative_comp_reps=cumulative_comp_reps,
                     effective_maxes=effective_maxes,
+                    phase=program_plan.phase,
                 )
 
                 # Cost guard — athlete-specific limit takes precedence over global setting

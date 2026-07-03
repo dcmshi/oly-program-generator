@@ -14,7 +14,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF
+from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF, to_intensity_ref
 
 logger = logging.getLogger(__name__)
 
@@ -32,9 +32,8 @@ def build_maxes_dict(db_maxes: list[dict]) -> dict[str, float]:
     maxes = {}
     for row in db_maxes:
         name = row["name"]
-        ref = EXERCISE_NAME_TO_INTENSITY_REF.get(name)
-        if ref is None:
-            ref = name.lower().replace(" ", "_").replace("&", "and")
+        ref = to_intensity_ref(name)
+        if name not in EXERCISE_NAME_TO_INTENSITY_REF:
             logger.debug(f"No explicit mapping for '{name}', using '{ref}'")
         maxes[ref] = float(row["weight_kg"])
     return maxes

@@ -24,6 +24,7 @@ from shared.constants import (
     EXCELLENT_MAKE_RATE,
 )
 from shared.db import execute, fetch_all, fetch_one
+from shared.exercise_mapping import to_intensity_ref
 
 logger = logging.getLogger(__name__)
 
@@ -155,7 +156,9 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
 
     maxes_delta: dict[str, float] = {}
     for name, after_kg in maxes_after.items():
-        before_kg = maxes_before.get(name)
+        # maxes_snapshot is keyed by intensity_reference (build_maxes_dict);
+        # current_maxes_rows are keyed by display name — normalize to compare.
+        before_kg = maxes_before.get(to_intensity_ref(name))
         if before_kg is not None:
             delta = after_kg - float(before_kg)
             if delta != 0:

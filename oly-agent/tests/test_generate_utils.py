@@ -86,7 +86,16 @@ def _make_prompt(athlete=None, retrieval=None):
         athlete, week_target, session_tmpl, retrieval,
         week_number=1, duration_weeks=4,
         already_prescribed=[], session_rep_target=6, cumulative_comp_reps=0,
+        phase="accumulation",
     )
+
+
+def test_prompt_includes_phase_name():
+    # Regression: the prompt used to render the dataclass name ("WeekTarget")
+    # instead of the plan's training phase.
+    prompt = _make_prompt()
+    assert "Phase: accumulation" in prompt
+    assert "WeekTarget" not in prompt
 
 
 VALID_EXERCISE = {

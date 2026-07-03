@@ -217,8 +217,10 @@ def _advance_phase(prev_phase: str | None, outcome: OutcomeSummary, goal: str | 
     else:
         next_phase = prev_phase
 
-    # Exceptionally high RPE deviation → don't advance even if make rate was ok
-    if rpe_dev > ADVANCE_MAX_RPE_DEVIATION and next_phase != prev_phase:
+    # Exceptionally high RPE deviation → don't advance even if make rate was ok.
+    # Never applies after realization: an overreached athlete must rebuild with
+    # accumulation, not repeat a peaking block (matches _compute_phase_verdict).
+    if rpe_dev > ADVANCE_MAX_RPE_DEVIATION and next_phase != prev_phase and prev_phase != "realization":
         logger.info(f"RPE deviation too high ({rpe_dev:+.2f}) — staying in {prev_phase}")
         next_phase = prev_phase
 

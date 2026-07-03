@@ -125,6 +125,7 @@ def build_session_prompt(
     session_rep_target: int,
     cumulative_comp_reps: int,
     effective_maxes: dict[str, float] | None = None,
+    phase: str = "unspecified",
 ) -> str:
     """Assemble the full prompt for one session generation call."""
 
@@ -400,7 +401,7 @@ Injuries: {injuries_str}
 {recent_logs_block}
 
 ## Program Plan
-Phase: {week_target.__class__.__name__} — Week {week_number} of {duration_weeks}
+Phase: {phase} — Week {week_number} of {duration_weeks}
 Intensity range: {week_target.intensity_floor}% – {week_target.intensity_ceiling}%
 Volume modifier: {week_target.volume_modifier:.2f} (1.0 = baseline)
 Reps per set (comp lifts): {week_target.reps_per_set_range[0]}–{week_target.reps_per_set_range[1]}

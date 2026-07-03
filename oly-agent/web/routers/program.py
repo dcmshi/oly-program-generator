@@ -97,6 +97,10 @@ async def delete_program(
     conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
+    program = await q.get_program(conn, program_id)
+    if not program or program["athlete_id"] != athlete_id:
+        logger.warning(f"Delete requested for missing/unowned program {program_id} by athlete {athlete_id}")
+        raise HTTPException(status_code=404, detail="Program not found")
     await q.delete_program(conn, program_id, athlete_id)
     logger.info(f"Program {program_id} deleted by athlete {athlete_id}")
     return HTMLResponse("")

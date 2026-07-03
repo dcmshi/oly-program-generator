@@ -169,6 +169,12 @@ def test_realization_cycles_back_to_accumulation():
     phase, _ = _advance_phase("realization", _good_outcome(), None)
     assert phase == "accumulation"
 
+def test_realization_returns_to_accumulation_even_with_high_rpe():
+    # Regression: the RPE guard must not force an overreached athlete to
+    # repeat a peaking block — realization always rebuilds with accumulation.
+    phase, _ = _advance_phase("realization", _good_outcome(avg_rpe_deviation=2.0), None)
+    assert phase == "accumulation"
+
 def test_phase_not_advanced_low_adherence():
     phase, _ = _advance_phase("accumulation", _good_outcome(adherence_pct=60.0), None)
     assert phase == "accumulation"

@@ -283,6 +283,22 @@ def test_program_abandon_404_for_unowned():
     assert not mock_abandon.called, "abandon_program must not run for unowned program"
 
 
+def test_program_delete_404_for_unowned():
+    with patch("web.queries.program.get_program", return_value=_program(athlete_id=2)):
+        with patch("web.queries.program.delete_program", return_value=None) as mock_delete:
+            r = _client.delete("/program/1")
+    assert r.status_code == 404, f"Expected 404, got {r.status_code}"
+    assert not mock_delete.called, "delete_program must not run for unowned program"
+
+
+def test_program_delete_owned_succeeds():
+    with patch("web.queries.program.get_program", return_value=_program(athlete_id=1)):
+        with patch("web.queries.program.delete_program", return_value=None) as mock_delete:
+            r = _client.delete("/program/1")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert mock_delete.called, "delete_program should run for owned program"
+
+
 def test_log_form_404_for_unowned_session():
     unowned = {**_session_detail(), "athlete_id": 2}
     with patch("web.queries.log_session.get_session_with_exercises", return_value=unowned):
