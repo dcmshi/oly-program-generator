@@ -6,6 +6,30 @@
 _exercise_id_cache: dict[str, int] = {}  # lower(name) → id
 
 
+def _representative_reps_per_set(spec) -> float | None:
+    """Average reps-per-set implied by a prescription string.
+
+    Handles "3" (single), "3,2,1" (per-set list → average), and "8-10" (range →
+    midpoint). Returns None if unparseable. Used so *prescribed* weekly tonnage
+    is computed on the same per-set basis as *actual* (which averages the logged
+    reps_per_set), instead of the old "first rep only" which made the adherence
+    bars inconsistent (W-L6).
+    """
+    s = str(spec).strip()
+    if not s:
+        return None
+    try:
+        if "," in s:
+            vals = [float(p) for p in s.split(",") if p.strip()]
+            return sum(vals) / len(vals) if vals else None
+        if "-" in s:
+            lo, hi = s.split("-", 1)
+            return (float(lo) + float(hi)) / 2
+        return float(s)
+    except (ValueError, ZeroDivisionError):
+        return None
+
+
 async def get_program(conn, program_id: int) -> dict | None:
     from web.async_db import async_fetch_one
     return await async_fetch_one(
@@ -69,9 +93,8 @@ async def get_program_volume_by_week(conn, program_id: int) -> list[dict]:
     prescribed: dict[int, float] = {}
     for row in se_rows:
         wk = row["week_number"]
-        try:
-            reps = int(str(row["reps"]).split(",")[0].split("-")[0].strip())
-        except (ValueError, TypeError, AttributeError):
+        reps = _representative_reps_per_set(row["reps"])
+        if reps is None:
             continue
         prescribed[wk] = prescribed.get(wk, 0.0) + row["sets"] * reps * float(row["absolute_weight_kg"])
 

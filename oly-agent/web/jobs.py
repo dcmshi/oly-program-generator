@@ -11,7 +11,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 logger = logging.getLogger(__name__)
 
 _arq_pool = None
-_JOB_OWNER_TTL = 86400  # seconds — matches WorkerSettings.keep_result (24 hours)
 
 _DEFAULT_REDIS_URL = "redis://127.0.0.1:6379"
 
@@ -63,9 +62,10 @@ async def close_arq_pool() -> None:
 async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: str = "-") -> str:
     if _arq_pool is None:
         raise RuntimeError("ARQ pool not initialised — is Redis running?")
+    # athlete_id is the job's first positional arg, so ownership travels with the
+    # job payload itself — no separate owner key that could race the enqueue or
+    # outlive/under-live the job (W-L4).
     job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run, request_id=request_id)
-    # Store ownership alongside the job so status polls can verify the requester
-    await _arq_pool.set(f"job_owner:{job.job_id}", str(athlete_id), ex=_JOB_OWNER_TTL)
     logger.info(f"Job {job.job_id}: submitted for athlete {athlete_id} (dry_run={dry_run})")
     return job.job_id
 
@@ -77,14 +77,16 @@ async def get_job_status(job_id: str, athlete_id: int) -> dict:
     if _arq_pool is None:
         return _not_found
 
-    # Ownership check — fast Redis GET before deserialising the full job
-    owner = await _arq_pool.get(f"job_owner:{job_id}")
-    if owner is None or int(owner) != athlete_id:
+    from arq.jobs import Job, JobStatus
+    job = Job(job_id, _arq_pool)
+
+    # Ownership check — read the athlete_id from the job's own embedded args
+    # (info().args[0]), which is set atomically at enqueue time.
+    info = await job.info()
+    if info is None or not info.args or int(info.args[0]) != athlete_id:
         logger.warning(f"Status poll for unknown/unauthorized job {job_id} by athlete {athlete_id}")
         return _not_found
 
-    from arq.jobs import Job, JobStatus
-    job = Job(job_id, _arq_pool)
     status = await job.status()
 
     if status in (JobStatus.queued, JobStatus.deferred, JobStatus.in_progress):

@@ -1,7 +1,13 @@
 # web/queries/log_session.py
 """DB queries for session logging."""
 
-from datetime import date
+import sys
+from datetime import date, timedelta
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
+from shared.constants import MAX_LOG_BACKFILL_DAYS
 
 
 def _float(v):
@@ -19,11 +25,22 @@ def _int(v):
 
 
 def _parse_log_date(form: dict) -> date:
-    log_date_str = form.get("log_date") or str(date.today())
+    """Parse the submitted log date, clamping out-of-range values to today.
+
+    A training log can't be in the future and shouldn't be absurdly far in the
+    past — an unparseable or out-of-window date (e.g. a typo'd '3000-01-01')
+    falls back to today rather than being stored as-is (W-L7).
+    """
+    today = date.today()
+    log_date_str = form.get("log_date") or str(today)
     try:
-        return date.fromisoformat(log_date_str)
+        parsed = date.fromisoformat(log_date_str)
     except ValueError:
-        return date.today()
+        return today
+    earliest = today - timedelta(days=MAX_LOG_BACKFILL_DAYS)
+    if parsed > today or parsed < earliest:
+        return today
+    return parsed
 
 
 async def get_session_with_exercises(conn, session_id: int) -> dict | None:

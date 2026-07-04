@@ -4,9 +4,11 @@ Reconstructed from the 3-agent parallel audit (web / ingestion / agent-pipeline)
 The 5 critical items were fixed in commit `519aad0`. Batch 2 fixed all 9 remaining
 agent-pipeline HIGH/MEDIUM findings + W-M2 + ENV1. Batch 3 (2026-07-03) fixed **all
 8 agent LOW items + all 11 refactors**, each with a regression test, ruff clean.
-**The entire agent pipeline + web layer sections of this audit are now closed.**
+Batch 4 fixed the **web LOW items** (W-L4, W-L6, W-L7, W-INFO), leaving only
+**W-L5** (server-tz week math) deferred as a product decision (needs a tz column).
+**The entire agent-pipeline + web-layer sections of this audit are now closed.**
 Still open: the **ingestion findings** (mostly bite only during ingestion → main
-DB machine), the **web LOW items** (W-L4–L7), and the deferred **Catalyst re-ingest**.
+DB machine) and the deferred **Catalyst re-ingest**.
 
 Legend: `[x]` done · `[ ]` open · `[~]` code done, follow-up deferred · `[-]` non-finding
 
@@ -97,12 +99,12 @@ Docker up · migrations → head `0003` (21 tables) · all no-key suites pass (a
 - [x] **W-M2 — CSV formula injection in both exports** ✅ new `_csv_safe()` prefixes any str cell starting with `= + - @ \t \r` with `'` (numeric cells untouched); applied to every data row + program name. Tests `test_csv_safe_neutralizes_and_preserves`, `test_export_log_csv_neutralizes_formula_injection`.
 - [-] **W-M3 — maxes update/delete** — NON-FINDING (correctly `WHERE athlete_id=$1`, parameterized). Noted for completeness.
 
-### LOW
-- [ ] **W-L4** `get_job_status` trusts a separate `job_owner:{id}` Redis key that can race/outlive the job (`jobs.py:39-57`). Fails closed; UX-only. Fix: embed athlete_id in job kwargs.
-- [ ] **W-L5** `_current_week`/log dates use server-local `date.today()` not athlete tz (`dashboard.py:19`). Skews week bucketing across tz.
-- [ ] **W-L6** prescribed volume uses first rep of a range/list (`"3,2,1"→3`, `"8-10"→8`) while actual uses true average → inconsistent adherence bars (`queries/program.py:71-76`).
-- [ ] **W-L7** `_parse_log_date` accepts arbitrary past/future dates (`queries/log_session.py:21-26`). Non-security; consider clamping.
-- [ ] **W-INFO** `onclick="prefillExercise('{{ ex.exercise_name }}' …)"` embeds a name in a single-quoted JS string; autoescape is HTML- not JS-context (`exercise_log_section.html:113`). Low risk (seed/LLM data). Fix: `| tojson` or `data-*` attrs.
+### LOW — batch 4 (2026-07-03)
+- [x] **W-L4** ✅ `get_job_status` now reads the owner from the job's own embedded args (`info().args[0]`), set atomically at enqueue — the racy `job_owner:{id}` side key is gone. Tests in `test_web_queries.py`.
+- [~] **W-L5** — server-local `date.today()` for week math (`dashboard.py`). **Deferred**: a real fix needs an athlete-timezone column (schema migration) + conversion, and the audit rates it minor for single-user-per-account usage. Flagged for a product decision rather than a disproportionate migration.
+- [x] **W-L6** ✅ new `_representative_reps_per_set()` gives prescribed volume the same per-set basis as actual (avg for lists, midpoint for ranges), not "first rep only". Tests `test_reps_*`.
+- [x] **W-L7** ✅ `_parse_log_date` clamps out-of-window dates (future / older than `MAX_LOG_BACKFILL_DAYS`=365) to today. Tests `test_log_date_*`.
+- [x] **W-INFO** ✅ `prefillExercise` reads `data-*` attributes (HTML-escaped) instead of interpolating into JS-string args. Test `test_prefill_uses_data_attributes_not_js_string`.
 
 ---
 

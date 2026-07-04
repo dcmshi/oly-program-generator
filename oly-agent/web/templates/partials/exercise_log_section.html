@@ -110,7 +110,13 @@
           <div class="flex flex-wrap gap-1">
             {% for ex in ns.remaining %}
             <button type="button"
-                    onclick="prefillExercise('{{ ex.exercise_name }}', '{{ ex.id }}', '{{ ex.absolute_weight_kg or '' }}', '{{ ex.rpe_target or '' }}', '{{ ex.sets }}', '{{ ex.reps }}')"
+                    data-name="{{ ex.exercise_name }}"
+                    data-se-id="{{ ex.id }}"
+                    data-weight="{{ ex.absolute_weight_kg or '' }}"
+                    data-rpe="{{ ex.rpe_target or '' }}"
+                    data-sets="{{ ex.sets }}"
+                    data-reps="{{ ex.reps }}"
+                    onclick="prefillExercise(this)"
                     class="text-xs bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-md">
               {{ ex.exercise_order }}. {{ ex.exercise_name }}
               {% if ex.absolute_weight_kg %}@{{ ex.absolute_weight_kg }}kg{% endif %}
@@ -193,7 +199,10 @@
 </div>
 
 <script>
-function prefillExercise(name, seId, weight, rpe, sets, reps) {
+function prefillExercise(btn) {
+  // Values come from data-* attributes (HTML-escaped) rather than being
+  // interpolated into JS-string args, so a name with a quote can't break out.
+  const { name, seId, weight, rpe, sets, reps } = btn.dataset;
   document.getElementById('exercise_name_input').value = name;
   document.getElementById('se_id').value = seId;
   document.getElementById('prescribed_weight').value = weight;
