@@ -306,6 +306,78 @@ def test_cost_limit_exceeded_returns_program_id():
     assert mocks["generate"].call_count == 1
 
 
+def _athlete_context_with(**athlete_overrides):
+    ctx = _athlete_context()
+    ctx.athlete.update(athlete_overrides)
+    return ctx
+
+
+def _two_session_plan():
+    return ProgramPlan(
+        phase="accumulation", duration_weeks=1, sessions_per_week=2, deload_week=None,
+        weekly_targets=[_week_target(1)],
+        session_templates=[_session_template(1), _session_template(2)],
+        active_principles=[], supporting_chunks=[],
+    )
+
+
+def test_retrieve_called_with_settings():
+    """A-L2: retrieve() must receive settings so vector_search_top_k is honored
+    (it was omitted, silently forcing the default top_k)."""
+    settings = _settings()
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        run(1, settings)
+    assert mocks["retrieve"].call_args.kwargs.get("settings") is settings
+
+
+def test_cost_limit_usd_zero_is_honored():
+    """A-L8: an explicit athlete cost_limit_usd=0 must be respected, not treated
+    as unset and replaced by the global default."""
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={
+            "plan": _two_session_plan(),
+            "assess": _athlete_context_with(cost_limit_usd=0),
+        })
+        result = run(1, _settings())  # global limit is 1.00
+    assert result is not None
+    # With limit 0 honored, session 2 is blocked; without the fix both would run.
+    assert mocks["generate"].call_count == 1
+
+
+def test_cost_limit_abort_writes_rationale():
+    """A-L1: a cost-truncated program stores an explanatory rationale so it isn't
+    silently mistaken for a finished program."""
+    def _call_writes_cost_rationale(call):
+        if len(call.args) < 3:
+            return False
+        sql, params = call.args[1], call.args[2]
+        return "rationale" in sql and any(
+            isinstance(p, str) and "Cost Limit" in p for p in (params or ())
+        )
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={
+            "plan": _two_session_plan(),
+            "assess": _athlete_context_with(cost_limit_usd=0),
+        })
+        run(1, _settings())
+    assert any(_call_writes_cost_rationale(c) for c in mocks["execute"].call_args_list)
+
+
+def test_max_test_session_uses_current_maxes():
+    """A-L6: the max-test build-up references CURRENT maxes (attempt a new PR),
+    not projected/effective targets."""
+    from orchestrator import _build_max_test_session
+    ctx = _athlete_context()  # snatch=100, clean_and_jerk=125
+    exercises = _build_max_test_session(ctx, {"snatch": 1, "clean & jerk": 2})
+    snatch_attempt = next(e for e in exercises
+                          if e["exercise_name"] == "Snatch" and e["is_max_attempt"])
+    cj_attempt = next(e for e in exercises
+                      if e["exercise_name"] == "Clean & Jerk" and e["is_max_attempt"])
+    assert snatch_attempt["absolute_weight_kg"] == 100.0  # 100% of current snatch max
+    assert cj_attempt["absolute_weight_kg"] == 125.0       # 100% of current C&J max
+
+
 def test_exception_in_assess_returns_none():
     """Any exception in the pipeline rolls back and returns None."""
     with ExitStack() as stack:

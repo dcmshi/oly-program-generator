@@ -121,5 +121,12 @@ class Settings:
                 "Set SECRET_KEY in environment for production deployments."
             )
 
+    def ensure_working_dirs(self) -> None:
+        """Create the ingestion working directories.
+
+        Called explicitly by the ingestion entry points — NOT in __post_init__,
+        so importing Settings from the web app, agent, or tests doesn't scatter
+        empty ./sources and ./logs dirs into whatever the CWD happens to be.
+        """
         self.sources_dir.mkdir(parents=True, exist_ok=True)
         self.logs_dir.mkdir(parents=True, exist_ok=True)

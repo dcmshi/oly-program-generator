@@ -54,8 +54,8 @@ def test_estimates_from_clean_and_jerk():
     result = estimate_missing_maxes(known)
     expected_front_squat = round(100.0 * MAX_ESTIMATION_RATIOS["front_squat"]["ratio"] * 2) / 2
     assert "front_squat" in result
-    assert result["front_squat"][0] == expected_front_squat
-    assert result["front_squat"][1] == "estimated"
+    # estimate_missing_maxes now returns a plain {ref: kg} dict (R8)
+    assert result["front_squat"] == expected_front_squat
 
 def test_estimates_from_snatch():
     known = {"snatch": 80.0}
@@ -77,7 +77,7 @@ def test_rounds_estimates_to_half_kg():
     known = {"snatch": 77.0}
     result = estimate_missing_maxes(known)
     # snatch_pull ratio = 1.15 → 77 * 1.15 = 88.55 → rounds to 88.5
-    assert result["snatch_pull"][0] == 88.5
+    assert result["snatch_pull"] == 88.5
 
 def test_no_cross_contamination():
     # front_squat derives from clean_and_jerk which is missing
@@ -113,6 +113,16 @@ def test_assess_returns_athlete_context():
     assert ctx.level == "intermediate"
     assert ctx.sessions_per_week == 4
     assert ctx.weeks_to_competition is None
+
+def test_assess_null_sessions_per_week_defaults_to_4():
+    # Regression (A-L3): the column is nullable, so a SQL NULL makes
+    # .get("sessions_per_week", 4) return None (key exists) → downstream
+    # TypeError. `or 4` coalesces it.
+    athlete_null_spw = _athlete(sessions_per_week=None)
+    with patch("assess.fetch_one", side_effect=[athlete_null_spw, None, None]):
+        with patch("assess.fetch_all", side_effect=[[], []]):
+            ctx = assess(1, None)
+    assert ctx.sessions_per_week == 4
 
 def test_assess_computes_weeks_to_competition():
     with patch("assess.fetch_one", side_effect=[_athlete(), _goal(days_out=56), None]):

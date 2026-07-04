@@ -1,12 +1,12 @@
 # TODO — 2026-07-03 Repo Audit Findings
 
 Reconstructed from the 3-agent parallel audit (web / ingestion / agent-pipeline).
-The 5 critical items were fixed in commit `519aad0`. A second batch (2026-07-03,
-this session) fixed **all 9 remaining agent-pipeline HIGH/MEDIUM findings + W-M2 +
-ENV1**, each with regression tests, verified against a live DB. Still open: the
-agent LOW items + refactors, the ingestion findings (mostly bite only during
-ingestion → main DB machine), the web LOW items, and the deferred Catalyst
-re-ingest. Work order within each subsystem: HIGH → MEDIUM → LOW.
+The 5 critical items were fixed in commit `519aad0`. Batch 2 fixed all 9 remaining
+agent-pipeline HIGH/MEDIUM findings + W-M2 + ENV1. Batch 3 (2026-07-03) fixed **all
+8 agent LOW items + all 11 refactors**, each with a regression test, ruff clean.
+**The entire agent pipeline + web layer sections of this audit are now closed.**
+Still open: the **ingestion findings** (mostly bite only during ingestion → main
+DB machine), the **web LOW items** (W-L4–L7), and the deferred **Catalyst re-ingest**.
 
 Legend: `[x]` done · `[ ]` open · `[~]` code done, follow-up deferred · `[-]` non-finding
 
@@ -47,18 +47,25 @@ Docker up · migrations → head `0003` (21 tables) · all no-key suites pass (a
 - [x] **A-M8 — `weeks_to_competition == 0` reported as "no competition date"** ✅ `explain.py` now branches on `is None` (0 → "competition this week"). Test `test_prompt_shows_competition_this_week_when_zero`.
 - [x] **A-M9 — Cold-start truncation drops the deload week for general_prep** ✅ caps duration then re-calls `build_weekly_targets` (keeps peak + deload). Test `test_cold_start_general_prep_keeps_deload` (verified fails without the fix).
 
-### LOW
-- [ ] **A-L1** — Cost-limit abort returns `program_id` and prints "generated" for a hole-filled program (`orchestrator.py:190-198`, CLI `563-565`).
-- [ ] **A-L2** — `retrieve()` never gets `settings`; `vector_search_top_k` config ignored (always 5) while `generation_params` records it as used (`orchestrator.py:139` vs `retrieve.py:45`).
-- [ ] **A-L3** — NULL `sessions_per_week` → `None` not 4 → downstream TypeError (`assess.py:141`). Fix: `… or 4`.
-- [ ] **A-L4** — Intensity ceiling (Check 2) hard-errors *any* exercise > ceiling, blocking supramaximal pulls (`validate.py:127-135`). Fix: restrict to `COMP_LIFT_REFS` / allow pulls.
-- [ ] **A-L5** — Unvalidated interactive session_id in log CLI → FK violation, aborted txn, traceback (`log.py:201-203`, `322-338`).
-- [ ] **A-L6** — Max-test session warmups use `athlete_context.maxes` not `effective_maxes` (`orchestrator.py:279` vs `92-96`). Confirm intent or pass effective.
-- [ ] **A-L7** — Extending a no-deload phase fabricates a deload flag on its heaviest week (`phase_profiles.py:98-112`). Latent (unreachable from `plan()` today).
-- [ ] **A-L8** — `cost_limit_usd = 0` treated as unset (`orchestrator.py:190`). Fix: `x if x is not None else default`.
+### LOW — all fixed 2026-07-03 (batch 3), each with a regression test
+- [x] **A-L1** — Cost-limit abort now writes a "# Generation Aborted — Cost Limit" rationale via `_mark_program_draft(reason=…)` so the truncated draft explains itself. Test `test_cost_limit_abort_writes_rationale`.
+- [x] **A-L2** — `orchestrator.retrieve(…, settings=settings)` so `vector_search_top_k` is honored. Test `test_retrieve_called_with_settings`.
+- [x] **A-L3** — `assess.py` uses `sessions_per_week or 4`. Test `test_assess_null_sessions_per_week_defaults_to_4`.
+- [x] **A-L4** — Check 2 hard-errors only `COMP_LIFT_REFS`; non-comp lifts warn above `SUPRAMAX_INTENSITY_WARN_PCT` (120). Tests `test_supramaximal_pull_allowed_above_ceiling`, `test_non_comp_lift_absurd_intensity_warns`.
+- [x] **A-L5** — new `_validate_session_link()` only links a listed session id; log insert wrapped in try/except+rollback. Tests in `test_log.py`.
+- [x] **A-L6** — Documented: max-test intentionally uses CURRENT maxes (attempt a new PR). Test `test_max_test_session_uses_current_maxes`.
+- [x] **A-L7** — Extend branch only sets `deload_week` when the profile has a deload. Test `test_extended_no_deload_phase_stays_deload_free`.
+- [x] **A-L8** — `cost_limit_usd` uses `is not None` so an explicit 0 is honored. Test `test_cost_limit_usd_zero_is_honored`.
 
-### Refactors (not bugs)
-- [ ] **A-R1** three copies of 0.5 kg rounding → `shared.round_kg()`. **A-R2** duplicated session-duration formula. **A-R3** `prilepin.py` ignores its own constants. **A-R4** `feedback.py:88` hardcodes comp-lift refs (import `COMP_LIFT_REFS`). **A-R5** `_PHASE_SEQUENCE` + advance logic duplicated in `plan.py`/`feedback.py` (this drift caused A-H3). **A-R6** dead code in `plan.plan()` (76-78, 149-152). **A-R7** `models.py:73` `fault_exercises` docstring wrong. **A-R8** `estimate_missing_maxes` discards the "estimated" marker. **A-R9** `Settings.__post_init__` mkdir side effects. **A-R10** magic `65` → constants. **A-R11** `attach_source_chunk_ids` attaches every chunk to every exercise.
+### Refactors — all done 2026-07-03 (batch 3)
+- [x] **A-R1/R2/R10** — new `shared/formulas.py` (`round_kg`, `estimate_session_minutes`) replaces 3 rounding copies + 2 duration copies; constants `SECONDS_PER_SET`, `DEFAULT_REST_SECONDS`, `MIN_SESSION_DURATION_MINUTES`, `WARMUP_INTENSITY_CUTOFF_PCT`. Test `test_formulas.py`.
+- [x] **A-R5/R6** — new `oly-agent/phase_progression.py` (`decide_next_phase`, `compute_load_adjustments`, `PHASE_SEQUENCE`) is the single source of truth for `plan._advance_phase` + `feedback._compute_phase_verdict` (kills the A-H3 drift); dead code in `plan.plan()` removed. Test `test_phase_progression.py`.
+- [x] **A-R3** — `prilepin.py` uses `MIN_SESSION_REPS` + `PRILEPIN_ZONES[0]["optimal"]`, no bare `24`/`return 6`.
+- [x] **A-R4** — `feedback.py` make-rate query uses `= ANY(%s)` with `list(COMP_LIFT_REFS)`.
+- [x] **A-R7** — `models.py` `fault_exercises` docstring corrected (keyed by movement family).
+- [x] **A-R8** — `estimate_missing_maxes` returns `dict[str, float]`; caller + tests updated.
+- [x] **A-R9** — `Settings.__post_init__` no longer mkdirs; new `ensure_working_dirs()` called from ingestion entry points. Test `test_config.py`.
+- [x] **A-R11** — `attach_source_chunk_ids` caps at `MAX_SOURCE_CHUNKS_PER_EXERCISE` (3), order preserved. Tests in `test_weight_resolver.py`.
 
 ---
 

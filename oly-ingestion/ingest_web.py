@@ -365,6 +365,7 @@ def main():
 
     # ── Set up pipeline components ──
     settings = Settings()
+    settings.ensure_working_dirs()
     components = {
         "settings": settings,
         "structured_loader": StructuredLoader(settings),

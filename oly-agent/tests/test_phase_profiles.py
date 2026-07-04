@@ -77,6 +77,14 @@ def test_intensification_no_deload():
     return assert_eq("intensification no deload", deload, [])
 
 
+def test_extended_no_deload_phase_stays_deload_free():
+    """A-L7: extending a no-deload profile (intensification, 4→6 weeks) must not
+    fabricate a deload flag on the new last week."""
+    targets = build_weekly_targets("intensification", 6, "intermediate")
+    deload = [t for t in targets if t["is_deload"]]
+    return assert_eq("extended intensification no fabricated deload", deload, [])
+
+
 def test_intensity_ceiling_never_exceeds_100():
     """intensity_ceiling is capped at 100% for all phases and levels."""
     for phase in PHASE_PROFILES:
@@ -245,6 +253,7 @@ TESTS = [
     ("Week numbers are sequential from 1", test_week_numbers_sequential),
     ("Deload week is flagged is_deload=True (last week)", test_deload_week_flagged),
     ("Intensification has no deload week", test_intensification_no_deload),
+    ("Extended no-deload phase stays deload-free (A-L7)", test_extended_no_deload_phase_stays_deload_free),
     ("intensity_ceiling never exceeds 100%", test_intensity_ceiling_never_exceeds_100),
     ("intensity_floor always < intensity_ceiling", test_floor_always_below_ceiling),
     ("Beginner intensity lower than intermediate", test_level_beginner_lower_intensity),

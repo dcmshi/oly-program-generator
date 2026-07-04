@@ -14,7 +14,9 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from shared.constants import MAX_SOURCE_CHUNKS_PER_EXERCISE
 from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF, to_intensity_ref
+from shared.formulas import round_kg
 
 logger = logging.getLogger(__name__)
 
@@ -80,7 +82,7 @@ def resolve_weights(
         pct = ex.get("intensity_pct")
         if ref and pct and ref in maxes:
             raw_kg = maxes[ref] * (pct / 100)
-            ex["absolute_weight_kg"] = round(raw_kg * 2) / 2
+            ex["absolute_weight_kg"] = round_kg(raw_kg)
         else:
             ex["absolute_weight_kg"] = None
             if ref and ref not in maxes:
@@ -140,7 +142,9 @@ def attach_source_chunk_ids(
     - Fault-correction exercises -> fault_correction chunk IDs
     - All exercises -> programming_rationale chunk IDs
 
-    This is approximate but sufficient for traceability.
+    Only the most-relevant few chunks are attached (chunks arrive
+    similarity-sorted), preserving that order — attaching every chunk to every
+    exercise and scrambling the order via set() gave near-zero traceability value.
     """
     rationale_ids = [
         c["id"] for c in retrieval_context.get("programming_rationale", []) if "id" in c
@@ -150,11 +154,14 @@ def attach_source_chunk_ids(
     ]
 
     for ex in session_exercises:
-        chunk_ids = []
+        chunk_ids: list[int] = []
         rationale = ex.get("selection_rationale", "").lower()
         if any(kw in rationale for kw in ("fault", "address", "correct", "fix")):
             chunk_ids.extend(fault_ids)
         chunk_ids.extend(rationale_ids)
-        ex["source_chunk_ids"] = list(set(chunk_ids))
+        # Dedupe preserving order (most-relevant first), then cap.
+        seen: set[int] = set()
+        ordered = [i for i in chunk_ids if not (i in seen or seen.add(i))]
+        ex["source_chunk_ids"] = ordered[:MAX_SOURCE_CHUNKS_PER_EXERCISE]
 
     return session_exercises

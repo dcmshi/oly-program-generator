@@ -4,6 +4,8 @@ Prilepin's chart lookup functions.
 Used by the PLAN step (setting rep targets) and VALIDATE step (checking compliance).
 """
 
+from shared.constants import MIN_SESSION_REPS
+
 # Prilepin's zones — mirrors the prilepin_chart table for in-memory use.
 # Loaded from DB at startup; hardcoded here as a reliable fallback.
 PRILEPIN_ZONES = [
@@ -78,13 +80,14 @@ def compute_session_rep_target(
     midpoint = (intensity_floor + intensity_ceiling) / 2
     zone_key = get_prilepin_zone(midpoint)
     if not zone_key:
-        # Below 55%: use the 55-65 zone as proxy so deload rep targets stay proportional.
-        fallback_optimal = 24  # 55-65% optimal
-        return max(3, round(fallback_optimal * session_volume_share * volume_modifier))
+        # Below 55%: use the lightest zone (55-65) as proxy so deload rep targets
+        # stay proportional.
+        fallback_optimal = PRILEPIN_ZONES[0]["optimal"]
+        return max(MIN_SESSION_REPS, round(fallback_optimal * session_volume_share * volume_modifier))
 
     zone_data = get_prilepin_data(zone_key)
     if not zone_data:
-        return 6
+        return MIN_SESSION_REPS
 
     raw_target = zone_data["optimal_total_reps"] * session_volume_share * volume_modifier
-    return max(3, round(raw_target))  # minimum 3 reps to be meaningful
+    return max(MIN_SESSION_REPS, round(raw_target))  # minimum to be a meaningful set

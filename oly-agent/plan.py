@@ -14,13 +14,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan, SessionTemplate, WeekTarget
 from phase_profiles import build_weekly_targets
+from phase_progression import decide_next_phase
 from pydantic import ValidationError
 from schemas import OutcomeSummary
 from session_templates import get_session_templates
 
 from shared.constants import (
     ADJUST_RPE_DEVIATION,
-    ADVANCE_MAX_RPE_DEVIATION,
     ADVANCE_MIN_ADHERENCE_PCT,
     ADVANCE_MIN_MAKE_RATE,
     EXCELLENT_ADHERENCE_PCT,
@@ -78,9 +78,6 @@ def plan(athlete_context: AthleteContext, conn, settings) -> ProgramPlan:
     else:
         # ── Outcome-based volume/intensity adjustments ─────────
         raw_targets = _apply_outcome_adjustments(raw_targets, athlete_context.previous_program)
-        if intensity_ceiling_override is None:
-            # Track highest ceiling for metadata (non-cold-start always has None override)
-            pass
 
     # ── Session templates ──────────────────────────────────────
     session_tmpl_dicts = get_session_templates(athlete_context.sessions_per_week)
@@ -151,9 +148,7 @@ def _select_phase_and_duration(ctx: AthleteContext) -> tuple[str, int]:
     goal = ctx.active_goal.get("goal") if ctx.active_goal else None
 
     if weeks_out is not None:
-        if weeks_out > 12:
-            return "accumulation", 4
-        elif weeks_out >= 8:
+        if weeks_out >= 8:
             return "accumulation", 4
         elif weeks_out >= 4:
             return "intensification", 4
@@ -184,50 +179,20 @@ def _select_phase_and_duration(ctx: AthleteContext) -> tuple[str, int]:
     return goal_to_phase.get(goal, ("accumulation", 4))
 
 
-# Standard periodization progression (loops back after realization)
-_PHASE_SEQUENCE = ["general_prep", "accumulation", "intensification", "realization"]
-
-
 def _advance_phase(prev_phase: str | None, outcome: OutcomeSummary, goal: str | None) -> tuple[str, int]:
-    """Select the next phase given the previous phase and outcome signals.
+    """Select the next phase + duration given the previous phase and outcome.
 
-    Rules:
-    - Advance phase if adherence >= 70% and avg_make_rate >= 0.75
-    - Stay in same phase if performance was poor (repeat block)
-    - Realization always cycles back to accumulation (peaking -> rebuild)
+    The phase *decision* lives in phase_progression.decide_next_phase so it can't
+    drift from feedback._compute_phase_verdict (see A-H3). Here we just attach the
+    phase's default duration.
     """
     from phase_profiles import PHASE_PROFILES
 
-    adherence = outcome.adherence_pct
-    make_rate = outcome.avg_make_rate
-    rpe_dev = outcome.avg_rpe_deviation
-
-    # Performance gate: advance only if athlete is ready
-    ready_to_advance = adherence >= ADVANCE_MIN_ADHERENCE_PCT and make_rate >= ADVANCE_MIN_MAKE_RATE
-
-    if not ready_to_advance:
-        logger.info(
-            f"Phase not advanced (adherence={adherence:.0f}%, make_rate={make_rate:.0%}) — repeating {prev_phase}"
-        )
-
-    if prev_phase not in _PHASE_SEQUENCE:
-        # Unknown or missing — fall back to accumulation
-        next_phase = "accumulation"
-    elif prev_phase == "realization":
-        # After peaking, always rebuild with accumulation
-        next_phase = "accumulation"
-    elif ready_to_advance:
-        idx = _PHASE_SEQUENCE.index(prev_phase)
-        next_phase = _PHASE_SEQUENCE[min(idx + 1, len(_PHASE_SEQUENCE) - 1)]
-    else:
-        next_phase = prev_phase
-
-    # Exceptionally high RPE deviation → don't advance even if make rate was ok.
-    # Never applies after realization: an overreached athlete must rebuild with
-    # accumulation, not repeat a peaking block (matches _compute_phase_verdict).
-    if rpe_dev > ADVANCE_MAX_RPE_DEVIATION and next_phase != prev_phase and prev_phase != "realization":
-        logger.info(f"RPE deviation too high ({rpe_dev:+.2f}) — staying in {prev_phase}")
-        next_phase = prev_phase
+    next_phase, advanced, status = decide_next_phase(
+        prev_phase, outcome.adherence_pct, outcome.avg_make_rate, outcome.avg_rpe_deviation
+    )
+    if not advanced:
+        logger.info(f"Phase not advanced ({status}): {prev_phase} → {next_phase}")
 
     duration = PHASE_PROFILES.get(next_phase, {}).get("default_weeks", 4)
     return next_phase, duration

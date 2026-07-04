@@ -18,6 +18,7 @@ from models import AthleteContext
 from weight_resolver import build_maxes_dict
 
 from shared.db import fetch_all, fetch_one
+from shared.formulas import round_kg
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ def assess(athlete_id: int, conn) -> AthleteContext:
 
     # ── Fill in missing maxes via estimation ───────────────────
     estimated = estimate_missing_maxes(maxes)
-    for exercise, (estimated_kg, _) in estimated.items():
+    for exercise, estimated_kg in estimated.items():
         maxes[exercise] = estimated_kg
     if estimated:
         logger.info(f"Estimated {len(estimated)} missing maxes from competition lifts")
@@ -138,23 +139,22 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         recent_logs=recent_logs,
         technical_faults=list(athlete.get("technical_faults") or []),
         injuries=list(athlete.get("injuries") or []),
-        sessions_per_week=athlete.get("sessions_per_week", 4),
+        # `or 4`, not .get(..., 4): the column is nullable, so a SQL NULL makes
+        # .get return None (the key exists) → TypeErrors downstream (A-L3).
+        sessions_per_week=athlete.get("sessions_per_week") or 4,
         weeks_to_competition=weeks_to_competition,
     )
 
 
-def estimate_missing_maxes(known_maxes: dict[str, float]) -> dict[str, tuple[float, str]]:
+def estimate_missing_maxes(known_maxes: dict[str, float]) -> dict[str, float]:
     """Estimate missing maxes from known competition lift maxes.
 
-    Returns: {exercise_ref: (estimated_kg, "estimated")}
+    Returns: {exercise_ref: estimated_kg}
     """
     estimated = {}
     for exercise, config in MAX_ESTIMATION_RATIOS.items():
         if exercise not in known_maxes:
             ref_max = known_maxes.get(config["reference"])
             if ref_max:
-                estimated[exercise] = (
-                    round(ref_max * config["ratio"] * 2) / 2,  # round to 0.5kg
-                    "estimated",
-                )
+                estimated[exercise] = round_kg(ref_max * config["ratio"])
     return estimated

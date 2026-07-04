@@ -54,6 +54,19 @@ def _fmt_date(d) -> str:
     return str(d)
 
 
+def _validate_session_link(raw: str, sessions: list[dict]) -> int | None:
+    """Return the session id to link only if `raw` is one of the listed sessions.
+
+    Guards against a typo'd id being inserted into training_logs.session_id,
+    which would raise an FK violation and abort the transaction mid-entry (A-L5).
+    """
+    if raw.isdigit():
+        candidate = int(raw)
+        if candidate in {s["id"] for s in sessions}:
+            return candidate
+    return None
+
+
 # ── Command: show ────────────────────────────────────────────────
 
 def cmd_show(athlete_id: int, conn) -> None:
@@ -199,8 +212,11 @@ def cmd_session(athlete_id: int, conn, session_id: int | None = None) -> int | N
                 for s in sessions:
                     print(f"  [{s['id']}] Day {s['day_number']}: {s['session_label']}")
                 raw = input("\n  Enter session_id to link (or Enter to skip): ").strip()
-                if raw.isdigit():
-                    session_id = int(raw)
+                linked = _validate_session_link(raw, sessions)
+                if linked is not None:
+                    session_id = linked
+                elif raw:
+                    print(f"  '{raw}' isn't one of the listed sessions — logging without a program link.")
 
     # Gather log details
     log_date_str = _prompt("Log date", default=str(date.today()))
@@ -216,22 +232,27 @@ def cmd_session(athlete_id: int, conn, session_id: int | None = None) -> int | N
     stress_level = _prompt("Stress level 1-5 (optional)", cast=int)
     notes = _prompt("Notes (optional)") or None
 
-    log_id = execute_returning(
-        conn,
-        """
-        INSERT INTO training_logs
-            (athlete_id, session_id, log_date, overall_rpe,
-             session_duration_minutes, bodyweight_kg, sleep_quality,
-             stress_level, athlete_notes)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        (
-            athlete_id, session_id, log_date, overall_rpe,
-            duration, bodyweight, sleep_quality, stress_level, notes,
-        ),
-    )
-    conn.commit()
+    try:
+        log_id = execute_returning(
+            conn,
+            """
+            INSERT INTO training_logs
+                (athlete_id, session_id, log_date, overall_rpe,
+                 session_duration_minutes, bodyweight_kg, sleep_quality,
+                 stress_level, athlete_notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)
+            RETURNING id
+            """,
+            (
+                athlete_id, session_id, log_date, overall_rpe,
+                duration, bodyweight, sleep_quality, stress_level, notes,
+            ),
+        )
+        conn.commit()
+    except Exception as e:
+        conn.rollback()
+        print(f"\n  Could not save the session log: {e}")
+        return None
     print(f"\n  Session logged. log_id={log_id}")
 
     add_exs = input("\n  Add exercise details now? [y/N]: ").strip().lower()

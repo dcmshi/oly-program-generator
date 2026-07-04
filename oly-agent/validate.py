@@ -22,8 +22,11 @@ from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
     PRILEPIN_HARD_CAP_MULTIPLIER,
     SESSION_DURATION_TOLERANCE,
+    SUPRAMAX_INTENSITY_WARN_PCT,
+    WARMUP_INTENSITY_CUTOFF_PCT,
 )
 from shared.exercise_mapping import COMP_LIFT_REFS
+from shared.formulas import estimate_session_minutes
 from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
 # Keywords used to detect whether a prescribed exercise addresses a strength limiter.
@@ -129,13 +132,25 @@ def validate_session(
         if pct is None:
             continue
         pct = float(pct)
+        # The week ceiling is a competition-lift ceiling. Pulls/squats reference
+        # their own max and are routinely programmed above it (supramaximal
+        # pulls), so only comp lifts hard-error here; non-comp lifts merely warn
+        # if implausibly high (A-L4).
         if pct > intensity_ceiling:
-            errors.append(
-                f"{ex.get('exercise_name')} at {pct}% exceeds week ceiling {intensity_ceiling}%"
-            )
+            if ex.get("intensity_reference") in COMP_LIFT_REFS:
+                errors.append(
+                    f"{ex.get('exercise_name')} at {pct}% exceeds week ceiling {intensity_ceiling}%"
+                )
+            elif pct > SUPRAMAX_INTENSITY_WARN_PCT:
+                warnings.append(
+                    f"{ex.get('exercise_name')} at {pct}% is unusually high for a "
+                    f"non-competition lift (supramaximal work expected up to "
+                    f"~{SUPRAMAX_INTENSITY_WARN_PCT:.0f}%)"
+                )
         # Below floor is only a warning for competition lifts.
-        # Skip warmup sets (≤65%) — they are intentionally sub-floor.
-        if pct < intensity_floor and pct > 65 and ex.get("intensity_reference") in COMP_LIFT_REFS:
+        # Skip warm-up sets (≤ cutoff) — they are intentionally sub-floor.
+        if (pct < intensity_floor and pct > WARMUP_INTENSITY_CUTOFF_PCT
+                and ex.get("intensity_reference") in COMP_LIFT_REFS):
             warnings.append(
                 f"{ex.get('exercise_name')} at {pct}% is below week floor {intensity_floor}% "
                 f"for competition lifts"
@@ -189,10 +204,7 @@ def validate_session(
 
     # ── Check 6: Estimated session duration ───────────────────
     available_minutes = athlete.get("session_duration_minutes") or DEFAULT_SESSION_DURATION_MINUTES
-    estimated_minutes = sum(
-        (ex.get("sets") or 0) * (30 + (ex.get("rest_seconds") or 90))
-        for ex in session_exercises
-    ) / 60
+    estimated_minutes = estimate_session_minutes(session_exercises)
     if estimated_minutes > available_minutes * SESSION_DURATION_TOLERANCE:
         warnings.append(
             f"Estimated duration {estimated_minutes:.0f} min exceeds "

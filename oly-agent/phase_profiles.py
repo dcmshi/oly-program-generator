@@ -107,9 +107,11 @@ def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str) ->
             extended.append(repeat_pool[i % len(repeat_pool)])
         if deload_data:
             extended.append(deload_data[0])
+            deload_week = duration_weeks   # the appended deload is now the last week
+        else:
+            deload_week = None             # profile has no deload — don't fabricate one (A-L7)
 
         base_weeks = [(i + 1, data) for i, (_, data) in enumerate(extended)]
-        deload_week = duration_weeks
 
     elif duration_weeks < len(base_weeks):
         trim = len(base_weeks) - duration_weeks

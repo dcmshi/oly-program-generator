@@ -634,6 +634,7 @@ if __name__ == "__main__":
     args = parser.parse_args()
 
     settings = Settings()
+    settings.ensure_working_dirs()
     pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages)
 
     doc = SourceDocument(

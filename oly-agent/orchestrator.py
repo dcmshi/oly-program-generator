@@ -29,7 +29,9 @@ from validate import validate_session
 from weight_resolver import apply_projected_maxes, attach_source_chunk_ids, resolve_exercise_ids, resolve_weights
 
 from shared.config import Settings
+from shared.constants import MIN_SESSION_DURATION_MINUTES
 from shared.db import execute, execute_returning, fetch_all, get_connection
+from shared.formulas import estimate_session_minutes, round_kg
 from shared.llm import create_llm_client, estimate_cost
 
 logging.basicConfig(
@@ -136,7 +138,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
         # ── Step 3: RETRIEVE ──────────────────────────────────
         logger.info("=== Step 3: RETRIEVE ===")
         _t0 = time.perf_counter()
-        retrieval_context = retrieve(athlete_context, program_plan, conn, vector_loader)
+        retrieval_context = retrieve(athlete_context, program_plan, conn, vector_loader, settings=settings)
         logger.info("Step 3 complete", extra={"step": "retrieve", "program_id": program_id, "duration_seconds": round(time.perf_counter() - _t0, 2)})
         available_exercise_names = [e["name"] for e in retrieval_context.available_exercises]
         # Flat list of fault-correction exercise names for Check 8 in validate_session
@@ -187,15 +189,33 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     phase=program_plan.phase,
                 )
 
-                # Cost guard — athlete-specific limit takes precedence over global setting
-                cost_limit = athlete_context.athlete.get("cost_limit_usd") or settings.cost_limit_per_program
+                # Cost guard — athlete-specific limit takes precedence over the
+                # global setting. Use `is not None`, not `or`, so an explicit 0
+                # ("no spend") is honored instead of falling back to the global
+                # default (A-L8).
+                cost_limit = athlete_context.athlete.get("cost_limit_usd")
+                if cost_limit is None:
+                    cost_limit = settings.cost_limit_per_program
                 if cumulative_cost > cost_limit:
+                    total_planned = len(program_plan.weekly_targets) * len(program_plan.session_templates)
                     logger.error(
                         f"Cost limit exceeded: ${cumulative_cost:.4f} > "
                         f"${cost_limit:.2f}. Aborting before "
                         f"W{week_number}D{day_number}."
                     )
-                    _mark_program_draft(conn, program_id)
+                    # Store a self-explanatory rationale so a cost-truncated draft
+                    # is never mistaken for a finished program (A-L1).
+                    _mark_program_draft(
+                        conn, program_id,
+                        reason=(
+                            f"# Generation Aborted — Cost Limit\n"
+                            f"Stopped before W{week_number}D{day_number}: cost limit "
+                            f"${cost_limit:.2f} reached (spent ${cumulative_cost:.4f}). "
+                            f"{len(all_sessions_data)} of {total_planned} sessions were "
+                            f"generated. Re-run generation or raise the cost limit before "
+                            f"activating this program."
+                        ),
+                    )
                     return program_id
 
                 result = generate_session_with_retries(
@@ -374,12 +394,6 @@ def _build_max_test_session(
     No LLM call needed — the structure is fixed by convention:
     progressive singles ending in a max attempt (is_max_attempt=True) for each lift.
     """
-    from shared.constants import WEIGHT_ROUND_INCREMENT
-
-    def _round_kg(w: float) -> float:
-        inc = WEIGHT_ROUND_INCREMENT
-        return round(round(w / inc) * inc, 1)
-
     # (intensity_pct, reps, rest_seconds, rpe_target, is_max_attempt)
     PROGRESSION = [
         (50,  3, 90,  5.0, False),
@@ -393,6 +407,10 @@ def _build_max_test_session(
         (100, 1, 300, 10.0, True),
     ]
 
+    # Intentionally uses CURRENT maxes, not effective/projected targets (A-L6):
+    # a max test works up to 100% of the athlete's actual 1RM to attempt a new PR.
+    # Building the ramp off a projected goal they haven't hit yet would prescribe
+    # warm-ups above their real max.
     snatch_max = athlete_context.maxes.get("snatch", 0)
     cj_max     = athlete_context.maxes.get("clean_and_jerk", 0)
     snatch_id  = exercise_lookup.get("snatch")
@@ -410,7 +428,7 @@ def _build_max_test_session(
             "reps": reps,
             "intensity_pct": float(pct),
             "intensity_reference": "snatch",
-            "absolute_weight_kg": _round_kg(snatch_max * pct / 100) if snatch_max else None,
+            "absolute_weight_kg": round_kg(snatch_max * pct / 100) if snatch_max else None,
             "rpe_target": rpe,
             "rest_seconds": rest,
             "is_max_attempt": is_max,
@@ -433,7 +451,7 @@ def _build_max_test_session(
             "reps": reps,
             "intensity_pct": float(pct),
             "intensity_reference": "clean_and_jerk",
-            "absolute_weight_kg": _round_kg(cj_max * pct / 100) if cj_max else None,
+            "absolute_weight_kg": round_kg(cj_max * pct / 100) if cj_max else None,
             "rpe_target": rpe,
             "rest_seconds": rest,
             "is_max_attempt": is_max,
@@ -508,20 +526,26 @@ def _save_session(
 
 
 def _estimate_duration(exercises: list[dict]) -> int:
-    """Rough session duration estimate in minutes."""
-    minutes = sum(
-        (ex.get("sets") or 0) * (30 + (ex.get("rest_seconds") or 90))
-        for ex in exercises
-    ) / 60
-    return max(30, round(minutes))
+    """Rough session duration estimate in minutes (floored at the minimum)."""
+    return max(MIN_SESSION_DURATION_MINUTES, round(estimate_session_minutes(exercises)))
 
 
-def _mark_program_draft(conn, program_id: int):
-    execute(
-        conn,
-        "UPDATE generated_programs SET status = 'draft', updated_at = NOW() WHERE id = %s",
-        (program_id,),
-    )
+def _mark_program_draft(conn, program_id: int, reason: str | None = None):
+    """Keep a program in 'draft'. When `reason` is given (cost-limit abort), also
+    store it as the rationale so the truncated draft explains itself (A-L1)."""
+    if reason is not None:
+        execute(
+            conn,
+            "UPDATE generated_programs SET status = 'draft', rationale = %s, "
+            "updated_at = NOW() WHERE id = %s",
+            (reason, program_id),
+        )
+    else:
+        execute(
+            conn,
+            "UPDATE generated_programs SET status = 'draft', updated_at = NOW() WHERE id = %s",
+            (program_id,),
+        )
     conn.commit()
 
 

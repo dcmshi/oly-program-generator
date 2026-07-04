@@ -22,6 +22,8 @@ from weight_resolver import (
     resolve_weights,
 )
 
+from shared.constants import MAX_SOURCE_CHUNKS_PER_EXERCISE
+
 # ── Fixtures ───────────────────────────────────────────────────
 
 SAMPLE_DB_MAXES = [
@@ -174,16 +176,31 @@ def test_resolve_exercise_ids_empty_list():
 # ── attach_source_chunk_ids ───────────────────────────────────
 
 def test_attach_chunk_ids_fault_rationale():
-    """Exercises with fault-related rationale get fault chunk IDs."""
+    """Fault-related exercises get fault chunk IDs first, then rationale, capped."""
     exercises = [{"exercise_name": "Snatch", "selection_rationale": "Addresses slow turnover fault"}]
     context = {
         "programming_rationale": [{"id": 10}, {"id": 11}],
         "fault_correction_chunks": [{"id": 20}, {"id": 21}],
     }
     result = attach_source_chunk_ids(exercises, context)
-    ids = set(result[0]["source_chunk_ids"])
-    assert 20 in ids and 21 in ids, ids  # fault ids included
-    assert 10 in ids and 11 in ids, ids  # rationale ids always included
+    ids = result[0]["source_chunk_ids"]
+    assert ids[:2] == [20, 21], ids  # fault ids first, order preserved
+    assert 10 in ids                 # rationale follows
+    assert len(ids) <= MAX_SOURCE_CHUNKS_PER_EXERCISE
+    return True, ""
+
+
+def test_attach_chunk_ids_capped_and_ordered():
+    """R11: more chunks than the cap → only the top-N, most-relevant first."""
+    exercises = [{"exercise_name": "Snatch", "selection_rationale": "build strength"}]
+    context = {
+        "programming_rationale": [{"id": i} for i in (1, 2, 3, 4, 5)],
+        "fault_correction_chunks": [],
+    }
+    result = attach_source_chunk_ids(exercises, context)
+    ids = result[0]["source_chunk_ids"]
+    assert ids == [1, 2, 3, 4, 5][:MAX_SOURCE_CHUNKS_PER_EXERCISE], ids  # capped, order preserved
+    assert len(ids) == MAX_SOURCE_CHUNKS_PER_EXERCISE
     return True, ""
 
 
@@ -313,6 +330,7 @@ TESTS = [
     ("resolve_exercise_ids: empty list → empty", test_resolve_exercise_ids_empty_list),
     # attach_source_chunk_ids
     ("attach_chunk_ids: fault rationale → fault + rationale IDs", test_attach_chunk_ids_fault_rationale),
+    ("attach_chunk_ids: capped and ordered (R11)", test_attach_chunk_ids_capped_and_ordered),
     ("attach_chunk_ids: no fault → only rationale IDs", test_attach_chunk_ids_no_fault_rationale),
     ("attach_chunk_ids: empty context → empty list", test_attach_chunk_ids_empty_context),
     ("attach_chunk_ids: no duplicate IDs", test_attach_chunk_ids_no_duplicates),

@@ -70,7 +70,7 @@ class ProgramPlan:
 @dataclass
 class RetrievalContext:
     """All knowledge gathered before generation. Output of RETRIEVE step."""
-    fault_exercises: dict[str, list[dict]]      # fault -> matching exercises from DB
+    fault_exercises: dict[str, list[dict]]      # movement family ("snatch"/"clean") -> matching exercises from DB
     template_references: list[dict]             # similar program_templates rows
     programming_rationale: list[dict]           # knowledge_chunks (periodization/rationale)
     fault_correction_chunks: list[dict]         # knowledge_chunks (fault_correction)

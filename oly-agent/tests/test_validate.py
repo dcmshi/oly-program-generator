@@ -157,6 +157,26 @@ def test_no_intensity_pct_skipped():
     return True, ""
 
 
+def test_supramaximal_pull_allowed_above_ceiling():
+    # A-L4: a snatch pull at 105% (above the 80% comp-lift ceiling) is legitimate
+    # supramaximal work and must not error.
+    exercises = [_ex("Snatch Pull", 3, 2, 105, ref="snatch_pull")]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert result.is_valid, result.errors
+    assert not any("ceiling" in e.lower() for e in result.errors), result.errors
+    return True, ""
+
+
+def test_non_comp_lift_absurd_intensity_warns():
+    # A-L4: a non-comp lift far above the supramax sanity bound (120%) warns
+    # (typo guard) but does not hard-error.
+    exercises = [_ex("Snatch Pull", 2, 2, 130, ref="snatch_pull")]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert result.is_valid, result.errors
+    assert any("unusually high" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
 # ── Check 3: Reps per set ─────────────────────────────────────
 
 def test_reps_above_90_limit_error():
@@ -536,6 +556,8 @@ TESTS = [
     ("Intensity: below floor comp lift → warning", test_intensity_below_floor_comp_lift_warning),
     ("Intensity: below floor non-comp → no warning", test_intensity_below_floor_non_comp_lift_no_warning),
     ("Intensity: no pct → skipped", test_no_intensity_pct_skipped),
+    ("Intensity: supramaximal pull allowed above ceiling (A-L4)", test_supramaximal_pull_allowed_above_ceiling),
+    ("Intensity: absurd non-comp intensity warns (A-L4)", test_non_comp_lift_absurd_intensity_warns),
     ("Reps/set: >2 at ≥90% → error", test_reps_above_90_limit_error),
     ("Reps/set: 2 at ≥90% → ok", test_reps_at_90_limit_ok),
     ("Reps/set: >4 at ≥80% → warning", test_reps_above_80_limit_warning),

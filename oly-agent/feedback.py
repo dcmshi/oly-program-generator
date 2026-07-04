@@ -13,20 +13,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import ProgramOutcome
+from phase_progression import compute_load_adjustments, decide_next_phase
 from schemas import OutcomeSummary, PhaseVerdict
 
 from shared.constants import (
-    ADJUST_RPE_DEVIATION,
     ADVANCE_MAX_RPE_DEVIATION,
     ADVANCE_MIN_ADHERENCE_PCT,
     ADVANCE_MIN_MAKE_RATE,
-    EXCELLENT_ADHERENCE_PCT,
-    EXCELLENT_MAKE_RATE,
     MAKE_RATE_TREND_THRESHOLD,
     RPE_TREND_THRESHOLD,
 )
 from shared.db import execute, fetch_all, fetch_one
-from shared.exercise_mapping import to_intensity_ref
+from shared.exercise_mapping import COMP_LIFT_REFS, to_intensity_ref
 
 logger = logging.getLogger(__name__)
 
@@ -89,11 +87,11 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         JOIN session_exercises se ON tle.session_exercise_id = se.id
         JOIN program_sessions ps ON se.session_id = ps.id
         WHERE ps.program_id = %s
-          AND se.intensity_reference IN ('snatch', 'clean_and_jerk', 'clean')
+          AND se.intensity_reference = ANY(%s)
           AND tle.make_rate IS NOT NULL
         ORDER BY ps.week_number, ps.day_number, se.exercise_order
         """,
-        (program_id,),
+        (program_id, list(COMP_LIFT_REFS)),
     )
     avg_make_rate = (
         sum(r["make_rate"] for r in make_rows) / len(make_rows) if make_rows else 0.0
@@ -267,7 +265,6 @@ def save_outcome(outcome: ProgramOutcome, conn):
     logger.info(f"Saved outcome for program {outcome.program_id}")
 
 
-_PHASE_SEQUENCE = ["general_prep", "accumulation", "intensification", "realization"]
 _PHASE_LABELS = {
     "general_prep":    "General Prep",
     "accumulation":    "Accumulation",
@@ -282,7 +279,12 @@ def _compute_phase_verdict(
     avg_make_rate: float,
     avg_rpe_deviation: float,
 ) -> dict:
-    """Compute what phase comes next and why, mirroring plan._advance_phase logic."""
+    """Report what phase comes next and why.
+
+    The phase decision + load adjustments come from phase_progression (shared
+    with plan._advance_phase / _apply_outcome_adjustments) so the verdict shown
+    to the athlete can't disagree with the program actually generated (A-H3).
+    """
     checks = [
         {
             "metric":    "Adherence",
@@ -307,42 +309,23 @@ def _compute_phase_verdict(
         },
     ]
 
-    ready = adherence_pct >= ADVANCE_MIN_ADHERENCE_PCT and avg_make_rate >= ADVANCE_MIN_MAKE_RATE
-    rpe_blocked = avg_rpe_deviation > ADVANCE_MAX_RPE_DEVIATION
-
-    if prev_phase not in _PHASE_SEQUENCE:
-        next_phase = "accumulation"
-        advanced = False
-        reason = "No previous phase — starting at Accumulation"
-    elif prev_phase == "realization":
-        next_phase = "accumulation"
-        advanced = False
-        reason = "Realization complete — rebuilding with Accumulation"
-    elif ready and not rpe_blocked:
-        idx = _PHASE_SEQUENCE.index(prev_phase)
-        next_phase = _PHASE_SEQUENCE[min(idx + 1, len(_PHASE_SEQUENCE) - 1)]
-        advanced = next_phase != prev_phase
-        reason = "All thresholds met — phase advanced" if advanced else "Already at highest phase"
-    elif ready and rpe_blocked:
-        next_phase = prev_phase
-        advanced = False
-        reason = f"RPE deviation too high ({avg_rpe_deviation:+.2f}) — phase held despite good adherence and make rate"
-    else:
-        next_phase = prev_phase
-        advanced = False
+    next_phase, advanced, status = decide_next_phase(
+        prev_phase, adherence_pct, avg_make_rate, avg_rpe_deviation
+    )
+    if status == "repeated":
         failing = [c["metric"] for c in checks if not c["passed"]]
         reason = f"Phase repeated — {', '.join(failing)} below threshold"
+    else:
+        reason = {
+            "cold_start":          "No previous phase — starting at Accumulation",
+            "realization_rebuild": "Realization complete — rebuilding with Accumulation",
+            "advanced":            "All thresholds met — phase advanced",
+            "at_top":              "Already at highest phase",
+            "rpe_held":            f"RPE deviation too high ({avg_rpe_deviation:+.2f}) — "
+                                   f"phase held despite good adherence and make rate",
+        }[status]
 
-    # Next-program load adjustments (mirrors _apply_outcome_adjustments)
-    adjustments = []
-    if adherence_pct < ADVANCE_MIN_ADHERENCE_PCT:
-        adjustments.append("Volume −10% (low adherence)")
-    if avg_make_rate < ADVANCE_MIN_MAKE_RATE:
-        adjustments.append("Intensity ceiling −3% (low make rate)")
-    if avg_rpe_deviation > ADJUST_RPE_DEVIATION:
-        adjustments.append("Volume −5% (high RPE deviation)")
-    if adherence_pct >= EXCELLENT_ADHERENCE_PCT and avg_make_rate >= EXCELLENT_MAKE_RATE:
-        adjustments.append("Intensity ceiling +2% (excellent performance)")
+    adjustments = compute_load_adjustments(adherence_pct, avg_make_rate, avg_rpe_deviation)
 
     return {
         "prev_phase":       prev_phase,

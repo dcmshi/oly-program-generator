@@ -6,6 +6,9 @@ Project-wide numeric constants. Import from here instead of using magic numbers.
 # ── Session duration ─────────────────────────────────────────────
 DEFAULT_SESSION_DURATION_MINUTES: int = 90
 SESSION_DURATION_TOLERANCE: float = 1.2  # warn if estimated > available * this
+SECONDS_PER_SET: int = 30                # assumed working time per set
+DEFAULT_REST_SECONDS: int = 90           # assumed rest when an exercise has none
+MIN_SESSION_DURATION_MINUTES: int = 30   # floor for a session duration estimate
 
 # ── Prilepin chart ───────────────────────────────────────────────
 PRILEPIN_HARD_CAP_MULTIPLIER: float = 1.5   # hard session-volume cap = range_high * this
@@ -20,6 +23,16 @@ SNIPPET_MAX_CHARS: int = 600         # max chars of a knowledge chunk shown in p
 MAX_PRINCIPLES_IN_PROMPT: int = 8   # max active principles sent to LLM
 MAX_RECENT_LOGS_IN_PROMPT: int = 10  # recent training entries shown in prompt
 PROMPT_LENGTH_WARN_CHARS: int = 20_000  # log warning if prompt exceeds this (~5k tokens)
+
+# ── Traceability ─────────────────────────────────────────────────
+MAX_SOURCE_CHUNKS_PER_EXERCISE: int = 3  # most-relevant chunk ids attached per exercise
+
+# ── Intensity envelope ───────────────────────────────────────────
+# The week ceiling applies to competition lifts only; pulls/squats reference
+# their own max and are routinely programmed supramaximally. Non-comp lifts
+# above this % still warn to catch gross typos.
+SUPRAMAX_INTENSITY_WARN_PCT: float = 120.0
+WARMUP_INTENSITY_CUTOFF_PCT: float = 65.0  # sets at/below this are warm-ups (sub-floor by design)
 
 # ── Weight resolution ────────────────────────────────────────────
 WEIGHT_ROUND_INCREMENT: float = 0.5  # round absolute weights to nearest 0.5 kg
