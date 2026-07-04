@@ -1,5 +1,12 @@
 # TODO — 2026-07-03 Repo Audit Findings
 
+> **Provenance / completeness (reconciled 2026-07-04):** this doc is the full port
+> of the prior Fable session's 24 filed tasks (#1 consolidate report + #2–#24),
+> recovered from that session's transcript because its task list did not persist.
+> Every task and every sub-item of the batch tasks (#12–#16) is represented here;
+> #24 (e2e verification) was completed this session. Nothing from the Fable
+> session is now transcript-only.
+
 Reconstructed from the 3-agent parallel audit (web / ingestion / agent-pipeline).
 The 5 critical items were fixed in commit `519aad0`. Batch 2 fixed all 9 remaining
 agent-pipeline HIGH/MEDIUM findings + W-M2 + ENV1. Batch 3 (2026-07-03) fixed **all
@@ -132,12 +139,18 @@ best done on the main DB machine (need keys/live corpus). Bug-fix prereqs for
 new-source ingestion (principle UNIQUE #7, resume #8, vision-OCR #9) are **now
 done** (batch 5), so #23 is unblocked once the corpus DB is available.
 
-- [ ] **#17 — LLM migration: Sonnet 5 + structured outputs.** Two model generations behind; structured outputs would delete the JSON-parse-retry machinery. Watch: temperature 400s, `content[0]` hazard, thinking defaults.
-- [ ] **#18 — RAG quick fixes:** fault-token underscores, dead `top_k`, template `[:2]` cap.
-- [ ] **#19 — Session-specific retrieval** context + result diversity + wider snippets.
-- [ ] **#20 — Harden retrieval eval:** real assertions, prod/eval parity, ~50 queries. (Gates #21/#22; do after #6 so the eval isn't baselined on the broken corpus.)
-- [ ] **#21 — Hybrid lexical + vector search (RRF).**
-- [ ] **#22 — Embedding upgrade:** `text-embedding-3-large` @ dim 1536.
+- [ ] **#17 — LLM migration: Sonnet 5 + structured outputs + model housekeeping.** Currently `claude-sonnet-4-6` for llm/generation/explanation (`config.py:37-44`). NOT a plain string swap:
+  1. **BLOCKER** — remove `temperature` from `generate.py:511` (0.3) and `explain.py:50` (0.7); non-default sampling → HTTP 400 on Sonnet 5. Drop `generation_temperature`/`explanation_temperature` from config + tests; steer via prompt.
+  2. **Thinking default** — Sonnet 5 runs *adaptive* thinking when `thinking` is omitted (4.6 ran off). Our calls omit it → thinking tokens eat `max_tokens` (classifier's 128 would vanish) and `response.content[0].text` (generate:514, explain:53, classifier:256, principle_extractor:116, pipeline:489) may hit a thinking block first. Pass `thinking={"type":"disabled"}` for these structured tasks, or iterate blocks for `type=="text"` + raise max_tokens.
+  3. **Tokenizer** ≈ 30% more tokens/text — re-baseline `cost_limit_per_program`. Fix `shared/llm.py:13-15`: `COST_PER_*_TOKEN` hardcodes $3/$15 regardless of model (Opus OCR already mispriced) → per-model pricing dict.
+  4. **WIN** — structured outputs (`output_config={"format":{"type":"json_schema",...}}`, Sonnet 5 only) guarantee valid JSON → delete the parse-retry loop + "respond ONLY with JSON" re-prompts + the fence-strippers; fixes the malformed-output crash class by construction.
+  5. Optional: classifier's 128-token label pick → `claude-haiku-4-5` ($1/$5).
+  6. Verify: assert `response.model.startswith("claude-sonnet-5")`; update `test_generate_utils`/`test_explain` (expect sonnet-4-6 strings). Prompt caching not worth it at ~2,600-token prompts unless #19 widens them.
+- [ ] **#18 — RAG quick fixes:** (a) `retrieve.py:104,:143` embed fault tokens with underscores intact ("early_arm_bend") while limiters/emphasis get `.replace("_"," ")` — apply the same to faults (values from `setup.py` FAULT_OPTIONS). (b) *[DONE — A-L2]* `retrieve(settings=…)`. (c) `retrieve.py:118` `[:2]` template cap — remove with #19 or document.
+- [ ] **#19 — Session-specific retrieval + diversity + wider snippets** (highest-value RAG, ~½ day, no new infra). Today retrieval runs once per program (`orchestrator.py:139`) and `generate.py:251-266` collapses ~25-35 chunks to ≤4 by INSERTION ORDER, reused identically for every session, truncated to 600 chars. (a) run session-template queries for ALL templates, key results by day/movement. (b) select ≤4 for THIS template sorted by `similarity` DESC; round-robin fault chunks across faults. (c) per-source diversity cap (max 2/source_id). (d) widen `SNIPPET_MAX_CHARS` 600→~1500 (numeric prescriptions live in chunk tails; prompt headroom exists). Re-run eval after.
+- [ ] **#20 — Harden retrieval eval** (PREREQ #6; gates #21/#22). `test_retrieval_eval.py` is print-only (no assertions/exit code) and calls `similarity_search` WITHOUT the production `chunk_types` filters. (a) production-parity pass. (b) graded labels → hit-rate@5 + MRR, exit non-zero below baseline. (c) expand 22→~50 queries templated from LITERAL production strings (one per FAULT_OPTION, phase×movement, limiter). (d) update `RETRIEVAL_EVAL.md`.
+- [ ] **#21 — Hybrid lexical + vector search (RRF)** (PREREQ #20). Pure vector today (no tsvector/pg_trgm). (a) Alembic: `ADD COLUMN tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', raw_content)) STORED` + GIN index (no re-embed). (b) `similarity_search(hybrid=True)`: vector top-20 + lexical top-20 CTEs merged via RRF `1/(60+rank)`, `min_similarity` on the vector leg only. (c) optional soft topic boost (not hard filter). Skip HyDE/rerankers (fixed-template queries, 4-chunk budget).
+- [ ] **#22 — Embedding upgrade: `text-embedding-3-large` @ dim 1536** (PREREQ #20/#21). Matryoshka truncation → keep `vector(1536)`, no schema change: pass `dimensions=1536` in `_embed_batch`/`_embed`, flip `config.py:33`. Backfill ~50-line script from stored `content` (~3.4M tokens ≈ **$0.45**); HNSW updates in place; re-run eval.
 - [ ] **#23 — New source ingestion (the recovered title/author table).** Add each to `SOURCE_PROFILE_MAP` in `chunker.py` BEFORE ingesting (unknown titles fall back to the 900-token programming profile); use owned copies; update the CLAUDE.md source list + corpus totals; re-run the retrieval eval after each batch. Corpus gaps this fills: concrete Soviet loading prescriptions beyond Medvedev, competition tapering/peaking, modern evidence-based programming.
 
   | # | Source | Profile | Why |
