@@ -17,7 +17,20 @@ import psycopg2
 
 sys.path.insert(0, str(Path(__file__).parent))
 from config import Settings
-from processors.chunker import keyword_tag
+from processors.chunker import CHUNK_TYPE_DEFAULT_TOPICS, keyword_tag
+
+
+def compute_topics(raw_content: str, chunk_type: str | None) -> list[str]:
+    """Topics for a chunk: keyword tags UNION the chunk_type baseline topics.
+
+    Mirrors chunker.chunk() exactly. Recomputing from keyword_tag alone stripped
+    any topic that came only from the chunk_type default (e.g. fault_correction
+    on a fault chunk with no matching keyword), silently degrading topic-filtered
+    retrieval (I-M3).
+    """
+    topics = set(keyword_tag(raw_content))
+    topics |= set(CHUNK_TYPE_DEFAULT_TOPICS.get(chunk_type or "", []))
+    return sorted(topics)
 
 
 def retag(source_id: int | None, dry_run: bool) -> None:
@@ -27,11 +40,11 @@ def retag(source_id: int | None, dry_run: bool) -> None:
 
     if source_id:
         cur.execute(
-            "SELECT id, raw_content, topics FROM knowledge_chunks WHERE source_id = %s",
+            "SELECT id, raw_content, topics, chunk_type::text FROM knowledge_chunks WHERE source_id = %s",
             (source_id,),
         )
     else:
-        cur.execute("SELECT id, raw_content, topics FROM knowledge_chunks")
+        cur.execute("SELECT id, raw_content, topics, chunk_type::text FROM knowledge_chunks")
 
     rows = cur.fetchall()
     print(f"Loaded {len(rows)} chunks{f' for source_id={source_id}' if source_id else ''}.")
@@ -39,8 +52,8 @@ def retag(source_id: int | None, dry_run: bool) -> None:
     updated = 0
     newly_tagged = 0
 
-    for chunk_id, raw_content, old_topics in rows:
-        new_topics = sorted(keyword_tag(raw_content))
+    for chunk_id, raw_content, old_topics, chunk_type in rows:
+        new_topics = compute_topics(raw_content, chunk_type)
         old_set = set(old_topics or [])
         new_set = set(new_topics)
 

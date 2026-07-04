@@ -59,6 +59,9 @@ def _make_db(rows: list[tuple]) -> tuple[MagicMock, MagicMock]:
 
 def _run_retag(rows, source_id=None, dry_run=False, keyword_tag_fn=None):
     """Run retag() with mocked psycopg2 and keyword_tag."""
+    # The loader now selects (id, raw_content, topics, chunk_type::text) — older
+    # fixtures omit chunk_type, so default it to None (no baseline topics).
+    rows = [r if len(r) == 4 else (*r, None) for r in rows]
     mock_conn, mock_cur = _make_db(rows)
 
     if keyword_tag_fn is None:
@@ -183,6 +186,25 @@ def test_already_tagged_chunks_skipped():
 
     update_calls = [c for c in mock_cur.execute.call_args_list if "UPDATE" in str(c).upper()]
     assert len(update_calls) == 0
+
+
+def test_chunk_type_baseline_not_stripped():
+    """I-M3 regression: a fault_correction chunk already carrying its baseline
+    topic must NOT be stripped back to [] when keyword_tag matches nothing.
+    (Old code recomputed from keyword_tag alone and would have removed it.)"""
+    rows = [(1, "neutral text", ["fault_correction"], "fault_correction")]
+    mock_conn, mock_cur = _run_retag(rows, keyword_tag_fn=lambda t: [])
+    update_calls = [c for c in mock_cur.execute.call_args_list if "UPDATE" in str(c).upper()]
+    assert len(update_calls) == 0, "baseline chunk_type topic was stripped"
+
+
+def test_chunk_type_baseline_reapplied_when_missing():
+    """I-M3: a fault_correction chunk missing its baseline topic gets it back."""
+    rows = [(1, "neutral text", [], "fault_correction")]
+    mock_conn, mock_cur = _run_retag(rows, keyword_tag_fn=lambda t: [])
+    update_calls = [c for c in mock_cur.execute.call_args_list if "UPDATE" in str(c).upper()]
+    assert len(update_calls) == 1
+    assert update_calls[0].args[1][0] == ["fault_correction"]
 
 
 def test_topic_removal_triggers_update():

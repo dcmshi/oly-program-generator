@@ -41,6 +41,27 @@ class VectorLoader:
         self.embed_client = OpenAI(api_key=settings.openai_api_key)
         self.last_skipped_count = 0  # dedup-skip count from the most recent load_chunks call
 
+    @staticmethod
+    def _partition_new_chunks(chunks, hashes, existing):
+        """Split (chunk, hash) pairs into (new_chunks, skipped_count).
+
+        A chunk is skipped if its content hash is already in the DB (`existing`)
+        or has already appeared earlier in THIS batch — the intra-batch check
+        prevents two identical chunks from both passing and then colliding on the
+        UNIQUE(content_hash) insert (I-M9). Pure/static so it's unit-testable
+        without a DB or embedding client.
+        """
+        new_chunks: list[tuple[Chunk, str]] = []  # (chunk, content_hash)
+        seen_in_batch: set[str] = set()
+        skipped = 0
+        for chunk, content_hash in zip(chunks, hashes, strict=True):
+            if content_hash in existing or content_hash in seen_in_batch:
+                skipped += 1
+            else:
+                seen_in_batch.add(content_hash)
+                new_chunks.append((chunk, content_hash))
+        return new_chunks, skipped
+
     def load_chunks(
         self,
         chunks: list[Chunk],
@@ -69,18 +90,24 @@ class VectorLoader:
         self.last_skipped_count = 0  # exposed so callers can track dedup stats
 
         # Step 1: Filter out duplicates before hitting the embedding API.
-        new_chunks: list[tuple[Chunk, str]] = []  # (chunk, content_hash)
-        for chunk in chunks:
-            content_hash = hashlib.sha256(chunk.raw_content.encode()).hexdigest()
+        # One round-trip for all existing hashes (not one SELECT per chunk), plus
+        # a local set so two identical chunks WITHIN this call don't both pass the
+        # DB check and then collide on the UNIQUE(content_hash) INSERT after
+        # embeddings were already paid for (I-M9).
+        hashes = [hashlib.sha256(c.raw_content.encode()).hexdigest() for c in chunks]
+        existing: set[str] = set()
+        if hashes:
             cursor.execute(
-                "SELECT 1 FROM knowledge_chunks WHERE content_hash = %s",
-                (content_hash,),
+                "SELECT content_hash FROM knowledge_chunks WHERE content_hash = ANY(%s)",
+                (hashes,),
             )
-            if cursor.fetchone():
-                skipped += 1
-            else:
-                new_chunks.append((chunk, content_hash))
+            existing = {row[0] for row in cursor.fetchall()}
 
+        new_chunks, skipped = self._partition_new_chunks(chunks, hashes, existing)
+
+        # Set for ALL return paths (was only set on the success path, so a
+        # fully-deduped section reported 0 skipped — I-M5).
+        self.last_skipped_count = skipped
         if skipped:
             logger.info(f"  Skipped {skipped} duplicate chunks (pre-embedding filter)")
 
@@ -182,10 +209,16 @@ class VectorLoader:
 
         OpenAI's embedding API accepts multiple texts per call (up to 2048).
         For 200 chunks, this means 2 API calls instead of 200.
-        Includes basic retry logic for rate limits.
+        Retries transient errors (rate limits, timeouts, connection drops, 5xx)
+        by exception TYPE — matching on the "rate" substring missed 5xx/timeout
+        errors and failed the whole section even though earlier batches were
+        already paid for (I-L4).
         """
         import time
 
+        from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
+
+        retryable = (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError)
         all_embeddings: list[list[float]] = []
 
         for i in range(0, len(texts), self.EMBED_BATCH_SIZE):
@@ -204,10 +237,10 @@ class VectorLoader:
                     batch_embeddings = [item.embedding for item in response.data]
                     all_embeddings.extend(batch_embeddings)
                     break
-                except Exception as e:
-                    if attempt < 2 and "rate" in str(e).lower():
+                except retryable as e:
+                    if attempt < 2:
                         wait = 2 ** attempt
-                        logger.warning(f"  Rate limited, retrying in {wait}s...")
+                        logger.warning(f"  Embedding call failed ({type(e).__name__}), retrying in {wait}s...")
                         time.sleep(wait)
                     else:
                         raise

@@ -101,6 +101,21 @@ def test_split_page_responses_three_pages():
     assert result == ["A", "B", "C"]
 
 
+def test_split_page_responses_partial_keeps_sections():
+    """I-H2: a partial parse keeps the sections that parsed (padding the missing
+    tail) instead of collapsing everything into one blob on page 0."""
+    raw = "=== Page 1 ===\nAAA\n=== Page 2 ===\nBBB"  # 2 sections for a 3-page batch
+    result = PDFExtractor._split_page_responses(raw, [0, 1, 2])
+    assert result == ["AAA", "BBB", ""]
+
+
+def test_split_page_responses_more_sections_truncated():
+    """I-H2: extra sections beyond the batch size are truncated, not blobbed."""
+    raw = "=== Page 1 ===\nA\n=== Page 2 ===\nB\n=== Page 3 ===\nC"
+    result = PDFExtractor._split_page_responses(raw, [0, 1])
+    assert result == ["A", "B"]
+
+
 # ── Fallback chain — mocked fitz / pdfplumber ────────────────────────────────
 
 def _mock_fitz(pages: list[str]):
@@ -211,6 +226,32 @@ def test_empty_pages_excluded():
         result = PDFExtractor().extract(Path("test.pdf"))
 
     assert len(result) == 1
+
+
+def test_pymupdf_exception_falls_through_to_pdfplumber():
+    """I-M7: a raising PyMuPDF stage falls through to pdfplumber, not aborts."""
+    mock_fitz = MagicMock()
+    mock_fitz.open.side_effect = RuntimeError("corrupt xref")
+    mock_plumber = _mock_pdfplumber([_LONG_TEXT])
+
+    with patch.dict(sys.modules, {"fitz": mock_fitz, "pdfplumber": mock_plumber}):
+        result = PDFExtractor().extract(Path("test.pdf"))
+
+    assert len(result) == 1 and _LONG_TEXT in result[0]
+    mock_plumber.open.assert_called_once()
+
+
+def test_both_extractors_raise_no_crash():
+    """I-M7: both stages raising (no client) returns [] instead of propagating."""
+    mock_fitz = MagicMock()
+    mock_fitz.open.side_effect = RuntimeError("bad")
+    mock_plumber = MagicMock()
+    mock_plumber.open.side_effect = RuntimeError("also bad")
+
+    with patch.dict(sys.modules, {"fitz": mock_fitz, "pdfplumber": mock_plumber}):
+        result = PDFExtractor(anthropic_client=None).extract(Path("test.pdf"))
+
+    assert result == []
 
 
 # ── Vision OCR — integration only ────────────────────────────────────────────

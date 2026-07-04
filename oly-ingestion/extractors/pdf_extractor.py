@@ -14,8 +14,13 @@ majority of cases. The vision fallback is used for scanned Soviet-era books
 
 import base64
 import logging
+import sys
 import time
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+from shared.llm import create_message_with_retries
 
 logger = logging.getLogger(__name__)
 
@@ -25,17 +30,25 @@ _TEXT_THRESHOLD = 100
 # How many pages to send in one Claude call (balance latency vs cost)
 _VISION_BATCH_SIZE = 5
 
+# Output token budget per vision batch. 5 dense book pages routinely exceed the
+# old 4096, truncating (and losing) the tail pages of the batch.
+_VISION_MAX_TOKENS = 8192
+
+_DEFAULT_VISION_MODEL = "claude-sonnet-4-6"
+
 
 class PDFExtractor:
     """Extract text from PDFs with a three-stage fallback chain."""
 
-    def __init__(self, anthropic_client=None):
+    def __init__(self, anthropic_client=None, vision_model: str = _DEFAULT_VISION_MODEL):
         """
         Args:
             anthropic_client: Optional Anthropic client instance. When provided,
                               used as a last-resort OCR fallback for image-only PDFs.
+            vision_model:     Model id for vision OCR (threaded from settings).
         """
         self._client = anthropic_client
+        self._vision_model = vision_model
 
     def extract(self, path: Path, max_pages: int = 0) -> list[str]:
         """Extract text from a PDF, returning a list of page texts.
@@ -46,7 +59,14 @@ class PDFExtractor:
         Args:
             max_pages: If > 0, only process the first N pages (useful for test runs).
         """
-        pages = self._extract_with_pymupdf(path)
+        # Each stage is guarded so a raised exception (corrupt xref, encrypted
+        # PDF, …) falls THROUGH to the next stage instead of aborting the run —
+        # the chain was previously only a low-yield chain, not an error chain (I-M7).
+        try:
+            pages = self._extract_with_pymupdf(path)
+        except Exception as e:
+            logger.warning(f"PyMuPDF extraction failed ({type(e).__name__}: {e}) — trying pdfplumber...")
+            pages = []
         if max_pages:
             pages = pages[:max_pages]
 
@@ -56,7 +76,11 @@ class PDFExtractor:
                 f"PyMuPDF extracted only {total_chars} chars from {len(pages)} pages — "
                 "trying pdfplumber..."
             )
-            pages = self._extract_with_pdfplumber(path)
+            try:
+                pages = self._extract_with_pdfplumber(path)
+            except Exception as e:
+                logger.warning(f"pdfplumber extraction failed ({type(e).__name__}: {e})")
+                pages = []
             if max_pages:
                 pages = pages[:max_pages]
 
@@ -187,11 +211,22 @@ class PDFExtractor:
             ),
         })
 
-        response = self._client.messages.create(
-            model="claude-opus-4-6",
-            max_tokens=4096,
+        response = create_message_with_retries(
+            self._client,
+            model=self._vision_model,
+            max_tokens=_VISION_MAX_TOKENS,
             messages=[{"role": "user", "content": content}],
         )
+
+        # A truncated response silently drops the tail pages of the batch —
+        # surface it loudly (and hint at shrinking the batch) rather than
+        # embedding partial/blank pages (I-H2).
+        if getattr(response, "stop_reason", None) == "max_tokens":
+            logger.warning(
+                f"Vision OCR: response hit max_tokens ({_VISION_MAX_TOKENS}) for "
+                f"pages {start + 1}–{end}; text may be truncated — consider a "
+                f"smaller _VISION_BATCH_SIZE (currently {_VISION_BATCH_SIZE})."
+            )
 
         raw = response.content[0].text
         return self._split_page_responses(raw, page_indices)
@@ -204,17 +239,28 @@ class PDFExtractor:
         Falls back to returning the whole response as one page if parsing fails.
         """
         import re
+        n = len(page_indices)
         sections = re.split(r"===\s*Page\s+\d+\s*===", raw)
         # First element is any text before the first header — discard it
         sections = [s.strip() for s in sections[1:]]
 
-        if len(sections) == len(page_indices):
+        if len(sections) == n:
             return sections
 
-        # Mismatch — return raw text mapped to the first page, blanks for the rest
+        # No headers parsed at all — return the whole blob as the first page.
+        if not sections:
+            logger.warning(
+                f"Vision OCR: no '=== Page N ===' headers found — returning raw "
+                f"response as the first of {n} page(s)"
+            )
+            return [raw.strip()] + [""] * (n - 1)
+
+        # Partial parse — KEEP the sections that parsed (pad/truncate to the batch
+        # size) instead of discarding them into one blob (I-H2).
         logger.warning(
-            f"Vision OCR: expected {len(page_indices)} page sections, "
-            f"got {len(sections)} — returning raw response for first page"
+            f"Vision OCR: expected {n} page sections, got {len(sections)} — "
+            f"keeping the {min(len(sections), n)} parsed section(s)"
         )
-        result = [raw.strip()] + [""] * (len(page_indices) - 1)
-        return result
+        if len(sections) < n:
+            sections = sections + [""] * (n - len(sections))
+        return sections[:n]

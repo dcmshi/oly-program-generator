@@ -193,7 +193,9 @@ class IngestionPipeline:
         if use_vision and settings.anthropic_api_key:
             import anthropic
             _anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-        self.pdf_extractor = PDFExtractor(anthropic_client=_anthropic_client)
+        self.pdf_extractor = PDFExtractor(
+            anthropic_client=_anthropic_client, vision_model=settings.llm_model
+        )
         self.classifier = ContentClassifier(settings)
         self.principle_extractor = PrincipleExtractor(settings)
         self.vector_loader = VectorLoader(settings)

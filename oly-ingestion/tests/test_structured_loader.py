@@ -254,6 +254,34 @@ def test_find_resumable_run():
     loader.close()
 
 
+# ── load_principles ───────────────────────────────────────────
+
+def test_load_principles_dedup():
+    """I-H3/I-L2: re-loading the same principle inserts nothing (UNIQUE +
+    ON CONFLICT) and is not counted (rowcount-based tally)."""
+    from types import SimpleNamespace
+    loader = make_loader()
+    sid = loader.upsert_source(f"{TEST_PREFIX}Principle Book", "Author", "book")
+    p = SimpleNamespace(
+        principle_name=f"{TEST_PREFIX}p1", category="volume", rule_type="guideline",
+        condition={"lift": "snatch"}, recommendation={"sets": 5}, rationale="because", priority=1,
+    )
+    n1 = loader.load_principles([p], sid)
+    assert n1 == 1, f"first load should insert 1, got {n1}"
+    n2 = loader.load_principles([p], sid)  # identical → skipped
+    assert n2 == 0, f"duplicate load should insert 0, got {n2}"
+
+    cur = loader.conn.cursor()
+    cur.execute("SELECT count(*) FROM programming_principles WHERE source_id = %s", (sid,))
+    total = cur.fetchone()[0]
+    cur.close()
+    assert total == 1, f"expected 1 stored principle, got {total}"
+
+    print("  load_principles: dedup on (source_id, principle_name) ✓")
+    cleanup(loader, sid)
+    loader.close()
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -265,6 +293,7 @@ if __name__ == "__main__":
         test_create_and_complete_run,
         test_fail_run,
         test_find_resumable_run,
+        test_load_principles_dedup,
     ]
     passed = failed = 0
     for test in tests:

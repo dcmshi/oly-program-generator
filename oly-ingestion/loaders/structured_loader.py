@@ -77,7 +77,7 @@ class StructuredLoader:
                         (principle_name, source_id, category, rule_type,
                          condition, recommendation, rationale, priority)
                     VALUES (%s, %s, %s, %s, %s, %s, %s, %s)
-                    ON CONFLICT DO NOTHING
+                    ON CONFLICT (source_id, principle_name) DO NOTHING
                     """,
                     (
                         p.principle_name,
@@ -90,7 +90,9 @@ class StructuredLoader:
                         p.priority,
                     ),
                 )
-                loaded += 1
+                # rowcount is 1 on insert, 0 when the conflict target skipped a
+                # duplicate — count only real inserts (I-L2).
+                loaded += cursor.rowcount
             except Exception as e:
                 logger.error(f"Failed to load principle '{p.principle_name}': {e}")
                 self.conn.rollback()
