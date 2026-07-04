@@ -8,6 +8,15 @@ def _f(v):
     return float(v) if v is not None else None
 
 
+async def get_athlete_timezone(conn, athlete_id: int) -> str:
+    """The athlete's IANA timezone (defaults to 'UTC')."""
+    from web.async_db import async_fetch_one
+    row = await async_fetch_one(
+        conn, "SELECT timezone FROM athletes WHERE id = $1", athlete_id
+    )
+    return (row and row["timezone"]) or "UTC"
+
+
 async def get_active_program(conn, athlete_id: int) -> dict | None:
     from web.async_db import async_fetch_one
     return await async_fetch_one(

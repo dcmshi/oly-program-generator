@@ -1,6 +1,8 @@
 # web/routers/dashboard.py
 import logging
+import sys
 from datetime import date
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -9,14 +11,18 @@ from web.deps import get_db
 from web.queries import dashboard as q
 from web.queries import program as pq
 
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from shared.timeutil import today_in_tz
+
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
 
-def _current_week(start_date, duration_weeks: int) -> int:
+def _current_week(start_date, duration_weeks: int, today: date | None = None) -> int:
     if isinstance(start_date, str):
         start_date = date.fromisoformat(start_date)
-    days_in = (date.today() - start_date).days
+    today = today or date.today()  # caller passes the athlete's local today (W-L5)
+    days_in = (today - start_date).days
     return max(1, min(duration_weeks, (days_in // 7) + 1))
 
 
@@ -36,7 +42,8 @@ async def dashboard(
                  "maxes": maxes, "ratios": ratios, "goal_progress": goal_progress}
 
     if program:
-        week = _current_week(program["start_date"], program["duration_weeks"])
+        today = today_in_tz(await q.get_athlete_timezone(conn, athlete_id))
+        week = _current_week(program["start_date"], program["duration_weeks"], today)
         sessions = await q.get_current_week_sessions(conn, program["id"], week)
         adherence = await q.get_adherence(conn, program["id"], week)
         warnings = await q.get_warnings(conn, athlete_id)

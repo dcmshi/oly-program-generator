@@ -4,14 +4,15 @@ Reconstructed from the 3-agent parallel audit (web / ingestion / agent-pipeline)
 The 5 critical items were fixed in commit `519aad0`. Batch 2 fixed all 9 remaining
 agent-pipeline HIGH/MEDIUM findings + W-M2 + ENV1. Batch 3 (2026-07-03) fixed **all
 8 agent LOW items + all 11 refactors**, each with a regression test, ruff clean.
-Batch 4 fixed the **web LOW items** (W-L4, W-L6, W-L7, W-INFO), leaving only
-**W-L5** (server-tz week math) deferred as a product decision (needs a tz column).
-Batch 5 fixed **all ingestion HIGH + MEDIUM + LOW findings** that are code-testable
-here (mocked suites + live empty DB), leaving only **I-L11** (shared
-`process_section` refactor) deferred to the DB machine.
-**Every audit finding is now either fixed or explicitly deferred.** Remaining
-deferrals: **#6 Catalyst re-ingest**, **I-L11**, **W-L5** — all documented below /
-inline. Only end-to-end embedding/vision verification needs the main DB machine.
+Batch 4 fixed the **web LOW items** (W-L4, W-L6, W-L7, W-INFO). Batch 5 fixed
+**all ingestion HIGH + MEDIUM + LOW findings** that are code-testable here (mocked
+suites + live empty DB). **W-L5** (per-athlete timezone) was implemented 2026-07-04
+(migration `0005`). **Every bug-audit finding is now fixed.**
+
+Remaining work (all needs the main DB machine + API keys): **#6 Catalyst re-ingest**,
+**I-L11** (shared `process_section` refactor), and the **RAG / LLM / CORPUS ROADMAP**
+below (#17–#23 — recovered from the prior audit: model migration, RAG improvements,
+and the new-source ingestion table).
 
 Legend: `[x]` done · `[ ]` open · `[~]` code done, follow-up deferred · `[-]` non-finding
 
@@ -109,7 +110,7 @@ the main DB machine.
 
 ### LOW — batch 4 (2026-07-03)
 - [x] **W-L4** ✅ `get_job_status` now reads the owner from the job's own embedded args (`info().args[0]`), set atomically at enqueue — the racy `job_owner:{id}` side key is gone. Tests in `test_web_queries.py`.
-- [~] **W-L5** — server-local `date.today()` for week math (`dashboard.py`). **Deferred**: a real fix needs an athlete-timezone column (schema migration) + conversion, and the audit rates it minor for single-user-per-account usage. Flagged for a product decision rather than a disproportionate migration.
+- [x] **W-L5** ✅ (2026-07-04) migration `0005` adds `athletes.timezone` (default UTC); new `shared.timeutil.today_in_tz()`; dashboard `_current_week` and the log-form default date use the athlete's local today; timezone is settable on the profile page. Tests in `test_web_queries`. (Residual, documented: a few peripheral `date.today()` spots — goal countdown, 14-day adherence cutoff, PR `date_achieved` — still use server-local today; cosmetic.)
 - [x] **W-L6** ✅ new `_representative_reps_per_set()` gives prescribed volume the same per-set basis as actual (avg for lists, midpoint for ranges), not "first rep only". Tests `test_reps_*`.
 - [x] **W-L7** ✅ `_parse_log_date` clamps out-of-window dates (future / older than `MAX_LOG_BACKFILL_DAYS`=365) to today. Tests `test_log_date_*`.
 - [x] **W-INFO** ✅ `prefillExercise` reads `data-*` attributes (HTML-escaped) instead of interpolating into JS-string args. Test `test_prefill_uses_data_attributes_not_js_string`.
@@ -119,4 +120,33 @@ the main DB machine.
 ## DEFERRED (main DB machine / product decision)
 - [ ] **#6 — Catalyst corpus re-ingest** (see the Ingestion H1 follow-up above).
 - [~] **I-L11** — shared `process_section()` refactor (see Ingestion LOW above).
-- [~] **W-L5** — per-athlete timezone for week math (needs a tz column; product decision).
+
+---
+
+## RAG / LLM / CORPUS ROADMAP — recovered from the prior Fable audit (2026-07-03)
+
+The original audit had a 4th reviewer (RAG) and enhancement recommendations that
+weren't in the bug batches above. Recovered from the prior session transcript
+(the task list itself didn't persist). These are **enhancements, not bugs** — all
+best done on the main DB machine (need keys/live corpus). Bug-fix prereqs for
+new-source ingestion (principle UNIQUE #7, resume #8, vision-OCR #9) are **now
+done** (batch 5), so #23 is unblocked once the corpus DB is available.
+
+- [ ] **#17 — LLM migration: Sonnet 5 + structured outputs.** Two model generations behind; structured outputs would delete the JSON-parse-retry machinery. Watch: temperature 400s, `content[0]` hazard, thinking defaults.
+- [ ] **#18 — RAG quick fixes:** fault-token underscores, dead `top_k`, template `[:2]` cap.
+- [ ] **#19 — Session-specific retrieval** context + result diversity + wider snippets.
+- [ ] **#20 — Harden retrieval eval:** real assertions, prod/eval parity, ~50 queries. (Gates #21/#22; do after #6 so the eval isn't baselined on the broken corpus.)
+- [ ] **#21 — Hybrid lexical + vector search (RRF).**
+- [ ] **#22 — Embedding upgrade:** `text-embedding-3-large` @ dim 1536.
+- [ ] **#23 — New source ingestion (the recovered title/author table).** Add each to `SOURCE_PROFILE_MAP` in `chunker.py` BEFORE ingesting (unknown titles fall back to the 900-token programming profile); use owned copies; update the CLAUDE.md source list + corpus totals; re-run the retrieval eval after each batch. Corpus gaps this fills: concrete Soviet loading prescriptions beyond Medvedev, competition tapering/peaking, modern evidence-based programming.
+
+  | # | Source | Profile | Why |
+  |---|--------|---------|-----|
+  | 1 | **R.A. Roman — *The Training of the Weightlifter*** (Sportivny Press) | soviet | Concrete %/volume/frequency tables feeding Prilepin-style validation. |
+  | 2 | **A.S. Medvedev — the not-yet-ingested volume** (check which of *A System of Multi-Year Training* / *Programming and Organization of Training* is source_id 501) | soviet | The other Medvedev volume. |
+  | 3 | **Bud Charniga — translated essays** (sportivnypress.com) | web | FREE web articles on Soviet methodology/restoration/technique; second `ingest_web.py` target after the Catalyst re-ingest — needs its own CSS selector + progress file. |
+  | 4 | **Tommy Kono — *Weightlifting, Olympic Style* + *Championship Weightlifting*** | programming | Enriches thin `fault_correction` retrieval. |
+  | 5 | **A.N. Vorobyev — *A Textbook on Weightlifting*** | theory_heavy | Soviet theory. |
+  | 6 | **Verkhoshansky — *Special Strength Training: Manual for Coaches*** | theory_heavy | Fills the strength-limiter query family. |
+  | 7 | **Stronger by Science (Nuckols) articles + tapering research** (Pritchard et al.; Storey & Smith 2012) | (new `research` profile?) | Modern evidence-based programming + tapering. |
+  | 8 | **Bompa & Buzzichelli — *Periodization*** | programming | `periodization` chunk_type coverage. |

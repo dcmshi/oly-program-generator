@@ -53,6 +53,7 @@ async def update_profile(
     notes: Annotated[str, Form(max_length=2000)] = "",
     lift_emphasis: Annotated[str, Form()] = "balanced",
     competition_experience: Annotated[str, Form()] = "none",
+    timezone: Annotated[str, Form(max_length=64)] = "UTC",
 ):
     from web.app import templates
     # Collect checkbox lists
@@ -80,6 +81,7 @@ async def update_profile(
         "lift_emphasis": lift_emphasis or "balanced",
         "strength_limiters": strength_limiters,
         "competition_experience": competition_experience or "none",
+        "timezone": timezone.strip() or "UTC",
     }
 
     if not data["name"]:

@@ -1,12 +1,17 @@
 # web/routers/log_session.py
 import logging
-from datetime import date
+import sys
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from web.auth import get_current_athlete_id
 from web.deps import get_db, limiter
 from web.queries import log_session as q
+from web.queries.dashboard import get_athlete_timezone
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+from shared.timeutil import today_in_tz
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/log")
@@ -39,6 +44,8 @@ async def log_form(
     session = await _get_owned_session(conn, session_id, athlete_id)
     existing_log = await q.get_existing_log(conn, session_id)
     logged_exercises = await q.get_logged_exercises(conn, existing_log["id"]) if existing_log else []
+    # Default the log date to the athlete's local today, not the server's (W-L5).
+    today = today_in_tz(await get_athlete_timezone(conn, athlete_id))
     logger.info(f"Log form: session {session_id}, already_logged={existing_log is not None}")
     return templates.TemplateResponse(request, "log_session.html", {
         "request": request,
@@ -47,7 +54,7 @@ async def log_form(
         "logged_exercises": logged_exercises,
         "log": existing_log,
         "log_id": existing_log["id"] if existing_log else None,
-        "today": str(date.today()),
+        "today": str(today),
     })
 
 

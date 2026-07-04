@@ -11,7 +11,7 @@ async def get_athlete(conn, athlete_id: int) -> dict | None:
                bodyweight_kg, height_cm, date_of_birth, weight_class,
                training_age_years, sessions_per_week, session_duration_minutes,
                available_equipment, technical_faults, injuries, notes,
-               lift_emphasis, strength_limiters, competition_experience
+               lift_emphasis, strength_limiters, competition_experience, timezone
         FROM athletes
         WHERE id = $1
         """,
@@ -131,8 +131,9 @@ async def update_profile(conn, athlete_id: int, data: dict):
             lift_emphasis           = $16,
             strength_limiters       = $17,
             competition_experience  = $18,
+            timezone                = $19,
             updated_at              = NOW()
-        WHERE id = $19
+        WHERE id = $20
         """,
         data["name"],
         data.get("email") or None,
@@ -152,6 +153,7 @@ async def update_profile(conn, athlete_id: int, data: dict):
         data.get("lift_emphasis") or "balanced",
         data.get("strength_limiters") or [],
         data.get("competition_experience") or "none",
+        data.get("timezone") or "UTC",
         athlete_id,
     )
 

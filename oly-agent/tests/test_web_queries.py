@@ -11,7 +11,7 @@ Run: python tests/test_web_queries.py
 
 import asyncio
 import sys
-from datetime import date, timedelta
+from datetime import UTC, date, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
@@ -21,8 +21,10 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 import web.jobs as jobs
 from web.queries.log_session import _parse_log_date
 from web.queries.program import _representative_reps_per_set
+from web.routers.dashboard import _current_week
 
 from shared.constants import MAX_LOG_BACKFILL_DAYS
+from shared.timeutil import today_in_tz
 
 RESULTS = []
 
@@ -108,6 +110,36 @@ def test_job_status_missing_info_not_found():
     with patch.object(jobs, "_arq_pool", MagicMock()), patch("arq.jobs.Job", return_value=job):
         result = asyncio.run(jobs.get_job_status("jid", 7))
     assert result["status"] == "failed", result
+
+
+# ── W-L5: timezone-aware week/today ──────────────────────────────────────────
+
+def test_today_in_tz_utc_matches_utc_now():
+    from datetime import datetime
+    assert today_in_tz("UTC") == datetime.now(UTC).date()
+
+
+def test_today_in_tz_bad_or_missing_zone_falls_back_to_utc():
+    from datetime import datetime
+    utc_today = datetime.now(UTC).date()
+    assert today_in_tz("Not/AZone") == utc_today
+    assert today_in_tz(None) == utc_today
+    assert today_in_tz("") == utc_today
+
+
+def test_today_in_tz_valid_zone_returns_a_date():
+    from datetime import date as _date
+    assert isinstance(today_in_tz("America/New_York"), _date)
+
+
+def test_current_week_uses_passed_today():
+    from datetime import date as _date
+    start = _date(2026, 1, 1)
+    assert _current_week(start, 12, _date(2026, 1, 1)) == 1     # day 0 → week 1
+    assert _current_week(start, 12, _date(2026, 1, 16)) == 3    # 15 days in → week 3
+    assert _current_week(start, 4, _date(2027, 1, 1)) == 4      # clamped to duration
+    # the athlete's local 'today' drives the bucket, not the server's
+    assert _current_week(start, 12, _date(2026, 1, 8)) == 2
 
 
 # ── W-INFO: prefillExercise uses data-* attributes ───────────────────────────

@@ -199,7 +199,8 @@ def test_dashboard_with_active_program():
                     with patch("web.queries.program.get_athlete_maxes", return_value=[]):
                         with patch("web.queries.dashboard.get_lift_ratios", return_value={}):
                             with patch("web.queries.dashboard.get_goal_progress", return_value=None):
-                                r = _client.get("/")
+                                with patch("web.queries.dashboard.get_athlete_timezone", return_value="UTC"):
+                                    r = _client.get("/")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
     assert b"Accumulation Block" in r.content
 
@@ -338,7 +339,8 @@ def test_update_exercise_log_404_for_unowned_log():
 def test_log_form_renders():
     with patch("web.queries.log_session.get_session_with_exercises", return_value=_session_detail()):
         with patch("web.queries.log_session.get_existing_log", return_value=None):
-            r = _client.get("/log/1")
+            with patch("web.routers.log_session.get_athlete_timezone", return_value="UTC"):
+                r = _client.get("/log/1")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
     assert b"Snatch Day" in r.content
 
@@ -353,7 +355,8 @@ def test_log_form_shows_existing_log():
     with patch("web.queries.log_session.get_session_with_exercises", return_value=_session_detail()):
         with patch("web.queries.log_session.get_existing_log", return_value=_log()):
             with patch("web.queries.log_session.get_logged_exercises", return_value=[_tle()]):
-                r = _client.get("/log/1")
+                with patch("web.routers.log_session.get_athlete_timezone", return_value="UTC"):
+                    r = _client.get("/log/1")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
 
 
