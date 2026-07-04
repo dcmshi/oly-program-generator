@@ -20,7 +20,6 @@ OCR_CORRECTIONS: dict[str, str] = {
     "barbe11": "barbell",
 
     # 1RM variants (numeral 1 vs lowercase L vs uppercase I)
-    "1RM": "1RM",
     "lRM": "1RM",
     "IRM": "1RM",
     "lrm": "1RM",

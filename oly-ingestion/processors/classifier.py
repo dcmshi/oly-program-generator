@@ -20,7 +20,7 @@ from enum import Enum
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
-from shared.llm import create_message_with_retries
+from shared.llm import create_message_with_retries, parse_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -229,9 +229,12 @@ Respond with JSON only, no other text:
 {{"content_type": "<one of the types above>", "confidence": <0.0-1.0>, "reason": "<one sentence>"}}"""
 
     def _llm_classify(self, text: str, source_title: str) -> tuple[ContentType, float]:
-        """LLM-assisted classification for ambiguous sections."""
-        import json
+        """LLM-assisted classification for ambiguous sections.
 
+        Only a 3k-char sample is sent — that's ample to decide the section TYPE
+        (prose vs table vs …); unlike principle extraction, the full text isn't
+        needed here, so this truncation is intentional, not lossy.
+        """
         prompt = self._CLASSIFY_PROMPT.format(text=text[:3000])
 
         type_map = {
@@ -251,11 +254,7 @@ Respond with JSON only, no other text:
                 max_tokens=128,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = message.content[0].text.strip()
-            # Strip markdown fences if present
-            if raw.startswith("```"):
-                raw = raw.split("```")[1].lstrip("json").strip()
-            parsed = json.loads(raw)
+            parsed = parse_llm_json(message.content[0].text)
             content_type = type_map.get(parsed["content_type"], ContentType.PROSE)
             confidence = float(parsed.get("confidence", 0.65))
             logger.debug(

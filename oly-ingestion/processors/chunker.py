@@ -477,12 +477,15 @@ class SemanticChunker:
     """Weightlifting-aware semantic chunker with contextual preambles,
     keep-together rules, variable sizing, and topic tagging."""
 
+    # Capture the FULL heading line (…\.*$), not just the marker, so the section
+    # title is the real heading (e.g. "# Snatch Technique") rather than the bare
+    # "#", and the heading text isn't duplicated into the body / preamble (I-L7).
     SECTION_BREAK_PATTERNS = [
-        r"^#{1,3}\s+",                              # Markdown headers
-        r"^Chapter\s+\d+",                           # Chapter markers
-        r"^PART\s+[IVX]+",                           # Part markers
-        r"^(?:Week|Phase|Block|Cycle)\s+\d+",        # Program phase markers
-        r"^\d+\.\d+\s+[A-Z]",                        # Numbered sections
+        r"^#{1,3}\s+.*$",                            # Markdown headers
+        r"^Chapter\s+\d+.*$",                        # Chapter markers
+        r"^PART\s+[IVX]+.*$",                        # Part markers
+        r"^(?:Week|Phase|Block|Cycle)\s+\d+.*$",     # Program phase markers
+        r"^\d+\.\d+\s+[A-Z].*$",                     # Numbered sections
     ]
 
     def __init__(
@@ -688,11 +691,11 @@ class SemanticChunker:
         a keep-together pattern that spans the boundary."""
         # Take the last 200 chars of the current chunk + first 200 of next
         boundary_zone = chunk_end[-200:] + "\n\n" + next_para[:200]
+        boundary_idx = len(chunk_end[-200:])
         for pattern in KEEP_TOGETHER_PATTERNS.values():
-            match = pattern.search(boundary_zone)
-            if match:
-                # Check if the match spans the boundary point
-                boundary_idx = len(chunk_end[-200:])
+            # Check EVERY match, not just the first — an early non-spanning match
+            # would otherwise mask a later boundary-spanning one (I-L6).
+            for match in pattern.finditer(boundary_zone):
                 if match.start() < boundary_idx < match.end():
                     return True
         return False

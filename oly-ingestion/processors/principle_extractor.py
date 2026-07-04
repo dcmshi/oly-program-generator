@@ -7,16 +7,20 @@ This is the most valuable part of the pipeline — converting sentences like
 by 40-60% while maintaining intensity above 90%" into queryable rules.
 """
 
-import json
 import logging
 import sys
 from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
-from shared.llm import create_message_with_retries
+from shared.llm import create_message_with_retries, parse_llm_json
 
 logger = logging.getLogger(__name__)
+
+# Large sections are scanned in overlapping windows so principles past the first
+# window aren't silently dropped (I-M8). EPUB chapters routinely reach 50k+ chars.
+_PRINCIPLE_WINDOW = 8000
+_PRINCIPLE_OVERLAP = 500
 
 
 @dataclass
@@ -94,14 +98,41 @@ class PrincipleExtractor:
             self._client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
         return self._client
 
+    @staticmethod
+    def _windows(text: str) -> list[str]:
+        """Split text into overlapping windows so nothing past the first window
+        is silently dropped (I-M8)."""
+        if len(text) <= _PRINCIPLE_WINDOW:
+            return [text]
+        step = _PRINCIPLE_WINDOW - _PRINCIPLE_OVERLAP
+        return [text[i:i + _PRINCIPLE_WINDOW] for i in range(0, len(text), step)]
+
     def extract(self, text: str, source_title: str, source_id: int) -> list[ExtractedPrinciple]:
         """Extract structured principles from prose text using LLM.
 
-        The LLM client is initialized lazily — no API key required until
-        principle extraction is actually called.
+        Large sections are scanned window-by-window and de-duplicated by
+        principle_name, rather than truncating to the first 8k chars. The LLM
+        client is initialized lazily — no API key required until called.
         """
-        prompt = EXTRACTION_PROMPT.format(text=text[:8000], source=source_title)
+        windows = self._windows(text)
+        if len(windows) > 1:
+            logger.info(
+                f"Principle extraction: '{source_title}' is {len(text):,} chars — "
+                f"scanning {len(windows)} windows"
+            )
 
+        principles: list[ExtractedPrinciple] = []
+        seen: set[str] = set()
+        for window in windows:
+            for p in self._extract_window(window, source_title):
+                if p.principle_name not in seen:
+                    seen.add(p.principle_name)
+                    principles.append(p)
+        return principles
+
+    def _extract_window(self, text: str, source_title: str) -> list[ExtractedPrinciple]:
+        """Extract principles from a single window of text."""
+        prompt = EXTRACTION_PROMPT.format(text=text, source=source_title)
         try:
             client = self._get_client()
             message = create_message_with_retries(
@@ -110,15 +141,7 @@ class PrincipleExtractor:
                 max_tokens=self.settings.llm_max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw_text = message.content[0].text.strip()
-
-            # Strip markdown code fences if present
-            if raw_text.startswith("```"):
-                raw_text = raw_text.split("```")[1]
-                if raw_text.startswith("json"):
-                    raw_text = raw_text[4:]
-
-            raw = json.loads(raw_text)
+            raw = parse_llm_json(message.content[0].text)
         except Exception as e:
             logger.warning(f"Principle extraction failed for '{source_title}': {e}")
             return []

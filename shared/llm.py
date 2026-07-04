@@ -3,12 +3,28 @@
 LLM client initialization. Single Anthropic client shared across agent steps.
 """
 
+import json
 import logging
+import re
 import time
 
 from anthropic import Anthropic
 
 logger = logging.getLogger(__name__)
+
+
+def parse_llm_json(raw_text: str):
+    """Parse JSON from an LLM response, stripping markdown code fences.
+
+    Consolidates three hand-rolled fence-strippers (pipeline, classifier,
+    principle_extractor) — the classifier's used `lstrip("json")`, a character-set
+    strip that only worked because JSON starts with `{` (I-L8). Raises
+    json.JSONDecodeError on unparseable input so callers keep their own handling.
+    """
+    text = raw_text.strip()
+    text = re.sub(r"^```(?:json)?\s*\n?", "", text)
+    text = re.sub(r"\n?```\s*$", "", text)
+    return json.loads(text.strip())
 
 # Token cost estimates (Claude Sonnet 4, as of 2025)
 COST_PER_INPUT_TOKEN = 3.0 / 1_000_000    # $3.00 per 1M input tokens

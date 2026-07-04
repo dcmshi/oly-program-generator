@@ -43,6 +43,7 @@ logger = logging.getLogger(__name__)
 
 BASE_URL = "https://www.catalystathletics.com"
 PROGRESS_FILE = Path(__file__).parent / "sources" / "catalyst_progress.json"
+_CATALYST_PAGE_SIZE = 10  # Catalyst article listings paginate by 10 (?start=)
 
 # Categories selected for relevance — skipping Editorial, Mental/Emotional,
 # Equipment, Interviews, and paywalled Training Programs
@@ -85,7 +86,9 @@ def collect_category_urls(section_id: int, section_name: str) -> list[str]:
     """Paginate through a category page and return all article URLs."""
     urls = []
     start = 0
-    page_size = 10
+    # Catalyst paginates in steps of 10 (?start=0,10,20,…). Kept as a named
+    # constant so the offset step is discoverable if the site ever changes it (I-L10).
+    page_size = _CATALYST_PAGE_SIZE
 
     while True:
         page_url = (
@@ -117,9 +120,11 @@ def collect_category_urls(section_id: int, section_name: str) -> list[str]:
         urls.extend(page_links)
         logger.info(f"  {section_name} (start={start}): found {len(page_links)} links")
 
-        # Check if there's a next page
+        # Next page exists if any link advances `start` past the current page —
+        # matching any larger offset (not exactly start+page_size) so a change in
+        # the site's step doesn't silently truncate crawling (I-L10).
         has_next = any(
-            f"start={start + page_size}" in (a.get("href") or "")
+            (m := re.search(r"[?&]start=(\d+)", a.get("href") or "")) and int(m.group(1)) > start
             for a in soup.find_all("a", href=True)
         )
         if not has_next:
@@ -204,8 +209,13 @@ def fetch_article(url: str) -> dict | None:
 
 # ── Ingestion ──────────────────────────────────────────────────
 
-def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) -> dict:
-    """Ingest a single article through chunker → classifier → vector store."""
+def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) -> tuple[dict, bool]:
+    """Ingest a single article through chunker → classifier → vector store.
+
+    Returns (run_stats, success). success=False on a run-level failure so the
+    caller can leave the URL out of the progress file and retry it next run
+    (I-M4) — previously every attempt was marked ingested regardless.
+    """
     sl: StructuredLoader = pipeline_components["structured_loader"]
     vl: VectorLoader = pipeline_components["vector_loader"]
     classifier: ContentClassifier = pipeline_components["classifier"]
@@ -244,7 +254,11 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
 
         for section in sections:
             try:
-                if section.content_type in (ContentType.PROSE, ContentType.MIXED):
+                # Web articles have no structured table/program/exercise loaders,
+                # so anything that isn't a pure PRINCIPLE section is chunked as
+                # prose — otherwise TABLE/PROGRAM/EXERCISE sections were dropped
+                # silently, losing their text (I-M2).
+                if section.content_type != ContentType.PRINCIPLE:
                     from pipeline import IngestionPipeline
                     chunk_type = IngestionPipeline._infer_chunk_type(section)
                     chunks = chunker.chunk(
@@ -298,8 +312,9 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
         sl.fail_run(run_id, error_message=str(e),
                     error_details={"traceback": traceback.format_exc()})
         logger.error(f"Failed to ingest '{title}': {e}")
+        return run_stats, False
 
-    return run_stats
+    return run_stats, True
 
 
 # ── Progress tracking ──────────────────────────────────────────
@@ -387,12 +402,12 @@ def main():
             time.sleep(args.delay)
             continue
 
-        run_stats = ingest_article(article, components, run_stats)
-        ingested_urls.add(url)
-
-        # Save progress every 10 articles
-        if i % 10 == 0:
-            save_progress(ingested_urls)
+        run_stats, ok = ingest_article(article, components, run_stats)
+        if ok:
+            ingested_urls.add(url)  # only mark successful ingests — failures retry next run
+            # Save progress every 10 successful articles
+            if i % 10 == 0:
+                save_progress(ingested_urls)
 
         time.sleep(args.delay)
 

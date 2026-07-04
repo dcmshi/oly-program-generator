@@ -268,7 +268,9 @@ class StructuredLoader:
             "records": [ { ... }, { ... } ]
         }
         """
-        with open(path) as f:
+        # Explicit UTF-8 so non-ASCII exercise names/notes don't mojibake or
+        # raise under cp1252 when PYTHONUTF8 isn't set (I-L5).
+        with open(path, encoding="utf-8") as f:
             data = json.load(f)
 
         target = data.get("target_table", "")
@@ -394,8 +396,13 @@ class StructuredLoader:
         cursor.close()
         logger.error(f"  Ingestion run #{run_id} marked failed: {error_message}")
 
-    def find_resumable_run(self, file_hash: str) -> int | None:
-        """Find a previously failed run for the same file that can be resumed."""
+    def find_resumable_run(self, file_hash: str) -> tuple[int, int] | None:
+        """Find a resumable failed run for the same file.
+
+        Returns (run_id, sections_already_processed) or None. The second element
+        lets the pipeline skip work already done instead of reprocessing from
+        section 0 (I-M1) — it was previously selected but discarded.
+        """
         cursor = self.conn.cursor()
         cursor.execute(
             """
@@ -410,8 +417,9 @@ class StructuredLoader:
         row = cursor.fetchone()
         cursor.close()
         if row:
-            logger.info(f"  Found resumable run #{row[0]} at page {row[1]}")
-            return row[0]
+            resume_from = row[1] or 0
+            logger.info(f"  Found resumable run #{row[0]} — {resume_from} section(s) already done")
+            return row[0], resume_from
         return None
 
     def log_chunk(self, run_id: int, chunk_id: int, page_number: int | None,

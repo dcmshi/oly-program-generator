@@ -10,7 +10,6 @@ Usage:
 
 import argparse
 import hashlib
-import json
 import logging
 import re
 from dataclasses import dataclass
@@ -20,11 +19,11 @@ from config import Settings
 from extractors.pdf_extractor import PDFExtractor
 from loaders.structured_loader import StructuredLoader
 from loaders.vector_loader import VectorLoader
-from processors.chunker import SemanticChunker, validate_chunk
+from processors.chunker import SemanticChunker, SourceProfile, validate_chunk
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
 
-from shared.llm import create_message_with_retries
+from shared.llm import create_message_with_retries, parse_llm_json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -244,9 +243,11 @@ class IngestionPipeline:
         }
 
         # Check for a resumable failed run
-        run_id = self.structured_loader.find_resumable_run(file_hash)
-        if run_id:
-            logger.info(f"Resuming failed run #{run_id}")
+        resume_from = 0
+        resumable = self.structured_loader.find_resumable_run(file_hash)
+        if resumable:
+            run_id, resume_from = resumable
+            logger.info(f"Resuming failed run #{run_id} from section {resume_from}")
             self.structured_loader.update_run_status(run_id, "started")
         else:
             run_id = self.structured_loader.create_run(
@@ -298,6 +299,13 @@ class IngestionPipeline:
                 f"(size={chunker.chunk_size}, overlap={chunker.chunk_overlap})"
             )
 
+            # Soviet-era scanned sources carry systematic OCR errors — correct
+            # them after extraction, before classification/chunking (I-L3).
+            if chunker.source_profile == SourceProfile.DATA_HEAVY_SOVIET:
+                from processors.ocr_corrections import apply_ocr_corrections
+                pages = [apply_ocr_corrections(p) for p in pages]
+                logger.info("Applied Soviet-era OCR corrections to extracted pages")
+
             # ── Step 5: Classify and route sections ───────────
             # Process each page/chapter individually to avoid creating oversized
             # text blobs that defeat chunking (critical for EPUB/multi-chapter sources).
@@ -311,6 +319,8 @@ class IngestionPipeline:
             logger.info(f"Classified {len(all_sections)} sections across {len(pages)} page(s)")
 
             for i, section in enumerate(all_sections):
+                if i < resume_from:
+                    continue  # already processed in the prior (failed) run — skip (I-M1)
                 if not section.content.strip():
                     continue
                 try:
@@ -349,17 +359,30 @@ class IngestionPipeline:
 
                         case ContentType.TABLE:
                             rows = self._parse_table(section, source_id)
-                            stats["tables_parsed"] += rows
+                            if rows:
+                                stats["tables_parsed"] += rows
+                            else:
+                                # The classifier doesn't populate structured_data,
+                                # so most TABLE sections parse to 0 rows — chunk as
+                                # prose instead of dropping the content entirely (I-M2).
+                                logger.info(
+                                    "TABLE section had no pre-parsed rows — chunking as prose"
+                                )
+                                stats = self._process_prose(
+                                    section, chunker, source, source_id, stats, run_id
+                                )
 
                         case ContentType.EXERCISE_DESCRIPTION:
                             exercise = self._parse_exercise(section, source_id)
                             self.structured_loader.load_exercise(exercise)
                             stats["exercises"] += 1
 
-                    # Checkpoint progress every 10 sections
+                    # Checkpoint every 10 sections. Store the COUNT processed
+                    # (i + 1), so a resume skips exactly the done sections and
+                    # the pre-loop 0 checkpoint doesn't skip section 0 (I-M1).
                     if i % 10 == 0:
                         self.structured_loader.update_run_progress(
-                            run_id, pages_processed=i, last_processed_page=i
+                            run_id, pages_processed=i + 1, last_processed_page=i + 1
                         )
 
                 except Exception as e:
@@ -487,12 +510,7 @@ class IngestionPipeline:
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = message.content[0].text.strip()
-            if raw.startswith("```"):
-                raw = raw.split("```")[1]
-                if raw.startswith("json"):
-                    raw = raw[4:]
-            return json.loads(raw)
+            return parse_llm_json(message.content[0].text)
 
         # --- First chunk: full parse for metadata + initial weeks ---
         parsed = {}
@@ -505,6 +523,8 @@ class IngestionPipeline:
         if len(content) > CHUNK_SIZE and parsed.get("weeks"):
             seen_weeks = {w["week_number"] for w in parsed["weeks"] if isinstance(w, dict) and "week_number" in w}
             offset = CHUNK_SIZE - OVERLAP
+            MAX_EMPTY = 2  # tolerate prose-only windows between week blocks
+            empty_streak = 0
             while offset < len(content):
                 last_week = max(seen_weeks, default=0)
                 chunk = content[offset : offset + CHUNK_SIZE]
@@ -516,13 +536,20 @@ class IngestionPipeline:
                         w for w in continuation.get("weeks", [])
                         if isinstance(w, dict) and w.get("week_number", 0) not in seen_weeks
                     ]
-                    if not new_weeks:
-                        break
-                    parsed["weeks"].extend(new_weeks)
-                    seen_weeks.update(w["week_number"] for w in new_weeks)
                 except Exception as e:
                     logger.warning(f"Program template continuation failed for '{source.title}': {e}")
                     break
+                if new_weeks:
+                    empty_streak = 0
+                    parsed["weeks"].extend(new_weeks)
+                    seen_weeks.update(w["week_number"] for w in new_weeks)
+                else:
+                    # A window of prose between week blocks yields nothing — keep
+                    # scanning; only stop after several empty windows in a row.
+                    # Breaking on the first dropped all later weeks (I-L1).
+                    empty_streak += 1
+                    if empty_streak >= MAX_EMPTY:
+                        break
                 offset += CHUNK_SIZE - OVERLAP
 
         program_structure = {k: v for k, v in parsed.items() if k not in PROGRAM_TEMPLATE_COLUMN_KEYS}

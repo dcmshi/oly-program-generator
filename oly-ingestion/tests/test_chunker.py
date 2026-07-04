@@ -226,6 +226,22 @@ def test_get_overlap_empty_text():
     assert chunker._get_overlap("") == ""
 
 
+def test_split_on_sections_captures_full_heading():
+    """I-L7: the section title is the full heading line, not the bare marker,
+    and the heading text is not duplicated into the body."""
+    chunker = SemanticChunker()
+    sections = chunker._split_on_sections("# Snatch Technique\n\nBody text here.")
+    assert sections[0]["title"] == "# Snatch Technique"
+    assert "Snatch Technique" not in sections[0]["text"]
+
+
+def test_apply_ocr_corrections_fixes_known_errors():
+    """I-L3: the OCR correction dict is actually applied to Soviet-era text."""
+    from processors.ocr_corrections import apply_ocr_corrections
+    assert apply_ocr_corrections("The snalch and c1ean") == "The snatch and clean"
+    assert apply_ocr_corrections("mesocyc1e planning") == "mesocycle planning"
+
+
 if __name__ == "__main__":
     # Run manually without pytest
     tests = [v for k, v in globals().items() if k.startswith("test_")]

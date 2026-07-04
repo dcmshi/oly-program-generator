@@ -6,9 +6,12 @@ agent-pipeline HIGH/MEDIUM findings + W-M2 + ENV1. Batch 3 (2026-07-03) fixed **
 8 agent LOW items + all 11 refactors**, each with a regression test, ruff clean.
 Batch 4 fixed the **web LOW items** (W-L4, W-L6, W-L7, W-INFO), leaving only
 **W-L5** (server-tz week math) deferred as a product decision (needs a tz column).
-**The entire agent-pipeline + web-layer sections of this audit are now closed.**
-Still open: the **ingestion findings** (mostly bite only during ingestion → main
-DB machine) and the deferred **Catalyst re-ingest**.
+Batch 5 fixed **all ingestion HIGH + MEDIUM + LOW findings** that are code-testable
+here (mocked suites + live empty DB), leaving only **I-L11** (shared
+`process_section` refactor) deferred to the DB machine.
+**Every audit finding is now either fixed or explicitly deferred.** Remaining
+deferrals: **#6 Catalyst re-ingest**, **I-L11**, **W-L5** — all documented below /
+inline. Only end-to-end embedding/vision verification needs the main DB machine.
 
 Legend: `[x]` done · `[ ]` open · `[~]` code done, follow-up deferred · `[-]` non-finding
 
@@ -71,25 +74,30 @@ Docker up · migrations → head `0003` (21 tables) · all no-key suites pass (a
 
 ---
 
-## INGESTION (oly-ingestion) — open  (most only bite when actually ingesting → main DB machine)
+## INGESTION (oly-ingestion) — batch 5 (2026-07-03)
+
+Code-testable fixes done on this machine (mocked suites + live empty DB). Full
+end-to-end embedding/vision verification + the #6 Catalyst re-ingest remain for
+the main DB machine.
 
 ### HIGH
-- [ ] **I-H2 — Vision OCR: `max_tokens=4096` too small, `stop_reason` unchecked, mismatch fallback blanks pages** (`pdf_extractor.py:190-220`). Dense 5-page batches truncate; `_split_page_responses` count-mismatch returns `[raw,"",…]` losing pages 2–5 and embedding `=== Page N ===` markers. Fix: check `stop_reason`, raise `max_tokens` (~8192), keep parsed sections on mismatch, shrink batch.
-- [ ] **I-H3 — `ON CONFLICT DO NOTHING` inert on `programming_principles`** (`structured_loader.py:74-91`; no UNIQUE in `schema.sql:276-281`). Every reprocess/resume duplicates principles. Fix: add `UNIQUE(source_id, principle_name)` via Alembic, or dedup on content hash.
+- [x] **I-H2** ✅ vision OCR `max_tokens`→8192, `stop_reason` checked, mismatch keeps parsed pages (pad/truncate). Tests in `test_pdf_extractor`.
+- [x] **I-H3** ✅ migration `0004` adds `UNIQUE(source_id, principle_name)` (dedup-safe); loader targets it + counts by rowcount. Test `test_load_principles_dedup`.
 
 ### MEDIUM
-- [ ] **I-M1 — "Resume" reprocesses the whole document** (`pipeline.py:244-255,357-361`; `structured_loader.py:395-413`). `last_processed_page` recorded but discarded → repays all LLM/OCR cost + (with I-H3) duplicates principles. Fix: return & honor `last_processed_page`, or drop the "resumable" claim.
-- [ ] **I-M2 — TABLE sections silently dropped** (`pipeline.py:550-565`; `classifier.py:120-125`). `structured_data` never populated → `_parse_table` loads 0 rows; `ingest_web.py:243-269` drops TABLE/PROGRAM/EXERCISE branches with no log. Fix: parse tables (or fall back to chunking as prose) + add missing web branches.
-- [ ] **I-M3 — `retag_chunks.py` strips chunk_type baseline topics** (`retag_chunks.py:43`). Recomputes from `keyword_tag` alone, dropping `CHUNK_TYPE_DEFAULT_TOPICS`. Fix: SELECT `chunk_type` too and union defaults, mirroring the chunker.
-- [ ] **I-M4 — Failed article permanently marked ingested** (`ingest_web.py:294-298,388`). `fail_run` swallows the error but the URL is still added to progress → never retried. Fix: only add URL on success.
-- [ ] **I-M5 — `last_skipped_count` not set on early-return paths** (`vector_loader.py:69,87-99,176`). Dedup stats read 0 exactly when everything was deduped. Fix: set before both early returns.
-- [ ] **I-M6 — Vision OCR bypasses retry wrapper, hardcodes Opus** (`pdf_extractor.py:190-193`). Direct `messages.create(model="claude-opus-4-6")`. Fix: route via `shared.llm.create_message_with_retries`, model from settings.
-- [ ] **I-M7 — PDF fallback chain only triggers on low text, not exceptions** (`pdf_extractor.py:49-76`). A raising PyMuPDF aborts before pdfplumber. Fix: wrap each stage in try/except.
-- [ ] **I-M8 — Silent input truncation loses principles** (`principle_extractor.py:103` `[:8000]`, `classifier.py:235` `[:3000]`). 50k–146k-char chapters scanned only at the head. Fix: log + window large PRINCIPLE/MIXED sections.
-- [ ] **I-M9 — Dedup pre-check is N+1 and misses intra-call dups** (`vector_loader.py:73-82`). One SELECT/chunk; two identical chunks in one call both pass → UNIQUE violation aborts the section after paying for embeddings. Fix: single `= ANY(%s)` SELECT + local `set` dedup before embedding.
+- [x] **I-M1** ✅ `find_resumable_run` returns `(id, sections_done)`; pipeline skips processed sections; checkpoint stores a count. Test updated.
+- [x] **I-M2** ✅ TABLE sections chunk as prose when unparsed (pipeline) and web path chunks all non-PRINCIPLE content. Test `test_table_section_chunked_not_dropped`.
+- [x] **I-M3** ✅ `retag_chunks.compute_topics` re-applies `CHUNK_TYPE_DEFAULT_TOPICS`. Tests in `test_retag_chunks`.
+- [x] **I-M4** ✅ `ingest_article` returns a success flag; only successful URLs are marked ingested. Tests in `test_ingest_web`.
+- [x] **I-M5** ✅ `last_skipped_count` set on every return path.
+- [x] **I-M6** ✅ vision OCR via `create_message_with_retries`, model from settings.
+- [x] **I-M7** ✅ PyMuPDF/pdfplumber stages fall through on exceptions. Tests in `test_pdf_extractor`.
+- [x] **I-M8** ✅ `principle_extractor` windows large sections (dedup by name); classifier's 3k sample documented as intentional. Tests in `test_llm_helpers`.
+- [x] **I-M9** ✅ single `= ANY(%s)` existing-hash lookup + intra-batch `set` dedup (`_partition_new_chunks`). Tests `test_vector_loader_units`.
 
 ### LOW
-- [ ] **I-L1** program-continuation `break` on first empty window drops later weeks (`pipeline.py:517-518`). **I-L2** stats over-count on failure paths (`pipeline.py:344-346`, `structured_loader.py:93,213`). **I-L3** `apply_ocr_corrections` is dead code — Soviet sources ingested uncorrected (`ocr_corrections.py:61`). **I-L4** OpenAI embed retry matches only `"rate"` substring (`vector_loader.py:207-213`). **I-L5** `load_json` opens without `encoding="utf-8"` (`structured_loader.py:269`). **I-L6** `_would_split_pattern` checks only the first match (`chunker.py:691-697`). **I-L7** chunker section titles are the bare marker not heading text (`chunker.py:480-486`). **I-L8** triplicated fragile LLM-JSON fence-stripping, no reparse retry (`pipeline.py:489`, `classifier.py:256`, `principle_extractor.py:116`). **I-L9** `Settings()` mkdir side effects (dup of A-R9). **I-L10** section indices stored in page columns; `collect_category_urls` hardcodes `page_size=10` (`ingest_web.py:120-124`). **I-L11** `pipeline.py`↔`ingest_web.py` duplication; web path skips `validate_chunk` (why I-H1 went unnoticed) → extract shared `process_section()`.
+- [x] **I-L1** continuation tolerates `MAX_EMPTY=2` prose windows before stopping. **I-L2** `load_principles` counts by rowcount. **I-L3** `apply_ocr_corrections` wired for soviet-profile sources + no-op entry removed. **I-L4** embed retry on typed OpenAI errors. **I-L5** `load_json` opens `encoding="utf-8"`. **I-L6** `_would_split_pattern` uses `finditer`. **I-L7** section-break patterns capture the full heading line. **I-L8** shared `shared.llm.parse_llm_json` replaces 3 fence-strippers. **I-L9** = A-R9 (done). **I-L10** `_CATALYST_PAGE_SIZE` constant + step-agnostic next-page detection. (Tests: `test_chunker`, `test_llm_helpers`, `test_structured_loader`, `test_ingest_web`.)
+- [~] **I-L11 — extract a shared `process_section()`** for `pipeline.py`↔`ingest_web.py`. **Deferred**: a large refactor of the core ingestion path in both entry points; full verification needs live keys/DB, so it's best done on the main DB machine alongside the re-ingest rather than blind here. (The web path skipping `validate_chunk` — the reason I-H1 went unnoticed — is noted for that work.)
 
 ---
 
@@ -108,5 +116,7 @@ Docker up · migrations → head `0003` (21 tables) · all no-key suites pass (a
 
 ---
 
-## DEFERRED (main DB machine)
+## DEFERRED (main DB machine / product decision)
 - [ ] **#6 — Catalyst corpus re-ingest** (see the Ingestion H1 follow-up above).
+- [~] **I-L11** — shared `process_section()` refactor (see Ingestion LOW above).
+- [~] **W-L5** — per-athlete timezone for week math (needs a tz column; product decision).

@@ -239,17 +239,20 @@ def test_find_resumable_run():
     sid = loader.upsert_source(f"{TEST_PREFIX}Resume Book", "Author", "book")
 
     run_id = loader.create_run(sid, "/test/resume.pdf", "resumehash999")
-    loader.fail_run(run_id, "Failed at page 42")
+    loader.update_run_progress(run_id, pages_processed=20, last_processed_page=20)
+    loader.fail_run(run_id, "Failed at section 42")
 
     found = loader.find_resumable_run("resumehash999")
-    assert found == run_id, f"Expected {run_id}, got {found}"
+    # Now returns (run_id, sections_already_processed) so the pipeline can skip
+    # completed work instead of restarting from section 0 (I-M1).
+    assert found == (run_id, 20), f"Expected ({run_id}, 20), got {found}"
 
     # A completed run should not be resumable
     run_id2 = loader.create_run(sid, "/test/resume.pdf", "donehash000")
     loader.complete_run(run_id2, {})
     assert loader.find_resumable_run("donehash000") is None
 
-    print(f"  find_resumable_run: found run #{found} ✓")
+    print(f"  find_resumable_run: found run #{found[0]} at section {found[1]} ✓")
     cleanup(loader, sid)
     loader.close()
 
