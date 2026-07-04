@@ -74,7 +74,8 @@ class WorkerSettings:
 
     @classmethod
     def redis_settings(cls) -> RedisSettings:
+        from web.jobs import resolve_redis_dsn
+
         from shared.config import Settings
-        # 127.0.0.1 not localhost — see note in web/jobs.py:init_arq_pool
-        url = Settings().redis_url or "redis://127.0.0.1:6379"
-        return RedisSettings.from_dsn(url)
+        # resolve_redis_dsn forces IPv4 loopback — see note there (Windows ::1).
+        return RedisSettings.from_dsn(resolve_redis_dsn(Settings().redis_url))

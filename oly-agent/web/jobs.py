@@ -13,15 +13,42 @@ logger = logging.getLogger(__name__)
 _arq_pool = None
 _JOB_OWNER_TTL = 86400  # seconds — matches WorkerSettings.keep_result (24 hours)
 
+_DEFAULT_REDIS_URL = "redis://127.0.0.1:6379"
+
+
+def resolve_redis_dsn(redis_url: str = "") -> str:
+    """Normalize a Redis DSN for ARQ, forcing an IPv4 loopback.
+
+    On Windows, `localhost` resolves to IPv6 `::1` first, which Docker's default
+    port mapping (`127.0.0.1:6379`) doesn't bind; arq's 1s connect timeout
+    expires before the IPv4 fallback, so background jobs never start. A blank
+    URL (dev default) and any DSN whose host is `localhost` are rewritten to
+    `127.0.0.1`, preserving scheme, userinfo, port, and path. Production sets an
+    explicit non-localhost REDIS_URL, which passes through unchanged.
+    """
+    from urllib.parse import urlsplit, urlunsplit
+
+    url = redis_url or _DEFAULT_REDIS_URL
+    parts = urlsplit(url)
+    if parts.hostname != "localhost":
+        return url
+    userinfo = ""
+    if parts.username is not None:
+        userinfo = parts.username
+        if parts.password is not None:
+            userinfo += f":{parts.password}"
+        userinfo += "@"
+    port = f":{parts.port}" if parts.port else ""
+    netloc = f"{userinfo}127.0.0.1{port}"
+    return urlunsplit((parts.scheme, netloc, parts.path, parts.query, parts.fragment))
+
 
 async def init_arq_pool(redis_url: str = "") -> None:
     global _arq_pool
     from arq import create_pool
     from arq.connections import RedisSettings
-    # Default to 127.0.0.1 not localhost: on Windows, localhost resolves to
-    # IPv6 ::1 first, which Docker doesn't bind, and arq's 1s conn_timeout
-    # expires before the IPv4 fallback. Production sets REDIS_URL explicitly.
-    settings = RedisSettings.from_dsn(redis_url or "redis://127.0.0.1:6379")
+
+    settings = RedisSettings.from_dsn(resolve_redis_dsn(redis_url))
     _arq_pool = await create_pool(settings)
     logger.info("ARQ Redis pool initialised")
 

@@ -149,6 +149,23 @@ def test_returning_athlete_no_intensity_override():
         result = plan(_ctx(previous_program={"phase": "accumulation"}), None, _FakeSettings())
     assert result.intensity_ceiling_override is None
 
+def test_cold_start_general_prep_keeps_deload():
+    # Regression (A-M9): general_prep is a 5-week profile whose deload is the
+    # LAST week. Capping a cold start to 4 weeks used to slice the tail off
+    # (keeping the early ramp), dropping the deload so a beginner's first
+    # program ended on its heaviest week. Rebuilding keeps peak + deload.
+    with patch("plan.fetch_all", return_value=[]):
+        result = plan(
+            _ctx(previous_program=None, level="beginner",
+                 active_goal=_goal("work_capacity")),
+            None, _FakeSettings(),
+        )
+    assert result.duration_weeks == 4
+    assert result.deload_week is not None, "cold-start general_prep dropped its deload week"
+    assert result.weekly_targets[-1].is_deload, "last week of a capped general_prep must be the deload"
+    # and no non-deload week should be the heaviest-then-abrupt-stop
+    assert result.deload_week == 4
+
 
 # ── Phase progression (_advance_phase) ──────────────────────────────────────
 

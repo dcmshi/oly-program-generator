@@ -110,6 +110,13 @@ def test_prompt_shows_no_competition_date_when_none():
     prompt = _build_explain_prompt(_ctx(weeks_to_comp=None), _plan(), _sessions())
     assert "no competition date" in prompt
 
+def test_prompt_shows_competition_this_week_when_zero():
+    # Regression (A-M8): weeks_to_comp == 0 (meet within a week) is the most
+    # time-critical case and must NOT be misreported as "no competition date".
+    prompt = _build_explain_prompt(_ctx(weeks_to_comp=0), _plan(), _sessions())
+    assert "competition this week" in prompt
+    assert "no competition date" not in prompt
+
 def test_prompt_shows_faults():
     prompt = _build_explain_prompt(_ctx(faults=["forward_miss"]), _plan(), _sessions())
     assert "forward_miss" in prompt

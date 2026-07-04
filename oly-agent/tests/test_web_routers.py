@@ -405,6 +405,64 @@ def test_update_max_success():
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
 
 
+# ── CSV export formula injection (W-M2) ─────────────────────────────────────────
+
+def test_csv_safe_neutralizes_and_preserves():
+    """_csv_safe prefixes formula triggers on str cells but leaves numerics."""
+    from web.routers.export import _csv_safe
+    assert _csv_safe("=1+1") == "'=1+1"
+    assert _csv_safe("+cmd") == "'+cmd"
+    assert _csv_safe("-cmd") == "'-cmd"
+    assert _csv_safe("@x") == "'@x"
+    assert _csv_safe("\tx") == "'\tx"
+    assert _csv_safe("normal note") == "normal note"
+    assert _csv_safe("") == ""
+    # numeric cells (e.g. a negative weight deviation) must stay numeric
+    assert _csv_safe(-2.5) == -2.5
+    assert _csv_safe(5) == 5
+
+
+def test_export_log_csv_neutralizes_formula_injection():
+    """W-M2: a malicious note in the training log is neutralized in the export
+    so it can't execute as a formula when opened in Excel/Sheets."""
+    malicious_row = {
+        "log_date": "2026-01-01", "program_name": "Block",
+        "week_number": 1, "day_number": 1, "session_label": "Day 1",
+        "session_rpe": None, "duration_min": None, "bodyweight_kg": None,
+        "sleep_quality": None, "stress_level": None,
+        "session_notes": '=HYPERLINK("http://evil","x")',
+        "exercise_name": "Snatch", "sets_completed": 3,
+        "reps_per_set": [2, 2, 2], "weight_kg": 70.0,
+        "prescribed_weight_kg": None, "weight_deviation_kg": -2.5,
+        "exercise_rpe": None, "rpe_deviation": None, "make_rate": None,
+        "technical_notes": "@SUM(1+1)",
+    }
+    with patch("web.routers.export.get_full_training_log", return_value=[malicious_row]):
+        r = _client.get("/export/log.csv")
+    assert r.status_code == 200, r.status_code
+    body = r.text
+    assert "'=HYPERLINK" in body, "session_notes formula not neutralized"
+    assert "'@SUM(1+1)" in body, "technical_notes formula not neutralized"
+    # negative numeric deviation must remain numeric (not quoted as text)
+    assert "-2.5" in body and "'-2.5" not in body
+
+
+# ── ARQ Redis DSN normalization (ENV1) ──────────────────────────────────────────
+
+def test_resolve_redis_dsn_forces_ipv4_localhost():
+    """ENV1: localhost DSNs are rewritten to 127.0.0.1 (Windows IPv6/ARQ 1s
+    timeout), preserving scheme/userinfo/port/path; other hosts pass through."""
+    from web.jobs import resolve_redis_dsn
+    assert resolve_redis_dsn("") == "redis://127.0.0.1:6379"                 # blank → default
+    assert resolve_redis_dsn("redis://localhost:6379") == "redis://127.0.0.1:6379"
+    assert resolve_redis_dsn("redis://localhost") == "redis://127.0.0.1"
+    assert resolve_redis_dsn("redis://:secret@localhost:6379") == "redis://:secret@127.0.0.1:6379"
+    assert resolve_redis_dsn("redis://user:pw@localhost:6380/0") == "redis://user:pw@127.0.0.1:6380/0"
+    # non-localhost hosts are untouched
+    assert resolve_redis_dsn("redis://redis.prod:6379") == "redis://redis.prod:6379"
+    assert resolve_redis_dsn("redis://10.0.0.5:6379") == "redis://10.0.0.5:6379"
+
+
 # ── Runner ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

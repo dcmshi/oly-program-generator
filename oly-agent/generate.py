@@ -43,11 +43,22 @@ logger = logging.getLogger(__name__)
 
 # ── JSON parsing ───────────────────────────────────────────────
 
+def _is_exercise_list(result) -> bool:
+    """A parsed result is usable only if it's a list of dicts (empty is fine).
+
+    A list of strings (`["Snatch 5x2 @75%", ...]`) or other non-dict items is
+    rejected here so it flows into the parse-retry path instead of reaching the
+    caller, where `ex.get(...)` would raise AttributeError and abort the run.
+    """
+    return isinstance(result, list) and all(isinstance(x, dict) for x in result)
+
+
 def parse_llm_response(raw_response: str) -> list[dict]:
     """Parse LLM response into exercise list.
 
     Handles: markdown fences, preamble text, single-object responses.
-    Raises ValueError if all parsing attempts fail.
+    Raises ValueError if all parsing attempts fail or the parsed JSON is not a
+    list of objects (so malformed-but-parseable output triggers a retry).
     """
     text = raw_response.strip()
     text = re.sub(r"^```(?:json)?\s*\n?", "", text)
@@ -59,7 +70,7 @@ def parse_llm_response(raw_response: str) -> list[dict]:
         result = json.loads(text)
         if isinstance(result, dict):
             result = [result]
-        if isinstance(result, list):
+        if _is_exercise_list(result):
             return result
     except json.JSONDecodeError:
         pass
@@ -70,7 +81,7 @@ def parse_llm_response(raw_response: str) -> list[dict]:
     if match:
         try:
             result = json.loads(match.group())
-            if isinstance(result, list) and len(result) > 0:
+            if _is_exercise_list(result) and len(result) > 0:
                 return result
         except json.JSONDecodeError:
             pass
@@ -99,7 +110,9 @@ def validate_exercise_names(
     available_lower = {name.lower(): name for name in available_exercises}
     errors = []
     for ex in exercises:
-        name = ex.get("exercise_name", "")
+        # exercise_name may be present-but-null in LLM output; coerce to str so
+        # .lower() never raises (a blank name still fails the membership check).
+        name = str(ex.get("exercise_name") or "")
         if name.lower() not in available_lower:
             close = [n for n in available_exercises
                      if name.lower() in n.lower() or n.lower() in name.lower()]
@@ -132,7 +145,9 @@ def build_session_prompt(
     # ── Athlete summary ──────────────────────────────────────
     faults_str = ", ".join(athlete_context.technical_faults) or "none identified"
     injuries_str = ", ".join(athlete_context.injuries) or "none"
-    avoid = athlete_context.athlete.get("exercise_preferences", {}).get("avoid", [])
+    # exercise_preferences is JSONB with a DB default of '{}' but is nullable —
+    # an explicit SQL NULL makes .get(...) return None, so coalesce before .get("avoid").
+    avoid = (athlete_context.athlete.get("exercise_preferences") or {}).get("avoid", [])
     avoid_str = ", ".join(avoid) or "none"
     lift_emphasis = athlete_context.athlete.get("lift_emphasis") or "balanced"
     strength_limiters_str = (
@@ -284,7 +299,11 @@ def build_session_prompt(
     else:
         already_block = "  (first session of the week)"
 
-    remaining_reps = max(0, session_rep_target - cumulative_comp_reps)
+    # Budget remaining in the WEEK, not the session: cumulative_comp_reps is the
+    # week's running total across prior sessions, so it must be subtracted from
+    # the week's Prilepin target — subtracting it from this session's target made
+    # the budget collapse to 0 after day 1 (A-H2).
+    remaining_weekly_reps = max(0, week_target.total_competition_lift_reps - cumulative_comp_reps)
 
     # ── Prilepin summary ──────────────────────────────────────
     prilepin_lines = []
@@ -419,8 +438,8 @@ Target competition lift reps this session: {session_rep_target}
 
 ## Already Prescribed This Week
 {already_block}
-Cumulative competition lift reps so far: {cumulative_comp_reps}
-Remaining session rep budget: {remaining_reps}
+Cumulative competition lift reps so far (this week): {cumulative_comp_reps}
+Remaining weekly rep budget: {remaining_weekly_reps} (of {week_target.total_competition_lift_reps} for the week)
 
 ## Available Exercises
 {exercises_block}
@@ -498,6 +517,12 @@ def generate_session_with_retries(
     current_prompt = prompt
     last_raw = ""
     last_validation = None
+    # Accumulate tokens across ALL attempts — each retry is a full paid LLM call,
+    # and the returned totals feed the orchestrator's per-program cost guard.
+    # Returning only the final attempt's tokens let the guard undercount by up to
+    # max_attempts× (A-M2).
+    total_input_tokens = 0
+    total_output_tokens = 0
 
     for attempt in range(1, max_attempts + 1):
         logger.info(f"  Generating W{week_number}D{day_number} (attempt {attempt}/{max_attempts})")
@@ -515,6 +540,8 @@ def generate_session_with_retries(
             last_raw = response.content[0].text
             input_tokens = response.usage.input_tokens
             output_tokens = response.usage.output_tokens
+            total_input_tokens += input_tokens
+            total_output_tokens += output_tokens
         except Exception as e:
             logger.error(f"  LLM API error (attempt {attempt}): {e}")
             _log_generation(
@@ -603,8 +630,8 @@ def generate_session_with_retries(
         return GenerationResult(
             exercises=exercises,
             raw_response=last_raw,
-            input_tokens=input_tokens,
-            output_tokens=output_tokens,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
             status="success",
             error_message=None,
             attempt_number=attempt,
@@ -618,8 +645,8 @@ def generate_session_with_retries(
     return GenerationResult(
         exercises=None,
         raw_response=last_raw,
-        input_tokens=0,
-        output_tokens=0,
+        input_tokens=total_input_tokens,
+        output_tokens=total_output_tokens,
         status="failed",
         error_message=f"Exhausted retries. Last errors: {last_errors}",
         attempt_number=max_attempts,

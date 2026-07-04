@@ -98,6 +98,37 @@ def test_prompt_includes_phase_name():
     assert "WeekTarget" not in prompt
 
 
+def test_prompt_handles_null_exercise_preferences():
+    """Regression (A-M6): exercise_preferences is nullable JSONB; an explicit SQL
+    NULL made .get("exercise_preferences", {}) return None, so .get("avoid")
+    raised AttributeError and aborted the whole generation run on session 1."""
+    athlete = _make_athlete()
+    athlete.athlete["exercise_preferences"] = None  # simulate SQL NULL
+    prompt = _make_prompt(athlete)  # must not raise
+    assert "## Exercises to Avoid\nnone" in prompt
+    return True, ""
+
+
+def test_remaining_budget_is_weekly_not_session():
+    """Regression (A-H2): the remaining rep budget is the WEEK's Prilepin target
+    minus the week's cumulative reps — not this session's target. The old code
+    subtracted a week-cumulative count from a per-session target, so the budget
+    collapsed to 0 for every session after day 1."""
+    week_target = WeekTarget(1, 1.0, 72.0, 82.0, 18, [2, 4], False)  # 18 comp reps/week
+    session_tmpl = SessionTemplate(1, "Snatch + Squat", "snatch", ["squat"], 0.30)
+    prompt = build_session_prompt(
+        _make_athlete(), week_target, session_tmpl, _make_retrieval(),
+        week_number=1, duration_weeks=4,
+        already_prescribed=[], session_rep_target=6, cumulative_comp_reps=10,
+        phase="accumulation",
+    )
+    # weekly budget: 18 - 10 = 8 remaining (old buggy value would be max(0, 6-10)=0)
+    assert "Remaining weekly rep budget: 8" in prompt
+    assert "Remaining session rep budget" not in prompt  # old label is gone
+    assert "Target competition lift reps this session: 6" in prompt  # session target still shown
+    return True, ""
+
+
 VALID_EXERCISE = {
     "exercise_name": "Snatch",
     "exercise_order": 1,
@@ -751,6 +782,81 @@ def test_generate_session_all_retries_exhausted():
     return True, ""
 
 
+# ── A-M7: malformed-but-parseable output triggers retry, not a crash ──────────
+
+def test_parse_list_of_strings_raises():
+    """A JSON list of strings is parseable but isn't exercise dicts — must raise
+    ValueError so the retry loop re-prompts instead of the caller crashing on
+    ex.get(...)."""
+    raw = json.dumps(["Snatch 5x2 @ 75%", "Back Squat 5x5"])
+    try:
+        parse_llm_response(raw)
+        return False, "Expected ValueError for list-of-strings"
+    except ValueError:
+        return True, ""
+
+
+def test_parse_list_of_scalars_raises():
+    """A list of non-dict scalars (numbers) is also rejected."""
+    try:
+        parse_llm_response("[1, 2, 3]")
+        return False, "Expected ValueError for list-of-scalars"
+    except ValueError:
+        return True, ""
+
+
+def test_validate_null_exercise_name_no_crash():
+    """exercise_name present-but-null must not crash validate_exercise_names;
+    it should surface an 'unknown exercise' error instead."""
+    errors = validate_exercise_names([{"exercise_name": None}], AVAILABLE)
+    assert len(errors) == 1, errors
+    return True, ""
+
+
+def test_generate_session_list_of_strings_retries():
+    """End-to-end: a parseable-but-wrong-shape response (list of strings)
+    triggers a retry rather than aborting the run with AttributeError."""
+    llm = MagicMock()
+    llm.messages.create.side_effect = [
+        _make_llm_response(json.dumps(["Snatch 5x2 @ 75%"])),
+        _make_llm_response(json.dumps(_VALID_SESSION)),
+    ]
+    result = _call_generate(llm)
+    assert result.status == "success"
+    assert result.attempt_number == 2
+    return True, ""
+
+
+# ── A-M2: cost guard must count every retry's tokens ──────────────────────────
+# _make_llm_response reports 100 input / 50 output tokens per call.
+
+def test_generate_tokens_accumulate_across_retries():
+    """A successful session that took a retry reports BOTH attempts' tokens, so
+    the orchestrator's cost guard doesn't undercount the paid failed attempt."""
+    llm = MagicMock()
+    llm.messages.create.side_effect = [
+        _make_llm_response("not json at all"),          # attempt 1 (paid, failed)
+        _make_llm_response(json.dumps(_VALID_SESSION)),  # attempt 2 (success)
+    ]
+    result = _call_generate(llm)
+    assert result.status == "success"
+    assert result.input_tokens == 200, result.input_tokens   # 2 × 100
+    assert result.output_tokens == 100, result.output_tokens  # 2 × 50
+    return True, ""
+
+
+def test_generate_failed_reports_accumulated_tokens():
+    """A session that exhausts all retries still reports the tokens it burned
+    (previously returned 0/0, so a fully-failed session counted as free)."""
+    llm = MagicMock()
+    llm.messages.create.return_value = _make_llm_response("not json")
+    result = _call_generate(llm, _make_settings(retries=1, parse_retries=1))  # 2 attempts
+    assert result.status == "failed"
+    assert result.input_tokens == 200, result.input_tokens   # 2 × 100, not 0
+    assert result.output_tokens == 100, result.output_tokens  # 2 × 50, not 0
+    return True, ""
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
@@ -771,6 +877,9 @@ TESTS = [
     ("validate names: case insensitive match", test_validate_case_insensitive),
     ("validate names: multiple invalid", test_validate_multiple_invalid),
     ("validate names: empty list → no errors", test_validate_empty_list),
+    # build_session_prompt: athlete fields
+    ("prompt: null exercise_preferences no crash (A-M6)", test_prompt_handles_null_exercise_preferences),
+    ("prompt: remaining budget is weekly not session (A-H2)", test_remaining_budget_is_weekly_not_session),
     # build_session_prompt: recent_logs
     ("prompt recent_logs: section present", test_recent_logs_section_present),
     ("prompt recent_logs: empty → fallback message", test_recent_logs_empty_shows_fallback),
@@ -814,6 +923,14 @@ TESTS = [
     ("generate: parse error triggers retry with JSON reminder", test_generate_session_parse_error_retries),
     ("generate: name error triggers retry with error list", test_generate_session_name_error_retries),
     ("generate: all retries exhausted → status=failed", test_generate_session_all_retries_exhausted),
+    # A-M7: malformed-but-parseable output → retry, not crash
+    ("parse: list of strings → ValueError (A-M7)", test_parse_list_of_strings_raises),
+    ("parse: list of scalars → ValueError (A-M7)", test_parse_list_of_scalars_raises),
+    ("validate names: null exercise_name no crash (A-M7)", test_validate_null_exercise_name_no_crash),
+    ("generate: list-of-strings response retries (A-M7)", test_generate_session_list_of_strings_retries),
+    # A-M2: cost guard counts every retry's tokens
+    ("generate: tokens accumulate across retries (A-M2)", test_generate_tokens_accumulate_across_retries),
+    ("generate: failed session reports burned tokens (A-M2)", test_generate_failed_reports_accumulated_tokens),
 ]
 
 

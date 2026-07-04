@@ -89,6 +89,33 @@ class TestComputeTrend(unittest.TestCase):
             "descending",
         )
 
+    # ── A-M4: make-rate needs a per-metric threshold ─────────────────────────
+    def test_make_rate_decline_detected_with_small_threshold(self):
+        # 0.95 → 0.60 is a serious make-rate decline. With the make-rate
+        # threshold it registers as descending (the old fixed 0.5 hid it).
+        from shared.constants import MAKE_RATE_TREND_THRESHOLD
+        self.assertEqual(
+            _compute_trend([0.95, 0.95, 0.95, 0.60, 0.60, 0.60],
+                           threshold=MAKE_RATE_TREND_THRESHOLD),
+            "descending",
+        )
+
+    def test_make_rate_small_wobble_stays_stable(self):
+        from shared.constants import MAKE_RATE_TREND_THRESHOLD
+        self.assertEqual(
+            _compute_trend([0.90, 0.92, 0.88, 0.91, 0.89, 0.90],
+                           threshold=MAKE_RATE_TREND_THRESHOLD),
+            "stable",
+        )
+
+    def test_default_rpe_threshold_hides_make_rate_moves(self):
+        # Documents the bug: under the default (RPE-scale) threshold a 0.35
+        # make-rate drop reads as "stable" — the reason A-M4 exists.
+        self.assertEqual(
+            _compute_trend([0.95, 0.95, 0.95, 0.60, 0.60, 0.60]),
+            "stable",
+        )
+
 
 class TestComputeOutcomeNoLogs(unittest.TestCase):
     """Outcome with zero logged sessions — all metrics default gracefully."""
@@ -215,6 +242,128 @@ class TestSaveOutcome(unittest.TestCase):
         self.assertIn("maxes_delta", summary)
 
 
+class TestTrendOrderingAndReps(unittest.TestCase):
+    """A-M3 (chronological trend ordering) and A-M5 (rep counting) — live DB,
+    self-contained fixtures created per test and rolled back in tearDown."""
+
+    def setUp(self):
+        settings = Settings()
+        self.conn = psycopg2.connect(settings.database_url)
+        self.conn.autocommit = False
+
+    def tearDown(self):
+        self.conn.rollback()
+        self.conn.close()
+
+    def _new_program(self, *, weeks, sessions_per_week=1, phase="accumulation") -> int:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO generated_programs
+              (athlete_id, name, phase, duration_weeks, sessions_per_week,
+               athlete_snapshot, maxes_snapshot, generation_params)
+            VALUES (%s, 'A-M3/M5 fixture', %s, %s, %s, '{}', '{}', '{}')
+            RETURNING id
+            """,
+            (ATHLETE_ID, phase, weeks, sessions_per_week),
+        )
+        pid = cur.fetchone()[0]
+        cur.close()
+        return pid
+
+    def _add_session(self, program_id: int, week: int, day: int) -> int:
+        cur = self.conn.cursor()
+        cur.execute(
+            "INSERT INTO program_sessions (program_id, week_number, day_number) "
+            "VALUES (%s, %s, %s) RETURNING id",
+            (program_id, week, day),
+        )
+        sid = cur.fetchone()[0]
+        cur.close()
+        return sid
+
+    def _add_exercise(self, session_id: int, order: int, *, rpe_target=8.0) -> int:
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO session_exercises
+              (session_id, exercise_order, exercise_name, sets, reps,
+               intensity_reference, rpe_target)
+            VALUES (%s, %s, 'Snatch', 3, 2, 'snatch', %s) RETURNING id
+            """,
+            (session_id, order, rpe_target),
+        )
+        seid = cur.fetchone()[0]
+        cur.close()
+        return seid
+
+    def _log_session(self, session_id: int) -> int:
+        cur = self.conn.cursor()
+        cur.execute(
+            "INSERT INTO training_logs (athlete_id, session_id, log_date) "
+            "VALUES (%s, %s, CURRENT_DATE) RETURNING id",
+            (ATHLETE_ID, session_id),
+        )
+        lid = cur.fetchone()[0]
+        cur.close()
+        return lid
+
+    def _log_exercise(self, log_id, se_id, *, rpe, reps_per_set, sets_completed, make_rate=0.9):
+        cur = self.conn.cursor()
+        cur.execute(
+            """
+            INSERT INTO training_log_exercises
+              (log_id, session_exercise_id, exercise_name, sets_completed,
+               reps_per_set, weight_kg, rpe, make_rate)
+            VALUES (%s, %s, 'Snatch', %s, %s, 70.0, %s, %s)
+            """,
+            (log_id, se_id, sets_completed, reps_per_set, rpe, make_rate),
+        )
+        cur.close()
+
+    def test_rpe_trend_uses_chronological_order(self):
+        """A-M3: trend follows week/day chronology, not table/heap order.
+
+        Everything for WEEK 2 is inserted before WEEK 1 (lower row ids in every
+        table), so the natural no-ORDER-BY scan order is reverse-chronological.
+        Only the SQL ORDER BY yields the correct ascending trend — without it
+        this asserts the wrong direction and fails.
+        """
+        pid = self._new_program(weeks=2)
+        # WEEK 2 first — overreaching (rpe 10 vs target 8 → deviation +2)
+        s2 = self._add_session(pid, 2, 1)
+        se2 = [self._add_exercise(s2, i) for i in (1, 2, 3)]
+        l2 = self._log_session(s2)
+        for se in se2:
+            self._log_exercise(l2, se, rpe=10.0, reps_per_set=[2, 2, 2], sets_completed=3)
+        # WEEK 1 second — on target (rpe 8 vs target 8 → deviation 0)
+        s1 = self._add_session(pid, 1, 1)
+        se1 = [self._add_exercise(s1, i) for i in (1, 2, 3)]
+        l1 = self._log_session(s1)
+        for se in se1:
+            self._log_exercise(l1, se, rpe=8.0, reps_per_set=[2, 2, 2], sets_completed=3)
+        outcome = compute_outcome(pid, ATHLETE_ID, self.conn)
+        # chronological deviations [0,0,0,+2,+2,+2] → ascending;
+        # natural (reverse-insertion) order [+2,+2,+2,0,0,0] would read descending.
+        self.assertEqual(outcome.rpe_trend, "ascending")
+
+    def test_avg_weekly_reps_counts_actual_reps(self):
+        """A-M5: full log sums the array; shorthand multiplies the single entry."""
+        pid = self._new_program(weeks=1)
+        s1 = self._add_session(pid, 1, 1)
+        se_full = self._add_exercise(s1, 1)
+        se_short = self._add_exercise(s1, 2)
+        log = self._log_session(s1)
+        # full log: [3,3,2] across 3 sets → 8 reps
+        self._log_exercise(log, se_full, rpe=8.0, reps_per_set=[3, 3, 2], sets_completed=3)
+        # shorthand: [3] standing in for 3 sets → 9 reps
+        self._log_exercise(log, se_short, rpe=8.0, reps_per_set=[3], sets_completed=3)
+        outcome = compute_outcome(pid, ATHLETE_ID, self.conn)
+        # single week → avg == week total == 8 + 9 = 17
+        # (old formula sets*len gave 9 + 3 = 12)
+        self.assertAlmostEqual(outcome.avg_weekly_reps, 17.0, places=1)
+
+
 if __name__ == "__main__":
     loader = unittest.TestLoader()
     suite = unittest.TestSuite()
@@ -222,6 +371,7 @@ if __name__ == "__main__":
     suite.addTests(loader.loadTestsFromTestCase(TestComputeOutcomeNoLogs))
     suite.addTests(loader.loadTestsFromTestCase(TestComputeOutcomeWithLogs))
     suite.addTests(loader.loadTestsFromTestCase(TestSaveOutcome))
+    suite.addTests(loader.loadTestsFromTestCase(TestTrendOrderingAndReps))
 
     runner = unittest.TextTestRunner(verbosity=2)
     result = runner.run(suite)

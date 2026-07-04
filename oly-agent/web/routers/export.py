@@ -14,6 +14,23 @@ from web.queries.export import get_full_training_log, get_program_for_export
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/export")
 
+# Characters that make a spreadsheet treat a cell as a formula. A user- or
+# LLM-supplied value like `=HYPERLINK(...)` or `=cmd|'/c calc'!A1` would execute
+# when the export is opened in Excel/Sheets (CSV injection), and these exports
+# are meant to be shared with coaches.
+_CSV_FORMULA_TRIGGERS = ("=", "+", "-", "@", "\t", "\r")
+
+
+def _csv_safe(value):
+    """Neutralize formula-injection in text cells by prefixing a single quote.
+
+    Only str values are guarded — numeric cells (e.g. a negative weight
+    deviation like -2.5) are left untouched so they stay numeric in the sheet.
+    """
+    if isinstance(value, str) and value and value[0] in _CSV_FORMULA_TRIGGERS:
+        return "'" + value
+    return value
+
 _CSV_HEADERS = [
     "date", "program", "week", "day", "session",
     "session_rpe", "duration_min", "bodyweight_kg", "sleep_quality", "stress_level",
@@ -46,7 +63,7 @@ async def export_training_log(
             if row["make_rate"] is not None
             else ""
         )
-        writer.writerow([
+        writer.writerow([_csv_safe(c) for c in [
             row["log_date"],
             row["program_name"],
             row["week_number"],
@@ -68,7 +85,7 @@ async def export_training_log(
             row["rpe_deviation"] if row["rpe_deviation"] is not None else "",
             make_rate,
             row["technical_notes"] or "",
-        ])
+        ]])
 
     logger.info(f"Training log CSV export: athlete={athlete_id}, {len(rows)} exercise rows")
 
@@ -106,7 +123,7 @@ async def export_program(
     writer = csv.writer(output)
 
     # Program metadata block
-    writer.writerow(["program", program["name"]])
+    writer.writerow(["program", _csv_safe(program["name"])])
     writer.writerow(["phase", program["phase"]])
     writer.writerow(["status", program["status"]])
     writer.writerow(["start_date", program["start_date"]])
@@ -116,7 +133,7 @@ async def export_program(
 
     writer.writerow(_PROGRAM_CSV_HEADERS)
     for row in rows:
-        writer.writerow([
+        writer.writerow([_csv_safe(c) for c in [
             row["week_number"],
             row["day_number"],
             row["session_label"],
@@ -135,7 +152,7 @@ async def export_program(
             row["backoff_intensity_pct"] if row["backoff_intensity_pct"] is not None else "",
             "yes" if row["is_max_attempt"] else "",
             row["notes"] or "",
-        ])
+        ]])
 
     safe_name = "".join(c if c.isalnum() or c in "-_ " else "" for c in program["name"]).strip()
     filename = f"{safe_name or 'program'}.csv"

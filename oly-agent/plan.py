@@ -59,12 +59,17 @@ def plan(athlete_context: AthleteContext, conn, settings) -> ProgramPlan:
     if athlete_context.previous_program is None:
         ceiling_cap = 80.0 if athlete_context.level != "beginner" else 75.0
         intensity_ceiling_override = ceiling_cap
+        # Cap the duration, then REBUILD from the profile so its own shortening
+        # convention applies (drop early ramp-up weeks, KEEP peak + deload).
+        # Slicing raw_targets[:duration_weeks] kept the early ramp and discarded
+        # the deload tail, so a beginner's first program ended on its heaviest
+        # week with no deload (A-M9).
+        duration_weeks = min(duration_weeks, 4)
+        raw_targets = build_weekly_targets(phase, duration_weeks, athlete_context.level)
         raw_targets = [
             {**t, "intensity_ceiling": min(t["intensity_ceiling"], ceiling_cap)}
             for t in raw_targets
         ]
-        duration_weeks = min(duration_weeks, 4)
-        raw_targets = raw_targets[:duration_weeks]
         max_complexity = 2 if athlete_context.level == "beginner" else 3
         logger.info(
             f"Cold start: intensity cap={ceiling_cap}%, "

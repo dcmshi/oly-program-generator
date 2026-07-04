@@ -37,3 +37,10 @@ ADVANCE_MAX_RPE_DEVIATION: float = 1.5    # RPE deviation above this blocks adva
 ADJUST_RPE_DEVIATION: float = 1.0         # RPE deviation above this triggers volume reduction
 EXCELLENT_ADHERENCE_PCT: float = 90.0     # adherence for "excellent performance" intensity boost
 EXCELLENT_MAKE_RATE: float = 0.85         # make rate for "excellent performance" intensity boost
+
+# ── Trend detection (feedback._compute_trend) ───────────────────
+# Half-average difference needed to call a sequence ascending/descending.
+# RPE deviations swing by whole points; make rates are 0-1 fractions, so they
+# need a much smaller threshold or every real decline reads as "stable".
+RPE_TREND_THRESHOLD: float = 0.5          # for RPE-deviation sequences
+MAKE_RATE_TREND_THRESHOLD: float = 0.07   # for make-rate (0-1) sequences

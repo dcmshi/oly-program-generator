@@ -22,6 +22,8 @@ from shared.constants import (
     ADVANCE_MIN_MAKE_RATE,
     EXCELLENT_ADHERENCE_PCT,
     EXCELLENT_MAKE_RATE,
+    MAKE_RATE_TREND_THRESHOLD,
+    RPE_TREND_THRESHOLD,
 )
 from shared.db import execute, fetch_all, fetch_one
 from shared.exercise_mapping import to_intensity_ref
@@ -70,6 +72,7 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         JOIN program_sessions ps ON se.session_id = ps.id
         WHERE ps.program_id = %s
           AND tle.rpe IS NOT NULL AND se.rpe_target IS NOT NULL
+        ORDER BY ps.week_number, ps.day_number, se.exercise_order
         """,
         (program_id,),
     )
@@ -88,6 +91,7 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         WHERE ps.program_id = %s
           AND se.intensity_reference IN ('snatch', 'clean_and_jerk', 'clean')
           AND tle.make_rate IS NOT NULL
+        ORDER BY ps.week_number, ps.day_number, se.exercise_order
         """,
         (program_id,),
     )
@@ -110,7 +114,15 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         conn,
         """
         SELECT ps.week_number,
-               SUM(tle.sets_completed * array_length(tle.reps_per_set, 1)) AS weekly_reps
+               SUM(
+                 CASE
+                   -- shorthand: one array entry standing in for every set
+                   WHEN array_length(tle.reps_per_set, 1) = 1
+                     THEN tle.sets_completed * tle.reps_per_set[1]
+                   -- full log: one entry per set — sum the actual reps
+                   ELSE (SELECT COALESCE(SUM(r), 0) FROM unnest(tle.reps_per_set) AS r)
+                 END
+               ) AS weekly_reps
         FROM training_log_exercises tle
         JOIN training_logs tl ON tle.log_id = tl.id
         JOIN program_sessions ps ON tl.session_id = ps.id
@@ -132,6 +144,7 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
     make_rate_trend = _compute_trend(
         [float(r["make_rate"]) for r in make_rows[-6:]] if make_rows else [],
         invert=False,
+        threshold=MAKE_RATE_TREND_THRESHOLD,
     )
 
     # ── Max delta (before vs after) ───────────────────────────
@@ -343,10 +356,17 @@ def _compute_phase_verdict(
     }
 
 
-def _compute_trend(values: list[float], invert: bool = False) -> str:
+def _compute_trend(
+    values: list[float],
+    invert: bool = False,
+    threshold: float = RPE_TREND_THRESHOLD,
+) -> str:
     """Classify a sequence as ascending, stable, or descending.
 
     invert=True means higher values are bad (e.g., RPE deviation).
+    threshold is the half-average difference required to register a trend — it
+    must match the metric's scale (whole points for RPE, ~0.07 for 0-1 make
+    rates, else a real make-rate decline is misreported as "stable").
     """
     if len(values) < 3:
         return "stable"
@@ -355,8 +375,8 @@ def _compute_trend(values: list[float], invert: bool = False) -> str:
     diff = sum(second_half) / len(second_half) - sum(first_half) / len(first_half)
     if invert:
         diff = -diff
-    if diff > 0.5:
+    if diff > threshold:
         return "ascending"
-    elif diff < -0.5:
+    elif diff < -threshold:
         return "descending"
     return "stable"

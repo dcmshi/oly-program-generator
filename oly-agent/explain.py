@@ -93,7 +93,14 @@ def _build_explain_prompt(
         for ex in first_exercises[:4]
     )
 
-    comp_context = f"{weeks_to_comp} weeks out from competition" if weeks_to_comp else "no competition date set"
+    # weeks_to_comp == 0 (meet within a week) is the most time-critical case, so
+    # it must NOT be treated as "no date" — only None means unset (A-M8).
+    if weeks_to_comp is None:
+        comp_context = "no competition date set"
+    elif weeks_to_comp == 0:
+        comp_context = "competition this week"
+    else:
+        comp_context = f"{weeks_to_comp} weeks out from competition"
 
     return f"""An Olympic weightlifting athlete has been prescribed the following training program.
 Write a clear, direct explanation for the athlete (not a coach) covering the 5 points below.
