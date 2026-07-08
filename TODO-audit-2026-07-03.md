@@ -157,9 +157,46 @@ done** (batch 5), so #23 is unblocked once the corpus DB is available.
   |---|--------|---------|-----|
   | 1 | **R.A. Roman — *The Training of the Weightlifter*** (Sportivny Press) | soviet | Concrete %/volume/frequency tables feeding Prilepin-style validation. |
   | 2 | **A.S. Medvedev — the not-yet-ingested volume** (check which of *A System of Multi-Year Training* / *Programming and Organization of Training* is source_id 501) | soviet | The other Medvedev volume. |
-  | 3 | **Bud Charniga — translated essays** (sportivnypress.com) | web | FREE web articles on Soviet methodology/restoration/technique; second `ingest_web.py` target after the Catalyst re-ingest — needs its own CSS selector + progress file. |
+  | 3 | **Bud Charniga — translated essays** (~~sportivnypress.com~~ → Wayback Machine) | web | FREE web articles on Soviet methodology/restoration/technique. **Site defunct** (see 2026-07-07 note below) — recover from the Internet Archive. Scaffold now drafted: `ingest_web.py --site charniga`. Still the second web target after the Catalyst re-ingest. |
   | 4 | **Tommy Kono — *Weightlifting, Olympic Style* + *Championship Weightlifting*** | programming | Enriches thin `fault_correction` retrieval. |
   | 5 | **A.N. Vorobyev — *A Textbook on Weightlifting*** | theory_heavy | Soviet theory. |
   | 6 | **Verkhoshansky — *Special Strength Training: Manual for Coaches*** | theory_heavy | Fills the strength-limiter query family. |
   | 7 | **Stronger by Science (Nuckols) articles + tapering research** (Pritchard et al.; Storey & Smith 2012) | (new `research` profile?) | Modern evidence-based programming + tapering. |
   | 8 | **Bompa & Buzzichelli — *Periodization*** | programming | `periodization` chunk_type coverage. |
+
+  ### Acquisition update — 2026-07-07 (source availability re-checked)
+
+  **sportivnypress.com is defunct.** The domain no longer resolves (DNS `ENOTFOUND`);
+  search engines still serve stale index entries. Andrew "Bud" Charniga died
+  **January 2025** ([USAW obituary](https://www.usaweightlifting.org/news/2025/january/27/celebrating-the-life-of-andrew-bud-charniga)),
+  and the domain lapsed since. This changes how rows 1–6 are obtained.
+
+  **Row 3 (Charniga free essays) → Internet Archive, no OCR.** The essays were
+  freely, publicly published ("viewable without password"), and are HTML — so
+  they go through `ingest_web.py`, *not* the vision-OCR path. Recovery mechanics
+  (scaffold drafted this session in `ingest_web.py`, `--site charniga`):
+  - **Enumerate** archived URLs via the Wayback CDX API:
+    `http://web.archive.org/cdx/search/cdx?url=sportivnypress.com/*&output=json&fl=original,timestamp&filter=statuscode:200&filter=mimetype:text/html`
+    → dedupe to the latest capture per URL, skipping WP plumbing/taxonomy/feed/asset URLs.
+  - **Fetch raw captures** with the `id_` suffix to strip the Wayback toolbar/JS:
+    `http://web.archive.org/web/<timestamp>id_/<original-url>` → clean HTML for `block_text()`.
+  - **DB-machine TODO before the full run:** confirm the real WordPress content
+    class (scaffold guesses `.entry-content` → `.post-content` → `<article>`) against
+    one live snapshot, then run `--site charniga --dry-run` to sanity-check the URL
+    list, then a `--limit` smoke test, then the full run + retrieval-eval refresh.
+    Progress tracked separately in `sources/charniga_progress.json`.
+
+  **Rows 1, 2, 4, 5, 6 (the books) → buy the EPUB/Kindle; do NOT hunt PDFs to OCR.**
+  Clean ebook text is better corpus input than OCR'd scans (cf. Everett/Israetel EPUBs
+  vs. the vision-OCR'd Laputin/Medvedev). "Use owned copies" (table header) stands.
+  Legitimately purchasable as of this check:
+  - **Medvedev** — [*A System of Multi-Year Training in Weightlifting*](https://www.amazon.com/System-Multi-Year-Training-Weightlifting-Russian-ebook/dp/B08HYBSGWS) (Kindle B08HYBSGWS)
+    **and** [*A Program of Multi-Year Training*](https://www.amazon.com/Program-Multi-Training-Weightlifting-Russian-ebook/dp/B08H8S4WT4) (Kindle B08H8S4WT4) — resolves row 2:
+    buy whichever is **not** already `source_id=501`.
+  - **Roman** — *The Training of the Weightlifter* (Charniga's Russian Weightlifting Library ebook compilation; on Amazon/Kobo/Google Play).
+  - **Vorobyev** — [*A Textbook on Weightlifting*](https://www.amazon.com/textbook-weightlifting-N-Vorobyev/dp/B0007BVA9M).
+  - **Verkhoshansky** — *Fundamentals of Special Strength Training in Sport* (Charniga translation; retailers/Goodreads).
+  - **Charniga compilations** — [*Weightlifting Training and Technique*](https://www.kobo.com/ww/en/ebook/weightlifting-training-and-technique) (Kobo) and *…and Biomechanics*.
+  - Fallback where a title is truly unsold: library / interlibrary loan or archive.org
+    controlled digital lending (borrow-to-read). Reserve `--vision` OCR for scanned
+    copies you actually own.

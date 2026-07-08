@@ -1,21 +1,32 @@
 # ingest_web.py
 """
-Ingest web articles from Catalyst Athletics into the pipeline.
+Ingest web articles into the pipeline.
 
-Crawls category pages to collect article URLs, fetches each article,
-extracts clean text, and ingests through the same chunker/classifier/
-vector_loader stack as PDF/EPUB sources. Each article gets its own
-source record (type='website').
+Two sources are supported via --site:
+  * catalyst (default) — Catalyst Athletics; crawls live category pages.
+  * charniga            — Andrew "Bud" Charniga's Sportivny Press essays.
+                          sportivnypress.com is defunct (domain no longer
+                          resolves after his death in Jan 2025), so articles
+                          are recovered from the Internet Archive Wayback
+                          Machine. The essays were freely, publicly published
+                          ("viewable without password"); this is HTML, so no
+                          OCR is involved.
 
-Progress is tracked in sources/catalyst_progress.json — re-running
-skips already-ingested URLs. Chunk-level dedup (content_hash) also
+Both fetch each article, extract clean text, and ingest through the same
+chunker/classifier/vector_loader stack as PDF/EPUB sources. Each article gets
+its own source record (type='website').
+
+Progress is tracked per-site in sources/{catalyst,charniga}_progress.json —
+re-running skips already-ingested URLs. Chunk-level dedup (content_hash) also
 prevents re-embedding identical content.
 
 Usage:
-    python ingest_web.py                        # all priority categories
+    python ingest_web.py                        # all Catalyst priority categories
     python ingest_web.py --categories technique program_design
     python ingest_web.py --limit 20             # cap for testing
     python ingest_web.py --dry-run              # collect URLs, no ingestion
+    python ingest_web.py --site charniga --dry-run   # enumerate Wayback URLs
+    python ingest_web.py --site charniga             # ingest Charniga essays
 """
 
 import argparse
@@ -78,6 +89,39 @@ SESSION = requests.Session()
 SESSION.headers.update({
     "User-Agent": "Mozilla/5.0 (compatible; OlyIngestionBot/1.0; research use)"
 })
+
+# ── Charniga / Sportivny Press (via Wayback Machine) ───────────
+# sportivnypress.com went offline after Andrew Charniga's death (Jan 2025) —
+# the domain no longer resolves. His articles were freely, publicly published,
+# so they are recovered from the Internet Archive. This is HTML (no OCR).
+CHARNIGA_DOMAIN = "sportivnypress.com"
+CHARNIGA_PROGRESS_FILE = Path(__file__).parent / "sources" / "charniga_progress.json"
+# CDX enumerates every archived URL under the domain.
+WAYBACK_CDX_URL = "http://web.archive.org/cdx/search/cdx"
+# The `id_` suffix returns the RAW capture (no Wayback toolbar / JS injection),
+# so the parsed HTML is byte-identical to what was originally served.
+WAYBACK_RAW_FMT = "http://web.archive.org/web/{timestamp}id_/{original}"
+
+# Sportivny Press ran on WordPress (URL patterns /YYYY/slug/, /category/…).
+# WordPress renders the post body in .entry-content; the fallback chain covers
+# theme variations.
+# TODO (DB machine): confirm the real content class against one live snapshot
+# before the full run — the exact theme class may differ. Fetch e.g.
+#   http://web.archive.org/web/2020id_/https://www.sportivnypress.com/2016/russian-training-part-2/
+# and inspect the container that wraps the article body.
+CHARNIGA_CONTENT_SELECTORS = [
+    {"name": "div", "class_": re.compile(r"entry[-_]content", re.I)},
+    {"name": "div", "class_": re.compile(r"post[-_]content", re.I)},
+    {"name": "article"},
+]
+# Non-article URLs to skip: WP plumbing, taxonomy/listing pages, feeds, assets,
+# and anything carrying a query string (comment/reply links, ?p=id duplicates).
+_CHARNIGA_SKIP = re.compile(
+    r"/(category|tag|author|page|feed|wp-content|wp-admin|wp-includes|wp-json|comments)(/|$)|"
+    r"\.(jpg|jpeg|png|gif|svg|css|js|pdf|xml|ico|zip|mp4)$|"
+    r"\?",
+    re.I,
+)
 
 
 # ── URL collection ─────────────────────────────────────────────
@@ -207,6 +251,108 @@ def fetch_article(url: str) -> dict | None:
     return {"title": title, "author": author, "text": text, "url": url}
 
 
+# ── Charniga / Sportivny Press (Wayback Machine) ───────────────
+
+def collect_charniga_urls() -> list[tuple[str, str]]:
+    """Enumerate archived sportivnypress.com article URLs via the Wayback CDX API.
+
+    sportivnypress.com is defunct, so every article is fetched from its Internet
+    Archive snapshot. Returns (original_url, timestamp) pairs — one per unique
+    article URL, keeping the most recent HTTP-200 text/html capture. The
+    timestamp is carried through to build the raw snapshot URL at fetch time.
+    """
+    params = {
+        "url": f"{CHARNIGA_DOMAIN}/*",
+        "output": "json",
+        "fl": "original,timestamp",
+        # Multiple `filter` values are ANDed by CDX.
+        "filter": ["statuscode:200", "mimetype:text/html"],
+    }
+    try:
+        resp = SESSION.get(WAYBACK_CDX_URL, params=params, timeout=60)
+        resp.raise_for_status()
+        rows = resp.json()
+    except (requests.RequestException, ValueError) as e:
+        logger.error(f"Wayback CDX query failed: {e}")
+        return []
+
+    # rows[0] is the header (["original","timestamp"]); the rest are captures,
+    # potentially many per URL across crawls.
+    if not rows or len(rows) < 2:
+        logger.warning(f"Wayback CDX returned no captures for {CHARNIGA_DOMAIN}")
+        return []
+
+    header, *data = rows
+    latest: dict[str, str] = {}
+    for row in data:
+        original, timestamp = row[0], row[1]
+        if _CHARNIGA_SKIP.search(original):
+            continue
+        # Keep the most recent capture (timestamps are YYYYMMDDhhmmss, so a
+        # lexicographic max is chronological).
+        if original not in latest or timestamp > latest[original]:
+            latest[original] = timestamp
+
+    pairs = sorted(latest.items())
+    logger.info(f"CDX: {len(data)} captures → {len(pairs)} unique article URLs")
+    return pairs
+
+
+def fetch_charniga_snapshot(original_url: str, timestamp: str) -> dict | None:
+    """Fetch one archived Charniga article from the Wayback Machine and extract text."""
+    snapshot = WAYBACK_RAW_FMT.format(timestamp=timestamp, original=original_url)
+    try:
+        resp = SESSION.get(snapshot, timeout=30)
+        resp.raise_for_status()
+    except requests.RequestException as e:
+        logger.warning(f"Failed to fetch snapshot {snapshot}: {e}")
+        return None
+
+    soup = BeautifulSoup(resp.text, "lxml")
+
+    # ── Title — WordPress h1.entry-title, else <title> (strip site suffix) ──
+    title = ""
+    h1 = soup.find(["h1", "h2"], class_=re.compile(r"entry[-_]title|post[-_]title", re.I))
+    if h1:
+        title = h1.get_text(strip=True)
+    if not title:
+        title_tag = soup.find("title")
+        if title_tag:
+            title = re.sub(r"\s*[-|]\s*Sportivny Press.*$", "", title_tag.get_text(strip=True), flags=re.I)
+
+    # ── Body — first matching content selector, then a generic fallback ──
+    main = None
+    for sel in CHARNIGA_CONTENT_SELECTORS:
+        main = soup.find(**sel)
+        if main:
+            break
+    if main is None:
+        for tag in soup(["nav", "header", "footer", "script", "style", "aside"]):
+            tag.decompose()
+        main = soup.find("main") or soup.body
+
+    if main is None:
+        logger.warning(f"No content element found for {original_url}")
+        return None
+
+    # Strip share / related / comment / nav widgets inside the content container.
+    for tag in main(["div", "section", "ul"], class_=re.compile(r"share|related|comment|nav|sidebar|meta", re.I)):
+        tag.decompose()
+
+    # block_text inserts \n\n paragraph markers so the chunker can split within
+    # long articles (mutates `main` — must run after the title read above).
+    text = block_text(main)
+    if len(text) < 200:
+        logger.warning(f"Very short article ({len(text)} chars) at {original_url} — skipping")
+        return None
+
+    # Author: Charniga was translator/publisher for the whole corpus. Individual
+    # translations carry an original Russian byline (Roman, Medvedev, …); the
+    # source record uses the curator here. TODO: parse a per-article byline
+    # (.entry-meta / byline) to refine attribution if desired.
+    return {"title": title or original_url, "author": "Andrew Charniga", "text": text, "url": original_url}
+
+
 # ── Ingestion ──────────────────────────────────────────────────
 
 def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) -> tuple[dict, bool]:
@@ -319,26 +465,31 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
 
 # ── Progress tracking ──────────────────────────────────────────
 
-def load_progress() -> set[str]:
-    if PROGRESS_FILE.exists():
-        return set(json.loads(PROGRESS_FILE.read_text()))
+def load_progress(path: Path = PROGRESS_FILE) -> set[str]:
+    if path.exists():
+        return set(json.loads(path.read_text()))
     return set()
 
 
-def save_progress(ingested_urls: set[str]):
-    PROGRESS_FILE.parent.mkdir(parents=True, exist_ok=True)
-    PROGRESS_FILE.write_text(json.dumps(sorted(ingested_urls), indent=2))
+def save_progress(ingested_urls: set[str], path: Path = PROGRESS_FILE):
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(json.dumps(sorted(ingested_urls), indent=2))
 
 
 # ── Main ───────────────────────────────────────────────────────
 
 def main():
-    parser = argparse.ArgumentParser(description="Ingest Catalyst Athletics web articles")
+    parser = argparse.ArgumentParser(
+        description="Ingest web articles (Catalyst Athletics live, or Charniga via Wayback Machine)")
+    parser.add_argument(
+        "--site", choices=["catalyst", "charniga"], default="catalyst",
+        help="Source: 'catalyst' (live crawl) or 'charniga' (Wayback Machine; sportivnypress.com is defunct)",
+    )
     parser.add_argument(
         "--categories", nargs="+",
         choices=list(CATALYST_CATEGORIES.keys()),
         default=list(CATALYST_CATEGORIES.keys()),
-        help="Categories to ingest (default: all priority categories)",
+        help="Catalyst categories to ingest (default: all; ignored for --site charniga)",
     )
     parser.add_argument("--limit", type=int, default=0,
                         help="Max articles to ingest (0 = no limit, useful for testing)")
@@ -348,26 +499,34 @@ def main():
                         help="Seconds between article requests (default: 1.0)")
     args = parser.parse_args()
 
-    # ── Collect URLs ──
-    all_urls: list[tuple[str, str]] = []  # (url, category_name)
-    for key in args.categories:
-        cat = CATALYST_CATEGORIES[key]
-        logger.info(f"Collecting URLs for: {cat['name']}")
-        urls = collect_category_urls(cat["section"], cat["name"])
-        logger.info(f"  Found {len(urls)} articles in {cat['name']}")
-        all_urls.extend((url, cat["name"]) for url in urls)
+    # ── Collect URLs (per-site) ──
+    # all_urls: list of (url, meta) — meta is the Catalyst category name, or the
+    # Wayback snapshot timestamp for Charniga (needed to build the snapshot URL).
+    if args.site == "charniga":
+        progress_file = CHARNIGA_PROGRESS_FILE
+        logger.info("Collecting archived sportivnypress.com URLs from the Wayback Machine")
+        all_urls: list[tuple[str, str]] = collect_charniga_urls()
+    else:
+        progress_file = PROGRESS_FILE
+        all_urls = []  # (url, category_name)
+        for key in args.categories:
+            cat = CATALYST_CATEGORIES[key]
+            logger.info(f"Collecting URLs for: {cat['name']}")
+            urls = collect_category_urls(cat["section"], cat["name"])
+            logger.info(f"  Found {len(urls)} articles in {cat['name']}")
+            all_urls.extend((url, cat["name"]) for url in urls)
 
     logger.info(f"Total URLs collected: {len(all_urls)}")
 
     if args.dry_run:
-        for url, cat in all_urls:
-            print(f"[{cat}] {url}")
+        for url, meta in all_urls:
+            print(f"[{meta}] {url}")
         print(f"\nTotal: {len(all_urls)} articles")
         return
 
     # ── Filter already-ingested ──
-    ingested_urls = load_progress()
-    pending = [(url, cat) for url, cat in all_urls if url not in ingested_urls]
+    ingested_urls = load_progress(progress_file)
+    pending = [(url, meta) for url, meta in all_urls if url not in ingested_urls]
     logger.info(f"Pending (not yet ingested): {len(pending)} / {len(all_urls)}")
 
     if args.limit:
@@ -392,13 +551,17 @@ def main():
     run_stats = {"articles_ingested": 0, "chunks_total": 0, "principles_total": 0}
 
     # ── Ingest loop ──
-    for i, (url, category) in enumerate(pending, 1):
-        logger.info(f"[{i}/{len(pending)}] {category}: {url}")
+    for i, (url, meta) in enumerate(pending, 1):
+        logger.info(f"[{i}/{len(pending)}] {meta}: {url}")
 
-        article = fetch_article(url)
+        if args.site == "charniga":
+            article = fetch_charniga_snapshot(url, meta)  # meta = Wayback timestamp
+        else:
+            article = fetch_article(url)
+
         if article is None:
             ingested_urls.add(url)  # mark as seen to avoid retrying bad URLs
-            save_progress(ingested_urls)
+            save_progress(ingested_urls, progress_file)
             time.sleep(args.delay)
             continue
 
@@ -407,11 +570,11 @@ def main():
             ingested_urls.add(url)  # only mark successful ingests — failures retry next run
             # Save progress every 10 successful articles
             if i % 10 == 0:
-                save_progress(ingested_urls)
+                save_progress(ingested_urls, progress_file)
 
         time.sleep(args.delay)
 
-    save_progress(ingested_urls)
+    save_progress(ingested_urls, progress_file)
 
     # ── Summary ──
     print("\nWeb ingestion complete:")
