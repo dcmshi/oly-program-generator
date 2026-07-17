@@ -175,6 +175,16 @@ def test_resolve_exercise_ids_empty_list():
 
 # ── attach_source_chunk_ids ───────────────────────────────────
 
+def test_attach_chunk_ids_null_rationale_no_crash():
+    """AGT-M3: '"selection_rationale": null' passes every parse/validate gate,
+    so it must not crash the resolution stage after validation succeeded."""
+    exercises = [{"exercise_name": "Snatch", "selection_rationale": None}]
+    context = {"programming_rationale": [{"id": 1}], "fault_correction_chunks": [{"id": 2}]}
+    result = attach_source_chunk_ids(exercises, context)
+    assert result[0]["source_chunk_ids"] == [1], result[0]["source_chunk_ids"]
+    return True, ""
+
+
 def test_attach_chunk_ids_fault_rationale():
     """Fault-related exercises get fault chunk IDs first, then rationale, capped."""
     exercises = [{"exercise_name": "Snatch", "selection_rationale": "Addresses slow turnover fault"}]
@@ -311,6 +321,8 @@ def test_projected_maxes_original_dict_not_mutated():
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
+    # attach_source_chunk_ids — AGT-M3
+    ("attach_chunk_ids: null selection_rationale no crash (AGT-M3)", test_attach_chunk_ids_null_rationale_no_crash),
     # build_maxes_dict
     ("build_maxes_dict: known names → correct refs", test_build_maxes_known_names),
     ("build_maxes_dict: unknown name → snake_case fallback", test_build_maxes_unknown_name_snake_case),

@@ -167,13 +167,14 @@ def test_supramaximal_pull_allowed_above_ceiling():
     return True, ""
 
 
-def test_non_comp_lift_absurd_intensity_warns():
-    # A-L4: a non-comp lift far above the supramax sanity bound (120%) warns
-    # (typo guard) but does not hard-error.
+def test_non_comp_lift_absurd_intensity_errors():
+    # Superseded A-L4: >120% now hard-errors regardless of reference — the DB
+    # CHECK caps intensity_pct at 120, so a warning would just defer the crash
+    # to save time (AGT-M4). Supramax work ≤120% remains allowed (test above).
     exercises = [_ex("Snatch Pull", 2, 2, 130, ref="snatch_pull")]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
-    assert result.is_valid, result.errors
-    assert any("unusually high" in w for w in result.warnings), result.warnings
+    assert not result.is_valid, "intensity above the DB cap must error"
+    assert any("120" in e for e in result.errors), result.errors
     return True, ""
 
 
@@ -543,9 +544,61 @@ def test_comp_lift_null_pct_skipped_in_prilepin():
     return True, ""
 
 
+# ── Check 0: DB-constraint mirror (AGT-M4) ────────────────────
+
+def test_null_sets_is_error():
+    ex = _ex("Snatch", None, 3, 75)
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "null sets must fail validation, not the DB INSERT"
+    assert any("sets" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_zero_reps_is_error():
+    ex = _ex("Snatch", 3, 0, 75)
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "zero reps must fail validation"
+    assert any("reps" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_non_comp_intensity_above_120_is_error():
+    # DB CHECK caps intensity_pct at 120 — above that must hard-error even for
+    # non-comp lifts (A-L4 relaxed it to a warning) or the save aborts the run.
+    ex = _ex("Snatch Pull", 3, 3, 130, ref="snatch_pull")
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "intensity > 120 violates the DB CHECK"
+    assert any("120" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_supramax_under_120_still_allowed():
+    # 2 reps to stay inside the ≥90% Prilepin reps/set cap (Check 3)
+    ex = _ex("Snatch Pull", 3, 2, 110, ref="snatch_pull")
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert result.is_valid, result.errors
+    return True, ""
+
+
+def test_duplicate_exercise_order_is_error():
+    exs = [
+        _ex("Snatch", 3, 3, 75, order=1),
+        _ex("Back Squat", 3, 3, 75, ref="back_squat", order=1),
+    ]
+    result = validate_session(exs, WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "duplicate order violates UNIQUE(session_id, exercise_order)"
+    assert any("exercise_order" in e for e in result.errors), result.errors
+    return True, ""
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
+    ("Constraints: null sets → error (AGT-M4)", test_null_sets_is_error),
+    ("Constraints: zero reps → error (AGT-M4)", test_zero_reps_is_error),
+    ("Constraints: >120% → error even for non-comp (AGT-M4)", test_non_comp_intensity_above_120_is_error),
+    ("Constraints: supramax ≤120% stays allowed", test_supramax_under_120_still_allowed),
+    ("Constraints: duplicate exercise_order → error (AGT-M4)", test_duplicate_exercise_order_is_error),
     ("Prilepin: within range → no errors/warnings", test_prilepin_within_range),
     ("Prilepin: above range_high → warning", test_prilepin_warning_above_range),
     ("Prilepin: above hard cap → error", test_prilepin_error_above_hard_cap),
@@ -557,7 +610,7 @@ TESTS = [
     ("Intensity: below floor non-comp → no warning", test_intensity_below_floor_non_comp_lift_no_warning),
     ("Intensity: no pct → skipped", test_no_intensity_pct_skipped),
     ("Intensity: supramaximal pull allowed above ceiling (A-L4)", test_supramaximal_pull_allowed_above_ceiling),
-    ("Intensity: absurd non-comp intensity warns (A-L4)", test_non_comp_lift_absurd_intensity_warns),
+    ("Intensity: absurd non-comp intensity errors (AGT-M4 supersedes A-L4)", test_non_comp_lift_absurd_intensity_errors),
     ("Reps/set: >2 at ≥90% → error", test_reps_above_90_limit_error),
     ("Reps/set: 2 at ≥90% → ok", test_reps_at_90_limit_ok),
     ("Reps/set: >4 at ≥80% → warning", test_reps_above_80_limit_warning),

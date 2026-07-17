@@ -79,6 +79,19 @@ def test_4_to_8_weeks_gives_intensification():
     assert phase == "intensification"
     assert weeks == 4
 
+
+# ── AGT-M1: cold-start intensity cap must clamp the floor too ────────────────
+
+def test_cold_start_floor_never_exceeds_ceiling():
+    """Cold start caps the ceiling at 80/75 but left the floor unclamped, so a
+    realization W1 (floor 85) prescribed a contradictory '85%–80%' range."""
+    with patch("plan.fetch_all", return_value=[]):
+        p = plan(_ctx(weeks_to_competition=2), None, _FakeSettings())
+    for wt in p.weekly_targets:
+        assert wt.intensity_floor <= wt.intensity_ceiling, (
+            f"W{wt.week_number}: floor {wt.intensity_floor} > ceiling {wt.intensity_ceiling}"
+        )
+
 def test_under_4_weeks_gives_realization():
     phase, weeks = _select_phase_and_duration(_ctx(weeks_to_competition=3))
     assert phase == "realization"

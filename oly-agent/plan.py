@@ -66,8 +66,14 @@ def plan(athlete_context: AthleteContext, conn, settings) -> ProgramPlan:
         # week with no deload (A-M9).
         duration_weeks = min(duration_weeks, 4)
         raw_targets = build_weekly_targets(phase, duration_weeks, athlete_context.level)
+        # Clamp the floor to the capped ceiling too — realization starts at
+        # floor 85, so capping only the ceiling emitted a contradictory
+        # "85%–80%" range in the prompt (AGT-M1; mirrors plan.py's
+        # outcome-adjustment clamp).
         raw_targets = [
-            {**t, "intensity_ceiling": min(t["intensity_ceiling"], ceiling_cap)}
+            {**t,
+             "intensity_ceiling": min(t["intensity_ceiling"], ceiling_cap),
+             "intensity_floor": min(t["intensity_floor"], ceiling_cap)}
             for t in raw_targets
         ]
         max_complexity = 2 if athlete_context.level == "beginner" else 3

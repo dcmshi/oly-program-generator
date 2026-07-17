@@ -121,7 +121,15 @@ def assess(athlete_id: int, conn) -> AthleteContext:
     weeks_to_competition = None
     if active_goal and active_goal.get("competition_date"):
         delta = active_goal["competition_date"] - date.today()
-        weeks_to_competition = max(0, delta.days // 7)
+        if delta.days < 0:
+            # A stale goal must not read as "competition this week" on every
+            # generation forever (AGT-M2) — plan as if no competition is set.
+            logger.warning(
+                f"Goal competition_date {active_goal['competition_date']} is in the past — "
+                "ignoring for planning. Update or clear the goal."
+            )
+        else:
+            weeks_to_competition = delta.days // 7
 
     logger.info(
         f"Assessed athlete {athlete_id} ({athlete['name']}): "

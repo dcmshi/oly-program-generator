@@ -130,11 +130,13 @@ def test_assess_computes_weeks_to_competition():
             ctx = assess(1, None)
     assert ctx.weeks_to_competition == 8
 
-def test_assess_clamps_past_competition_to_zero():
+def test_assess_past_competition_gives_none():
+    # Superseded by AGT-M2: a past date used to clamp to 0 ("competition this
+    # week") forever; it now reads as no competition set.
     with patch("assess.fetch_one", side_effect=[_athlete(), _goal(days_out=-14), None]):
         with patch("assess.fetch_all", side_effect=[[], []]):
             ctx = assess(1, None)
-    assert ctx.weeks_to_competition == 0
+    assert ctx.weeks_to_competition is None
 
 def test_assess_no_goal_gives_none_weeks():
     with patch("assess.fetch_one", side_effect=[_athlete(), None, None]):
@@ -176,6 +178,26 @@ def test_assess_propagates_recent_logs():
             ctx = assess(1, None)
     assert len(ctx.recent_logs) == 1
     assert ctx.recent_logs[0]["exercise_name"] == "Snatch"
+
+
+# ── AGT-M2: past competition_date must not read as "competition this week" ───
+
+def test_past_competition_date_treated_as_none():
+    """A stale goal dated before today clamped to weeks_to_competition=0 on
+    every generation — perpetual 1-week realization until hand-edited."""
+    past_goal = _goal(days_out=-30)
+    with patch("assess.fetch_one", side_effect=[_athlete(), past_goal, None]):
+        with patch("assess.fetch_all", side_effect=[[], []]):
+            ctx = assess(1, None)
+    assert ctx.weeks_to_competition is None, ctx.weeks_to_competition
+
+
+def test_future_competition_date_still_counts():
+    goal = _goal(days_out=21)
+    with patch("assess.fetch_one", side_effect=[_athlete(), goal, None]):
+        with patch("assess.fetch_all", side_effect=[[], []]):
+            ctx = assess(1, None)
+    assert ctx.weeks_to_competition == 3, ctx.weeks_to_competition
 
 
 # ── AGT-H2: previous-program lookup must not order by never-written end_date ─

@@ -85,6 +85,41 @@ def validate_session(
     intensity_ceiling = week_target.get("intensity_ceiling", 100)
     intensity_floor = week_target.get("intensity_floor", 0)
 
+    # ── Check 0: DB-constraint mirror ─────────────────────────
+    # session_exercises enforces NOT NULL sets/reps (CHECK >= 1),
+    # intensity_pct in (0, 120], and UNIQUE(session_id, exercise_order).
+    # Violations must fail HERE so generate's retry loop can fix them —
+    # otherwise the IntegrityError fires at save time, after every session
+    # was already paid for (AGT-M4).
+    seen_orders: set = set()
+    for ex in session_exercises:
+        name = ex.get("exercise_name") or "exercise"
+        for field in ("sets", "reps"):
+            try:
+                value = int(ex.get(field) or 0)
+            except (TypeError, ValueError):
+                value = 0
+            if value < 1:
+                errors.append(f"{name}: {field} must be an integer >= 1 (got {ex.get(field)!r})")
+        pct_raw = ex.get("intensity_pct")
+        if pct_raw is not None:
+            try:
+                pct_val = float(pct_raw)
+                if pct_val <= 0 or pct_val > 120:
+                    errors.append(
+                        f"{name}: intensity_pct {pct_val:g} outside the storable range "
+                        f"(0, 120] — use null for unloaded work"
+                    )
+            except (TypeError, ValueError):
+                errors.append(f"{name}: intensity_pct {pct_raw!r} is not numeric")
+        order = ex.get("exercise_order")
+        if order is not None:
+            if order in seen_orders:
+                errors.append(
+                    f"duplicate exercise_order {order} — orders must be unique within the session"
+                )
+            seen_orders.add(order)
+
     # ── Check 1: Prilepin's per-session volume compliance ─────
     # Prilepin's chart gives rep targets PER SESSION, not per week.
     # 70-80% zone: 12-24 reps per session (optimal 18).

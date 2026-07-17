@@ -155,7 +155,8 @@ def attach_source_chunk_ids(
 
     for ex in session_exercises:
         chunk_ids: list[int] = []
-        rationale = ex.get("selection_rationale", "").lower()
+        # JSON-null passes validation — coerce so .lower() can't raise (AGT-M3)
+        rationale = str(ex.get("selection_rationale") or "").lower()
         if any(kw in rationale for kw in ("fault", "address", "correct", "fix")):
             chunk_ids.extend(fault_ids)
         chunk_ids.extend(rationale_ids)
