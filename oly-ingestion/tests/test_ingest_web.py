@@ -242,6 +242,42 @@ def test_charniga_utf8_without_charset_header_no_mojibake():
     assert "â€”" not in article["text"], "mojibake reached the chunker (ING-M4)"
 
 
+# ── ING-L1: title suffix stripping + sources.url population ──────────────────
+
+def test_charniga_title_strips_endash_suffix():
+    import ingest_web
+    from ingest_web import fetch_charniga_snapshot
+
+    body = "<p>" + "Text and more text. " * 30 + "</p>"
+    html = (
+        "<html><head><title>Essay Name – Sportivny Press Weightlifting Library</title></head>"
+        f"<body><div class='entry-content'>{body}</div></body></html>"
+    )
+    with patch.object(ingest_web.SESSION, "get", return_value=_mk_resp(text=html)):
+        article, _ = fetch_charniga_snapshot("http://sportivnypress.com/2016/x/", "20200101000000")
+    assert article is not None
+    assert article["title"] == "Essay Name", article["title"]
+
+
+def test_ingest_article_passes_url_to_source():
+    comps = _components()
+    ingest_article(_ARTICLE, comps, _stats())
+    kwargs = comps["structured_loader"].upsert_source.call_args.kwargs
+    assert kwargs.get("url") == _ARTICLE["url"], \
+        "sources.url must disambiguate same-titled pages (ING-L1)"
+
+
+# ── ING-L2: progress flushed on success count, not loop index ────────────────
+
+def test_progress_flush_counts_successes():
+    import inspect
+
+    import ingest_web
+    src = inspect.getsource(ingest_web.main)
+    assert "successes % 10" in src, \
+        "a crash must lose at most 9 SUCCESSFUL ingests, not 9 pending items (ING-L2)"
+
+
 # ── ING-M5: parse-prompt goal vocabulary must match the DB CHECK ──────────────
 
 def test_program_parse_prompt_goal_line_matches_db_check():

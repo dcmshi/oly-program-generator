@@ -522,7 +522,11 @@ class IngestionPipeline:
             logger.warning(f"Program template parsing failed for '{source.title}': {e}")
 
         # --- Continuation chunks for oversized sections ---
-        if len(content) > CHUNK_SIZE and parsed.get("weeks"):
+        # Run even when the first window parsed to {} — a section can open with
+        # 5k of prose before the week blocks; gating on parsed["weeks"] dropped
+        # every later week in that case (ING-L4). MAX_EMPTY bounds the scan.
+        if len(content) > CHUNK_SIZE:
+            parsed.setdefault("weeks", [])
             seen_weeks = {w["week_number"] for w in parsed["weeks"] if isinstance(w, dict) and "week_number" in w}
             offset = CHUNK_SIZE - OVERLAP
             MAX_EMPTY = 2  # tolerate prose-only windows between week blocks

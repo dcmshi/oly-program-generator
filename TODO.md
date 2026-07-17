@@ -82,10 +82,10 @@ cited line before filing. Prefixes: **AGT** agent pipeline · **WEB** web layer 
 
 ### Ingestion
 
-- [ ] **ING-L1 — Charniga title extraction: en-dash suffix survives, URL becomes title on fallback, constant author + `UNIQUE(title, author)` can merge distinct pages into one source** (`ingest_web.py:321,353`; `structured_loader.py:33-35`): strip `–`/`&#8211;` separators too, and populate `sources.url` to disambiguate.
-- [ ] **ING-L2 — Progress flushed on loop index, not success count** (`ingest_web.py:570-573` `if i % 10 == 0` where `i` counts all pending incl. failures): a crash loses up to 9 successful ingests from the progress file (re-fetched and re-paid next run) while failures are flushed immediately — persistence priority inverted.
-- [ ] **ING-L3 — `load_percentage_schemes` counts `ON CONFLICT DO NOTHING` skips as loaded** (`structured_loader.py:200,215`): same class as the fixed I-L2; use `cursor.rowcount`.
-- [ ] **ING-L4 — A failed/empty *first* window aborts all continuation scanning of an oversized program section** (`pipeline.py:523` `if len(content) > CHUNK_SIZE and parsed.get("weeks")`): a 20k-char section opening with 5k of prose legitimately parses to `{}` → the remaining 15k of weeks is never scanned. Let the continuation loop start even when the first window is empty (bounded by `MAX_EMPTY`).
+- [x] **ING-L1 — Charniga title extraction: en-dash suffix survives; `sources.url` never populated** ✅ separator class extended to `[-|–—]`; `upsert_source(url=…)` stores the URL on insert and backfills NULLs on existing rows; the web path passes `article["url"]`. Tests `test_charniga_title_strips_endash_suffix`, `test_ingest_article_passes_url_to_source`.
+- [x] **ING-L2 — Progress flushed on loop index, not success count** ✅ `successes` counter drives the every-10 flush. Test `test_progress_flush_counts_successes`.
+- [x] **ING-L3 — `load_percentage_schemes` counts `ON CONFLICT DO NOTHING` skips as loaded** ✅ `loaded += cursor.rowcount`. Test `test_load_percentage_schemes_dedup_counts_rowcount` (live DB).
+- [x] **ING-L4 — A failed/empty *first* window aborts all continuation scanning of an oversized program section** ✅ continuation gate no longer requires first-window weeks (`parsed.setdefault("weeks", [])`); still bounded by `MAX_EMPTY`. Test `test_first_window_empty_continuation_still_scans`.
 
 ### Infra / docs
 

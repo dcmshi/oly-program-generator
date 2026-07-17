@@ -375,7 +375,9 @@ def fetch_charniga_snapshot(original_url: str, timestamp: str) -> tuple[dict | N
     if not title:
         title_tag = soup.find("title")
         if title_tag:
-            title = re.sub(r"\s*[-|]\s*Sportivny Press.*$", "", title_tag.get_text(strip=True), flags=re.I)
+            # WP titles separate with hyphen, pipe, or en/em dash (&#8211; is
+            # decoded to – by BS4) — strip all of them (ING-L1)
+            title = re.sub(r"\s*[-|–—]\s*Sportivny Press.*$", "", title_tag.get_text(strip=True), flags=re.I)
 
     # ── Body — first matching content selector, then a generic fallback ──
     main = None
@@ -433,7 +435,9 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
     url = article["url"]
 
     # Upsert source record (one per article)
-    source_id = sl.upsert_source(title=title, author=author, source_type="website")
+    # url disambiguates same-titled pages under the constant curator author,
+    # which UNIQUE(title, author) would otherwise merge into one source (ING-L1)
+    source_id = sl.upsert_source(title=title, author=author, source_type="website", url=url)
 
     # Ingestion run tracking
     import hashlib
@@ -610,6 +614,7 @@ def main():
     run_stats = {"articles_ingested": 0, "chunks_total": 0, "principles_total": 0}
 
     # ── Ingest loop ──
+    successes = 0
     for i, (url, meta) in enumerate(pending, 1):
         logger.info(f"[{i}/{len(pending)}] {meta}: {url}")
 
@@ -631,8 +636,10 @@ def main():
         run_stats, ok = ingest_article(article, components, run_stats)
         if ok:
             ingested_urls.add(url)  # only mark successful ingests — failures retry next run
-            # Save progress every 10 successful articles
-            if i % 10 == 0:
+            successes += 1
+            # Flush every 10 SUCCESSES — keyed on the loop index, a crash could
+            # lose up to 9 successful (paid) ingests from the file (ING-L2)
+            if successes % 10 == 0:
                 save_progress(ingested_urls, progress_file)
 
         time.sleep(args.delay)

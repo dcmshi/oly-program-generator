@@ -173,6 +173,28 @@ def test_load_program():
     loader.close()
 
 
+def test_load_percentage_schemes_dedup_counts_rowcount():
+    """ING-L3: ON CONFLICT DO NOTHING skips must not count as loaded."""
+    import uuid
+    loader = make_loader()
+    sid = loader.upsert_source(f"{TEST_PREFIX}Scheme Dedup Book", "Author", "book")
+    # UNIQUE(scheme_name, week, day, order) has no source_id — a unique name
+    # keeps this test independent of leftovers from earlier failed runs
+    rows = [{
+        "scheme_name": f"{TEST_PREFIX}Dedup {uuid.uuid4().hex[:8]}", "phase": "accumulation",
+        "week_number": 1, "day_number": 1, "exercise_order": 1,
+        "sets": 5, "reps": 3, "intensity_pct": 72.0, "intensity_reference": "snatch",
+    }]
+    n1 = loader.load_percentage_schemes(rows, sid)
+    assert n1 == 1, f"first load should count 1, got {n1}"
+    n2 = loader.load_percentage_schemes(rows, sid)
+    assert n2 == 0, f"conflict-skipped row must not count (ING-L3), got {n2}"
+
+    print("  load_percentage_schemes: rowcount-based dedup count ✓")
+    cleanup(loader, sid)
+    loader.close()
+
+
 def test_load_program_dedup():
     """ING-M6: re-loading the same template (source_id + name) must not
     duplicate it — re-running a source's pipeline is documented as safe."""
@@ -355,6 +377,7 @@ if __name__ == "__main__":
         test_upsert_source_creates_new,
         test_load_exercise,
         test_load_percentage_schemes,
+        test_load_percentage_schemes_dedup_counts_rowcount,
         test_load_program,
         test_load_program_dedup,
         test_load_program_normalizes_legacy_goal,

@@ -71,6 +71,27 @@ def _test(name, fn):
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
+def test_first_window_empty_continuation_still_scans():
+    """ING-L4: a 20k-char section opening with prose legitimately parses the
+    first window to {} — the continuation loop must still scan the remaining
+    content instead of silently dropping every later week."""
+    week = {"week_number": 1, "sessions": [{"day": "Day 1", "exercises": []}] * 3}
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [
+        _make_llm_response({}),                 # first window: prose only
+        _make_llm_response({"weeks": [week]}),  # continuation finds the weeks
+        _make_llm_response({}),                 # empty window
+        _make_llm_response({}),                 # empty → MAX_EMPTY stop
+    ]
+
+    section = _make_section("x" * 20000)
+    pipeline = _make_pipeline(mock_client)
+    result = _call(pipeline, section)
+
+    assert mock_client.messages.create.call_count >= 2, \
+        "continuation never ran after an empty first window (ING-L4)"
+    assert result["duration_weeks"] == 1, result
+
 def test_short_section_single_llm_call():
     """Section < 5000 chars makes one LLM call and returns its metadata."""
     llm_data = {
@@ -237,6 +258,7 @@ def test_llm_failure_returns_empty_structure():
 
 if __name__ == "__main__":
     tests = [
+        ("Empty first window: continuation still scans (ING-L4)", test_first_window_empty_continuation_still_scans),
         ("Short section: single LLM call", test_short_section_single_llm_call),
         ("Long section: continuation triggered", test_long_section_triggers_continuation),
         ("Continuation: deduplicates seen weeks", test_continuation_deduplicates_seen_weeks),

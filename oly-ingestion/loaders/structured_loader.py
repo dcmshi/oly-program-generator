@@ -22,11 +22,13 @@ class StructuredLoader:
 
     # ── Sources ───────────────────────────────────────────────
 
-    def upsert_source(self, title: str, author: str, source_type: str) -> int | None:
+    def upsert_source(self, title: str, author: str, source_type: str, url: str | None = None) -> int | None:
         """Insert or retrieve a source record. Returns the source ID.
 
-        Returns the existing ID if the source already exists,
-        or the new ID after insertion.
+        Returns the existing ID if the source already exists, or the new ID
+        after insertion. `url` disambiguates web articles whose titles collide
+        under a constant author (ING-L1); it is backfilled onto an existing
+        row when that row has none.
         """
         cursor = self.conn.cursor()
 
@@ -36,6 +38,12 @@ class StructuredLoader:
         )
         existing = cursor.fetchone()
         if existing:
+            if url:
+                cursor.execute(
+                    "UPDATE sources SET url = %s WHERE id = %s AND url IS NULL",
+                    (url, existing[0]),
+                )
+                self.conn.commit()
             cursor.close()
             return existing[0]
 
@@ -51,11 +59,11 @@ class StructuredLoader:
 
         cursor.execute(
             """
-            INSERT INTO sources (title, author, source_type)
-            VALUES (%s, %s, %s)
+            INSERT INTO sources (title, author, source_type, url)
+            VALUES (%s, %s, %s, %s)
             RETURNING id
             """,
-            (title, author, db_type),
+            (title, author, db_type, url),
         )
         source_id = cursor.fetchone()[0]
         self.conn.commit()
@@ -246,7 +254,9 @@ class StructuredLoader:
                         row.get("intensity_reference", "competition_lift"),
                     ),
                 )
-                loaded += 1
+                # rowcount is 0 when ON CONFLICT skipped the row — a skip must
+                # not count as loaded (ING-L3, same class as the fixed I-L2)
+                loaded += cursor.rowcount
             except Exception as e:
                 logger.error(f"Failed to load percentage scheme row: {e}")
                 self.conn.rollback()
