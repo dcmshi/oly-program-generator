@@ -6,7 +6,7 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from web.async_db import async_fetch_one
-from web.auth import get_current_athlete_id, hash_password, verify_password
+from web.auth import get_current_athlete_id, hash_password, password_too_long, verify_password
 from web.deps import get_db, limiter
 from web.queries import profile as q
 
@@ -136,6 +136,9 @@ async def update_password(
 
     if len(new_password) < 8:
         return _err("New password must be at least 8 characters.")
+
+    if password_too_long(new_password):
+        return _err("New password must be at most 72 bytes (bcrypt limit).")
 
     await q.update_password(conn, athlete_id, hash_password(new_password))
     logger.info(f"Password changed: athlete_id={athlete_id}")

@@ -13,7 +13,7 @@ async def get_exercise_history(conn, athlete_id: int, exercise_name: str) -> lis
         f"""
         SELECT
             tl.log_date,
-            gp.name         AS program_name,
+            COALESCE(gp.name, '(deleted program)') AS program_name,
             ps.week_number,
             ps.day_number,
             tle.sets_completed,
@@ -27,8 +27,10 @@ async def get_exercise_history(conn, athlete_id: int, exercise_name: str) -> lis
             tle.technical_notes
         FROM training_log_exercises tle
         JOIN training_logs tl      ON tl.id  = tle.log_id
-        JOIN program_sessions ps   ON ps.id  = tl.session_id
-        JOIN generated_programs gp ON gp.id  = ps.program_id
+        -- LEFT: delete_program NULLs tl.session_id but preserves the log —
+        -- history must still show those entries (WEB-M6)
+        LEFT JOIN program_sessions ps   ON ps.id  = tl.session_id
+        LEFT JOIN generated_programs gp ON gp.id  = ps.program_id
         WHERE tl.athlete_id = $1
           AND LOWER(tle.exercise_name) = LOWER($2)
         ORDER BY tl.log_date DESC, tl.id DESC

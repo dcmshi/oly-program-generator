@@ -75,7 +75,7 @@
           </td>
           <td class="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap hidden sm:table-cell">
             {{ r.program_name }}<br>
-            <span class="text-gray-400">W{{ r.week_number }}D{{ r.day_number }}</span>
+            <span class="text-gray-400">{% if r.week_number %}W{{ r.week_number }}D{{ r.day_number }}{% else %}—{% endif %}</span>
           </td>
           <td class="px-4 py-2.5 text-right text-gray-600 whitespace-nowrap">
             {% if r.sets_completed and r.reps_per_set %}

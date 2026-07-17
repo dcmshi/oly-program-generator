@@ -24,14 +24,18 @@ def _int(v):
         return None
 
 
-def _parse_log_date(form: dict) -> date:
+def _parse_log_date(form: dict, today: date | None = None) -> date:
     """Parse the submitted log date, clamping out-of-range values to today.
 
     A training log can't be in the future and shouldn't be absurdly far in the
     past — an unparseable or out-of-window date (e.g. a typo'd '3000-01-01')
     falls back to today rather than being stored as-is (W-L7).
+
+    `today` is the ATHLETE's local today (W-L5): clamping against the server's
+    calendar re-dated a valid athlete-local date to yesterday for anyone east
+    of the server (WEB-M2).
     """
-    today = date.today()
+    today = today or date.today()
     log_date_str = form.get("log_date") or str(today)
     try:
         parsed = date.fromisoformat(log_date_str)
@@ -140,6 +144,11 @@ async def update_exercise_log(conn, tle_id: int, form: dict, log_id: int):
     weight_deviation = round(weight_kg - prescribed_weight, 2) if (weight_kg and prescribed_weight) else None
     rpe_deviation = round(rpe - prescribed_rpe, 1) if (rpe and prescribed_rpe) else None
 
+    # NOT NULL columns — same defaults as create_exercise_log (WEB-M5)
+    sets_completed = _int(form.get("sets_completed")) or (len(reps_per_set) if reps_per_set else 1)
+    if weight_kg is None:
+        weight_kg = 0.0
+
     await async_execute(
         conn,
         """
@@ -149,7 +158,7 @@ async def update_exercise_log(conn, tle_id: int, form: dict, log_id: int):
             weight_deviation_kg = $7, rpe_deviation = $8
         WHERE id = $9 AND log_id = $10
         """,
-        _int(form.get("sets_completed")),
+        sets_completed,
         reps_per_set or None,
         weight_kg, rpe, make_rate,
         form.get("technical_notes") or None,
@@ -188,10 +197,10 @@ async def get_logged_exercises(conn, log_id: int) -> list[dict]:
     )
 
 
-async def create_session_log(conn, athlete_id: int, session_id: int, form: dict) -> int:
+async def create_session_log(conn, athlete_id: int, session_id: int, form: dict, today: date | None = None) -> int:
     from web.async_db import async_execute_returning
 
-    log_date = _parse_log_date(form)
+    log_date = _parse_log_date(form, today)
 
     return await async_execute_returning(
         conn,
@@ -250,11 +259,11 @@ async def maybe_promote_max(
     return True
 
 
-async def update_session_log(conn, log_id: int, form: dict):
+async def update_session_log(conn, log_id: int, form: dict, today: date | None = None):
     """Update an existing training_log row with new form values."""
     from web.async_db import async_execute
 
-    log_date = _parse_log_date(form)
+    log_date = _parse_log_date(form, today)
 
     await async_execute(
         conn,
@@ -299,6 +308,13 @@ async def create_exercise_log(conn, log_id: int, form: dict) -> int:
     weight_deviation = round(weight_kg - prescribed_weight, 2) if (weight_kg and prescribed_weight) else None
     rpe_deviation = round(rpe - prescribed_rpe, 1) if (rpe and prescribed_rpe) else None
 
+    # Both columns are NOT NULL — a blank Sets or Weight field (bodyweight
+    # accessory) must default, not 500 on the constraint (WEB-M5). Weight 0 =
+    # unloaded; sets default to the number of rep entries when present.
+    sets_completed = _int(form.get("sets_completed")) or (len(reps_per_set) if reps_per_set else 1)
+    if weight_kg is None:
+        weight_kg = 0.0
+
     return await async_execute_returning(
         conn,
         """
@@ -310,7 +326,7 @@ async def create_exercise_log(conn, log_id: int, form: dict) -> int:
         RETURNING id
         """,
         log_id, se_id, exercise_name,
-        _int(form.get("sets_completed")),
+        sets_completed,
         reps_per_set or None,
         weight_kg, rpe, make_rate,
         form.get("technical_notes") or None,

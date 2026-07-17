@@ -250,14 +250,8 @@
         <!-- Strength limiters -->
         <p class="text-xs font-medium text-gray-600 mb-2">Strength limiters <span class="text-gray-400 font-normal">(what's currently holding performance back?)</span></p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
-          {% for val, label in [
-            ("squat_limited",      "Squat strength (below ratio to comp lifts)"),
-            ("pull_limited",       "Pulling strength (snatch/clean pull)"),
-            ("overhead_limited",   "Overhead stability (snatch / jerk)"),
-            ("jerk_limited",       "Jerk (C&J is jerk-limited)"),
-            ("clean_limited",      "Clean (C&J is clean-limited)"),
-            ("positional_strength","Off-the-floor / first pull strength")
-          ] %}
+          {# canonical list shared with profile — registered as a Jinja global (WEB-M3) #}
+          {% for label, val in limiter_options %}
           <label class="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" name="strength_limiters" value="{{ val }}"
                    {% if val in (form.get('strength_limiters') or []) %}checked{% endif %}

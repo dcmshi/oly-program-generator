@@ -14,8 +14,12 @@ router = APIRouter(prefix="/history")
 
 
 def _safe_back(url: str) -> str:
-    """Return url only if it is a safe relative path, else fall back to /."""
-    if url.startswith("/") and "://" not in url:
+    """Return url only if it is a safe relative path, else fall back to /.
+
+    Rejects protocol-relative forms: browsers treat //host and /\\host as
+    absolute URLs, so a plain leading-slash check is an open redirect (WEB-M4).
+    """
+    if url.startswith("/") and not url.startswith(("//", "/\\")) and "://" not in url:
         return url
     return "/"
 

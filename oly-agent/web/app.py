@@ -207,6 +207,14 @@ templates.env.filters["status_color"]     = _status_color
 templates.env.filters["phase_color"]      = _phase_color
 templates.env.filters["parse_rationale"]  = _parse_rationale
 
+# Canonical option vocabularies as template globals so setup and profile can
+# never drift apart again (WEB-M3). Values come from web/options.py.
+from web.options import EQUIPMENT_OPTIONS, FAULT_OPTIONS, STRENGTH_LIMITER_OPTIONS
+
+templates.env.globals["equipment_options"] = EQUIPMENT_OPTIONS
+templates.env.globals["fault_options"]     = FAULT_OPTIONS
+templates.env.globals["limiter_options"]   = STRENGTH_LIMITER_OPTIONS
+
 # ── Error pages ───────────────────────────────────────────────
 # HTMX requests get a small text fragment (a full page would be swapped into
 # the target element); normal navigation gets the styled error page.

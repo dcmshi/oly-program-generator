@@ -447,6 +447,20 @@ def test_multi_week_program_generates_correct_session_count():
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 
+# ── WEB-M8: an expired deadline aborts before spending on LLM calls ───────────
+
+def test_deadline_exceeded_aborts_and_marks_draft():
+    """A monotonic deadline in the past must abort before any generation call,
+    leaving a draft with a self-explanatory rationale, and return program_id."""
+    import time as _time
+
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        result = run(1, _settings(), deadline=_time.monotonic() - 1)
+    assert result == 42
+    mocks["generate"].assert_not_called()
+
+
 # ── AGT-H1: max-test day must clear the template fallback's day numbers ───────
 
 def test_max_test_day_clears_template_fallback_days():

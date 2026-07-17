@@ -71,7 +71,8 @@
 
 <div class="mt-4 text-sm text-gray-500">
   {{ rows | length }} log entr{{ "y" if rows | length == 1 else "ies" }} ·
-  Total cost: ${{ "%.4f" | format(rows | sum(attribute="estimated_cost_usd") | float) }}
+  {# select drops None cost rows (failed attempts) so the sum can't TypeError (WEB-L8) #}
+  Total cost: ${{ "%.4f" | format(rows | map(attribute="estimated_cost_usd") | select | sum | float) }}
 </div>
 
 {% else %}

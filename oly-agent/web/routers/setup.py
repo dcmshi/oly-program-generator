@@ -3,48 +3,21 @@ import logging
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
-from web.auth import hash_password
+from web.auth import hash_password, password_too_long
 from web.deps import get_db, limiter
 from web.queries import setup as q
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
 
-# Equipment and fault options (display label → form value / DB value)
-EQUIPMENT_OPTIONS = [
-    ("Barbell",       "barbell"),
-    ("Squat rack",    "squat_rack"),
-    ("Blocks",        "blocks"),
-    ("Straps",        "straps"),
-    ("Jerk blocks",   "jerk_blocks"),
-    ("Bumper plates", "bumper_plates"),
-]
-
-FAULT_OPTIONS = [
-    ("Forward balance off floor",  "forward_balance_off_floor"),
-    ("Hips rising fast",           "hips_rising_fast"),
-    ("Slow turnover",              "slow_turnover"),
-    ("Early arm bend",             "early_arm_bend"),
-    ("Not finishing pull",         "not_finishing_pull"),
-    ("Lost back tightness",        "lost_back_tightness"),
-    ("Bar crashing",               "bar_crashing"),
-    ("Jumping forward",            "jumping_forward"),
-    ("Jumping backward",           "jumping_backward"),
-    ("Passive hip extension",      "passive_hip_extension"),
-    ("Soft receiving position",    "soft_receiving_position"),
-    ("Missed lockout",             "missed_lockout"),
-    ("Dip forward (jerk)",         "dip_forward"),
-]
-
-MAX_EXERCISES = [
-    "Snatch",
-    "Clean & Jerk",
-    "Back Squat",
-    "Front Squat",
-    "Snatch Pull",
-    "Clean Pull",
-    "Push Press",
-]
+# Canonical vocabularies live in web/options.py (WEB-M3) — re-exported here
+# because retrieve.py's fault mapping and existing tests reference this module.
+from web.options import (  # noqa: F401  (re-export)
+    EQUIPMENT_OPTIONS,
+    FAULT_OPTIONS,
+    MAX_EXERCISES,
+    STRENGTH_LIMITER_OPTIONS,
+)
 
 
 def _template_ctx(request, errors=None, form=None):
@@ -89,6 +62,8 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         errors.append("Password is required.")
     elif len(password) < 8:
         errors.append("Password must be at least 8 characters.")
+    elif password_too_long(password):
+        errors.append("Password must be at most 72 bytes (bcrypt limit).")
     elif password != confirm:
         errors.append("Passwords do not match.")
 

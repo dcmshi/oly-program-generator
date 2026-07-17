@@ -239,6 +239,97 @@ def test_upsert_goal_update_competition_date_becomes_date():
     assert isinstance(cd, date), f"competition_date must be datetime.date, got {type(cd).__name__}"
 
 
+# ── WEB-M2: _parse_log_date clamps against the athlete's local today ─────────
+
+def test_log_date_clamps_against_passed_today_not_server():
+    """An athlete-local 'today' east of the server must not be treated as a
+    future date and silently re-dated to the server's yesterday."""
+    athlete_today = date(2030, 6, 15)  # far from server today on purpose
+    assert _parse_log_date({"log_date": "2030-06-15"}, today=athlete_today) == athlete_today
+    # future relative to the athlete's today clamps to the athlete's today
+    assert _parse_log_date({"log_date": "2030-06-16"}, today=athlete_today) == athlete_today
+
+
+def test_create_session_log_threads_today_through():
+    from web.queries import log_session as lsq
+    captured, fake = _capture_async(ret=10)
+    athlete_today = date(2030, 6, 15)
+    with patch("web.async_db.async_execute_returning", fake):
+        asyncio.run(lsq.create_session_log(
+            MagicMock(), 1, 2, {"log_date": "2030-06-15"}, today=athlete_today))
+    assert captured["params"][2] == athlete_today, captured["params"]
+
+
+# ── WEB-M5: blank sets/weight must not hit NOT NULL columns ──────────────────
+
+def test_create_exercise_log_defaults_blank_sets_and_weight():
+    from web.queries import log_session as lsq
+    captured, fake = _capture_async(ret=5)
+    form = {"exercise_name": "Plank", "reps_per_set": "3,3", "sets_completed": "", "weight_kg": ""}
+    with patch("web.async_db.async_execute_returning", fake):
+        asyncio.run(lsq.create_exercise_log(MagicMock(), 10, form))
+    params = captured["params"]
+    assert params[3] is not None, "sets_completed must default, not NULL (WEB-M5)"
+    assert params[5] is not None, "weight_kg must default, not NULL (WEB-M5)"
+    assert params[3] == 2, "sets default should follow the reps entries"
+
+
+def test_update_exercise_log_defaults_blank_sets_and_weight():
+    from web.queries import log_session as lsq
+    captured = {}
+
+    async def fake_execute(conn, sql, *params):
+        captured["sql"], captured["params"] = sql, params
+
+    async def fake_fetch_one(conn, sql, *params):
+        return {"prescribed_weight_kg": None, "session_exercise_id": None}
+
+    form = {"exercise_name": "Plank", "reps_per_set": "", "sets_completed": "", "weight_kg": ""}
+    with patch("web.async_db.async_execute", fake_execute), \
+         patch("web.async_db.async_fetch_one", fake_fetch_one):
+        asyncio.run(lsq.update_exercise_log(MagicMock(), 5, form, 10))
+    params = captured["params"]
+    assert params[0] is not None, "sets_completed must default, not NULL (WEB-M5)"
+    assert params[2] is not None, "weight_kg must default, not NULL (WEB-M5)"
+
+
+# ── WEB-M6: exports/history must not drop logs unlinked by program deletion ──
+
+def test_full_training_log_uses_left_joins():
+    import inspect
+
+    from web.queries import export as export_q
+    src = inspect.getsource(export_q.get_full_training_log)
+    assert "LEFT JOIN program_sessions" in src, \
+        "unlinked logs (session_id NULL after program delete) must survive the export"
+
+
+def test_exercise_history_uses_left_joins():
+    import inspect
+
+    from web.queries import history as history_q
+    src = inspect.getsource(history_q.get_exercise_history)
+    assert "LEFT JOIN program_sessions" in src, \
+        "unlinked logs must appear in per-exercise history"
+
+
+# ── WEB-M8: worker passes a deadline so the job timeout is enforceable ───────
+
+def test_worker_passes_deadline_to_orchestrator():
+    import web.worker as worker
+    captured = {}
+
+    def fake_run(athlete_id, settings, dry_run=False, deadline=None):
+        captured["deadline"] = deadline
+        return 42
+
+    with patch("orchestrator.run", side_effect=fake_run):
+        result = asyncio.run(worker.run_generation({}, 1))
+    assert result["program_id"] == 42
+    assert captured.get("deadline") is not None, \
+        "worker must pass a monotonic deadline (WEB-M8 — thread outlives job_timeout)"
+
+
 # ── W-INFO: prefillExercise uses data-* attributes ───────────────────────────
 
 def test_prefill_uses_data_attributes_not_js_string():

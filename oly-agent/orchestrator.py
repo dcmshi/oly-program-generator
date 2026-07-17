@@ -41,13 +41,17 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | None:
+def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: float | None = None) -> int | None:
     """Generate a complete training program for the given athlete.
 
     Args:
         athlete_id: Primary key in the athletes table.
         settings: Unified settings (DB URL, API keys, model config).
         dry_run: If True, runs only ASSESS + PLAN and prints the plan without generating.
+        deadline: Optional time.monotonic() timestamp. Checked between sessions —
+            when exceeded, generation stops cleanly (draft marked with a
+            rationale) instead of letting the job's cancellation leave a zombie
+            thread burning LLM spend past the timeout (WEB-M8).
 
     Returns:
         program_id of the created program, or None on failure / dry-run.
@@ -188,6 +192,25 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                     effective_maxes=effective_maxes,
                     phase=program_plan.phase,
                 )
+
+                # Deadline guard — the ARQ job timeout can only cancel the
+                # awaiting coroutine, never this worker thread, so the thread
+                # must stop itself before the deadline (WEB-M8).
+                if deadline is not None and time.monotonic() > deadline:
+                    total_planned = len(program_plan.weekly_targets) * len(program_plan.session_templates)
+                    logger.error(
+                        f"Job deadline reached. Aborting before W{week_number}D{day_number}."
+                    )
+                    _mark_program_draft(
+                        conn, program_id,
+                        reason=(
+                            f"# Generation Aborted — Time Limit\n"
+                            f"Stopped before W{week_number}D{day_number}: the job's time "
+                            f"limit was reached. {len(all_sessions_data)} of {total_planned} "
+                            f"sessions were generated. Re-run generation to continue."
+                        ),
+                    )
+                    return program_id
 
                 # Cost guard — athlete-specific limit takes precedence over the
                 # global setting. Use `is not None`, not `or`, so an explicit 0

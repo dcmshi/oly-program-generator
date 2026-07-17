@@ -139,13 +139,8 @@
     <div>
       <p class="text-xs font-medium text-gray-600 mb-2">Available equipment</p>
       <div class="grid grid-cols-2 gap-1">
-        {% set equip_options = [
-          ("barbell","Barbell"),("bumper_plates","Bumper plates"),
-          ("platform","Platform"),("squat_rack","Squat rack"),
-          ("blocks","Blocks"),("jerk_rack","Jerk rack"),
-          ("pull_up_bar","Pull-up bar"),("dumbbell","Dumbbells")
-        ] %}
-        {% for val, label in equip_options %}
+        {# canonical list shared with setup — registered as a Jinja global (WEB-M3) #}
+        {% for label, val in equipment_options %}
         <label class="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" name="available_equipment" value="{{ val }}"
                  {% if athlete.available_equipment and val in athlete.available_equipment %}checked{% endif %}
@@ -181,15 +176,8 @@
     <div>
       <p class="text-xs font-medium text-gray-600 mb-2">Strength limiters <span class="text-gray-400">(what's holding performance back?)</span></p>
       <div class="grid grid-cols-2 gap-1">
-        {% set limiter_options = [
-          ("squat_limited",      "Squat strength (below ratio to comp lifts)"),
-          ("pull_limited",       "Pulling strength (snatch/clean pull)"),
-          ("overhead_limited",   "Overhead stability (snatch / jerk)"),
-          ("jerk_limited",       "Jerk (C&J is jerk-limited)"),
-          ("clean_limited",      "Clean (C&J is clean-limited)"),
-          ("positional_strength","Off-the-floor / first pull strength")
-        ] %}
-        {% for val, label in limiter_options %}
+        {# canonical list shared with setup — registered as a Jinja global (WEB-M3) #}
+        {% for label, val in limiter_options %}
         <label class="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" name="strength_limiters" value="{{ val }}"
                  {% if athlete.strength_limiters and val in athlete.strength_limiters %}checked{% endif %}
@@ -204,12 +192,8 @@
     <div>
       <p class="text-xs font-medium text-gray-600 mb-2">Technical faults (for coaching cues)</p>
       <div class="grid grid-cols-2 gap-1">
-        {% set fault_options = [
-          ("early_arm_bend","Early arm bend"),("slow_turnover","Slow turnover"),
-          ("soft_catch","Soft / forward catch"),("forward_sweep","Forward bar sweep"),
-          ("poor_overhead","Overhead instability"),("limited_squat","Limited squat depth")
-        ] %}
-        {% for val, label in fault_options %}
+        {# canonical list shared with setup — registered as a Jinja global (WEB-M3) #}
+        {% for label, val in fault_options %}
         <label class="flex items-center gap-2 text-sm text-gray-700">
           <input type="checkbox" name="technical_faults" value="{{ val }}"
                  {% if athlete.technical_faults and val in athlete.technical_faults %}checked{% endif %}

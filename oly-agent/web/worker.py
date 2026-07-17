@@ -9,6 +9,7 @@ Run with:
 import asyncio
 import logging
 import sys
+import time
 from concurrent.futures import ThreadPoolExecutor
 from datetime import UTC, datetime
 from pathlib import Path
@@ -23,6 +24,13 @@ logger = logging.getLogger(__name__)
 
 # One generation at a time — orchestrator is CPU/IO bound and uses its own DB connection
 _executor = ThreadPoolExecutor(max_workers=1)
+
+JOB_TIMEOUT_SECONDS = 600
+# The orchestrator's self-imposed deadline sits inside the ARQ timeout so the
+# thread stops (and marks the draft) BEFORE ARQ cancels the coroutine — a
+# cancelled coroutine cannot stop the thread, which would otherwise keep
+# spending on LLM calls and block the single-worker executor (WEB-M8).
+_DEADLINE_MARGIN_SECONDS = 30
 
 
 async def _on_startup(ctx) -> None:
@@ -46,14 +54,16 @@ async def run_generation(ctx, athlete_id: int, dry_run: bool = False, request_id
         extra={"athlete_id": athlete_id, "dry_run": dry_run},
     )
 
+    deadline = time.monotonic() + JOB_TIMEOUT_SECONDS - _DEADLINE_MARGIN_SECONDS
+
     def _sync():
         import orchestrator
 
         from shared.config import Settings
-        return orchestrator.run(athlete_id, Settings(), dry_run=dry_run)
+        return orchestrator.run(athlete_id, Settings(), dry_run=dry_run, deadline=deadline)
 
     try:
-        loop = asyncio.get_event_loop()
+        loop = asyncio.get_running_loop()
         program_id = await loop.run_in_executor(_executor, _sync)
         duration = round((datetime.now(UTC) - start).total_seconds(), 1)
         logger.info(
@@ -69,7 +79,7 @@ class WorkerSettings:
     on_startup = _on_startup
     functions = [run_generation]
     max_jobs = 1          # one generation at a time
-    job_timeout = 600     # 10 minute hard limit per job
+    job_timeout = JOB_TIMEOUT_SECONDS  # hard limit; orchestrator deadline sits 30s inside it
     keep_result = 86400   # keep results in Redis for 24 hours
 
     @classmethod

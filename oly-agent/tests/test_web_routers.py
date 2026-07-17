@@ -365,7 +365,8 @@ def test_submit_session_log_creates_new_log():
         with patch("web.queries.log_session.get_existing_log", side_effect=[None, _log()]):
             with patch("web.queries.log_session.create_session_log", return_value=10):
                 with patch("web.queries.log_session.get_logged_exercises", return_value=[]):
-                    r = _client.post("/log/1", data={"overall_rpe": "7", "notes": ""})
+                    with patch("web.routers.log_session.get_athlete_timezone", return_value="UTC"):
+                        r = _client.post("/log/1", data={"overall_rpe": "7", "notes": ""})
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
 
 
@@ -374,7 +375,8 @@ def test_submit_session_log_updates_existing():
         with patch("web.queries.log_session.get_existing_log", side_effect=[_log(), _log()]):
             with patch("web.queries.log_session.update_session_log", return_value=None):
                 with patch("web.queries.log_session.get_logged_exercises", return_value=[]):
-                    r = _client.post("/log/1", data={"overall_rpe": "8", "notes": ""})
+                    with patch("web.routers.log_session.get_athlete_timezone", return_value="UTC"):
+                        r = _client.post("/log/1", data={"overall_rpe": "8", "notes": ""})
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
 
 
@@ -490,6 +492,132 @@ def test_setup_rerender_preserves_strength_limiters():
     checked = re.findall(r'value="(squat_limited|pull_limited)"[^>]*checked', r.text)
     assert sorted(checked) == ["pull_limited", "squat_limited"], \
         f"re-render should keep both limiters checked, got {checked}"
+
+
+# ── WEB-M1: admin pages must render with the app's custom filters ─────────────
+
+_ADMIN_COOKIE = _make_session_cookie({"athlete_id": 1, "athlete_name": "Test", "is_admin": True})
+_admin_client = TestClient(app, follow_redirects=True)
+_admin_client.cookies.set("session", _ADMIN_COOKIE)
+
+
+def _job_row():
+    from datetime import datetime
+    return {
+        "program_id": 1, "athlete_name": "Test", "phase": "accumulation",
+        "program_status": "draft", "successful_sessions": 4, "failed_sessions": 0,
+        "total_cost_usd": 0.5, "duration_seconds": 60,
+        "started_at": datetime(2026, 1, 1, 10, 0), "last_error": None,
+    }
+
+
+def test_admin_jobs_page_renders():
+    with patch("web.routers.admin.get_recent_jobs", return_value=[_job_row()]):
+        r = _admin_client.get("/admin/jobs")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert b"accumulation" in r.content
+
+
+def test_admin_job_detail_null_cost_renders():
+    """WEB-M1 (filters) + WEB-L8 (footer sum over a NULL cost row)."""
+    rows = [
+        {"week_number": 1, "day_number": 1, "attempt_number": 1, "status": "failed",
+         "model": None, "input_tokens": None, "output_tokens": None,
+         "estimated_cost_usd": None, "error_message": "boom", "validation_errors": None},
+        {"week_number": 1, "day_number": 1, "attempt_number": 2, "status": "success",
+         "model": "m", "input_tokens": 10, "output_tokens": 5,
+         "estimated_cost_usd": 0.01, "error_message": None, "validation_errors": None},
+    ]
+    with patch("web.routers.admin.get_job_detail", return_value=rows):
+        r = _admin_client.get("/admin/jobs/1")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert b"$0.0100" in r.content
+
+
+def test_admin_jobs_403_for_non_admin():
+    r = _client.get("/admin/jobs")
+    assert r.status_code == 403, f"Expected 403, got {r.status_code}"
+
+
+# ── WEB-M3: profile must use setup's canonical option vocabularies ────────────
+
+def _full_athlete():
+    return {
+        "id": 1, "name": "Test", "email": None, "username": "test",
+        "level": "intermediate", "biological_sex": None, "bodyweight_kg": 80.0,
+        "height_cm": None, "date_of_birth": None, "weight_class": None,
+        "training_age_years": 2.0, "sessions_per_week": 4,
+        "session_duration_minutes": 90, "available_equipment": ["barbell"],
+        "technical_faults": ["bar_crashing"], "injuries": None, "notes": None,
+        "lift_emphasis": "balanced", "strength_limiters": [],
+        "competition_experience": "none", "timezone": "UTC",
+    }
+
+
+def test_profile_renders_canonical_fault_options():
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None):
+        r = _client.get("/profile")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert b'value="bar_crashing"' in r.content, \
+        "profile must render setup's canonical fault slugs"
+    assert b'value="soft_catch"' not in r.content, \
+        "divergent profile-only fault slugs must be gone"
+    assert b'value="jerk_blocks"' in r.content, \
+        "profile must render setup's canonical equipment slugs"
+    assert b'value="jerk_rack"' not in r.content
+
+
+# ── WEB-M4: _safe_back open-redirect bypasses ────────────────────────────────
+
+def test_safe_back_rejects_protocol_relative_urls():
+    from web.routers.history import _safe_back
+    assert _safe_back("//evil.com") == "/"
+    assert _safe_back("/\\evil.com") == "/"
+    assert _safe_back("http://evil.com") == "/"
+    assert _safe_back("/program/1") == "/program/1"
+    assert _safe_back("/") == "/"
+
+
+# ── WEB-M7: >72-byte passwords must not 500 (bcrypt 5.x raises) ──────────────
+
+def test_verify_password_over_72_bytes_returns_false():
+    from web.auth import hash_password, verify_password
+    h = hash_password("short-enough")
+    assert verify_password("a" * 73, h) is False
+
+
+def test_login_long_password_401_not_500():
+    import bcrypt
+    hashed = bcrypt.hashpw(b"secret12", bcrypt.gensalt()).decode()
+    mock_athlete = {"id": 1, "name": "T", "password_hash": hashed, "is_admin": False}
+    with patch("web.routers.auth.async_fetch_one", return_value=mock_athlete):
+        r = _unauthed.post("/login", data={"username": "u", "password": "a" * 100})
+    assert r.status_code == 401, f"Expected 401, got {r.status_code}"
+
+
+def test_setup_long_password_422_with_message():
+    with patch("web.queries.setup.username_taken", return_value=False):
+        r = _client.post("/setup", data={
+            "username": "newuser", "password": "a" * 80, "confirm_password": "a" * 80,
+            "name": "N", "level": "beginner",
+        })
+    assert r.status_code == 422, f"Expected 422, got {r.status_code}"
+    assert b"72" in r.content, "error message should mention the 72-byte limit"
+
+
+def test_profile_password_change_long_new_password_no_500():
+    import bcrypt
+    hashed = bcrypt.hashpw(b"currentpw", bcrypt.gensalt()).decode()
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.routers.profile.async_fetch_one", return_value={"password_hash": hashed}):
+        r = _client.post("/profile/password", data={
+            "current_password": "currentpw",
+            "new_password": "a" * 80, "confirm_password": "a" * 80,
+        })
+    assert r.status_code < 500, f"Expected non-500, got {r.status_code}"
+    assert b"72" in r.content, "error message should mention the 72-byte limit"
 
 
 # ── Runner ─────────────────────────────────────────────────────────────────────

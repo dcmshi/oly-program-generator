@@ -70,13 +70,17 @@ async def submit_session_log(
     form = await request.form()
     session = await _get_owned_session(conn, session_id, athlete_id)
 
+    # Clamp the log date against the ATHLETE's local today, not the server's —
+    # otherwise an athlete east of the server gets valid dates re-dated (WEB-M2).
+    local_today = today_in_tz(await get_athlete_timezone(conn, athlete_id))
+
     existing = await q.get_existing_log(conn, session_id)
     if existing:
         log_id = existing["id"]
-        await q.update_session_log(conn, log_id, dict(form))
+        await q.update_session_log(conn, log_id, dict(form), today=local_today)
         logger.info(f"Session {session_id} log updated (log_id={log_id})")
     else:
-        log_id = await q.create_session_log(conn, athlete_id, session_id, dict(form))
+        log_id = await q.create_session_log(conn, athlete_id, session_id, dict(form), today=local_today)
         logger.info(f"Session {session_id} logged for athlete {athlete_id} (log_id={log_id})")
 
     log = await q.get_existing_log(conn, session_id)

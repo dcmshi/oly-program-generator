@@ -87,8 +87,8 @@ async def get_full_training_log(conn, athlete_id: int) -> list[dict]:
             tle.make_rate,
             tle.technical_notes
         FROM training_logs tl
-        JOIN program_sessions  ps  ON ps.id  = tl.session_id
-        JOIN generated_programs gp ON gp.id  = ps.program_id
+        LEFT JOIN program_sessions  ps  ON ps.id  = tl.session_id
+        LEFT JOIN generated_programs gp ON gp.id  = ps.program_id
         LEFT JOIN training_log_exercises tle ON tle.log_id = tl.id
         WHERE tl.athlete_id = $1
         ORDER BY tl.log_date, tl.id, tle.id
