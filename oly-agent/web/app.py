@@ -62,18 +62,94 @@ app.add_middleware(SlowAPIMiddleware)
 
 
 # ── Request body size cap (64 KB) ─────────────────────────────
-class ContentSizeLimitMiddleware(BaseHTTPMiddleware):
-    _MAX_BODY = 64 * 1024  # 64 KB — enough for any session log form
+class ContentSizeLimitMiddleware:
+    """64 KB request-body cap (pure ASGI).
 
-    async def dispatch(self, request: Request, call_next):
-        if request.method in ("POST", "PUT", "PATCH"):
-            content_length = request.headers.get("content-length")
-            if content_length and int(content_length) > self._MAX_BODY:
-                return HTMLResponse("Request body too large (max 64 KB)", status_code=413)
-        return await call_next(request)
+    Checks Content-Length up front AND pre-reads streamed chunks up to the cap
+    — a chunked request carries no Content-Length, and the old header-only
+    check let it buffer unbounded in request.form() (WEB-L6). The body is
+    buffered here (bounded by the cap) and replayed to the app, so downstream
+    parsing is untouched; oversized requests are answered 413 before the app
+    ever sees them.
+    """
+
+    _MAX_BODY = 64 * 1024  # enough for any session log form
+
+    def __init__(self, app):
+        self.app = app
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or scope.get("method") not in ("POST", "PUT", "PATCH"):
+            return await self.app(scope, receive, send)
+
+        content_length = next(
+            (v for k, v in scope.get("headers", []) if k == b"content-length"), None
+        )
+        if content_length is not None:
+            try:
+                if int(content_length) > self._MAX_BODY:
+                    return await self._reject(send)
+            except ValueError:
+                pass
+
+        buffered: list[dict] = []
+        received = 0
+        while True:
+            message = await receive()
+            buffered.append(message)
+            if message["type"] != "http.request":
+                break
+            received += len(message.get("body", b""))
+            if received > self._MAX_BODY:
+                return await self._reject(send)
+            if not message.get("more_body"):
+                break
+
+        async def replay():
+            if buffered:
+                return buffered.pop(0)
+            return await receive()
+
+        await self.app(scope, replay, send)
+
+    @staticmethod
+    async def _reject(send):
+        body = b"Request body too large (max 64 KB)"
+        await send({
+            "type": "http.response.start",
+            "status": 413,
+            "headers": [(b"content-type", b"text/html; charset=utf-8"),
+                        (b"content-length", str(len(body)).encode())],
+        })
+        await send({"type": "http.response.body", "body": body})
 
 
 app.add_middleware(ContentSizeLimitMiddleware)
+
+
+# ── Same-origin enforcement on state-changing requests (WEB-L5) ─
+class OriginCheckMiddleware(BaseHTTPMiddleware):
+    """Reject cross-origin POST/PUT/PATCH/DELETE.
+
+    Browsers attach an Origin header to cross-site requests; a mismatch with
+    Host means CSRF (or a broken proxy). Requests without an Origin header
+    (curl, tests) pass — this is defense-in-depth on top of SameSite=Lax
+    cookies, not the only line.
+    """
+
+    async def dispatch(self, request: Request, call_next):
+        if request.method in ("POST", "PUT", "PATCH", "DELETE"):
+            origin = request.headers.get("origin")
+            if origin:
+                from urllib.parse import urlsplit
+                host = request.headers.get("host", "")
+                if origin == "null" or urlsplit(origin).netloc != host:
+                    logger.warning(f"Cross-origin {request.method} {request.url.path} rejected: origin={origin}")
+                    return HTMLResponse("Cross-origin request rejected", status_code=403)
+        return await call_next(request)
+
+
+app.add_middleware(OriginCheckMiddleware)
 
 
 # ── Security headers ───────────────────────────────────────────

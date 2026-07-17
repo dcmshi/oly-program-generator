@@ -7,21 +7,10 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from web.formparse import parse_float as _float  # noqa: F401 (WEB-L4)
+from web.formparse import parse_int as _int
+
 from shared.constants import MAX_LOG_BACKFILL_DAYS
-
-
-def _float(v):
-    try:
-        return float(v) if v else None
-    except (ValueError, TypeError):
-        return None
-
-
-def _int(v):
-    try:
-        return int(v) if v else None
-    except (ValueError, TypeError):
-        return None
 
 
 def _parse_log_date(form: dict, today: date | None = None) -> date:
@@ -82,9 +71,10 @@ async def get_session_with_exercises(conn, session_id: int) -> dict | None:
 
 async def get_existing_log(conn, session_id: int) -> dict | None:
     from web.async_db import async_fetch_one
+    # ORDER BY id: deterministic if legacy duplicate rows exist (WEB-L3)
     return await async_fetch_one(
         conn,
-        "SELECT * FROM training_logs WHERE session_id = $1",
+        "SELECT * FROM training_logs WHERE session_id = $1 ORDER BY id LIMIT 1",
         session_id,
     )
 
@@ -202,6 +192,8 @@ async def create_session_log(conn, athlete_id: int, session_id: int, form: dict,
 
     log_date = _parse_log_date(form, today)
 
+    # ON CONFLICT: a double-submit race (two INSERTs past the existence check)
+    # updates the row instead of raising on the partial unique index (WEB-L3).
     return await async_execute_returning(
         conn,
         """
@@ -210,6 +202,14 @@ async def create_session_log(conn, athlete_id: int, session_id: int, form: dict,
              session_duration_minutes, bodyweight_kg, sleep_quality,
              stress_level, athlete_notes)
         VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        ON CONFLICT (session_id) WHERE session_id IS NOT NULL DO UPDATE
+            SET log_date = EXCLUDED.log_date,
+                overall_rpe = EXCLUDED.overall_rpe,
+                session_duration_minutes = EXCLUDED.session_duration_minutes,
+                bodyweight_kg = EXCLUDED.bodyweight_kg,
+                sleep_quality = EXCLUDED.sleep_quality,
+                stress_level = EXCLUDED.stress_level,
+                athlete_notes = EXCLUDED.athlete_notes
         RETURNING id
         """,
         athlete_id,
@@ -287,9 +287,24 @@ async def update_session_log(conn, log_id: int, form: dict, today: date | None =
 
 async def create_exercise_log(conn, log_id: int, form: dict) -> int:
     """Insert a new training_log_exercises row. Returns the new row id."""
-    from web.async_db import async_execute_returning
+    from web.async_db import async_execute_returning, async_fetch_one
 
     se_id = _int(form.get("session_exercise_id"))
+    if se_id is not None:
+        # The id comes from the client — only link it when it actually belongs
+        # to this log's session, else a fabricated/cross-tenant reference lands
+        # in the FK and skews deviation/make-rate stats (WEB-L9).
+        linked = await async_fetch_one(
+            conn,
+            """
+            SELECT 1 FROM session_exercises se
+            JOIN training_logs tl ON tl.session_id = se.session_id
+            WHERE se.id = $1 AND tl.id = $2
+            """,
+            se_id, log_id,
+        )
+        if linked is None:
+            se_id = None
     exercise_name = form.get("exercise_name", "").strip()
     weight_kg = _float(form.get("weight_kg"))
     rpe = _float(form.get("rpe"))

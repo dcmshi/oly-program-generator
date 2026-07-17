@@ -36,7 +36,16 @@ async def run_generation(
     form = await request.form()
     dry_run = form.get("dry_run") == "on"
     request_id = getattr(request.state, "request_id", "-")
-    job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run, request_id=request_id)
+    try:
+        job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run, request_id=request_id)
+    except jobs.GenerationInFlightError:
+        logger.info(f"Generation rejected — already in flight for athlete {athlete_id}")
+        return HTMLResponse(
+            '<div class="text-amber-700 text-sm">A program generation is already '
+            "running for your account — wait for it to finish before starting "
+            "another.</div>",
+            status_code=409,
+        )
     logger.info(f"Generation submitted: job_id={job_id}, athlete={athlete_id}, dry_run={dry_run}")
     return templates.TemplateResponse(request, "partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": {"status": "running"},

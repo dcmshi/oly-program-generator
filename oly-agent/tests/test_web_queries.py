@@ -330,6 +330,114 @@ def test_worker_passes_deadline_to_orchestrator():
         "worker must pass a monotonic deadline (WEB-M8 — thread outlives job_timeout)"
 
 
+# ── WEB-L2: one in-flight generation per athlete ─────────────────────────────
+
+def test_submit_generation_rejects_concurrent():
+    pool = MagicMock()
+    pool.set = AsyncMock(return_value=False)  # NX guard already held
+    pool.enqueue_job = AsyncMock()
+    with patch.object(jobs, "_arq_pool", pool):
+        try:
+            asyncio.run(jobs.submit_generation(7))
+            raise AssertionError("expected GenerationInFlightError (WEB-L2)")
+        except jobs.GenerationInFlightError:
+            pass
+    assert not pool.enqueue_job.called, "a second job must not be enqueued"
+
+
+def test_submit_generation_guard_then_enqueue():
+    pool = MagicMock()
+    pool.set = AsyncMock(return_value=True)
+    job = MagicMock()
+    job.job_id = "j1"
+    pool.enqueue_job = AsyncMock(return_value=job)
+    with patch.object(jobs, "_arq_pool", pool):
+        jid = asyncio.run(jobs.submit_generation(7))
+    assert jid == "j1"
+    assert pool.set.await_args.kwargs.get("nx") is True, "guard must be SET NX"
+    assert pool.set.await_args.kwargs.get("ex"), "guard must expire (stuck-job safety)"
+
+
+def test_job_status_terminal_clears_inflight():
+    from arq.jobs import JobStatus
+    job = _fake_job(args=[7], status=JobStatus.complete)
+    job.result = AsyncMock(return_value={"program_id": 42, "duration_seconds": 1.0})
+    pool = MagicMock()
+    pool.delete = AsyncMock()
+    with patch.object(jobs, "_arq_pool", pool), patch("arq.jobs.Job", return_value=job):
+        result = asyncio.run(jobs.get_job_status("jid", 7))
+    assert result["status"] == "done"
+    pool.delete.assert_awaited_with("gen_inflight:7")
+
+
+# ── WEB-L3: duplicate training_logs race ─────────────────────────────────────
+
+def test_session_log_insert_upserts_on_session_conflict():
+    import inspect
+
+    from web.queries import log_session as lsq
+    src = inspect.getsource(lsq.create_session_log)
+    assert "ON CONFLICT" in src and "session_id" in src, \
+        "double-submit must upsert, not raise on the unique index (WEB-L3)"
+    src2 = inspect.getsource(lsq.get_existing_log)
+    assert "ORDER BY id" in src2, "get_existing_log must be deterministic (WEB-L3)"
+
+
+# ── WEB-L4: nan/inf/huge floats must not reach NUMERIC columns ───────────────
+
+def test_parse_float_rejects_nan_inf_huge():
+    from web.formparse import parse_float
+    assert parse_float("nan") is None
+    assert parse_float("inf") is None
+    assert parse_float("-inf") is None
+    assert parse_float("1e9") is None, "NUMERIC overflow guard"
+    assert parse_float("82.5") == 82.5
+    assert parse_float("") is None
+    assert parse_float(None) is None
+
+
+def test_update_profile_nan_bodyweight_stored_as_null():
+    from web.queries import profile as profile_q
+    captured, fake = _capture_async()
+    data = {"name": "A", "level": "beginner", "bodyweight_kg": "nan"}
+    with patch("web.async_db.async_execute", fake):
+        asyncio.run(profile_q.update_profile(MagicMock(), 1, data))
+    assert captured["params"][5] is None, "NaN must be dropped, not stored (WEB-L4)"
+
+
+# ── WEB-L9: client-controlled session_exercise_id must be scoped ─────────────
+
+def _l9_form():
+    return {"exercise_name": "Snatch", "session_exercise_id": "999",
+            "reps_per_set": "3", "sets_completed": "3", "weight_kg": "70"}
+
+
+def test_create_exercise_log_drops_foreign_session_exercise_id():
+    from web.queries import log_session as lsq
+    captured, fake = _capture_async(ret=5)
+
+    async def no_match(conn, sql, *params):
+        return None  # se_id does not belong to this log's session
+
+    with patch("web.async_db.async_execute_returning", fake), \
+         patch("web.async_db.async_fetch_one", no_match):
+        asyncio.run(lsq.create_exercise_log(MagicMock(), 10, _l9_form()))
+    assert captured["params"][1] is None, "cross-tenant se_id must not be stored (WEB-L9)"
+
+
+def test_create_exercise_log_keeps_valid_session_exercise_id():
+    from web.queries import log_session as lsq
+    captured, fake = _capture_async(ret=5)
+
+    async def match(conn, sql, *params):
+        return {"ok": 1}
+
+    with patch("web.async_db.async_execute_returning", fake), \
+         patch("web.async_db.async_fetch_one", match):
+        asyncio.run(lsq.create_exercise_log(MagicMock(), 10, _l9_form()))
+    assert captured["params"][1] == 999, captured["params"]
+
+
 # ── W-INFO: prefillExercise uses data-* attributes ───────────────────────────
 
 def test_prefill_uses_data_attributes_not_js_string():

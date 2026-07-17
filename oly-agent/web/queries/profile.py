@@ -3,6 +3,9 @@
 
 from datetime import date
 
+from web.formparse import parse_float as _float  # finite + bounded (WEB-L4)
+from web.formparse import parse_int as _int
+
 
 def _date(v):
     """Parse an ISO date string to datetime.date — asyncpg rejects raw strings
@@ -53,12 +56,6 @@ async def get_active_goal(conn, athlete_id: int) -> dict | None:
 async def upsert_goal(conn, athlete_id: int, data: dict):
     """Update the active goal row if one exists, otherwise insert a new one."""
     from web.async_db import async_execute, async_fetch_one
-
-    def _float(v):
-        try:
-            return float(v) if v else None
-        except (ValueError, TypeError):
-            return None
 
     existing = await async_fetch_one(
         conn,
@@ -111,18 +108,6 @@ async def upsert_goal(conn, athlete_id: int, data: dict):
 
 async def update_profile(conn, athlete_id: int, data: dict):
     from web.async_db import async_execute
-
-    def _float(v):
-        try:
-            return float(v) if v else None
-        except (ValueError, TypeError):
-            return None
-
-    def _int(v):
-        try:
-            return int(v) if v else None
-        except (ValueError, TypeError):
-            return None
 
     await async_execute(
         conn,

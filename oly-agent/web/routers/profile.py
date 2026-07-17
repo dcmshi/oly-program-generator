@@ -84,14 +84,27 @@ async def update_profile(
         "timezone": timezone.strip() or "UTC",
     }
 
+    error = None
     if not data["name"]:
+        error = "Name is required."
+    else:
+        try:
+            from zoneinfo import ZoneInfo
+            ZoneInfo(data["timezone"])
+        except Exception:
+            # A typo'd zone would be saved and silently ignored by the UTC
+            # fallback forever (WEB-L1) — reject it with a message instead.
+            error = (f"Unknown timezone '{data['timezone']}'. "
+                     f"Use an IANA name like America/New_York or Europe/Berlin.")
+
+    if error:
         athlete = await q.get_athlete(conn, athlete_id)
         goal = await q.get_active_goal(conn, athlete_id)
         return templates.TemplateResponse(request, "profile.html", {
             "request": request,
             "athlete": athlete,
             "goal": goal,
-            "error": "Name is required.",
+            "error": error,
             "profile_error": True,
         }, status_code=422)
 

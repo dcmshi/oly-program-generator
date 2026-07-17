@@ -113,10 +113,12 @@ async def submit_exercise_log(
     rpe = form.get("rpe", "")
     logger.info(f"Exercise logged: log_id={log_id}, tle_id={tle_id}, {exercise_name} {weight_kg_raw}kg RPE={rpe}")
 
-    # Auto-promote new max if this is a max attempt exercise
+    # Auto-promote new max if this is a max attempt exercise. Use the STORED
+    # session_exercise_id — create_exercise_log validated it belongs to this
+    # log's session, unlike the raw form value (WEB-L9).
     try:
-        se_id_raw = form.get("session_exercise_id")
-        se_id = int(se_id_raw) if se_id_raw else None
+        tle = await q.get_exercise_log_entry(conn, tle_id, log_id)
+        se_id = tle["session_exercise_id"] if tle else None
         weight_kg = float(weight_kg_raw) if weight_kg_raw else None
         if se_id and weight_kg:
             promoted = await q.maybe_promote_max(conn, athlete_id, se_id, weight_kg, _date.today())

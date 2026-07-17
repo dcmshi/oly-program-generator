@@ -5,11 +5,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from web.async_db import async_fetch_one
-from web.auth import verify_password
+from web.auth import hash_password, verify_password
 from web.deps import get_db, limiter
 
 logger = logging.getLogger(__name__)
 router = APIRouter()
+
+# Unknown usernames must burn the same bcrypt cost as a wrong password, or the
+# ~100 ms difference is a username-existence oracle (WEB-L7).
+_TIMING_DUMMY_HASH = hash_password("timing-equalizer-dummy")
 
 
 @router.get("/login", response_class=HTMLResponse)
@@ -35,7 +39,7 @@ async def login_submit(
         "SELECT id, name, password_hash, is_admin FROM athletes WHERE username = $1",
         username.strip(),
     )
-    if not row or not verify_password(password, row["password_hash"]):
+    if not verify_password(password, row["password_hash"] if row else _TIMING_DUMMY_HASH) or not row:
         logger.warning("Failed login attempt — invalid credentials")
         return templates.TemplateResponse(request,
             "login.html",

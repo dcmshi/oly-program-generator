@@ -620,6 +620,65 @@ def test_profile_password_change_long_new_password_no_500():
     assert b"72" in r.content, "error message should mention the 72-byte limit"
 
 
+# ── WEB-L1: timezone must be validated at save time ───────────────────────────
+
+def test_profile_update_rejects_unknown_timezone():
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.queries.profile.update_profile", return_value=None) as mock_up:
+        r = _client.post("/profile/update", data={
+            "name": "T", "level": "intermediate", "timezone": "Mars/Olympus",
+        })
+    assert r.status_code == 422, f"Expected 422, got {r.status_code}"
+    assert not mock_up.called, "a typo'd timezone must not be saved (WEB-L1)"
+
+
+# ── WEB-L2: duplicate generation submits get a 409 fragment ───────────────────
+
+def test_generate_run_conflict_when_inflight():
+    import web.jobs as _jobs
+    with patch("web.jobs.submit_generation", side_effect=_jobs.GenerationInFlightError("busy")):
+        r = _client.post("/generate/run", data={})
+    assert r.status_code == 409, f"Expected 409, got {r.status_code}"
+
+
+# ── WEB-L5: cross-origin state-changing requests are rejected ─────────────────
+
+def test_cross_origin_post_rejected():
+    r = _unauthed.post("/login", data={"username": "u", "password": "pppppppp"},
+                       headers={"Origin": "http://evil.example"})
+    assert r.status_code == 403, f"Expected 403, got {r.status_code}"
+
+
+def test_same_origin_post_allowed():
+    with patch("web.routers.auth.async_fetch_one", return_value=None):
+        r = _unauthed.post("/login", data={"username": "u", "password": "pppppppp"},
+                           headers={"Origin": "http://testserver"})
+    assert r.status_code == 401, f"Expected 401 (login path), got {r.status_code}"
+
+
+# ── WEB-L6: chunked bodies must respect the 64 KB cap ─────────────────────────
+
+def test_chunked_body_over_cap_rejected():
+    def gen():
+        for _ in range(200):  # 200 KB, no Content-Length
+            yield b"x" * 1024
+
+    r = _unauthed.post("/login", content=gen(),
+                       headers={"Content-Type": "application/x-www-form-urlencoded"})
+    assert r.status_code == 413, f"Expected 413, got {r.status_code}"
+
+
+# ── WEB-L7: unknown usernames must still burn a bcrypt verify ─────────────────
+
+def test_login_unknown_user_still_runs_bcrypt():
+    with patch("web.routers.auth.async_fetch_one", return_value=None), \
+         patch("web.routers.auth.verify_password", return_value=False) as vp:
+        r = _unauthed.post("/login", data={"username": "ghost", "password": "x" * 10})
+    assert r.status_code == 401
+    assert vp.called, "dummy verify must run for unknown users (WEB-L7 timing oracle)"
+
+
 # ── Runner ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

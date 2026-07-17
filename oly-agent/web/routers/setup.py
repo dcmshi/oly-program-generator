@@ -117,16 +117,13 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
     athlete_id = await q.create_athlete(conn, athlete_data, hash_password(password))
 
     # ── Maxes ─────────────────────────────────────────────────
+    from web.formparse import parse_float
     maxes = []
     for exercise_name in MAX_EXERCISES:
         field = f"max_{exercise_name.lower().replace(' ', '_').replace('&', 'and')}"
-        raw = form.get(field, "").strip()
-        try:
-            weight = float(raw)
-            if weight > 0:
-                maxes.append((exercise_name, weight))
-        except (ValueError, TypeError):
-            pass
+        weight = parse_float(form.get(field, "").strip())  # finite + bounded (WEB-L4)
+        if weight and weight > 0:
+            maxes.append((exercise_name, weight))
     await q.create_maxes(conn, athlete_id, maxes)
 
     # ── Goal ──────────────────────────────────────────────────

@@ -14,6 +14,18 @@ _arq_pool = None
 
 _DEFAULT_REDIS_URL = "redis://127.0.0.1:6379"
 
+# In-flight guard TTL — a bit above the worker's job_timeout so a crashed
+# worker can never wedge the guard for longer than a job could actually run.
+INFLIGHT_TTL_SECONDS = 660
+
+
+class GenerationInFlightError(RuntimeError):
+    """The athlete already has a queued/running generation job (WEB-L2)."""
+
+
+def _inflight_key(athlete_id: int) -> str:
+    return f"gen_inflight:{athlete_id}"
+
 
 def resolve_redis_dsn(redis_url: str = "") -> str:
     """Normalize a Redis DSN for ARQ, forcing an IPv4 loopback.
@@ -62,6 +74,11 @@ async def close_arq_pool() -> None:
 async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: str = "-") -> str:
     if _arq_pool is None:
         raise RuntimeError("ARQ pool not initialised — is Redis running?")
+    # One in-flight generation per athlete — double-clicks otherwise queue N
+    # serial paid jobs producing duplicate drafts while the UI polls only the
+    # newest (WEB-L2). SET NX + TTL: atomic, and self-releasing if a worker dies.
+    if not await _arq_pool.set(_inflight_key(athlete_id), "1", nx=True, ex=INFLIGHT_TTL_SECONDS):
+        raise GenerationInFlightError(f"Athlete {athlete_id} already has a generation in flight")
     # athlete_id is the job's first positional arg, so ownership travels with the
     # job payload itself — no separate owner key that could race the enqueue or
     # outlive/under-live the job (W-L4).
@@ -91,6 +108,10 @@ async def get_job_status(job_id: str, athlete_id: int) -> dict:
 
     if status in (JobStatus.queued, JobStatus.deferred, JobStatus.in_progress):
         return {"status": "running", "program_id": None, "error": None, "duration_seconds": None}
+
+    # Terminal state (complete/expired/not_found) with ownership verified —
+    # release the in-flight guard so the athlete can generate again (WEB-L2).
+    await _arq_pool.delete(_inflight_key(athlete_id))
 
     if status == JobStatus.complete:
         try:
