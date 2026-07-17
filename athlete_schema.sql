@@ -1,10 +1,12 @@
 -- ============================================================
 -- Olympic Weightlifting Programming — Athlete Data Model
 -- ============================================================
--- Run AFTER the Phase 1-5 schema (schema.sql).
--- Depends on: exercises, exercise_complexes, training_phase enum
---
--- Usage: psql -h localhost -U oly -d oly_programming -f athlete_schema.sql
+-- ⚠ OUTDATED REFERENCE ONLY — DO NOT APPLY (INF-M5).
+-- Missing every column added after the baseline (username, password_hash,
+-- date_of_birth, lift_emphasis, strength_limiters, competition_experience,
+-- cost_limit_usd, is_admin, timezone). The live schema is managed by Alembic
+-- (oly-agent/migrations/):
+--     cd oly-agent && uv run alembic upgrade head
 -- ============================================================
 
 

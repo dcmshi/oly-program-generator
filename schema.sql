@@ -1,8 +1,10 @@
 -- ============================================================
 -- Olympic Weightlifting Programming — Database Schema
 -- ============================================================
--- Run: psql -h localhost -U oly -d oly_programming -f schema.sql
--- Or: mount as /docker-entrypoint-initdb.d/01-schema.sql in Docker
+-- ⚠ OUTDATED REFERENCE ONLY — DO NOT APPLY (INF-M5).
+-- The live schema is managed by Alembic (oly-agent/migrations/); this file
+-- has drifted behind the migration chain. To build a database:
+--     cd oly-agent && uv run alembic upgrade head
 --
 -- Dependency order:
 --   1. Extensions

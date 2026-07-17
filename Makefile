@@ -53,7 +53,7 @@ down:
 
 reset:
 	docker compose -f oly-ingestion/docker-compose.yml down -v
-	docker compose -f oly-ingestion/docker-compose.yml up -d
+	docker compose -f oly-ingestion/docker-compose.yml up -d --wait
 	cd oly-agent && uv run alembic upgrade head
 
 migrate:
@@ -84,7 +84,12 @@ AGENT_TESTS := \
 	tests/test_explain.py \
 	tests/test_orchestrator.py \
 	tests/test_web_routers.py \
-	tests/test_schemas.py
+	tests/test_web_queries.py \
+	tests/test_schemas.py \
+	tests/test_config.py \
+	tests/test_formulas.py \
+	tests/test_phase_progression.py \
+	tests/test_log.py
 
 INGESTION_TESTS := \
 	tests/test_chunker.py \
@@ -95,7 +100,10 @@ INGESTION_TESTS := \
 	tests/test_html_extractor.py \
 	tests/test_parse_exercise.py \
 	tests/test_pipeline_unit.py \
-	tests/test_structured_loader_unit.py
+	tests/test_structured_loader_unit.py \
+	tests/test_ingest_web.py \
+	tests/test_llm_helpers.py \
+	tests/test_vector_loader_units.py
 
 test: test-agent test-ingestion
 

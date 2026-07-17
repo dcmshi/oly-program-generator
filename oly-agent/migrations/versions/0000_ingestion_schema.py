@@ -9,12 +9,11 @@ types, 11 ingestion tables (sources, exercises, prilepin_chart, etc.), indexes
 (including the HNSW vector index), and all seed data (Prilepin chart, exercise
 taxonomy, exercise substitutions, exercise complexes).
 
-This migration is the new root of the chain:
-    0000_ingestion_schema → 0001_baseline → 0002_athlete_cost_limit
+This migration is the root of the chain (later revisions follow — check
+`alembic history` rather than trusting any hardcoded head here; INF-M4).
 
-EXISTING DATABASE (schema.sql was applied via Docker init):
-    Your alembic_version already shows 0002_athlete_cost_limit, which is still
-    the head. No action needed — alembic upgrade head is a no-op for you.
+EXISTING DATABASE (schema applied outside Alembic):
+    cd oly-agent && uv run alembic stamp head
 
 FRESH DATABASE:
     docker compose up -d

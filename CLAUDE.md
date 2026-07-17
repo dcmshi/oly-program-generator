@@ -239,8 +239,10 @@ docker exec oly-postgres psql -U oly -d oly_programming -c "
 docker compose down -v && docker compose up -d && cd oly-agent && uv run alembic upgrade head
 
 # ── Alembic (existing DB — stamp if you haven't already) ────────────────
-# Mark all migrations as applied without running them (for existing databases):
-cd oly-agent && uv run alembic stamp 0002_athlete_cost_limit
+# Mark all migrations as applied without running them (for existing databases).
+# Always `stamp head` — never a specific revision, which goes stale as the
+# chain grows (a partial stamp then dies mid-upgrade on non-idempotent DDL):
+cd oly-agent && uv run alembic stamp head
 ```
 
 Ports:

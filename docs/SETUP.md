@@ -33,6 +33,12 @@ make up       # docker compose up -d (Postgres + PgBouncer + Redis)
 make migrate  # alembic upgrade head (creates all tables + seed data)
 ```
 
+> **Migrations against a non-local database:** `make migrate` rewrites
+> `localhost:5432` → `:5433` to bypass the local PgBouncer (transaction pooling
+> is incompatible with DDL). For any remote/production database, set
+> `ALEMBIC_DATABASE_URL` to a **direct** Postgres URL (not through a
+> transaction-mode pooler) — it passes through untouched.
+
 ---
 
 ## Running the Web UI
@@ -204,7 +210,7 @@ oly-program-generator/
     ├── assess.py / plan.py / retrieve.py / generate.py / validate.py / explain.py
     ├── models.py · phase_profiles.py · session_templates.py · weight_resolver.py
     ├── feedback.py · log.py
-    ├── migrations/                  # Alembic migrations (0000–0003)
+    ├── migrations/                  # Alembic migrations (see `alembic history` for the chain)
     ├── tests/                       # 275 unit tests (no DB/API needed for make test)
     └── web/                         # FastAPI web UI
         ├── app.py                   # Application factory + middleware + Jinja2 filters

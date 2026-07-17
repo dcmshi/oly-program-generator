@@ -47,6 +47,49 @@ def test_ensure_working_dirs_creates_them():
         assert src.exists() and logs.exists()
 
 
+def test_tzdata_available():
+    """INF-M1: without the tzdata package, ZoneInfo silently falls back to UTC
+    on Windows and the entire per-athlete timezone feature (W-L5) is inert."""
+    from zoneinfo import ZoneInfo
+    ZoneInfo("America/New_York")  # raises ZoneInfoNotFoundError if tzdata missing
+
+
+def test_migration_url_rewrites_only_local_hosts():
+    """INF-M3: the PgBouncer 5432→5433 rewrite is for the local compose stack —
+    a production DB on the standard port must not be silently redirected."""
+    import os
+    from unittest.mock import patch as _patch
+
+    sys.path.insert(0, str(Path(__file__).parent.parent / "migrations"))
+    from db_url import resolve_migration_url
+
+    with _patch.dict(os.environ, {"DATABASE_URL": "postgresql://u:p@db.prod.internal:5432/app",
+                                  "ALEMBIC_DATABASE_URL": ""}):
+        url = resolve_migration_url()
+    assert ":5433/" not in url, f"non-local host must not be rewritten: {url}"
+
+    with _patch.dict(os.environ, {"DATABASE_URL": "postgresql://oly:oly@localhost:5432/oly_programming",
+                                  "ALEMBIC_DATABASE_URL": ""}):
+        url = resolve_migration_url()
+    assert "localhost:5433/" in url, f"local compose URL must hit Postgres directly: {url}"
+
+    with _patch.dict(os.environ, {"ALEMBIC_DATABASE_URL": "postgresql://x@explicit:5432/db"}):
+        url = resolve_migration_url()
+    assert url == "postgresql://x@explicit:5432/db", "explicit override must pass through untouched"
+
+
+def test_makefile_runs_all_no_key_suites():
+    """INF-M2/M6: every no-key regression suite must be in the Makefile lists
+    (CI runs make test-agent / test-ingestion), and reset must wait for health."""
+    mk = (Path(__file__).parent.parent.parent / "Makefile").read_text(encoding="utf-8")
+    for suite in ("test_config", "test_formulas", "test_phase_progression",
+                  "test_log", "test_web_queries"):
+        assert f"tests/{suite}.py" in mk, f"agent suite {suite} missing from Makefile (INF-M2)"
+    for suite in ("test_ingest_web", "test_llm_helpers", "test_vector_loader_units"):
+        assert f"tests/{suite}.py" in mk, f"ingestion suite {suite} missing from Makefile (INF-M2)"
+    assert "up -d --wait" in mk, "make reset must wait for container health (INF-M6)"
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

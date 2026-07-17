@@ -11,8 +11,8 @@ lift_emphasis, strength_limiters, competition_experience).
 Ingestion tables are now managed by 0000_ingestion_schema (the new root).
 
 ----
-EXISTING DATABASE: stamp both migrations to mark them as already applied:
-    uv run alembic stamp 0002_athlete_cost_limit
+EXISTING DATABASE (schema applied outside Alembic): mark everything applied:
+    uv run alembic stamp head
 
 FRESH DATABASE: run only:
     uv run alembic upgrade head
