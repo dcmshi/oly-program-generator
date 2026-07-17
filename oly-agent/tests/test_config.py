@@ -78,6 +78,30 @@ def test_migration_url_rewrites_only_local_hosts():
     assert url == "postgresql://x@explicit:5432/db", "explicit override must pass through untouched"
 
 
+def test_log_env_does_not_override_explicit_args():
+    """INF-L8: explicit constructor args must beat LOG_FORMAT/LOG_LEVEL env —
+    every other Settings field resolves in that order."""
+    import os
+    from unittest.mock import patch as _patch
+
+    with _patch.dict(os.environ, {"LOG_FORMAT": "json", "LOG_LEVEL": "DEBUG"}):
+        s = Settings(log_format="text", log_level="WARNING")
+    assert s.log_format == "text", s.log_format
+    assert s.log_level == "WARNING", s.log_level
+
+    with _patch.dict(os.environ, {"LOG_FORMAT": "json", "LOG_LEVEL": "DEBUG"}):
+        s2 = Settings()
+    assert s2.log_format == "json" and s2.log_level == "DEBUG"
+
+
+def test_placeholder_secret_key_rejected():
+    """INF-L9: a copied-but-unedited .env must not sign sessions with the
+    committed public placeholder string."""
+    s = Settings(secret_key="change_me_to_a_random_64_char_hex_string")
+    assert s.secret_key != "change_me_to_a_random_64_char_hex_string"
+    assert s.secret_key, "a random key should replace the rejected placeholder"
+
+
 def test_makefile_runs_all_no_key_suites():
     """INF-M2/M6: every no-key regression suite must be in the Makefile lists
     (CI runs make test-agent / test-ingestion), and reset must wait for health."""

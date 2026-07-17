@@ -89,16 +89,16 @@ cited line before filing. Prefixes: **AGT** agent pipeline · **WEB** web layer 
 
 ### Infra / docs
 
-- [ ] **INF-L1 — Docs claim `DATABASE_URL` has "no localhost fallback"; `shared/config.py:93` still falls back with only a warning** (`ARCHITECTURE.md:222`, `docs/CONTRIBUTING.md:26` says "✅ Fixed"): a deploy missing the var silently talks to localhost. Fail fast or fix the docs.
-- [ ] **INF-L2 — Broken doc links**: `ARCHITECTURE.md:229` → `SECURITY.md` (actual: `docs/design/SECURITY.md`); README's bare `SCALING.md` likewise.
-- [ ] **INF-L3 — `docs/CONTRIBUTING.md:101` pg_restore passes a host-side filename as an in-container path** — fails as written; use the `< file` stdin form used at line 105.
-- [ ] **INF-L4 — CLAUDE.md's `uv sync --extra dev` omits `--extra web`**, so its own documented uvicorn/web-router-test commands fail after following it (Makefile `sync` is correct).
-- [ ] **INF-L5 — `docs/SCHEMA.md:161` claims 5 `prilepin_chart` rows incl. 65–70; seed has 4, and `prilepin.py:10`'s "loaded from DB at startup" is false** (nothing reads the table at runtime).
-- [ ] **INF-L6 — docker-compose: no `restart:` policy on any service; PgBouncer pinned to `:latest`** — an OOM-killed service stays down; an upstream release changes behavior with no repo diff.
-- [ ] **INF-L7 — Ruff unpinned in both lint entry points** (`Makefile:103`, `ci.yml:18` `uvx ruff check .`): a new ruff release can break CI with zero repo changes. Pin `uvx ruff@<version>`.
-- [ ] **INF-L8 — `LOG_FORMAT`/`LOG_LEVEL` env vars override explicit constructor args** (`shared/config.py:112-113`), opposite of every other Settings field's precedence.
-- [ ] **INF-L9 — The committed placeholder `SECRET_KEY` passes validation silently** (`.env.example:31`; `config.py:115-122` warns only when empty): a copied-but-unedited .env signs sessions with a public string. Reject the known placeholder (or warn on it).
-- [ ] **INF-L10 — Duplicate/conflicting `ebooklib` bounds** (`oly-ingestion/pyproject.toml:21` pins `>=0.20,<1`; the vestigial `epub` extra at `:26-28` declares `>=0.18` unbounded). Delete the extra.
+- [x] **INF-L1 — Docs claim `DATABASE_URL` has "no localhost fallback"** ✅ docs now describe the real behavior (dev fallback + logged warning; production must set it): ARCHITECTURE.md env table + CONTRIBUTING M3 row re-marked "Mitigated".
+- [x] **INF-L2 — Broken doc links** ✅ ARCHITECTURE.md → `docs/design/SECURITY.md`. (README no longer contains a bare SCALING.md link — already resolved earlier.)
+- [x] **INF-L3 — `docs/CONTRIBUTING.md` pg_restore passes a host-side filename as an in-container path** ✅ stdin form.
+- [x] **INF-L4 — CLAUDE.md's `uv sync --extra dev` omits `--extra web`** ✅ added.
+- [x] **INF-L5 — `docs/SCHEMA.md` prilepin row count + `prilepin.py` "loaded from DB" claim** ✅ SCHEMA.md says 4 seed rows and names `shared/prilepin.py` as the runtime source (with the 65–70 band); the false docstring comment rewritten.
+- [x] **INF-L6 — docker-compose: no `restart:` policy; PgBouncer on `:latest`** ✅ `restart: unless-stopped` on all three services; PgBouncer pinned to `edoburu/pgbouncer:v1.25.2-p0` (newest published tag; stack verified healthy on it).
+- [x] **INF-L7 — Ruff unpinned in both lint entry points** ✅ pinned to 0.15.22 (`RUFF_VERSION` in Makefile, mirrored in ci.yml).
+- [x] **INF-L8 — `LOG_FORMAT`/`LOG_LEVEL` env vars override explicit constructor args** ✅ blank-default + `or` resolution (arg > env > default), matching every other field. Test `test_log_env_does_not_override_explicit_args`.
+- [x] **INF-L9 — The committed placeholder `SECRET_KEY` passes validation silently** ✅ known placeholder rejected with a warning; a random key replaces it. Test `test_placeholder_secret_key_rejected`.
+- [x] **INF-L10 — Duplicate/conflicting `ebooklib` bounds** ✅ vestigial `epub` extra deleted.
 
 ## 4. Addendum — 2026-07-16 fresh pass (jobs/worker, auth, shared modules)
 

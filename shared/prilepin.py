@@ -6,8 +6,9 @@ Used by the PLAN step (setting rep targets) and VALIDATE step (checking complian
 
 from shared.constants import MIN_SESSION_REPS
 
-# Prilepin's zones — mirrors the prilepin_chart table for in-memory use.
-# Loaded from DB at startup; hardcoded here as a reliable fallback.
+# Prilepin's zones — the runtime source of truth (nothing reads the DB's
+# prilepin_chart table at runtime; that table is seed/reference data and lacks
+# the 65-70 transition band defined below).
 PRILEPIN_ZONES = [
     {"zone": "55-65",  "low": 55,  "high": 65,  "reps_per_set": (3, 6), "optimal": 24, "range": (18, 30)},
     # 65-70% is a transition zone not explicitly in Prilepin's original table;

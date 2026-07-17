@@ -22,6 +22,10 @@ for _candidate in [
         break
 
 
+# Known placeholder values shipped in .env.example — never valid signing keys
+_PLACEHOLDER_SECRET_KEYS = frozenset({"change_me_to_a_random_64_char_hex_string"})
+
+
 @dataclass
 class Settings:
     # ── Database ──────────────────────────────────────────────
@@ -72,8 +76,10 @@ class Settings:
     secret_key: str = ""   # session signing key; MUST be set in production via SECRET_KEY env var
     redis_url: str = ""    # optional Redis URL for rate limiter (e.g. redis://localhost:6379)
     https_only: bool = False  # set HTTPS_ONLY=true in production to enable Secure cookie flag
-    log_format: str = "text"  # "json" for production — set via LOG_FORMAT env var
-    log_level: str = "INFO"   # set via LOG_LEVEL env var
+    # Blank defaults resolve in __post_init__ (explicit arg > env > default) so
+    # env vars can't silently override an explicitly passed value (INF-L8).
+    log_format: str = ""      # "json" for production — set via LOG_FORMAT env var (default "text")
+    log_level: str = ""       # set via LOG_LEVEL env var (default "INFO")
 
     # ── Paths (ingestion pipeline) ────────────────────────────
     sources_dir: Path = Path("./sources")
@@ -109,10 +115,19 @@ class Settings:
 
         self.https_only = self.https_only or os.getenv("HTTPS_ONLY", "").lower() in ("1", "true", "yes")
 
-        self.log_format = os.getenv("LOG_FORMAT", self.log_format)
-        self.log_level  = os.getenv("LOG_LEVEL",  self.log_level)
+        # Explicit arg > env > default — matches every other field (INF-L8)
+        self.log_format = self.log_format or os.getenv("LOG_FORMAT", "text")
+        self.log_level  = self.log_level or os.getenv("LOG_LEVEL", "INFO")
 
         self.secret_key = self.secret_key or os.getenv("SECRET_KEY", "")
+        if self.secret_key in _PLACEHOLDER_SECRET_KEYS:
+            # A copied-but-unedited .env would otherwise sign sessions with a
+            # public string from the repo (INF-L9)
+            _log.warning(
+                "SECRET_KEY is the committed .env.example placeholder — ignoring it. "
+                "Generate a real key: python -c \"import secrets; print(secrets.token_hex(32))\""
+            )
+            self.secret_key = ""
         if not self.secret_key:
             import secrets
             self.secret_key = secrets.token_hex(32)

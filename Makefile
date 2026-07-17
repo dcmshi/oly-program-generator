@@ -107,8 +107,11 @@ INGESTION_TESTS := \
 
 test: test-agent test-ingestion
 
+# Pinned so a new ruff release can't break CI with zero repo changes (INF-L7)
+RUFF_VERSION := 0.15.22
+
 lint:
-	uvx ruff check .
+	uvx ruff@$(RUFF_VERSION) check .
 
 test-agent:
 	cd oly-agent && uv run pytest $(AGENT_TESTS) -q

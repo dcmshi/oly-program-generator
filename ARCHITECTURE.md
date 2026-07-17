@@ -219,11 +219,11 @@ Internet ──► Reverse │  nginx / Caddy / ALB  (HTTPS termination)│
 
 | Variable | Purpose |
 |----------|---------|
-| `DATABASE_URL` | Full Postgres connection string (required — no localhost fallback) |
+| `DATABASE_URL` | Full Postgres connection string. **Falls back to `localhost` with a logged warning when unset** — set it explicitly in production so a missing var can't silently point at the wrong host. |
 | `SECRET_KEY` | Session signing key — must be stable across restarts |
 | `REDIS_URL` | Redis connection string (default: `redis://localhost:6379`) |
 | `HTTPS_ONLY` | Set to `true` to enable `Secure` cookie flag |
 | `ANTHROPIC_API_KEY` | Claude API — required for generation |
 | `OPENAI_API_KEY` | OpenAI embeddings — required for vector search |
 
-See [`SECURITY.md`](SECURITY.md) for the full security audit and deployment checklist.
+See [`docs/design/SECURITY.md`](docs/design/SECURITY.md) for the full security audit and deployment checklist.

@@ -126,7 +126,7 @@ Each subsystem manages its own venv via `uv`. Use `uv run` from the respective d
 ```bash
 # ── Install / sync dependencies ──────────────────────────────────────────
 cd oly-ingestion && uv sync --extra dev
-cd oly-agent    && uv sync --extra dev
+cd oly-agent    && uv sync --extra dev --extra web   # web extra needed for uvicorn/router tests
 
 # ── Tests (no API keys needed) ──────────────────────────────────────────
 cd oly-ingestion

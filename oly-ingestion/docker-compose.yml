@@ -13,6 +13,7 @@ services:
   db:
     image: pgvector/pgvector:pg16
     container_name: oly-postgres
+    restart: unless-stopped   # an OOM-killed service must come back (INF-L6)
     environment:
       POSTGRES_USER: ${POSTGRES_USER:-oly}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}          # required — set in .env
@@ -30,8 +31,11 @@ services:
       retries: 5
 
   pgbouncer:
-    image: edoburu/pgbouncer:latest
+    # pinned — :latest let an upstream release change pooling behavior with no
+    # repo diff (INF-L6)
+    image: edoburu/pgbouncer:v1.25.2-p0
     container_name: oly-pgbouncer
+    restart: unless-stopped
     environment:
       DATABASE_URL: "postgresql://${POSTGRES_USER:-oly}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-oly_programming}"
       POOL_MODE: transaction
@@ -54,6 +58,7 @@ services:
   redis:
     image: redis:7-alpine
     container_name: oly-redis
+    restart: unless-stopped
     ports:
       - "127.0.0.1:6379:6379"
     healthcheck:

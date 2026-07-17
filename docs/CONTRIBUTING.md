@@ -23,7 +23,7 @@ Pre-deployment audit completed 2026-03-16. All issues resolved.
 |---|-------|------|--------|
 | M1 | `https_only=False` hardcoded in `SessionMiddleware` — session cookies lack `Secure` flag over HTTPS | `web/app.py:92` | ✅ Fixed |
 | M2 | `SECRET_KEY` auto-generates randomly at startup if unset — sessions invalidate on restart, breaks multi-instance | `shared/config.py:102` | ✅ Fixed |
-| M3 | `DATABASE_URL` silently falls back to `localhost` default if unset — masks misconfiguration | `shared/config.py:89` | ✅ Fixed |
+| M3 | `DATABASE_URL` silently falls back to `localhost` default if unset — masks misconfiguration | `shared/config.py:89` | ⚠ Mitigated — the fallback remains for local dev but logs a warning; production must set `DATABASE_URL` explicitly |
 | M4 | In-process `ThreadPoolExecutor` job queue — jobs lost on restart, incompatible with multi-worker/multi-instance deployments | `web/jobs.py:16` | ✅ Fixed (ARQ + Redis — see `web/worker.py`) |
 
 ### Infrastructure
@@ -97,8 +97,8 @@ docker exec oly-postgres pg_dump -U oly -Fc oly_programming > oly_backup_$(date 
 # Plain SQL — human-readable, portable
 docker exec oly-postgres pg_dump -U oly oly_programming > oly_backup_$(date +%Y%m%d).sql
 
-# Restore from binary dump
-docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-exists oly_backup_YYYYMMDD.dump
+# Restore from binary dump (stdin — the file lives on the host, not in the container)
+docker exec -i oly-postgres pg_restore -U oly -d oly_programming --clean --if-exists < oly_backup_YYYYMMDD.dump
 
 # Full restore after volume wipe (docker compose down -v):
 # 1. docker compose up -d

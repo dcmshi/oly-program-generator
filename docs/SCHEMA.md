@@ -158,7 +158,7 @@ erDiagram
 | Table | Rows | Description |
 |-------|------|-------------|
 | `sources` | 436 | Source books and articles. Seed: 6 canonical texts. |
-| `prilepin_chart` | 5 | Prilepin's intensity zones (55–65, 65–70, 70–80, 80–90, 90–100%). Structured lookup only — not in vector store. |
+| `prilepin_chart` | 4 | Prilepin's intensity zones (55–65, 70–80, 80–90, 90–100%; seed data). The runtime source of truth is `shared/prilepin.py`'s in-memory table, which additionally covers the 65–70 transition band — nothing reads this table at runtime. |
 | `exercises` | 50+ | Full exercise taxonomy: competition lifts, variants, pulls, strength, accessory. Self-referencing hierarchy via `parent_exercise_id`. |
 | `exercise_substitutions` | 10+ | Injury/equipment/fatigue substitution pairs with context. |
 | `exercise_complexes` | 6 | Named multi-exercise complexes with ordered JSONB structure. |
