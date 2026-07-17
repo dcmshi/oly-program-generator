@@ -36,7 +36,9 @@ def explain(
         settings: AgentSettings
 
     Returns:
-        Rationale text (3-5 paragraphs) for storage in generated_programs.rationale
+        (rationale_text, input_tokens, output_tokens) — the token counts feed
+        the orchestrator's per-program cost tracking, which previously
+        excluded the explain call's spend entirely (AGT-L7).
     """
     prompt = _build_explain_prompt(athlete_context, plan, program_sessions)
 
@@ -57,10 +59,10 @@ def explain(
             f"{response.usage.input_tokens} in / {response.usage.output_tokens} out, "
             f"~${cost:.4f})"
         )
-        return rationale
+        return rationale, response.usage.input_tokens, response.usage.output_tokens
     except Exception as e:
         logger.error(f"Explain step failed after retries: {e}")
-        return f"[Rationale generation failed: {e}]"
+        return f"[Rationale generation failed: {e}]", 0, 0
 
 
 def _build_explain_prompt(

@@ -591,9 +591,31 @@ def test_duplicate_exercise_order_is_error():
     return True, ""
 
 
+# ── Weekly rep budget (AGT-L3) ────────────────────────────────
+
+def test_weekly_budget_overshoot_warns():
+    # cumulative 15 + this session 9 = 24 > 18 × 1.25 = 22.5
+    exercises = [_ex("Snatch", 3, 3, 75)]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE,
+                              week_cumulative_reps={"70-80": 15})
+    assert result.is_valid, result.errors
+    assert any("budget" in w.lower() for w in result.warnings), result.warnings
+    return True, ""
+
+
+def test_weekly_budget_within_tolerance_no_warning():
+    exercises = [_ex("Snatch", 3, 3, 75)]  # 9 + 9 = 18 ≤ 22.5
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE,
+                              week_cumulative_reps={"70-80": 9})
+    assert not any("budget" in w.lower() for w in result.warnings), result.warnings
+    return True, ""
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
+    ("Weekly budget: overshoot warns (AGT-L3)", test_weekly_budget_overshoot_warns),
+    ("Weekly budget: within tolerance silent", test_weekly_budget_within_tolerance_no_warning),
     ("Constraints: null sets → error (AGT-M4)", test_null_sets_is_error),
     ("Constraints: zero reps → error (AGT-M4)", test_zero_reps_is_error),
     ("Constraints: >120% → error even for non-comp (AGT-M4)", test_non_comp_intensity_above_120_is_error),

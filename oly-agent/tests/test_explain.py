@@ -144,8 +144,11 @@ def test_explain_returns_rationale_text():
     mock_response.usage = MagicMock(input_tokens=100, output_tokens=50)
     mock_client.messages.create.return_value = mock_response
 
-    result = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
-    assert result == "This is the rationale."
+    # explain returns (rationale, input_tokens, output_tokens) so the
+    # orchestrator can count its spend (AGT-L7)
+    rationale, in_tok, out_tok = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    assert rationale == "This is the rationale."
+    assert (in_tok, out_tok) == (100, 50)
 
 def test_explain_calls_llm_with_correct_model():
     mock_client = MagicMock()
@@ -162,8 +165,9 @@ def test_explain_returns_error_string_on_llm_failure():
     mock_client = MagicMock()
     mock_client.messages.create.side_effect = RuntimeError("API down")
 
-    result = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
-    assert "failed" in result.lower() or "error" in result.lower()
+    rationale, in_tok, out_tok = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    assert "failed" in rationale.lower() or "error" in rationale.lower()
+    assert (in_tok, out_tok) == (0, 0)
 
 
 # ── Runner ───────────────────────────────────────────────────────────────────

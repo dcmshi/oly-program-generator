@@ -197,7 +197,8 @@ def _full_mock_stack(stack: ExitStack, overrides: dict = None) -> dict:
         "retrieve": _retrieval_context(),
         "generate": _generation_result(),
         "validate": _validation_result(),
-        "explain": "# Program rationale\nTest rationale text.",
+        # explain returns (rationale, input_tokens, output_tokens) — AGT-L7
+        "explain": ("# Program rationale\nTest rationale text.", 100, 50),
         "create_llm_client": MagicMock(),
         "estimate_cost": 0.01,
         "resolve_exercise_ids": lambda exs, lu: exs,
@@ -446,6 +447,20 @@ def test_multi_week_program_generates_correct_session_count():
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
+
+# ── AGT-L7: explain respects the cost guard and its spend is counted ──────────
+
+def test_explain_skipped_when_cost_limit_reached():
+    """Generation landing at the limit must not still fire the explain call."""
+    settings = _settings()
+    settings.cost_limit_per_program = 0.0  # first session runs, then over limit
+
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        result = run(1, settings)
+    assert result == 42
+    mocks["explain"].assert_not_called()
+
 
 # ── WEB-M8: an expired deadline aborts before spending on LLM calls ───────────
 

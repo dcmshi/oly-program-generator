@@ -131,7 +131,10 @@ def plan(athlete_context: AthleteContext, conn, settings) -> ProgramPlan:
     return ProgramPlan(
         phase=phase,
         duration_weeks=duration_weeks,
-        sessions_per_week=athlete_context.sessions_per_week,
+        # The distribution may have fallen back to a different frequency
+        # (3/4/5) — store the ACTUAL day count so program metadata matches the
+        # sessions that exist (AGT-L6; at 1–2/wk the mismatch fed AGT-H1).
+        sessions_per_week=len(session_templates) or athlete_context.sessions_per_week,
         deload_week=deload_week,
         weekly_targets=weekly_targets,
         session_templates=session_templates,

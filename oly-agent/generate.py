@@ -26,6 +26,7 @@ from models import (
     SessionTemplate,
     WeekTarget,
 )
+from pydantic import ValidationError
 from schemas import OutcomeSummary
 from validate import validate_session
 
@@ -53,10 +54,38 @@ def _is_exercise_list(result) -> bool:
     return isinstance(result, list) and all(isinstance(x, dict) for x in result)
 
 
+_INT_FIELDS = ("sets", "reps", "rest_seconds", "exercise_order")
+_FLOAT_FIELDS = ("intensity_pct", "rpe_target")
+
+
+def _coerce_numeric_fields(exercises: list[dict]) -> list[dict]:
+    """Coerce numeric fields the LLM sometimes emits as strings ("75").
+
+    Strings passed validation (which compares via float()) and then crashed
+    arithmetic in the orchestrator/resolver, aborting the whole run (AGT-L1).
+    Unparseable values become None so validation flags them into a retry.
+    """
+    for ex in exercises:
+        for field in _INT_FIELDS:
+            if field in ex and ex[field] is not None and not isinstance(ex[field], bool):
+                try:
+                    ex[field] = int(float(ex[field]))
+                except (TypeError, ValueError):
+                    ex[field] = None
+        for field in _FLOAT_FIELDS:
+            if field in ex and ex[field] is not None:
+                try:
+                    ex[field] = float(ex[field])
+                except (TypeError, ValueError):
+                    ex[field] = None
+    return exercises
+
+
 def parse_llm_response(raw_response: str) -> list[dict]:
     """Parse LLM response into exercise list.
 
-    Handles: markdown fences, preamble text, single-object responses.
+    Handles: markdown fences, preamble text, single-object responses, and
+    numeric fields emitted as strings (coerced once here — AGT-L1).
     Raises ValueError if all parsing attempts fail or the parsed JSON is not a
     list of objects (so malformed-but-parseable output triggers a retry).
     """
@@ -71,7 +100,7 @@ def parse_llm_response(raw_response: str) -> list[dict]:
         if isinstance(result, dict):
             result = [result]
         if _is_exercise_list(result):
-            return result
+            return _coerce_numeric_fields(result)
     except json.JSONDecodeError:
         pass
 
@@ -82,7 +111,7 @@ def parse_llm_response(raw_response: str) -> list[dict]:
         try:
             result = json.loads(match.group())
             if _is_exercise_list(result) and len(result) > 0:
-                return result
+                return _coerce_numeric_fields(result)
         except json.JSONDecodeError:
             pass
 
@@ -92,7 +121,7 @@ def parse_llm_response(raw_response: str) -> list[dict]:
         try:
             result = json.loads(match.group())
             if isinstance(result, dict):
-                return [result]
+                return _coerce_numeric_fields([result])
         except json.JSONDecodeError:
             pass
 
@@ -114,8 +143,10 @@ def validate_exercise_names(
         # .lower() never raises (a blank name still fails the membership check).
         name = str(ex.get("exercise_name") or "")
         if name.lower() not in available_lower:
+            # A blank name substring-matches every catalogue entry — suggest
+            # nothing rather than the first 3 alphabetical exercises (AGT-L8).
             close = [n for n in available_exercises
-                     if name.lower() in n.lower() or n.lower() in name.lower()]
+                     if name.lower() in n.lower() or n.lower() in name.lower()] if name else []
             if close:
                 errors.append(
                     f"Unknown exercise '{name}'. Did you mean: {', '.join(close[:3])}?"
@@ -318,7 +349,13 @@ def build_session_prompt(
     # ── Previous program summary ──────────────────────────────
     prev_prog = athlete_context.previous_program
     if prev_prog:
-        outcome = OutcomeSummary.model_validate(prev_prog.get("outcome_summary") or {})
+        try:
+            outcome = OutcomeSummary.model_validate(prev_prog.get("outcome_summary") or {})
+        except ValidationError:
+            # plan.py tolerates the same malformed dict with defaults — the
+            # prompt build must not abort the run over it (AGT-L2)
+            logger.warning("Malformed outcome_summary on previous program — using defaults")
+            outcome = OutcomeSummary()
         prev_lines = [
             f"  Phase: {prev_prog.get('phase', 'unknown')} ({prev_prog.get('duration_weeks', '?')} weeks)",
             f"  Adherence: {outcome.adherence_pct}%",

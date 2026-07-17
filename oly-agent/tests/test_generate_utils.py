@@ -129,6 +129,51 @@ def test_remaining_budget_is_weekly_not_session():
     return True, ""
 
 
+# ── AGT-L1: numeric-as-string LLM fields coerced at parse time ────────────────
+
+def test_parse_coerces_numeric_strings():
+    raw = ('[{"exercise_name": "Snatch", "exercise_order": "1", "sets": "4", '
+           '"reps": "3", "intensity_pct": "75.5", "rpe_target": "7.5", '
+           '"rest_seconds": "180"}]')
+    ex = parse_llm_response(raw)[0]
+    assert ex["sets"] == 4 and isinstance(ex["sets"], int)
+    assert ex["reps"] == 3 and isinstance(ex["reps"], int)
+    assert ex["intensity_pct"] == 75.5 and isinstance(ex["intensity_pct"], float)
+    assert isinstance(ex["exercise_order"], int)
+    assert isinstance(ex["rest_seconds"], int)
+    return True, ""
+
+
+def test_parse_unparseable_numeric_becomes_none():
+    raw = '[{"exercise_name": "Snatch", "sets": "four", "reps": 3}]'
+    ex = parse_llm_response(raw)[0]
+    assert ex["sets"] is None, "garbage numerics must become None so validation flags them"
+    return True, ""
+
+
+# ── AGT-L2: malformed outcome_summary must not abort the prompt build ────────
+
+def test_prompt_tolerates_malformed_outcome_summary():
+    """plan.py tolerates a malformed outcome dict with defaults; the prompt
+    builder crashed on the same dict at the first session (AGT-L2)."""
+    athlete = _make_athlete(previous_program={
+        "phase": "accumulation", "duration_weeks": 4,
+        "outcome_summary": {"adherence_pct": "not-a-number"},
+    })
+    prompt = _make_prompt(athlete)  # must not raise
+    assert "## Previous Program" in prompt
+    return True, ""
+
+
+# ── AGT-L8: blank exercise_name must not suggest the entire catalogue ────────
+
+def test_validate_blank_name_no_suggestions():
+    errors = validate_exercise_names([{"exercise_name": None}], ["Snatch", "Back Squat"])
+    assert len(errors) == 1
+    assert "Did you mean" not in errors[0], errors[0]
+    return True, ""
+
+
 VALID_EXERCISE = {
     "exercise_name": "Snatch",
     "exercise_order": 1,
@@ -860,6 +905,11 @@ def test_generate_failed_reports_accumulated_tokens():
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
+    # AGT-L1 / L2 / L8
+    ("parse: numeric strings coerced (AGT-L1)", test_parse_coerces_numeric_strings),
+    ("parse: garbage numerics become None (AGT-L1)", test_parse_unparseable_numeric_becomes_none),
+    ("prompt: malformed outcome_summary tolerated (AGT-L2)", test_prompt_tolerates_malformed_outcome_summary),
+    ("validate names: blank name no catalogue spam (AGT-L8)", test_validate_blank_name_no_suggestions),
     # parse_llm_response
     ("parse: plain JSON array", test_parse_plain_json_array),
     ("parse: JSON with ```json fences", test_parse_json_with_markdown_fences),

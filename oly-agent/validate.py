@@ -24,6 +24,7 @@ from shared.constants import (
     SESSION_DURATION_TOLERANCE,
     SUPRAMAX_INTENSITY_WARN_PCT,
     WARMUP_INTENSITY_CUTOFF_PCT,
+    WEEKLY_REP_BUDGET_TOLERANCE,
 )
 from shared.exercise_mapping import COMP_LIFT_REFS
 from shared.formulas import estimate_session_minutes
@@ -159,6 +160,22 @@ def validate_session(
                 f"Prilepin: {session_total} reps in {zone}% zone exceeds "
                 f"Prilepin range max {zone_data['total_reps_range_high']} "
                 f"(optimal {zone_data['optimal_total_reps']})"
+            )
+
+    # ── Check 1b: Weekly cumulative rep budget ────────────────
+    # The module header promised a weekly check but week_cumulative_reps was
+    # never read (AGT-L3). Warn when the week's running comp-lift total blows
+    # past the plan's weekly budget by more than the tolerance — the LLM was
+    # told the remaining budget, so overshoot is a quality signal, not an error.
+    weekly_budget = week_target.get("total_competition_lift_reps") or 0
+    if weekly_budget:
+        prior_reps = sum((week_cumulative_reps or {}).values())
+        week_total = prior_reps + sum(comp_lift_reps.values())
+        if week_total > weekly_budget * WEEKLY_REP_BUDGET_TOLERANCE:
+            warnings.append(
+                f"Weekly comp-lift volume {week_total} reps exceeds the week's "
+                f"budget of {weekly_budget} by more than "
+                f"{WEEKLY_REP_BUDGET_TOLERANCE - 1:.0%}"
             )
 
     # ── Check 2: Intensity envelope ───────────────────────────

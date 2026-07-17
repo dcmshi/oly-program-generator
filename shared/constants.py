@@ -13,6 +13,7 @@ MIN_SESSION_DURATION_MINUTES: int = 30   # floor for a session duration estimate
 # ── Prilepin chart ───────────────────────────────────────────────
 PRILEPIN_HARD_CAP_MULTIPLIER: float = 1.5   # hard session-volume cap = range_high * this
 MIN_SESSION_REPS: int = 3                    # minimum reps to be a meaningful set
+WEEKLY_REP_BUDGET_TOLERANCE: float = 1.25   # warn when weekly comp reps exceed budget × this (AGT-L3)
 
 # ── Vector search ────────────────────────────────────────────────
 VECTOR_SEARCH_DEFAULT_TOP_K: int = 5

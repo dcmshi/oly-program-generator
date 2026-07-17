@@ -72,13 +72,13 @@ cited line before filing. Prefixes: **AGT** agent pipeline · **WEB** web layer 
 
 ### Agent pipeline
 
-- [ ] **AGT-L1 — Numeric-as-string LLM fields crash weight resolution** (`weight_resolver.py:84`): `"intensity_pct": "75"` passes validation (which coerces via `float()`) then `"75" / 100` raises TypeError in the orchestrator → whole-run abort. Coerce once at parse time.
-- [ ] **AGT-L2 — Unguarded `OutcomeSummary.model_validate` in generate** (`generate.py:321` vs the guarded twins at `plan.py:162,213`): an outcome dict plan tolerates with defaults aborts the run at the first prompt build. Add the same try/except.
-- [ ] **AGT-L3 — `week_cumulative_reps` is threaded everywhere but never read** (`validate.py:49`, only other mention is the docstring): the weekly Prilepin check promised by the module header is never enforced — 80 reps/week in the 80–90 zone passes silently. Implement the check or delete the dead parameter + docstring claims.
-- [ ] **AGT-L4 — `log.py cmd_exercise` inserts NOT NULL columns from optional prompts** (`log.py:317,328`, INSERT at `:343-359` unguarded): pressing Enter at "Sets completed" or "Weight" → constraint violation traceback, entry lost (A-L5 wrapped only `cmd_session`). Mark required or wrap like A-L5.
-- [ ] **AGT-L5 — `cmd_status` gates make-rate warnings on RPE presence** (`log.py:443` `AND tle.rpe IS NOT NULL` in the same query that computes `AVG(make_rate)`): make-rate-only rows are excluded, so the <70% warning can never fire for them. Split the filters per metric.
-- [ ] **AGT-L6 — `ProgramPlan.sessions_per_week` not synced to the template fallback** (`plan.py:128` vs `session_templates.py:140-143`): athlete at 6/week gets a 5-day program stored as "6 days/wk" (and at 1–2/week this escalates to AGT-H1).
-- [ ] **AGT-L7 — Reported "Total cost" and the cost guard exclude the EXPLAIN step's spend** (`orchestrator.py:237,365-369`; `explain.py:54` computes but only logs locally): `total_cost_usd` telemetry understates true spend by the explain call(s), and explain fires even when generation landed at the limit.
+- [x] **AGT-L1 — Numeric-as-string LLM fields crash weight resolution** ✅ `_coerce_numeric_fields()` in `parse_llm_response` coerces sets/reps/rest/order (int) and intensity/rpe_target (float) once at parse time; garbage → None so validation flags it. Tests `test_parse_coerces_numeric_strings`, `test_parse_unparseable_numeric_becomes_none`.
+- [x] **AGT-L2 — Unguarded `OutcomeSummary.model_validate` in generate** ✅ same try/except-defaults guard as plan's. Test `test_prompt_tolerates_malformed_outcome_summary`.
+- [x] **AGT-L3 — `week_cumulative_reps` is threaded everywhere but never read** ✅ Check 1b: warns when the week's running comp-lift total exceeds the plan's weekly budget × `WEEKLY_REP_BUDGET_TOLERANCE` (1.25, in constants). Tests `test_weekly_budget_overshoot_warns`, `test_weekly_budget_within_tolerance_no_warning`.
+- [x] **AGT-L4 — `log.py cmd_exercise` inserts NOT NULL columns from optional prompts** ✅ `_apply_notnull_defaults()` mirrors the web defaults (sets from rep entries, weight 0). Test `test_exercise_defaults_for_blank_prompts`.
+- [x] **AGT-L5 — `cmd_status` gates make-rate warnings on RPE presence** ✅ WHERE now accepts either metric (`rpe IS NOT NULL OR make_rate IS NOT NULL`); AVG ignores NULLs per column. Test `test_status_query_not_gated_on_rpe`.
+- [x] **AGT-L6 — `ProgramPlan.sessions_per_week` not synced to the template fallback** ✅ plan stores `len(session_templates)`. Test `test_sessions_per_week_matches_template_fallback`.
+- [x] **AGT-L7 — Reported "Total cost" and the cost guard exclude the EXPLAIN step's spend** ✅ `explain()` returns `(rationale, in_tokens, out_tokens)`; orchestrator adds its cost to `cumulative_cost` and skips the call entirely (with a self-explanatory rationale) when the limit was already reached. Tests `test_explain_skipped_when_cost_limit_reached` + updated explain tests.
 
 ### Ingestion
 
@@ -108,7 +108,7 @@ Second-pass sweep of areas the 07-08 audit didn't dig into (`feedback.py`,
 
 - [x] **WEB-M7 — Passwords >72 bytes → unhandled ValueError → 500 on login, setup, and password change** ✅ new `auth.password_too_long()`; `verify_password` fails closed (no stored hash can match) so login/username-confirm return 401/422; setup + password-change validate with a "72 bytes" message before hashing. Tests `test_verify_password_over_72_bytes_returns_false`, `test_login_long_password_401_not_500`, `test_setup_long_password_422_with_message`, `test_profile_password_change_long_new_password_no_500`.
 - [x] **WEB-M8 — ARQ `job_timeout=600` cannot actually stop a generation** ✅ `orchestrator.run(deadline=…)` (monotonic) checked between sessions — aborts cleanly with a "# Generation Aborted — Time Limit" rationale; worker passes `job_timeout − 30s` margin and uses `get_running_loop()`. Tests `test_deadline_exceeded_aborts_and_marks_draft`, `test_worker_passes_deadline_to_orchestrator`.
-- [ ] **AGT-L8 — Null/empty `exercise_name` makes the retry hint suggest every exercise** (`generate.py:115-118`): `name=""` → `"" in n.lower()` is True for every catalogue name, so the correction prompt says "Did you mean: <first 3 alphabetical>?" for a blank name. Guard the `close` computation on a non-empty name. Cosmetic — the entry still fails validation.
+- [x] **AGT-L8 — Null/empty `exercise_name` makes the retry hint suggest every exercise** ✅ `close` computed only for non-empty names. Test `test_validate_blank_name_no_suggestions`.
 
 Clean on this pass: `feedback.py`, `retrieve.py` (only the known roadmap items
 #18/#19), `vector_loader.similarity_search` (filter/param ordering correct),

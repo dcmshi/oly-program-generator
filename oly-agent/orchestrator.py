@@ -158,6 +158,12 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
         all_sessions_data: list[dict] = []
         failed_sessions: list[str] = []
 
+        # Athlete-specific limit takes precedence over the global setting.
+        # `is not None`, not `or`, so an explicit 0 ("no spend") is honored (A-L8).
+        cost_limit = athlete_context.athlete.get("cost_limit_usd")
+        if cost_limit is None:
+            cost_limit = settings.cost_limit_per_program
+
         for week_target in program_plan.weekly_targets:
             week_number = week_target.week_number
             week_cumulative_reps: dict[str, int] = {}
@@ -212,13 +218,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     )
                     return program_id
 
-                # Cost guard — athlete-specific limit takes precedence over the
-                # global setting. Use `is not None`, not `or`, so an explicit 0
-                # ("no spend") is honored instead of falling back to the global
-                # default (A-L8).
-                cost_limit = athlete_context.athlete.get("cost_limit_usd")
-                if cost_limit is None:
-                    cost_limit = settings.cost_limit_per_program
+                # Cost guard (limit hoisted above the loop; also gates EXPLAIN)
                 if cumulative_cost > cost_limit:
                     total_planned = len(program_plan.weekly_targets) * len(program_plan.session_templates)
                     logger.error(
@@ -363,13 +363,26 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
         # ── Step 6: EXPLAIN ───────────────────────────────────
         logger.info("=== Step 6: EXPLAIN ===")
         _t0 = time.perf_counter()
-        rationale = explain(
-            athlete_context=athlete_context,
-            plan=program_plan,
-            program_sessions=all_sessions_data,
-            llm_client=llm_client,
-            settings=settings,
-        )
+        if cumulative_cost > cost_limit:
+            # Generation landed at/over the limit — don't spend more on the
+            # rationale call, and don't hide that from the reader (AGT-L7).
+            logger.warning("Skipping EXPLAIN — cost limit already reached")
+            rationale = (
+                "# Rationale Skipped — Cost Limit\n"
+                "The program generated, but the cost limit was reached before "
+                "the rationale step. Re-run generation with a higher limit to "
+                "get a full program rationale."
+            )
+        else:
+            rationale, explain_in_tokens, explain_out_tokens = explain(
+                athlete_context=athlete_context,
+                plan=program_plan,
+                program_sessions=all_sessions_data,
+                llm_client=llm_client,
+                settings=settings,
+            )
+            # The explain call is paid too — count it (AGT-L7)
+            cumulative_cost += estimate_cost(explain_in_tokens, explain_out_tokens)
 
         if failed_sessions:
             rationale = (

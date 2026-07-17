@@ -264,6 +264,16 @@ def cmd_session(athlete_id: int, conn, session_id: int | None = None) -> int | N
 
 # ── Command: exercise ────────────────────────────────────────────
 
+def _apply_notnull_defaults(sets_completed, weight_kg, reps_per_set):
+    """Blank interactive prompts must not violate the NOT NULL columns (AGT-L4);
+    mirrors the web defaults (WEB-M5): sets from the rep entries, weight 0."""
+    if sets_completed is None:
+        sets_completed = len(reps_per_set) if reps_per_set else 1
+    if weight_kg is None:
+        weight_kg = 0.0
+    return sets_completed, weight_kg
+
+
 def cmd_exercise(log_id: int, conn, session_id: int | None = None) -> None:
     """Add exercise entries to an existing training log."""
     print(f"\n{'─'*50}")
@@ -326,6 +336,7 @@ def cmd_exercise(log_id: int, conn, session_id: int | None = None) -> None:
             reps_per_set = []
 
         weight_kg = _prompt("  Weight used (kg)", cast=float, default=None)
+        sets_completed, weight_kg = _apply_notnull_defaults(sets_completed, weight_kg, reps_per_set)
         rpe = _prompt("  RPE", cast=float, default=None)
         make_rate = _prompt("  Make rate % (e.g. 100 = all makes)", cast=float, default=None)
         if make_rate is not None:
@@ -440,7 +451,9 @@ def cmd_status(athlete_id: int, conn) -> None:
             JOIN training_logs tl ON tl.id = tle.log_id
             WHERE tl.athlete_id = %s
               AND tl.log_date >= %s
-              AND tle.rpe IS NOT NULL
+              -- either metric qualifies a row: gating on rpe alone silenced
+              -- the make-rate warning for make-rate-only entries (AGT-L5)
+              AND (tle.rpe IS NOT NULL OR tle.make_rate IS NOT NULL)
             GROUP BY tle.exercise_name
             HAVING COUNT(*) >= 2
             ORDER BY avg_rpe_dev DESC NULLS LAST
