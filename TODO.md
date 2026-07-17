@@ -1,4 +1,129 @@
-# TODO — 2026-06-12 Repo Audit Findings
+# TODO — 2026-07-08 Repo Audit Findings
+
+Full 4-track audit (agent pipeline / web / ingestion / infra+docs), run after the
+2026-07-03 audit closed out. Every item below was verified against the code at the
+cited line before filing. Prefixes: **AGT** agent pipeline · **WEB** web layer ·
+**ING** ingestion · **INF** infra/config/docs. Work order: top to bottom.
+
+## 1. High
+
+- [ ] **WEB-H1 — IDOR: unscoped `get_exercise_log_entry` leaks other athletes' log rows** (`web/queries/log_session.py:88` — `WHERE id = $1`, no ownership scoping; called from `web/routers/log_session.py:182,192`)
+  - `POST /log/{own_log_id}/exercise/{B_tle_id}` with another athlete's sequential `tle_id`: the scoped UPDATE no-ops, but the read-back fetches athlete B's row and renders it (exercise, weights, RPE, `technical_notes`) into the partial; line 182's fetch also feeds B's `session_exercise_id` into `maybe_promote_max` for A. Fix: join through `training_logs` and scope by `log_id` + `athlete_id`.
+- [ ] **WEB-H2 — `GET /setup` 500s: `form.getlist()` called on a plain dict** (`web/templates/setup.html:263`; `web/routers/setup.py:54` passes `form or {}`, `:72` passes `dict(raw_form)`)
+  - Jinja raises `UndefinedError: 'dict object' has no attribute 'getlist'` on both the initial GET and the validation-error re-render — account creation is broken through the UI. No router test covers GET /setup, so the suite is green.
+- [ ] **WEB-H3 — Date form fields bound to asyncpg DATE params as raw strings → 500** (`web/queries/profile.py:69,88,142`, `web/queries/setup.py:49`)
+  - asyncpg requires `datetime.date` objects (`DataError: expected a datetime.date instance, got 'str'`). Any submit of `POST /profile/update` with a DOB (the form pre-fills it), `POST /profile/goals` with a competition date, or setup with a DOB → unhandled 500. `queries/setup.py:110` already has a `_date()` parser for `create_goal` — apply it to the other three paths.
+- [ ] **AGT-H1 — Max-test day collides with the session-template fallback → IntegrityError kills a fully-paid run** (`orchestrator.py:298` `max_test_day = program_plan.sessions_per_week + 1`; `session_templates.py:142` falls back to the closest of 3/4/5 days)
+  - Athlete with `sessions_per_week=2` (setup allows `min="1"`) in a max-test phase: templates store days 1–3, `max_test_day=3` violates `program_sessions UNIQUE(program_id, week_number, day_number)` → outer except → run returns None after all LLM cost is spent. Fix: derive from `max(t.day_number for t in session_templates) + 1`.
+- [ ] **AGT-H2 — "Previous program" ordered by `end_date`, which no code path ever writes** (`assess.py:97-100`; `end_date` appears only there and in the migration DDL)
+  - Every completed program has `end_date=NULL`, so `ORDER BY end_date DESC LIMIT 1` returns an arbitrary row once an athlete has ≥2 completed programs — phase progression, load adjustments, and the prompt's "Previous Program" block silently run off the wrong program. Fix: `ORDER BY updated_at DESC`, or write `end_date` in `feedback.save_outcome()`.
+- [ ] **ING-H1 — Transient Wayback failures permanently marked as ingested** (`ingest_web.py:562-566`; single-attempt fetch at `:305-309`)
+  - Any `fetch_charniga_snapshot` failure — 429/5xx/timeout from web.archive.org, or a wrong content selector yielding <200 chars — lands in the `article is None` branch, which writes the URL to `charniga_progress.json` forever. A rate-limited or bad-selector run silently discards the corpus. Fix: distinguish permanent (404, no content element) from transient failures; only persist permanent ones; add retry/backoff for Wayback.
+
+## 2. Medium
+
+### Web
+
+- [ ] **WEB-M1 — `/admin/jobs` 500s on every request**: `web/routers/admin.py:14` builds its own `Jinja2Templates` without the app's custom filters, but `admin_jobs.html:36,44` use `phase_color`/`status_color` (registered only on `web.app.templates`, `app.py:206-207`) → `TemplateAssertionError` at compile time. Share the app's templates instance.
+- [ ] **WEB-M2 — `_parse_log_date` clamps against *server* today, defeating W-L5** (`web/queries/log_session.py:34,41` uses `date.today()`, while the form default is now athlete-local today): athlete in Asia/Tokyo at 08:00 JST submits the defaulted date → `parsed > today` → log silently re-dated to the previous (UTC) day. Thread the athlete's timezone into the clamp.
+- [ ] **WEB-M3 — Profile checkbox vocabularies diverge from setup's → silent data loss on every profile save** (`profile.html:142-147,207-211` hardcode values like `jerk_rack` / `soft_catch`; setup's canonical lists at `routers/setup.py:14-37` have `straps`, `jerk_blocks`, and 13 different fault slugs): values chosen at setup render unchecked on /profile and are wiped by `update_profile`'s array overwrite; profile-picked fault slugs never match `retrieve.py`'s fault mapping. Single-source the option lists.
+- [ ] **WEB-M4 — Open-redirect bypass in `_safe_back`** (`web/routers/history.py:17-20`): `//evil.com` starts with `/` and contains no `://` → rendered as the "← Dashboard" href, navigating off-site. Also `/\evil.com`. Reject `//` and `/\` prefixes.
+- [ ] **WEB-M5 — Blank sets/weight in the exercise log form → NOT NULL violation → 500** (`web/queries/log_session.py:311,313` pass None; `training_log_exercises.sets_completed`/`weight_kg` are NOT NULL; inputs not `required` in `exercise_log_section.html:148,158`): a bodyweight accessory with an empty Weight field loses the entry to an error fragment. Validate/default before INSERT, or make the columns nullable.
+- [ ] **WEB-M6 — CSV export + history silently drop logs unlinked by program deletion** (`web/queries/export.py:90`, `web/queries/history.py:30` — `JOIN program_sessions ON ps.id = tl.session_id`): `delete_program` deliberately preserves logs by NULLing `session_id`, but these INNER JOINs then exclude them from "your full training history". Use LEFT JOINs from `training_logs` outward.
+
+### Agent pipeline
+
+- [ ] **AGT-M1 — Cold-start intensity cap inverts floor/ceiling** (`plan.py:60-72` caps `intensity_ceiling` at 80/75 but never clamps the floor): realization W1 floor 85 → WeekTarget "85%–80%"; the prompt emits contradictory constraints and validate warns on every working set in the gap. Clamp `intensity_floor = min(floor, ceiling)` in the cold-start branch (the outcome-adjustment path at `plan.py:250` already does).
+- [ ] **AGT-M2 — Past `competition_date` clamps to `weeks_to_competition=0` → perpetual 1-week realization** (`assess.py:124` `max(0, delta.days // 7)`; nothing ever sets `athlete_goals.is_active = FALSE`): a goal dated before today reads as "competition this week" on every generation until hand-edited. Treat past dates as None (or expire the goal).
+- [ ] **AGT-M3 — `"selection_rationale": null` crashes the run after validation passes** (`weight_resolver.py:157` `ex.get("selection_rationale", "").lower()` → `None.lower()`): JSON-null passes every parse/validate gate, then aborts the whole run in the resolution stage. Same null-field class as A-M6/A-M7 — use `str(ex.get(...) or "")`.
+- [ ] **AGT-M4 — Validated exercises can still violate `session_exercises` DB constraints → IntegrityError aborts instead of retrying** (crash site `orchestrator.py:494-522`): (1) non-comp lifts >120% only *warn* (`validate.py:144-150`, the A-L4 relaxation) but the DB CHECK caps at 120; (2) null sets/reps pass via `(ex.get("sets") or 0)` but columns are `NOT NULL CHECK (>=1)`; (3) duplicate `exercise_order` is never checked against `UNIQUE(session_id, exercise_order)`. All three escape `generate_session_with_retries` (built for exactly this) and kill the run at save time. Mirror the DB constraints as validation errors.
+
+### Ingestion (Charniga scaffold + pipeline)
+
+- [ ] **ING-M1 — Wayback URL dedup keys on the raw `original` string** (`ingest_web.py:285-296`): `http://`, `https://`, `www.`, `:80`, and trailing-slash variants of one essay each become separate pending URLs — separate fetches, ingestion runs, and paid principle-extraction calls. Key on the CDX `urlkey` (SURT) or a normalized URL.
+- [ ] **ING-M2 — `_CHARNIGA_SKIP` misses whole classes of non-article URLs** (`ingest_web.py:119-124`): the homepage, bare date archives (`/2016/`), static WP pages (`/about/`, `/shop/`), and `comment-page-N` pagination all pass; the `<article>`/`soup.body` fallbacks then ingest nav/teaser soup as articles. Require the `/YYYY/slug/` article shape (or tighten the skip list).
+- [ ] **ING-M3 — "Latest capture" selects post-lapse parking pages** (`ingest_web.py:291-294`): the domain died Jan 2025 and parking pages answer 200 `text/html` for every path, so the newest capture of a real essay can be junk (short junk → permanently marked ingested via ING-H1). Cap CDX with `to=20241231` or prefer the latest pre-2025 capture.
+- [ ] **ING-M4 — `resp.text` mojibake on captures without a charset header** (`ingest_web.py:311`): requests defaults `text/*` to ISO-8859-1, so UTF-8 quotes/em-dashes in old captures become `â€œ` in every embedded chunk. Pass `resp.content` and let BeautifulSoup honor the meta charset.
+- [ ] **ING-M5 — Program-parse prompt's `goal` vocabulary violates the DB CHECK** (`pipeline.py:107` instructs `technique|accumulation|intensification`; the constraint allows `technique_focus|hypertrophy|work_capacity|peaking|return_to_sport|general_strength|competition_prep`): the LLM's correct answer triggers a CHECK violation, `load_program` rolls back and returns None (template silently lost), and `pipeline.py:357-358` still counts `stats["programs"] += 1`. Align the vocabularies and check `goal` in the validation guard; count only on success.
+- [ ] **ING-M6 — `load_program` has no dedup** (`structured_loader.py:121-139`, plain INSERT; `program_templates` has no UNIQUE): re-running the pipeline on the same source — documented as safe — duplicates every template (Takano: 16 → 32), and the every-10-sections resume checkpoint re-parses (paid) and re-inserts any template in the redo window. Add a `UNIQUE(source_id, name)` + `ON CONFLICT`.
+
+### Infra / config
+
+- [ ] **INF-M1 — `tzdata` missing → the entire W-L5 timezone feature is silently inert on Windows** (`oly-agent/pyproject.toml` has no `tzdata`; `shared/timeutil.py:19-24` swallows `ZoneInfoNotFoundError` → UTC): verified live in this venv — `ZoneInfo('America/New_York')` raises. Every athlete timezone falls back to UTC with no warning, and the W-L5 tests pass anyway because they compare against the same fallback. One-line fix: add `tzdata>=2024.1` (harmless on Linux). Related LOW: WEB-L1 below (validate the free-text field).
+- [ ] **INF-M2 — 8 passing no-key test suites are never run by `make test`/CI** (`Makefile:76-98`): missing agent suites `test_config`, `test_formulas`, `test_phase_progression`, `test_log`, `test_web_queries`; missing ingestion suites `test_ingest_web`, `test_llm_helpers`, `test_vector_loader_units` — i.e. all the batch-3/4/5 regression tests. A regression in exactly the audited code merges green. Add them to the two lists.
+- [ ] **INF-M3 — Alembic `env.py` blanket-rewrites any `:5432/` → `:5433/`** (`migrations/env.py:48-49`): `make migrate` against any non-compose DB on the standard port silently connects to port 5433 on that host. Only rewrite for `localhost`/`127.0.0.1`, and document `ALEMBIC_DATABASE_URL` in the production docs (currently only in the module docstring).
+- [ ] **INF-M4 — Stale migration-head docs: following CLAUDE.md's `alembic stamp 0002_athlete_cost_limit` then `upgrade head` fails** (`CLAUDE.md` Docker section; head is `0005`; `0003` has no `IF NOT EXISTS` so an existing DB with `is_admin` dies with `DuplicateColumn` mid-chain). Change the instruction to `alembic stamp head`; also fix `docs/SETUP.md` "(0000–0003)" and the stale "0002 is head" comments in `0000`/`0001`.
+- [ ] **INF-M5 — Root reference SQL files drifted far behind the Alembic chain; `auth_migration.sql` orphaned** (`athlete_schema.sql` athletes table lacks `username`, `password_hash`, `date_of_birth`, `lift_emphasis`, `strength_limiters`, `competition_experience`, `cost_limit_usd`, `is_admin`, `timezone`; file headers still present psql as a setup path): building from the SQL files yields a DB the app crashes on. Delete `auth_migration.sql` and regenerate or clearly mark the reference files OUTDATED.
+- [ ] **INF-M6 — `make reset` runs Alembic before Postgres is healthy** (`Makefile:54-57`): after `down -v`, initdb takes seconds; `alembic upgrade head` gets connection-refused nearly every time. Use `docker compose up -d --wait` (healthchecks already exist).
+
+## 3. Low
+
+### Web
+
+- [ ] **WEB-L1 — Timezone is free text with no validation** (`routers/profile.py:56`, `profile.html:130`): typos are saved and silently ignored forever by the UTC fallback. Validate with `ZoneInfo(tz)` at POST time or use a `<select>`.
+- [ ] **WEB-L2 — No per-athlete in-flight guard on generation enqueue** (`routers/generate.py:39`): double-click / repeated posts queue N serial ~$0.50 jobs producing duplicate drafts; the UI only polls the newest job.
+- [ ] **WEB-L3 — Duplicate `training_logs` race** (`routers/log_session.py:73-80` check-then-insert; no `UNIQUE(session_id)`; `get_existing_log` has no ORDER BY): double-submit → two log rows → adherence >100%, duplicate dashboard cards, edits hit an arbitrary row.
+- [ ] **WEB-L4 — `nan`/`inf`/huge floats accepted** (`queries/log_session.py:13-17`, `queries/profile.py:100-110`, `routers/setup.py:146`): `weight_kg=nan` on a max attempt passes the truthiness/comparison gates and stores NaN into `athlete_maxes` (poisoning all future weight resolution); `1e6` overflows NUMERIC → 500. Add `math.isfinite` + range checks.
+- [ ] **WEB-L5 — No CSRF tokens; sole defense is `SameSite=Lax`** (`app.py:115-120`). Defense-in-depth gap on all state-changing POSTs, not currently exploitable from third-party sites in modern browsers.
+- [ ] **WEB-L6 — 64 KB body cap checks only `Content-Length`** (`app.py:69-72`): a chunked POST bypasses it and `request.form()` buffers unbounded (authenticated memory-DoS).
+- [ ] **WEB-L7 — Username-existence timing oracle at login** (`routers/auth.py:38`): unknown usernames skip the ~100 ms bcrypt check. Marginal (setup discloses taken usernames anyway); equalize with a dummy hash.
+- [ ] **WEB-L8 — `/admin/jobs/{id}` footer sums a nullable column** (`admin_job_detail.html:74` `sum(attribute="estimated_cost_usd")`): any NULL cost row (failed attempts) → TypeError → 500.
+- [ ] **WEB-L9 — Client-controlled `session_exercise_id`/`prescribed_*` stored verbatim** (`queries/log_session.py:281,285,310`; `maybe_promote_max` lookup at `:226-231` also unscoped): cross-tenant FK references possible and deviation/make-rate stats fabricable. Self-affecting integrity, not disclosure.
+
+### Agent pipeline
+
+- [ ] **AGT-L1 — Numeric-as-string LLM fields crash weight resolution** (`weight_resolver.py:84`): `"intensity_pct": "75"` passes validation (which coerces via `float()`) then `"75" / 100` raises TypeError in the orchestrator → whole-run abort. Coerce once at parse time.
+- [ ] **AGT-L2 — Unguarded `OutcomeSummary.model_validate` in generate** (`generate.py:321` vs the guarded twins at `plan.py:162,213`): an outcome dict plan tolerates with defaults aborts the run at the first prompt build. Add the same try/except.
+- [ ] **AGT-L3 — `week_cumulative_reps` is threaded everywhere but never read** (`validate.py:49`, only other mention is the docstring): the weekly Prilepin check promised by the module header is never enforced — 80 reps/week in the 80–90 zone passes silently. Implement the check or delete the dead parameter + docstring claims.
+- [ ] **AGT-L4 — `log.py cmd_exercise` inserts NOT NULL columns from optional prompts** (`log.py:317,328`, INSERT at `:343-359` unguarded): pressing Enter at "Sets completed" or "Weight" → constraint violation traceback, entry lost (A-L5 wrapped only `cmd_session`). Mark required or wrap like A-L5.
+- [ ] **AGT-L5 — `cmd_status` gates make-rate warnings on RPE presence** (`log.py:443` `AND tle.rpe IS NOT NULL` in the same query that computes `AVG(make_rate)`): make-rate-only rows are excluded, so the <70% warning can never fire for them. Split the filters per metric.
+- [ ] **AGT-L6 — `ProgramPlan.sessions_per_week` not synced to the template fallback** (`plan.py:128` vs `session_templates.py:140-143`): athlete at 6/week gets a 5-day program stored as "6 days/wk" (and at 1–2/week this escalates to AGT-H1).
+- [ ] **AGT-L7 — Reported "Total cost" and the cost guard exclude the EXPLAIN step's spend** (`orchestrator.py:237,365-369`; `explain.py:54` computes but only logs locally): `total_cost_usd` telemetry understates true spend by the explain call(s), and explain fires even when generation landed at the limit.
+
+### Ingestion
+
+- [ ] **ING-L1 — Charniga title extraction: en-dash suffix survives, URL becomes title on fallback, constant author + `UNIQUE(title, author)` can merge distinct pages into one source** (`ingest_web.py:321,353`; `structured_loader.py:33-35`): strip `–`/`&#8211;` separators too, and populate `sources.url` to disambiguate.
+- [ ] **ING-L2 — Progress flushed on loop index, not success count** (`ingest_web.py:570-573` `if i % 10 == 0` where `i` counts all pending incl. failures): a crash loses up to 9 successful ingests from the progress file (re-fetched and re-paid next run) while failures are flushed immediately — persistence priority inverted.
+- [ ] **ING-L3 — `load_percentage_schemes` counts `ON CONFLICT DO NOTHING` skips as loaded** (`structured_loader.py:200,215`): same class as the fixed I-L2; use `cursor.rowcount`.
+- [ ] **ING-L4 — A failed/empty *first* window aborts all continuation scanning of an oversized program section** (`pipeline.py:523` `if len(content) > CHUNK_SIZE and parsed.get("weeks")`): a 20k-char section opening with 5k of prose legitimately parses to `{}` → the remaining 15k of weeks is never scanned. Let the continuation loop start even when the first window is empty (bounded by `MAX_EMPTY`).
+
+### Infra / docs
+
+- [ ] **INF-L1 — Docs claim `DATABASE_URL` has "no localhost fallback"; `shared/config.py:93` still falls back with only a warning** (`ARCHITECTURE.md:222`, `docs/CONTRIBUTING.md:26` says "✅ Fixed"): a deploy missing the var silently talks to localhost. Fail fast or fix the docs.
+- [ ] **INF-L2 — Broken doc links**: `ARCHITECTURE.md:229` → `SECURITY.md` (actual: `docs/design/SECURITY.md`); README's bare `SCALING.md` likewise.
+- [ ] **INF-L3 — `docs/CONTRIBUTING.md:101` pg_restore passes a host-side filename as an in-container path** — fails as written; use the `< file` stdin form used at line 105.
+- [ ] **INF-L4 — CLAUDE.md's `uv sync --extra dev` omits `--extra web`**, so its own documented uvicorn/web-router-test commands fail after following it (Makefile `sync` is correct).
+- [ ] **INF-L5 — `docs/SCHEMA.md:161` claims 5 `prilepin_chart` rows incl. 65–70; seed has 4, and `prilepin.py:10`'s "loaded from DB at startup" is false** (nothing reads the table at runtime).
+- [ ] **INF-L6 — docker-compose: no `restart:` policy on any service; PgBouncer pinned to `:latest`** — an OOM-killed service stays down; an upstream release changes behavior with no repo diff.
+- [ ] **INF-L7 — Ruff unpinned in both lint entry points** (`Makefile:103`, `ci.yml:18` `uvx ruff check .`): a new ruff release can break CI with zero repo changes. Pin `uvx ruff@<version>`.
+- [ ] **INF-L8 — `LOG_FORMAT`/`LOG_LEVEL` env vars override explicit constructor args** (`shared/config.py:112-113`), opposite of every other Settings field's precedence.
+- [ ] **INF-L9 — The committed placeholder `SECRET_KEY` passes validation silently** (`.env.example:31`; `config.py:115-122` warns only when empty): a copied-but-unedited .env signs sessions with a public string. Reject the known placeholder (or warn on it).
+- [ ] **INF-L10 — Duplicate/conflicting `ebooklib` bounds** (`oly-ingestion/pyproject.toml:21` pins `>=0.20,<1`; the vestigial `epub` extra at `:26-28` declares `>=0.18` unbounded). Delete the extra.
+
+## 4. Addendum — 2026-07-16 fresh pass (jobs/worker, auth, shared modules)
+
+Second-pass sweep of areas the 07-08 audit didn't dig into (`feedback.py`,
+`retrieve.py`, `vector_loader.py`, `web/jobs.py`/`worker.py`, `shared/config`/
+`timeutil`/`llm`, `web/auth.py`). Three new findings:
+
+- [ ] **WEB-M7 — Passwords >72 bytes → unhandled ValueError → 500 on login, setup, and password change** (`web/auth.py:9,13`): bcrypt 5.0.0 raises on both `hashpw` and `checkpw` for >72-byte input — verified live in this venv ("password cannot be longer than 72 bytes"). `routers/auth.py:29` and `routers/profile.py:112-114` allow `max_length=200`; `routers/setup.py:78` has no upper cap at all. A 73+-char passphrase (or ~19 emoji — multibyte counts) 500s instead of erroring politely. Validate `len(password.encode()) <= 72` at the form layer on all four fields with a clear message.
+- [ ] **WEB-M8 — ARQ `job_timeout=600` cannot actually stop a generation** (`web/worker.py:25,57,72`): the sync orchestrator runs in a `ThreadPoolExecutor` thread; the timeout cancels the awaiting coroutine, never the thread. A hung/slow run (a) keeps spending LLM money after ARQ marks the job failed, (b) can land a "surprise" program in the DB after the UI reported failure, and (c) with `max_workers=1` the next job blocks invisibly behind the zombie thread until its own timeout expires too. Fix: thread a deadline/cancel-event into `orchestrator.run`, checked between sessions (the per-session loop is a natural checkpoint); switch `asyncio.get_event_loop()` → `get_running_loop()` while there.
+- [ ] **AGT-L8 — Null/empty `exercise_name` makes the retry hint suggest every exercise** (`generate.py:115-118`): `name=""` → `"" in n.lower()` is True for every catalogue name, so the correction prompt says "Did you mean: <first 3 alphabetical>?" for a blank name. Guard the `close` computation on a non-empty name. Cosmetic — the entry still fails validation.
+
+Clean on this pass: `feedback.py`, `retrieve.py` (only the known roadmap items
+#18/#19), `vector_loader.similarity_search` (filter/param ordering correct),
+`jobs.py` ownership check (W-L4 fix holds), `resolve_redis_dsn`, `shared/llm.py`
+(pricing hardcode = roadmap #17.3), `shared/timeutil.py` (INF-M1 is the known gap).
+
+## Notes / non-findings from this pass
+
+- Charniga articles never consult `SOURCE_PROFILE_MAP` — the web path sizes chunks via `for_web_article(word_count)`. Not a bug, but CLAUDE.md's "add to SOURCE_PROFILE_MAP first" rule is a no-op for `--site charniga`; keep in mind for the DB-machine run.
+- CDX parsing itself is correct (header row skipped, field order matches `fl=`, repeated `filter` params ANDed, lexicographic timestamp compare valid); the Catalyst path is regression-free from the progress-file parameterization.
+- Clean under scrutiny: asyncpg placeholder/JSONB/transaction usage, program/export/history/dashboard ownership scoping (except WEB-H1/WEB-L9), ARQ status-poll ownership, template autoescaping (no `|safe`), secrets scan of tracked files, migration chain 0000→0005 integrity, CI cache config.
+
+---
+
+# Archive — 2026-06-12 Repo Audit Findings (all closed)
 
 Work order: top to bottom. Check items off as they land.
 
