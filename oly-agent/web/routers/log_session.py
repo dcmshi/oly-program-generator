@@ -179,7 +179,7 @@ async def update_exercise_log(
     # Auto-promote new max if this is a max attempt exercise
     try:
         weight_kg = float(form.get("weight_kg")) if form.get("weight_kg") else None
-        tle = await q.get_exercise_log_entry(conn, tle_id)
+        tle = await q.get_exercise_log_entry(conn, tle_id, log_id)
         if tle and tle["session_exercise_id"] and weight_kg:
             promoted = await q.maybe_promote_max(
                 conn, athlete_id, tle["session_exercise_id"], weight_kg, _date.today()
@@ -189,7 +189,7 @@ async def update_exercise_log(
     except Exception as e:
         logger.warning(f"Max promotion check on edit failed (non-fatal): {e}")
 
-    tle = await q.get_exercise_log_entry(conn, tle_id)
+    tle = await q.get_exercise_log_entry(conn, tle_id, log_id)
     return templates.TemplateResponse(request, "partials/exercise_log_entry.html", {
         "request": request,
         "tle": tle,

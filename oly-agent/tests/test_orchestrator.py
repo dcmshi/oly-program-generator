@@ -447,6 +447,30 @@ def test_multi_week_program_generates_correct_session_count():
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 
+# ── AGT-H1: max-test day must clear the template fallback's day numbers ───────
+
+def test_max_test_day_clears_template_fallback_days():
+    """sessions_per_week=2 falls back to the 3-day template distribution, so
+    day 3 is already taken — spw+1=3 would collide with
+    UNIQUE(program_id, week_number, day_number) and kill a fully-paid run."""
+    from types import SimpleNamespace
+
+    from orchestrator import compute_max_test_day
+
+    three_day_templates = [SimpleNamespace(day_number=d) for d in (1, 2, 3)]
+    assert compute_max_test_day(three_day_templates, sessions_per_week=2) == 4
+
+
+def test_max_test_day_normal_and_empty_cases():
+    from types import SimpleNamespace
+
+    from orchestrator import compute_max_test_day
+
+    templates = [SimpleNamespace(day_number=d) for d in (1, 2, 3, 4)]
+    assert compute_max_test_day(templates, sessions_per_week=4) == 5
+    assert compute_max_test_day([], sessions_per_week=4) == 5
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

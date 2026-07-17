@@ -256,7 +256,8 @@ def save_outcome(outcome: ProgramOutcome, conn):
         conn,
         """
         UPDATE generated_programs
-        SET outcome_summary = %s, status = 'completed', updated_at = NOW()
+        SET outcome_summary = %s, status = 'completed',
+            end_date = CURRENT_DATE, updated_at = NOW()
         WHERE id = %s
         """,
         (summary.model_dump_json(), outcome.program_id),

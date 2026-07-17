@@ -85,7 +85,9 @@ async def get_existing_log(conn, session_id: int) -> dict | None:
     )
 
 
-async def get_exercise_log_entry(conn, tle_id: int) -> dict | None:
+async def get_exercise_log_entry(conn, tle_id: int, log_id: int) -> dict | None:
+    """Scoped by log_id — the caller has ownership-checked the log, so a
+    sequential tle_id belonging to another athlete must not be returned (WEB-H1)."""
     from web.async_db import async_fetch_one
     return await async_fetch_one(
         conn,
@@ -94,9 +96,9 @@ async def get_exercise_log_entry(conn, tle_id: int) -> dict | None:
                reps_per_set, weight_kg, rpe, make_rate, technical_notes,
                prescribed_weight_kg, weight_deviation_kg, rpe_deviation
         FROM training_log_exercises
-        WHERE id = $1
+        WHERE id = $1 AND log_id = $2
         """,
-        tle_id,
+        tle_id, log_id,
     )
 
 

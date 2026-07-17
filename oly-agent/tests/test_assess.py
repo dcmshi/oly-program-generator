@@ -178,6 +178,51 @@ def test_assess_propagates_recent_logs():
     assert ctx.recent_logs[0]["exercise_name"] == "Snatch"
 
 
+# ── AGT-H2: previous-program lookup must not order by never-written end_date ─
+
+def test_previous_program_ordered_by_updated_at():
+    """end_date is NULL on every completed program (nothing writes it), so
+    ORDER BY end_date DESC picks an arbitrary row once an athlete has two
+    completed programs. Order by updated_at instead."""
+    sqls = []
+
+    def fake_fetch_one(conn, sql, params=None):
+        sqls.append(sql)
+        return _athlete() if len(sqls) == 1 else None
+
+    with patch("assess.fetch_one", side_effect=fake_fetch_one):
+        with patch("assess.fetch_all", side_effect=[[], []]):
+            assess(1, None)
+    prev_sql = next(s for s in sqls if "generated_programs" in s)
+    assert "updated_at DESC" in prev_sql, prev_sql
+    assert "ORDER BY end_date" not in prev_sql, prev_sql
+
+
+def test_save_outcome_stamps_end_date():
+    """feedback.save_outcome must write end_date at completion so the column
+    stops being permanently NULL (AGT-H2)."""
+    from unittest.mock import MagicMock
+
+    import feedback
+    from models import ProgramOutcome
+
+    captured = {}
+
+    def fake_execute(conn, sql, params):
+        captured["sql"] = sql
+
+    outcome = ProgramOutcome(
+        program_id=1, athlete_id=1, maxes_delta={}, sessions_prescribed=1,
+        sessions_completed=1, adherence_pct=100.0, avg_rpe_deviation=0.0,
+        avg_make_rate=0.9, make_rate_by_lift={}, phase_verdict=None,
+        avg_weekly_reps=0.0, rpe_trend="stable", make_rate_trend="stable",
+        athlete_feedback=None,
+    )
+    with patch.object(feedback, "execute", fake_execute):
+        feedback.save_outcome(outcome, MagicMock())
+    assert "end_date" in captured["sql"], "save_outcome must stamp end_date (AGT-H2)"
+
+
 # ── Runner ───────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

@@ -4,6 +4,19 @@
 from datetime import date
 
 
+def _date(v):
+    """Parse an ISO date string to datetime.date — asyncpg rejects raw strings
+    on DATE params (WEB-H3). Unparseable/blank values become NULL."""
+    if not v:
+        return None
+    if isinstance(v, date):
+        return v
+    try:
+        return date.fromisoformat(v)
+    except (ValueError, TypeError):
+        return None
+
+
 async def username_taken(conn, username: str) -> bool:
     from web.async_db import async_fetch_one
     row = await async_fetch_one(conn, "SELECT 1 FROM athletes WHERE username = $1", username)
@@ -46,7 +59,7 @@ async def create_athlete(conn, data: dict, password_hash: str) -> int:
         data.get("biological_sex") or None,
         _float(data.get("bodyweight_kg")),
         _float(data.get("height_cm")),
-        data.get("date_of_birth") or None,
+        _date(data.get("date_of_birth")),
         data.get("weight_class") or None,
         _float(data.get("training_age_years")),
         _int(data.get("sessions_per_week")) or 4,
@@ -105,14 +118,6 @@ async def create_goal(
         try:
             return float(v) if v else None
         except (ValueError, TypeError):
-            return None
-
-    def _date(v):
-        if not v:
-            return None
-        try:
-            return date.fromisoformat(v)
-        except ValueError:
             return None
 
     await async_execute(

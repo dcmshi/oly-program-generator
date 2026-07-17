@@ -260,7 +260,7 @@
           ] %}
           <label class="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" name="strength_limiters" value="{{ val }}"
-                   {% if val in (form.getlist('strength_limiters') or []) %}checked{% endif %}
+                   {% if val in (form.get('strength_limiters') or []) %}checked{% endif %}
                    class="rounded border-gray-300">
             {{ label }}
           </label>

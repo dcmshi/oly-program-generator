@@ -1,6 +1,21 @@
 # web/queries/profile.py
 """DB queries for athlete profile viewing and editing."""
 
+from datetime import date
+
+
+def _date(v):
+    """Parse an ISO date string to datetime.date — asyncpg rejects raw strings
+    on DATE params (WEB-H3). Unparseable/blank values become NULL."""
+    if not v:
+        return None
+    if isinstance(v, date):
+        return v
+    try:
+        return date.fromisoformat(v)
+    except (ValueError, TypeError):
+        return None
+
 
 async def get_athlete(conn, athlete_id: int) -> dict | None:
     from web.async_db import async_fetch_one
@@ -66,7 +81,7 @@ async def upsert_goal(conn, athlete_id: int, data: dict):
             WHERE id = $8
             """,
             data["goal"],
-            data.get("competition_date") or None,
+            _date(data.get("competition_date")),
             data.get("competition_name") or None,
             _float(data.get("target_snatch_kg")),
             _float(data.get("target_cj_kg")),
@@ -85,7 +100,7 @@ async def upsert_goal(conn, athlete_id: int, data: dict):
             """,
             athlete_id,
             data["goal"],
-            data.get("competition_date") or None,
+            _date(data.get("competition_date")),
             data.get("competition_name") or None,
             _float(data.get("target_snatch_kg")),
             _float(data.get("target_cj_kg")),
@@ -139,7 +154,7 @@ async def update_profile(conn, athlete_id: int, data: dict):
         data.get("email") or None,
         data["level"],
         data.get("biological_sex") or None,
-        data.get("date_of_birth") or None,
+        _date(data.get("date_of_birth")),
         _float(data.get("bodyweight_kg")),
         _float(data.get("height_cm")),
         data.get("weight_class") or None,

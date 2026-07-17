@@ -97,7 +97,7 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         SELECT phase, duration_weeks, outcome_summary, end_date
         FROM generated_programs
         WHERE athlete_id = %s AND status = 'completed'
-        ORDER BY end_date DESC LIMIT 1
+        ORDER BY updated_at DESC LIMIT 1
         """,
         (athlete_id,),
     )

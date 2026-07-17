@@ -142,6 +142,103 @@ def test_current_week_uses_passed_today():
     assert _current_week(start, 12, _date(2026, 1, 8)) == 2
 
 
+# ── WEB-H1: get_exercise_log_entry must be scoped by log_id ──────────────────
+
+def test_get_exercise_log_entry_scoped_by_log_id():
+    """IDOR regression: the read-back after an exercise-log edit must only
+    return rows belonging to the (ownership-checked) log, not any tle_id."""
+    from web.queries import log_session as lsq
+    captured = {}
+
+    async def fake_fetch_one(conn, sql, *params):
+        captured["sql"] = sql
+        captured["params"] = params
+        return None
+
+    with patch("web.async_db.async_fetch_one", fake_fetch_one):
+        asyncio.run(lsq.get_exercise_log_entry(MagicMock(), 5, 9))
+    assert "log_id" in captured["sql"], "WEB-H1: query must scope by log_id"
+    assert 9 in captured["params"], captured["params"]
+
+
+# ── WEB-H3: date form fields parsed to datetime.date before asyncpg ──────────
+
+def _capture_async(ret=1):
+    captured = {}
+
+    async def fake(conn, sql, *params):
+        captured["sql"], captured["params"] = sql, params
+        return ret
+
+    return captured, fake
+
+
+def test_create_athlete_dob_string_becomes_date():
+    from web.queries import setup as setup_q
+    captured, fake = _capture_async()
+    data = {"name": "A", "level": "beginner", "username": "u",
+            "date_of_birth": "1990-05-10"}
+    with patch("web.async_db.async_execute_returning", fake):
+        asyncio.run(setup_q.create_athlete(MagicMock(), data, "hash"))
+    dob = captured["params"][6]
+    assert isinstance(dob, date), f"date_of_birth must be datetime.date, got {type(dob).__name__}"
+    assert dob == date(1990, 5, 10)
+
+
+def test_create_athlete_garbage_dob_becomes_none():
+    from web.queries import setup as setup_q
+    captured, fake = _capture_async()
+    data = {"name": "A", "level": "beginner", "username": "u",
+            "date_of_birth": "10/05/1990"}
+    with patch("web.async_db.async_execute_returning", fake):
+        asyncio.run(setup_q.create_athlete(MagicMock(), data, "hash"))
+    assert captured["params"][6] is None
+
+
+def test_update_profile_dob_string_becomes_date():
+    from web.queries import profile as profile_q
+    captured, fake = _capture_async()
+    data = {"name": "A", "level": "beginner", "date_of_birth": "1991-02-03"}
+    with patch("web.async_db.async_execute", fake):
+        asyncio.run(profile_q.update_profile(MagicMock(), 1, data))
+    dob = captured["params"][4]
+    assert isinstance(dob, date), f"date_of_birth must be datetime.date, got {type(dob).__name__}"
+
+
+def test_upsert_goal_insert_competition_date_becomes_date():
+    from web.queries import profile as profile_q
+    captured, fake = _capture_async()
+
+    async def no_existing(conn, sql, *params):
+        return None
+
+    with patch("web.async_db.async_execute", fake), \
+         patch("web.async_db.async_fetch_one", no_existing):
+        asyncio.run(profile_q.upsert_goal(
+            MagicMock(), 1,
+            {"goal": "competition_prep", "competition_date": "2026-09-12"},
+        ))
+    cd = captured["params"][2]
+    assert isinstance(cd, date), f"competition_date must be datetime.date, got {type(cd).__name__}"
+
+
+def test_upsert_goal_update_competition_date_becomes_date():
+    from web.queries import profile as profile_q
+    captured, fake = _capture_async()
+
+    async def existing_goal(conn, sql, *params):
+        return {"id": 3}
+
+    with patch("web.async_db.async_execute", fake), \
+         patch("web.async_db.async_fetch_one", existing_goal):
+        asyncio.run(profile_q.upsert_goal(
+            MagicMock(), 1,
+            {"goal": "competition_prep", "competition_date": "2026-09-12"},
+        ))
+    cd = captured["params"][1]
+    assert isinstance(cd, date), f"competition_date must be datetime.date, got {type(cd).__name__}"
+
+
 # ── W-INFO: prefillExercise uses data-* attributes ───────────────────────────
 
 def test_prefill_uses_data_attributes_not_js_string():

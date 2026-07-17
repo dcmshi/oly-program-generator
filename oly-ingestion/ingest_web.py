@@ -298,15 +298,54 @@ def collect_charniga_urls() -> list[tuple[str, str]]:
     return pairs
 
 
-def fetch_charniga_snapshot(original_url: str, timestamp: str) -> dict | None:
-    """Fetch one archived Charniga article from the Wayback Machine and extract text."""
+# Wayback returns transient 429/5xx under load; these must not be conflated
+# with permanent failures (404) when deciding whether to persist a URL as done.
+_WAYBACK_RETRY_STATUSES = {429, 500, 502, 503, 504}
+
+
+def _wayback_get(url: str, timeout: int = 30, attempts: int = 3):
+    """GET with exponential backoff on Wayback's transient failures.
+
+    Returns (response | None, permanent). permanent=True only for HTTP errors
+    that will never succeed (404 etc.); rate limits, 5xx, timeouts and
+    connection drops are retried and, if they persist, reported as transient so
+    the caller keeps the URL pending for the next run (ING-H1).
+    """
+    err = None
+    for attempt in range(1, attempts + 1):
+        try:
+            resp = SESSION.get(url, timeout=timeout)
+            resp.raise_for_status()
+            return resp, False
+        except requests.HTTPError as e:
+            status = e.response.status_code if e.response is not None else None
+            if status not in _WAYBACK_RETRY_STATUSES:
+                logger.warning(f"Permanent HTTP {status} for {url}")
+                return None, True
+            err = e
+        except requests.RequestException as e:
+            err = e
+        if attempt < attempts:
+            wait = 2 ** attempt
+            logger.warning(f"Wayback fetch failed ({err}); retrying in {wait}s ({attempt}/{attempts})")
+            time.sleep(wait)
+    logger.warning(f"Transient failure persists for {url} — leaving pending for next run")
+    return None, False
+
+
+def fetch_charniga_snapshot(original_url: str, timestamp: str) -> tuple[dict | None, bool]:
+    """Fetch one archived Charniga article from the Wayback Machine and extract text.
+
+    Returns (article, permanent_skip). When article is None, permanent_skip=True
+    means the URL can never yield content (404, empty document) and may be
+    persisted as processed; False means a transient failure or a suspiciously
+    short extraction (Wayback hiccup, content-selector mismatch) — the URL must
+    stay pending so a later run can retry it (ING-H1).
+    """
     snapshot = WAYBACK_RAW_FMT.format(timestamp=timestamp, original=original_url)
-    try:
-        resp = SESSION.get(snapshot, timeout=30)
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        logger.warning(f"Failed to fetch snapshot {snapshot}: {e}")
-        return None
+    resp, permanent = _wayback_get(snapshot, timeout=30)
+    if resp is None:
+        return None, permanent
 
     soup = BeautifulSoup(resp.text, "lxml")
 
@@ -333,7 +372,7 @@ def fetch_charniga_snapshot(original_url: str, timestamp: str) -> dict | None:
 
     if main is None:
         logger.warning(f"No content element found for {original_url}")
-        return None
+        return None, True
 
     # Strip share / related / comment / nav widgets inside the content container.
     for tag in main(["div", "section", "ul"], class_=re.compile(r"share|related|comment|nav|sidebar|meta", re.I)):
@@ -343,14 +382,16 @@ def fetch_charniga_snapshot(original_url: str, timestamp: str) -> dict | None:
     # long articles (mutates `main` — must run after the title read above).
     text = block_text(main)
     if len(text) < 200:
-        logger.warning(f"Very short article ({len(text)} chars) at {original_url} — skipping")
-        return None
+        # Could be a stub page, but could equally be a selector/theme mismatch
+        # or a parking page — keep it pending rather than discarding forever.
+        logger.warning(f"Very short article ({len(text)} chars) at {original_url} — skipping (kept pending)")
+        return None, False
 
     # Author: Charniga was translator/publisher for the whole corpus. Individual
     # translations carry an original Russian byline (Roman, Medvedev, …); the
     # source record uses the curator here. TODO: parse a per-article byline
     # (.entry-meta / byline) to refine attribution if desired.
-    return {"title": title or original_url, "author": "Andrew Charniga", "text": text, "url": original_url}
+    return {"title": title or original_url, "author": "Andrew Charniga", "text": text, "url": original_url}, False
 
 
 # ── Ingestion ──────────────────────────────────────────────────
@@ -555,13 +596,17 @@ def main():
         logger.info(f"[{i}/{len(pending)}] {meta}: {url}")
 
         if args.site == "charniga":
-            article = fetch_charniga_snapshot(url, meta)  # meta = Wayback timestamp
+            article, permanent_skip = fetch_charniga_snapshot(url, meta)  # meta = Wayback timestamp
         else:
             article = fetch_article(url)
+            permanent_skip = True  # live-site failures are 404-class — don't retry
 
         if article is None:
-            ingested_urls.add(url)  # mark as seen to avoid retrying bad URLs
-            save_progress(ingested_urls, progress_file)
+            if permanent_skip:
+                ingested_urls.add(url)  # can never succeed — safe to mark as seen
+                save_progress(ingested_urls, progress_file)
+            # transient failures stay OUT of the progress file so the next run
+            # retries them instead of silently discarding corpus (ING-H1)
             time.sleep(args.delay)
             continue
 

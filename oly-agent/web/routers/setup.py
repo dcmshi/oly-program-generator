@@ -105,6 +105,10 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         errors.append("Please select a training level.")
 
     if errors:
+        # Multi-select fields collapse to their last value in dict(raw_form);
+        # the template needs the full list to re-check every selected box, and
+        # calling .getlist on the plain dict crashed the re-render (WEB-H2).
+        form["strength_limiters"] = raw_form.getlist("strength_limiters")
         return templates.TemplateResponse(request,
             "setup.html", _template_ctx(request, errors, form), status_code=422
         )

@@ -295,7 +295,9 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
                 (wt.week_number for wt in program_plan.weekly_targets if not wt.is_deload),
                 default=program_plan.duration_weeks,
             )
-            max_test_day = program_plan.sessions_per_week + 1
+            max_test_day = compute_max_test_day(
+                program_plan.session_templates, program_plan.sessions_per_week
+            )
             logger.info(f"  Building max test session W{peak_week}D{max_test_day}")
             max_test_exercises = _build_max_test_session(athlete_context, exercise_lookup)
             max_test_template = SessionTemplate(
@@ -384,6 +386,19 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False) -> int | Non
 
 
 # ── Max test session builder ───────────────────────────────────
+
+def compute_max_test_day(session_templates, sessions_per_week: int) -> int:
+    """Day number for the max-test session: one past the LAST templated day.
+
+    sessions_per_week + 1 is wrong when the template distribution falls back to
+    a different frequency (e.g. spw=2 → 3-day fallback stores days 1–3), where
+    it collides with UNIQUE(program_id, week_number, day_number) and aborts a
+    fully-generated program at save time (AGT-H1).
+    """
+    days = [t.day_number for t in session_templates]
+    return (max(days) if days else sessions_per_week) + 1
+
+
 
 def _build_max_test_session(
     athlete_context: AthleteContext,

@@ -466,6 +466,32 @@ def test_resolve_redis_dsn_forces_ipv4_localhost():
     assert resolve_redis_dsn("redis://10.0.0.5:6379") == "redis://10.0.0.5:6379"
 
 
+# ── WEB-H2: /setup must render (form.getlist on a plain dict crashed Jinja) ────
+
+def test_setup_page_get_renders():
+    r = _client.get("/setup")
+    assert r.status_code == 200, f"GET /setup returned {r.status_code}"
+
+
+def test_setup_validation_error_rerenders_422():
+    """POST /setup with missing fields must re-render the form (422), not 500."""
+    r = _client.post("/setup", data={"username": "", "password": ""})
+    assert r.status_code == 422, f"Expected 422 re-render, got {r.status_code}"
+
+
+def test_setup_rerender_preserves_strength_limiters():
+    """Multi-select limiter picks survive a validation-error re-render."""
+    import re
+    r = _client.post("/setup", data={
+        "username": "", "password": "",
+        "strength_limiters": ["squat_limited", "pull_limited"],
+    })
+    assert r.status_code == 422, f"Expected 422, got {r.status_code}"
+    checked = re.findall(r'value="(squat_limited|pull_limited)"[^>]*checked', r.text)
+    assert sorted(checked) == ["pull_limited", "squat_limited"], \
+        f"re-render should keep both limiters checked, got {checked}"
+
+
 # ── Runner ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
