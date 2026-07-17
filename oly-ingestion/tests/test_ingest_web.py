@@ -97,6 +97,7 @@ def _mk_resp(status=200, text="", raise_http=False):
     resp = MagicMock()
     resp.status_code = status
     resp.text = text
+    resp.content = text.encode("utf-8")
     if raise_http:
         resp.raise_for_status.side_effect = requests.HTTPError(response=resp)
     else:
@@ -167,6 +168,88 @@ def test_charniga_good_article_parses():
     assert article is not None
     assert article["title"] == "Essay"
     assert len(article["text"]) >= 200
+
+
+# ── ING-M1/M2/M3: CDX enumeration — urlkey dedup, article shape, pre-2025 cap ─
+
+def test_cdx_dedupes_variants_and_caps_pre2025():
+    import ingest_web
+    from ingest_web import collect_charniga_urls
+
+    rows = [
+        ["urlkey", "original", "timestamp"],
+        ["com,sportivnypress)/2016/essay", "http://sportivnypress.com/2016/essay/", "20200101000000"],
+        ["com,sportivnypress)/2016/essay", "https://www.sportivnypress.com/2016/essay/", "20210101000000"],
+        ["com,sportivnypress)/2016/other", "https://sportivnypress.com/2016/other/", "20200601000000"],
+    ]
+    resp = MagicMock()
+    resp.json.return_value = rows
+    resp.raise_for_status.return_value = None
+    with patch.object(ingest_web.SESSION, "get", return_value=resp) as mock_get:
+        pairs = collect_charniga_urls()
+    assert len(pairs) == 2, f"scheme/www variants must collapse via urlkey (ING-M1): {pairs}"
+    assert ("https://www.sportivnypress.com/2016/essay/", "20210101000000") in pairs, pairs
+    params = mock_get.call_args.kwargs["params"]
+    assert "urlkey" in params["fl"], "dedup must key on the CDX urlkey (SURT)"
+    assert params.get("to") == "20241231", "cap captures before the 2025 domain lapse (ING-M3)"
+
+
+def test_cdx_requires_article_shaped_urls():
+    import ingest_web
+    from ingest_web import collect_charniga_urls
+
+    def row(orig, ts="20200101000000"):
+        return ["key_" + orig, orig, ts]
+
+    rows = [
+        ["urlkey", "original", "timestamp"],
+        row("https://sportivnypress.com/"),                            # homepage
+        row("https://sportivnypress.com/2016/"),                       # bare date archive
+        row("https://sportivnypress.com/about/"),                      # static WP page
+        row("https://sportivnypress.com/2016/essay/comment-page-2/"),  # comment pagination
+        row("https://sportivnypress.com/2016/essay/"),                 # real article
+    ]
+    resp = MagicMock()
+    resp.json.return_value = rows
+    resp.raise_for_status.return_value = None
+    with patch.object(ingest_web.SESSION, "get", return_value=resp):
+        pairs = collect_charniga_urls()
+    assert pairs == [("https://sportivnypress.com/2016/essay/", "20200101000000")], \
+        f"only /YYYY/slug/ article URLs should survive (ING-M2): {pairs}"
+
+
+# ── ING-M4: captures without a charset header must not mojibake ───────────────
+
+def test_charniga_utf8_without_charset_header_no_mojibake():
+    import ingest_web
+    from ingest_web import fetch_charniga_snapshot
+
+    body = "<p>" + "Restoration — the Soviet method. " * 15 + "</p>"
+    html = (
+        '<html><head><meta charset="utf-8"><title>E</title></head><body>'
+        f"<div class='entry-content'>{body}</div></body></html>"
+    )
+    resp = MagicMock()
+    resp.status_code = 200
+    resp.content = html.encode("utf-8")
+    # requests defaults text/* without charset to ISO-8859-1 → mojibake in .text
+    resp.text = html.encode("utf-8").decode("iso-8859-1")
+    resp.raise_for_status.return_value = None
+    with patch.object(ingest_web.SESSION, "get", return_value=resp):
+        article, _ = fetch_charniga_snapshot("http://sportivnypress.com/2016/x/", "20200101000000")
+    assert article is not None
+    assert "—" in article["text"], "em-dash lost"
+    assert "â€”" not in article["text"], "mojibake reached the chunker (ING-M4)"
+
+
+# ── ING-M5: parse-prompt goal vocabulary must match the DB CHECK ──────────────
+
+def test_program_parse_prompt_goal_line_matches_db_check():
+    from pipeline import _PROGRAM_PARSE_PROMPT
+    goal_line = next(line for line in _PROGRAM_PARSE_PROMPT.splitlines() if '"goal"' in line)
+    assert "technique_focus" in goal_line and "peaking" in goal_line, goal_line
+    assert "accumulation" not in goal_line and "intensification" not in goal_line, \
+        f"legacy goal labels violate the program_templates CHECK: {goal_line}"
 
 
 if __name__ == "__main__":

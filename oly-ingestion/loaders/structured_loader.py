@@ -105,8 +105,27 @@ class StructuredLoader:
 
     # ── Programs ──────────────────────────────────────────────
 
+    # program_templates.goal has a CHECK constraint; anything else rolls the
+    # INSERT back and silently drops the template (ING-M5).
+    _ALLOWED_PROGRAM_GOALS = frozenset({
+        "general_strength", "competition_prep", "technique_focus",
+        "hypertrophy", "work_capacity", "peaking", "return_to_sport",
+    })
+    # Phase-like labels older parse prompts asked for, mapped onto the CHECK
+    # vocabulary so already-parsed output still loads.
+    _GOAL_SYNONYMS = {
+        "technique": "technique_focus",
+        "accumulation": "general_strength",
+        "intensification": "peaking",
+        "strength": "general_strength",
+    }
+
     def load_program(self, program: dict) -> int | None:
-        """Load a program template into program_templates table."""
+        """Load a program template into program_templates table.
+
+        Returns the new id, or None when skipped (invalid dimensions, unknown
+        template, or an already-loaded (source_id, name) duplicate — ING-M6).
+        """
         duration_weeks = program.get("duration_weeks", 0)
         sessions_per_week = program.get("sessions_per_week", 0)
         if duration_weeks < 1 or not (1 <= sessions_per_week <= 14):
@@ -116,6 +135,16 @@ class StructuredLoader:
                 f"(must have duration_weeks>=1 and sessions_per_week 1-14)"
             )
             return None
+
+        goal = str(program.get("goal") or "general_strength").strip().lower()
+        goal = self._GOAL_SYNONYMS.get(goal, goal)
+        if goal not in self._ALLOWED_PROGRAM_GOALS:
+            logger.warning(
+                f"Unknown program goal '{program.get('goal')}' for "
+                f"'{program.get('name')}' — storing as general_strength"
+            )
+            goal = "general_strength"
+
         cursor = self.conn.cursor()
         try:
             cursor.execute(
@@ -124,21 +153,26 @@ class StructuredLoader:
                     (name, source_id, athlete_level, goal,
                      duration_weeks, sessions_per_week, program_structure)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
+                ON CONFLICT (source_id, name) DO NOTHING
                 RETURNING id
                 """,
                 (
                     program["name"],
                     program["source_id"],
                     program.get("athlete_level", "any"),
-                    program.get("goal", "general_strength"),
+                    goal,
                     program.get("duration_weeks", 0),
                     program.get("sessions_per_week", 0),
                     Json(program["program_structure"]),
                 ),
             )
-            program_id = cursor.fetchone()[0]
+            row = cursor.fetchone()
             self.conn.commit()
             cursor.close()
+            if row is None:
+                logger.info(f"  Program template already loaded, skipped: {program['name']}")
+                return None
+            program_id = row[0]
             logger.info(f"  Loaded program template: {program['name']} (id={program_id})")
             return program_id
         except Exception as e:

@@ -104,7 +104,7 @@ Convert the following raw program text into structured JSON with this schema:
   "duration_weeks": <int, 0 if unknown>,
   "sessions_per_week": <int, 0 if unknown>,
   "athlete_level": "<beginner|intermediate|advanced|elite|any>",
-  "goal": "<general_strength|competition_prep|technique|accumulation|intensification>",
+  "goal": "<general_strength|competition_prep|technique_focus|hypertrophy|work_capacity|peaking|return_to_sport>",
   "weeks": [
     {{
       "week_number": <int>,
@@ -354,8 +354,10 @@ class IngestionPipeline:
 
                         case ContentType.PROGRAM_TEMPLATE:
                             program = self._parse_program_template(section, source, source_id)
-                            self.structured_loader.load_program(program)
-                            stats["programs"] += 1
+                            # load_program returns None on validation skip or
+                            # dedup — count only real inserts (ING-M5)
+                            if self.structured_loader.load_program(program) is not None:
+                                stats["programs"] += 1
 
                         case ContentType.TABLE:
                             rows = self._parse_table(section, source_id)

@@ -173,6 +173,69 @@ def test_load_program():
     loader.close()
 
 
+def test_load_program_dedup():
+    """ING-M6: re-loading the same template (source_id + name) must not
+    duplicate it — re-running a source's pipeline is documented as safe."""
+    loader = make_loader()
+    sid = loader.upsert_source(f"{TEST_PREFIX}Program Dedup Book", "Author", "book")
+
+    program = {
+        "name": f"{TEST_PREFIX}Dedup Template",
+        "source_id": sid,
+        "athlete_level": "any",
+        "goal": "general_strength",
+        "duration_weeks": 4,
+        "sessions_per_week": 3,
+        "program_structure": {"weeks": []},
+    }
+    id1 = loader.load_program(program)
+    assert isinstance(id1, int)
+    id2 = loader.load_program(program)
+    assert id2 is None, f"duplicate load should be skipped, got id {id2}"
+
+    cur = loader.conn.cursor()
+    cur.execute("SELECT count(*) FROM program_templates WHERE source_id = %s", (sid,))
+    total = cur.fetchone()[0]
+    cur.close()
+    assert total == 1, f"expected 1 stored template, got {total}"
+
+    print("  load_program: dedup on (source_id, name) ✓")
+    cleanup(loader, sid)
+    loader.close()
+
+
+def test_load_program_normalizes_legacy_goal():
+    """ING-M5: the old parse-prompt vocabulary (technique/accumulation/
+    intensification) violates the goal CHECK — load_program must normalize the
+    label instead of rolling back and silently dropping the template."""
+    loader = make_loader()
+    sid = loader.upsert_source(f"{TEST_PREFIX}Goal Vocab Book", "Author", "book")
+
+    program = {
+        "name": f"{TEST_PREFIX}Legacy Goal Template",
+        "source_id": sid,
+        "athlete_level": "any",
+        "goal": "accumulation",  # not in the DB CHECK list
+        "duration_weeks": 4,
+        "sessions_per_week": 3,
+        "program_structure": {"weeks": []},
+    }
+    pid = loader.load_program(program)
+    assert isinstance(pid, int), "template with a legacy goal label must still load"
+
+    cur = loader.conn.cursor()
+    cur.execute("SELECT goal FROM program_templates WHERE id = %s", (pid,))
+    stored = cur.fetchone()[0]
+    cur.close()
+    allowed = {"general_strength", "competition_prep", "technique_focus",
+               "hypertrophy", "work_capacity", "peaking", "return_to_sport"}
+    assert stored in allowed, f"stored goal {stored!r} not in the CHECK list"
+
+    print(f"  load_program: legacy goal normalized to {stored!r} ✓")
+    cleanup(loader, sid)
+    loader.close()
+
+
 # ── ingestion run tracking ────────────────────────────────────
 
 def test_create_and_complete_run():
@@ -293,6 +356,8 @@ if __name__ == "__main__":
         test_load_exercise,
         test_load_percentage_schemes,
         test_load_program,
+        test_load_program_dedup,
+        test_load_program_normalizes_legacy_goal,
         test_create_and_complete_run,
         test_fail_run,
         test_find_resumable_run,

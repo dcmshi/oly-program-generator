@@ -122,6 +122,13 @@ _CHARNIGA_SKIP = re.compile(
     r"\?",
     re.I,
 )
+# Positive article-shape requirement (ING-M2): WordPress permalinks here are
+# /YYYY/slug/ (optionally /YYYY/MM/slug/). The skip list alone let the
+# homepage, bare date archives (/2016/), static pages (/about/), and
+# comment-page-N pagination through to be ingested as nav soup.
+_CHARNIGA_ARTICLE_RE = re.compile(
+    r"^https?://(www\.)?sportivnypress\.com/\d{4}(/\d{2})?/[^/]+/?$", re.I
+)
 
 
 # ── URL collection ─────────────────────────────────────────────
@@ -258,13 +265,18 @@ def collect_charniga_urls() -> list[tuple[str, str]]:
 
     sportivnypress.com is defunct, so every article is fetched from its Internet
     Archive snapshot. Returns (original_url, timestamp) pairs — one per unique
-    article URL, keeping the most recent HTTP-200 text/html capture. The
+    article (deduplicated by the CDX urlkey, so http/https/www/trailing-slash
+    variants collapse — ING-M1), keeping the most recent HTTP-200 text/html
+    capture from before the domain lapsed to a parking service (ING-M3). The
     timestamp is carried through to build the raw snapshot URL at fetch time.
     """
     params = {
         "url": f"{CHARNIGA_DOMAIN}/*",
         "output": "json",
-        "fl": "original,timestamp",
+        "fl": "urlkey,original,timestamp",
+        # The domain died Jan 2025; parking pages answer 200 text/html for
+        # every path after that, so cap captures at 2024 (ING-M3).
+        "to": "20241231",
         # Multiple `filter` values are ANDed by CDX.
         "filter": ["statuscode:200", "mimetype:text/html"],
     }
@@ -276,24 +288,27 @@ def collect_charniga_urls() -> list[tuple[str, str]]:
         logger.error(f"Wayback CDX query failed: {e}")
         return []
 
-    # rows[0] is the header (["original","timestamp"]); the rest are captures,
-    # potentially many per URL across crawls.
+    # rows[0] is the header (["urlkey","original","timestamp"]); the rest are
+    # captures, potentially many per URL across crawls.
     if not rows or len(rows) < 2:
         logger.warning(f"Wayback CDX returned no captures for {CHARNIGA_DOMAIN}")
         return []
 
     header, *data = rows
-    latest: dict[str, str] = {}
+    latest: dict[str, tuple[str, str]] = {}  # urlkey → (original, timestamp)
     for row in data:
-        original, timestamp = row[0], row[1]
+        urlkey, original, timestamp = row[0], row[1], row[2]
         if _CHARNIGA_SKIP.search(original):
             continue
-        # Keep the most recent capture (timestamps are YYYYMMDDhhmmss, so a
-        # lexicographic max is chronological).
-        if original not in latest or timestamp > latest[original]:
-            latest[original] = timestamp
+        if not _CHARNIGA_ARTICLE_RE.match(original):
+            continue
+        # Keep the most recent capture per urlkey — SURT form, so scheme/www/
+        # port/slash variants of one essay share a key (ING-M1). Timestamps are
+        # YYYYMMDDhhmmss, so a lexicographic max is chronological.
+        if urlkey not in latest or timestamp > latest[urlkey][1]:
+            latest[urlkey] = (original, timestamp)
 
-    pairs = sorted(latest.items())
+    pairs = sorted(latest.values())
     logger.info(f"CDX: {len(data)} captures → {len(pairs)} unique article URLs")
     return pairs
 
@@ -347,7 +362,10 @@ def fetch_charniga_snapshot(original_url: str, timestamp: str) -> tuple[dict | N
     if resp is None:
         return None, permanent
 
-    soup = BeautifulSoup(resp.text, "lxml")
+    # Bytes, not resp.text — requests defaults charset-less text/* to
+    # ISO-8859-1, mojibake-ing UTF-8 quotes/dashes in old captures; BS4's
+    # detection honors the meta charset (ING-M4).
+    soup = BeautifulSoup(resp.content, "lxml")
 
     # ── Title — WordPress h1.entry-title, else <title> (strip site suffix) ──
     title = ""
