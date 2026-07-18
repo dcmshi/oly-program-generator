@@ -239,8 +239,9 @@ def test_program_detail_404_for_missing():
 
 
 def test_program_activate():
+    # a draft can be activated (audit5 web-L1 requires draft status)
     with patch("web.queries.program.activate_program", return_value=None):
-        with patch("web.queries.program.get_program", return_value=_program(status="active")):
+        with patch("web.queries.program.get_program", side_effect=[_program(status="draft"), _program(status="active")]):
             r = _client.post("/program/1/activate")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
 
@@ -266,6 +267,35 @@ def test_program_activate_404_for_unowned():
             r = _client.post("/program/1/activate")
     assert r.status_code == 404, f"Expected 404, got {r.status_code}"
     assert not mock_activate.called, "activate_program must not run for unowned program"
+
+
+def test_program_complete_409_when_not_active():
+    """audit5 web-L1: completing an already-completed program re-stamps
+    updated_at and can win the previous-program pick (AGT-H2 class) — the
+    endpoint must reject a non-active status."""
+    with patch("web.queries.program.get_program", return_value=_program(status="completed")):
+        with patch("web.queries.program.complete_program", return_value=None) as mock_complete:
+            r = _client.post("/program/1/complete")
+    assert r.status_code == 409, f"Expected 409, got {r.status_code}"
+    assert not mock_complete.called, "complete must not run on a non-active program"
+
+
+def test_program_activate_409_when_not_draft():
+    with patch("web.queries.program.get_program", return_value=_program(status="completed")):
+        with patch("web.queries.program.activate_program", return_value=None) as mock_activate:
+            r = _client.post("/program/1/activate")
+    assert r.status_code == 409, f"Expected 409, got {r.status_code}"
+    assert not mock_activate.called, "activate must not run on a non-draft program"
+
+
+def test_profile_update_invalid_level_422():
+    """audit5 web-L7: an out-of-vocabulary enum value must 422, not 500 at asyncpg."""
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.queries.profile.update_profile", return_value=None) as mock_up:
+        r = _client.post("/profile/update", data={"name": "T", "level": "wizard"})
+    assert r.status_code == 422, f"Expected 422, got {r.status_code}"
+    assert not mock_up.called
 
 
 def test_program_complete_404_for_unowned():

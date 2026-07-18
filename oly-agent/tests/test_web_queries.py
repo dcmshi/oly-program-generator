@@ -354,8 +354,26 @@ def test_submit_generation_guard_then_enqueue():
     with patch.object(jobs, "_arq_pool", pool):
         jid = asyncio.run(jobs.submit_generation(7))
     assert jid == "j1"
-    assert pool.set.await_args.kwargs.get("nx") is True, "guard must be SET NX"
-    assert pool.set.await_args.kwargs.get("ex"), "guard must expire (stuck-job safety)"
+    # first set is the NX reservation; a second set stamps the job_id (web-L3)
+    reserve = pool.set.await_args_list[0]
+    assert reserve.kwargs.get("nx") is True, "guard must be SET NX"
+    assert reserve.kwargs.get("ex"), "guard must expire (stuck-job safety)"
+    stamp = pool.set.await_args_list[1]
+    assert stamp.args[1] == "j1", "second set must stamp the job_id onto the guard"
+
+
+def test_stale_poll_does_not_release_other_jobs_guard():
+    """audit5 web-L3: the guard value stores the owning job_id; a terminal poll
+    of an OLD job must not free the guard held by a NEW in-flight job."""
+    from arq.jobs import JobStatus
+    old_job = _fake_job(args=[7], status=JobStatus.complete)
+    old_job.result = AsyncMock(return_value={"program_id": 1, "duration_seconds": 1.0})
+    pool = MagicMock()
+    pool.get = AsyncMock(return_value=b"new_job_id")  # guard held by a different job
+    pool.delete = AsyncMock()
+    with patch.object(jobs, "_arq_pool", pool), patch("arq.jobs.Job", return_value=old_job):
+        asyncio.run(jobs.get_job_status("old_job_id", 7))
+    assert not pool.delete.called, "must not release a guard held by a different job (audit5 web-L3)"
 
 
 def test_submit_generation_releases_guard_on_cancellation():
@@ -380,6 +398,7 @@ def test_job_status_terminal_clears_inflight():
     job = _fake_job(args=[7], status=JobStatus.complete)
     job.result = AsyncMock(return_value={"program_id": 42, "duration_seconds": 1.0})
     pool = MagicMock()
+    pool.get = AsyncMock(return_value=b"jid")  # guard held by THIS job → release
     pool.delete = AsyncMock()
     with patch.object(jobs, "_arq_pool", pool), patch("arq.jobs.Job", return_value=job):
         result = asyncio.run(jobs.get_job_status("jid", 7))
@@ -528,6 +547,34 @@ def test_create_exercise_log_keeps_valid_session_exercise_id():
          patch("web.async_db.async_fetch_one", match):
         asyncio.run(lsq.create_exercise_log(MagicMock(), 10, _l9_form()))
     assert captured["params"][1] == 999, captured["params"]
+
+
+# ── audit5 web-M1: dashboard warnings not gated on RPE presence ──────────────
+
+def test_dashboard_warnings_query_accepts_either_metric():
+    import inspect
+
+    from web.queries import dashboard as dq
+    src = inspect.getsource(dq.get_warnings)
+    assert "rpe IS NOT NULL OR" in src and "make_rate IS NOT NULL" in src, \
+        "make-rate-only rows must feed the dashboard warning (audit5 web-M1)"
+    assert "COUNT(tle.make_rate)" in src, "per-metric sample gating missing"
+
+
+# ── audit5 web-L1: status-machine guards on lifecycle transitions ────────────
+
+def test_activate_program_scoped_to_draft():
+    from web.queries import program as pq
+    captured = []
+
+    async def fake(conn, sql, *params):
+        captured.append(sql)
+
+    with patch("web.async_db.async_execute", fake):
+        asyncio.run(pq.activate_program(MagicMock(), 1, 1))
+    activate_sql = next(s for s in captured if "status = 'active'" in s and "WHERE id" in s)
+    assert "status IN ('draft'" in activate_sql or "status = 'draft'" in activate_sql, \
+        f"activate must be scoped to draft status (audit5 web-L1): {activate_sql}"
 
 
 # ── audit5 web-H1: get_athlete_maxes vs the real estimate contract ───────────

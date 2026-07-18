@@ -16,12 +16,22 @@ router = APIRouter()
 _TIMING_DUMMY_HASH = hash_password("timing-equalizer-dummy")
 
 
+# Map ?error= codes to messages instead of reflecting arbitrary query text into
+# the trusted login card (audit5 web-L8). Autoescaping already blocks XSS; this
+# stops attacker-chosen copy from being painted inside a styled error box.
+_LOGIN_ERROR_MESSAGES = {
+    "session_expired": "Your session expired — please sign in again.",
+    "logged_out": "You have been signed out.",
+}
+
+
 @router.get("/login", response_class=HTMLResponse)
 async def login_page(request: Request):
     from web.app import templates
+    code = request.query_params.get("error")
     return templates.TemplateResponse(request, "login.html", {
         "request": request,
-        "error": request.query_params.get("error"),
+        "error": _LOGIN_ERROR_MESSAGES.get(code),
     })
 
 

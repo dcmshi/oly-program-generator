@@ -236,25 +236,31 @@ async def get_warnings(conn, athlete_id: int) -> list[str]:
         if log["stress_level"] and int(log["stress_level"]) >= 4:
             warnings.append(f"High stress (level {log['stress_level']}/5) on {d}")
 
+    # Either metric qualifies a row and each warning is gated on its OWN
+    # sample count — gating on rpe alone hid make-rate-only warnings, and the
+    # worst-case 0% make rate slipped the falsy check (audit5 web-M1, mirrors
+    # the log.py AGT-L5/audit3-L1 fix)
     ex_stats = await async_fetch_all(
         conn,
         """
         SELECT tle.exercise_name,
                AVG(tle.rpe_deviation) AS avg_rpe_dev,
                AVG(tle.make_rate) AS avg_make_rate,
-               COUNT(*) AS sessions
+               COUNT(tle.rpe_deviation) AS rpe_samples,
+               COUNT(tle.make_rate) AS make_rate_samples
         FROM training_log_exercises tle
         JOIN training_logs tl ON tl.id = tle.log_id
-        WHERE tl.athlete_id = $1 AND tl.log_date >= $2 AND tle.rpe IS NOT NULL
+        WHERE tl.athlete_id = $1 AND tl.log_date >= $2
+          AND (tle.rpe IS NOT NULL OR tle.make_rate IS NOT NULL)
         GROUP BY tle.exercise_name
-        HAVING COUNT(*) >= 2
+        HAVING COUNT(tle.rpe_deviation) >= 2 OR COUNT(tle.make_rate) >= 2
         """,
         athlete_id, cutoff,
     )
     for ex in ex_stats:
-        if ex["avg_rpe_dev"] and float(ex["avg_rpe_dev"]) > 1.5:
+        if ex["rpe_samples"] >= 2 and ex["avg_rpe_dev"] is not None and float(ex["avg_rpe_dev"]) > 1.5:
             warnings.append(f"{ex['exercise_name']}: avg RPE +{float(ex['avg_rpe_dev']):.1f} above target")
-        if ex["avg_make_rate"] and float(ex["avg_make_rate"]) < 0.70:
+        if ex["make_rate_samples"] >= 2 and ex["avg_make_rate"] is not None and float(ex["avg_make_rate"]) < 0.70:
             warnings.append(f"{ex['exercise_name']}: make rate {float(ex['avg_make_rate'])*100:.0f}% — consider reducing intensity")
 
     return warnings

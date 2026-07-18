@@ -60,6 +60,10 @@ async def activate(
     program = await q.get_program(conn, program_id)
     if not program or program["athlete_id"] != athlete_id:
         raise HTTPException(status_code=404, detail="Program not found")
+    # Only a draft can be activated — flipping a completed/abandoned program
+    # back to active carries stale outcome_summary/end_date (audit5 web-L1)
+    if program["status"] != "draft":
+        raise HTTPException(status_code=409, detail="Only a draft program can be activated")
     await q.activate_program(conn, program_id, athlete_id)
     program = await q.get_program(conn, program_id)
     logger.info(f"Program {program_id} activated for athlete {athlete_id}")
@@ -81,6 +85,11 @@ async def complete(
     if not program or program["athlete_id"] != athlete_id:
         logger.warning(f"Complete requested for missing/unowned program {program_id}")
         raise HTTPException(status_code=404, detail="Program not found")
+    # Only an active program can be completed — re-completing an old one
+    # recomputes maxes_delta against today's maxes and re-stamps updated_at,
+    # which then wins assess()'s previous-program pick (AGT-H2 class; audit5 web-L1)
+    if program["status"] != "active":
+        raise HTTPException(status_code=409, detail="Only an active program can be completed")
     logger.info(f"Completing program {program_id} for athlete {athlete_id}")
     outcome = await q.complete_program(conn, program_id, athlete_id)
     logger.info(f"Program {program_id} completed: adherence={outcome.adherence_pct}%, make_rate={outcome.avg_make_rate:.0%}")

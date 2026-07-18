@@ -95,6 +95,13 @@ async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: 
         except Exception as cleanup_err:
             logger.warning(f"In-flight guard cleanup failed (TTL will expire it): {cleanup_err}")
         raise
+    # Stamp the guard with THIS job's id (refreshing the TTL) so a terminal
+    # status poll of an OLD job can't release the guard a NEW job holds
+    # (audit5 web-L3).
+    try:
+        await _arq_pool.set(_inflight_key(athlete_id), job.job_id, ex=INFLIGHT_TTL_SECONDS)
+    except Exception as e:
+        logger.warning(f"Could not stamp in-flight guard with job id (TTL still applies): {e}")
     logger.info(f"Job {job.job_id}: submitted for athlete {athlete_id} (dry_run={dry_run})")
     return job.job_id
 
@@ -122,8 +129,13 @@ async def get_job_status(job_id: str, athlete_id: int) -> dict:
         return {"status": "running", "program_id": None, "error": None, "duration_seconds": None}
 
     # Terminal state (complete/expired/not_found) with ownership verified —
-    # release the in-flight guard so the athlete can generate again (WEB-L2).
-    await _arq_pool.delete(_inflight_key(athlete_id))
+    # release the in-flight guard so the athlete can generate again (WEB-L2),
+    # but only if THIS job still holds it: an old job's terminal poll must not
+    # free the guard a newer in-flight job now owns (audit5 web-L3).
+    held = await _arq_pool.get(_inflight_key(athlete_id))
+    held_id = held.decode() if isinstance(held, bytes) else held
+    if held_id is None or held_id == job_id:
+        await _arq_pool.delete(_inflight_key(athlete_id))
 
     if status == JobStatus.complete:
         try:

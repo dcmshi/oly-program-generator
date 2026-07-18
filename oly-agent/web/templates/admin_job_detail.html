@@ -58,7 +58,10 @@
           {% if row.error_message %}
           <span title="{{ row.error_message }}">{{ row.error_message[:80] }}{% if row.error_message | length > 80 %}…{% endif %}</span>
           {% elif row.validation_errors %}
-          <span class="text-yellow-600" title="{{ row.validation_errors }}">validation: {{ row.validation_errors[:60] | string }}…</span>
+          {# validation_errors is a TEXT[] — join then truncate CHARS, not the
+             first 60 list elements which rendered a Python list repr (audit5 web-L5) #}
+          {% set _ve = row.validation_errors | join('; ') %}
+          <span class="text-yellow-600" title="{{ _ve }}">validation: {{ _ve[:60] }}{% if _ve | length > 60 %}…{% endif %}</span>
           {% else %}
           <span class="text-gray-300">—</span>
           {% endif %}

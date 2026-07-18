@@ -22,7 +22,9 @@ async def get_recent_jobs(conn, limit: int = 100) -> list[dict]:
             COUNT(*) FILTER (WHERE gl.status = 'success')    AS successful_sessions,
             COUNT(*) FILTER (WHERE gl.status = 'failed')     AS failed_sessions,
             COALESCE(SUM(gl.estimated_cost_usd), 0)          AS total_cost_usd,
-            MAX(gl.error_message)                             AS last_error,
+            -- the LATEST error, not the lexicographic MAX (audit5 web-L6)
+            (array_agg(gl.error_message ORDER BY gl.created_at DESC)
+                FILTER (WHERE gl.error_message IS NOT NULL))[1]  AS last_error,
             MAX(gl.validation_errors::text)
                 FILTER (WHERE gl.status = 'failed')           AS last_validation_errors
         FROM generation_log gl

@@ -84,9 +84,17 @@ async def update_profile(
         "timezone": timezone.strip() or "UTC",
     }
 
+    # DB enum columns — an out-of-vocabulary value 500s at asyncpg (audit5-L7)
+    _VALID_LEVELS = {"beginner", "intermediate", "advanced", "elite"}
+    _VALID_SEX = {"", "male", "female"}
+
     error = None
     if not data["name"]:
         error = "Name is required."
+    elif level not in _VALID_LEVELS:
+        error = "Please select a valid training level."
+    elif (biological_sex or "") not in _VALID_SEX:
+        error = "Please select a valid biological sex."
     else:
         try:
             from zoneinfo import ZoneInfo

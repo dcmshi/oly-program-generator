@@ -390,8 +390,11 @@ async def activate_program(conn, program_id: int, athlete_id: int):
         """,
         athlete_id, program_id,
     )
+    # status = 'draft' guard: defense-in-depth behind the router's 409 so a
+    # concurrent transition can't flip a non-draft program to active (audit5 web-L1)
     await async_execute(
         conn,
-        "UPDATE generated_programs SET status = 'active', updated_at = NOW() WHERE id = $1 AND athlete_id = $2",
+        "UPDATE generated_programs SET status = 'active', updated_at = NOW() "
+        "WHERE id = $1 AND athlete_id = $2 AND status = 'draft'",
         program_id, athlete_id,
     )
