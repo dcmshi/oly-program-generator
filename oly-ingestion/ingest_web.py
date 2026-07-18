@@ -126,8 +126,13 @@ _CHARNIGA_SKIP = re.compile(
 # /YYYY/slug/ (optionally /YYYY/MM/slug/). The skip list alone let the
 # homepage, bare date archives (/2016/), static pages (/about/), and
 # comment-page-N pagination through to be ingested as nav soup.
+# (:\d+)? — CDX originals from HTTP-era crawls carry :80; the filter runs
+# before urlkey dedup, so rejecting them dropped whole essays (audit2-M2).
+# (?!\d{1,2}/?$) — a purely numeric final segment is a month archive (/2016/05/),
+# which the optional month group let backtrack through as a "slug" (audit2-M1).
 _CHARNIGA_ARTICLE_RE = re.compile(
-    r"^https?://(www\.)?sportivnypress\.com/\d{4}(/\d{2})?/[^/]+/?$", re.I
+    r"^https?://(www\.)?sportivnypress\.com(:\d+)?/\d{4}(/\d{2})?/(?!\d{1,2}/?$)[^/]+/?$",
+    re.I,
 )
 
 
@@ -189,14 +194,17 @@ def collect_category_urls(section_id: int, section_name: str) -> list[str]:
 
 # ── Article fetching & extraction ──────────────────────────────
 
-def fetch_article(url: str) -> dict | None:
-    """Fetch an article URL and return title, author, and body text."""
-    try:
-        resp = SESSION.get(url, timeout=15)
-        resp.raise_for_status()
-    except requests.RequestException as e:
-        logger.warning(f"Failed to fetch {url}: {e}")
-        return None
+def fetch_article(url: str) -> tuple[dict | None, bool]:
+    """Fetch an article URL and return (article, permanent_skip).
+
+    Same contract as fetch_charniga_snapshot: permanent_skip=True only for
+    failures that can never succeed (404-class, no content element) — a
+    transient network blip must leave the URL pending for the next run
+    instead of permanently dropping the article from the corpus (audit2-L1).
+    """
+    resp, permanent = _get_with_retry(url, timeout=15)
+    if resp is None:
+        return None, permanent
 
     soup = BeautifulSoup(resp.text, "lxml")
 
@@ -245,7 +253,7 @@ def fetch_article(url: str) -> dict | None:
 
     if main is None:
         logger.warning(f"No content element found for {url}")
-        return None
+        return None, True
 
     # block_text inserts \n\n paragraph markers so the chunker can split within
     # long articles (mutates `main` — must run after the title/author reads above)
@@ -253,9 +261,9 @@ def fetch_article(url: str) -> dict | None:
 
     if len(text) < 200:
         logger.warning(f"Very short article ({len(text)} chars) at {url} — skipping")
-        return None
+        return None, True
 
-    return {"title": title, "author": author, "text": text, "url": url}
+    return {"title": title, "author": author, "text": text, "url": url}, False
 
 
 # ── Charniga / Sportivny Press (Wayback Machine) ───────────────
@@ -313,18 +321,18 @@ def collect_charniga_urls() -> list[tuple[str, str]]:
     return pairs
 
 
-# Wayback returns transient 429/5xx under load; these must not be conflated
-# with permanent failures (404) when deciding whether to persist a URL as done.
-_WAYBACK_RETRY_STATUSES = {429, 500, 502, 503, 504}
+# Transient statuses (rate limit / server-side) must not be conflated with
+# permanent failures (404) when deciding whether to persist a URL as done.
+_RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
 
 
-def _wayback_get(url: str, timeout: int = 30, attempts: int = 3):
-    """GET with exponential backoff on Wayback's transient failures.
+def _get_with_retry(url: str, timeout: int = 30, attempts: int = 3):
+    """GET with exponential backoff on transient failures (Wayback + live sites).
 
     Returns (response | None, permanent). permanent=True only for HTTP errors
     that will never succeed (404 etc.); rate limits, 5xx, timeouts and
     connection drops are retried and, if they persist, reported as transient so
-    the caller keeps the URL pending for the next run (ING-H1).
+    the caller keeps the URL pending for the next run (ING-H1, audit2-L1).
     """
     err = None
     for attempt in range(1, attempts + 1):
@@ -334,7 +342,7 @@ def _wayback_get(url: str, timeout: int = 30, attempts: int = 3):
             return resp, False
         except requests.HTTPError as e:
             status = e.response.status_code if e.response is not None else None
-            if status not in _WAYBACK_RETRY_STATUSES:
+            if status not in _RETRYABLE_HTTP_STATUSES:
                 logger.warning(f"Permanent HTTP {status} for {url}")
                 return None, True
             err = e
@@ -342,7 +350,7 @@ def _wayback_get(url: str, timeout: int = 30, attempts: int = 3):
             err = e
         if attempt < attempts:
             wait = 2 ** attempt
-            logger.warning(f"Wayback fetch failed ({err}); retrying in {wait}s ({attempt}/{attempts})")
+            logger.warning(f"Fetch failed ({err}); retrying in {wait}s ({attempt}/{attempts})")
             time.sleep(wait)
     logger.warning(f"Transient failure persists for {url} — leaving pending for next run")
     return None, False
@@ -358,7 +366,7 @@ def fetch_charniga_snapshot(original_url: str, timestamp: str) -> tuple[dict | N
     stay pending so a later run can retry it (ING-H1).
     """
     snapshot = WAYBACK_RAW_FMT.format(timestamp=timestamp, original=original_url)
-    resp, permanent = _wayback_get(snapshot, timeout=30)
+    resp, permanent = _get_with_retry(snapshot, timeout=30)
     if resp is None:
         return None, permanent
 
@@ -621,8 +629,7 @@ def main():
         if args.site == "charniga":
             article, permanent_skip = fetch_charniga_snapshot(url, meta)  # meta = Wayback timestamp
         else:
-            article = fetch_article(url)
-            permanent_skip = True  # live-site failures are 404-class — don't retry
+            article, permanent_skip = fetch_article(url)
 
         if article is None:
             if permanent_skip:

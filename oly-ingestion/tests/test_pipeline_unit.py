@@ -71,6 +71,26 @@ def _test(name, fn):
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
+def test_continuation_week_without_week_number_no_crash():
+    """audit2-L2: a continuation week missing "week_number" must be dropped, not
+    KeyError the whole template section away."""
+    good = {"week_number": 2, "sessions": [{"day": "Day 1", "exercises": []}]}
+    malformed = {"sessions": [{"day": "Day 2", "exercises": []}]}  # no week_number
+    first = {"week_number": 1, "sessions": [{"day": "Day 1", "exercises": []}] * 3}
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [
+        _make_llm_response({"duration_weeks": 0, "sessions_per_week": 0, "weeks": [first]}),
+        _make_llm_response({"weeks": [malformed, good]}),
+        _make_llm_response({}),
+        _make_llm_response({}),
+    ]
+    section = _make_section("x" * 20000)
+    pipeline = _make_pipeline(mock_client)
+    result = _call(pipeline, section)  # must not raise
+    week_numbers = [w.get("week_number") for w in result["program_structure"]["weeks"] if isinstance(w, dict)]
+    assert 2 in week_numbers, week_numbers
+
+
 def test_first_window_empty_continuation_still_scans():
     """ING-L4: a 20k-char section opening with prose legitimately parses the
     first window to {} — the continuation loop must still scan the remaining
@@ -259,6 +279,7 @@ def test_llm_failure_returns_empty_structure():
 if __name__ == "__main__":
     tests = [
         ("Empty first window: continuation still scans (ING-L4)", test_first_window_empty_continuation_still_scans),
+        ("Continuation week without week_number dropped, not crash (audit2-L2)", test_continuation_week_without_week_number_no_crash),
         ("Short section: single LLM call", test_short_section_single_llm_call),
         ("Long section: continuation triggered", test_long_section_triggers_continuation),
         ("Continuation: deduplicates seen weeks", test_continuation_deduplicates_seen_weeks),

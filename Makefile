@@ -46,7 +46,7 @@ help:
 # ── Infrastructure ────────────────────────────────────────────────────────────
 
 up:
-	docker compose -f oly-ingestion/docker-compose.yml up -d
+	docker compose -f oly-ingestion/docker-compose.yml up -d --wait
 
 down:
 	docker compose -f oly-ingestion/docker-compose.yml down

@@ -77,6 +77,12 @@ def test_migration_url_rewrites_only_local_hosts():
         url = resolve_migration_url()
     assert url == "postgresql://x@explicit:5432/db", "explicit override must pass through untouched"
 
+    # audit2-L4: userinfo-less localhost URLs must also be rewritten
+    with _patch.dict(os.environ, {"DATABASE_URL": "postgresql://localhost:5432/oly_programming",
+                                  "ALEMBIC_DATABASE_URL": ""}):
+        url = resolve_migration_url()
+    assert "localhost:5433/" in url, f"no-userinfo local URL must hit Postgres directly: {url}"
+
 
 def test_log_env_does_not_override_explicit_args():
     """INF-L8: explicit constructor args must beat LOG_FORMAT/LOG_LEVEL env —

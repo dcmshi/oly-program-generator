@@ -538,9 +538,14 @@ class IngestionPipeline:
                     continuation = _llm_call(
                         _PROGRAM_CONTINUATION_PROMPT.format(last_week=last_week, text=chunk)
                     )
+                    # require week_number: line 551's seen_weeks.update does a
+                    # bare w["week_number"] — a malformed week without the key
+                    # would KeyError the whole template away (audit2-L2)
                     new_weeks = [
                         w for w in continuation.get("weeks", [])
-                        if isinstance(w, dict) and w.get("week_number", 0) not in seen_weeks
+                        if isinstance(w, dict)
+                        and w.get("week_number") is not None
+                        and w["week_number"] not in seen_weeks
                     ]
                 except Exception as e:
                     logger.warning(f"Program template continuation failed for '{source.title}': {e}")

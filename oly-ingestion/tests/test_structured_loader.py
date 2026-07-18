@@ -63,6 +63,35 @@ def test_upsert_source_creates_new():
     loader.close()
 
 
+def test_upsert_source_distinct_urls_distinct_sources():
+    """audit2-M3: two different web pages with the same extracted title under
+    the constant curator author must NOT merge into one source row."""
+    loader = make_loader()
+    sid1 = loader.upsert_source(
+        f"{TEST_PREFIX}Same Essay Title", "Andrew Charniga", "website",
+        url="http://sportivnypress.com/2016/essay-a/",
+    )
+    sid2 = loader.upsert_source(
+        f"{TEST_PREFIX}Same Essay Title", "Andrew Charniga", "website",
+        url="http://sportivnypress.com/2017/essay-b/",
+    )
+    assert sid1 != sid2, "distinct URLs must produce distinct sources (audit2-M3)"
+
+    # same URL again → same source (idempotent by url)
+    sid3 = loader.upsert_source(
+        f"{TEST_PREFIX}Same Essay Title", "Andrew Charniga", "website",
+        url="http://sportivnypress.com/2016/essay-a/",
+    )
+    assert sid3 == sid1
+
+    print(f"  upsert_source: url-disambiguated sources {sid1} != {sid2} ✓")
+    cur = loader.conn.cursor()
+    cur.execute("DELETE FROM sources WHERE id IN (%s, %s)", (sid1, sid2))
+    loader.conn.commit()
+    cur.close()
+    loader.close()
+
+
 # ── load_exercise ─────────────────────────────────────────────
 
 def test_load_exercise():
@@ -407,6 +436,7 @@ def test_load_principles_dedup():
 if __name__ == "__main__":
     tests = [
         test_upsert_source_creates_new,
+        test_upsert_source_distinct_urls_distinct_sources,
         test_load_exercise,
         test_load_percentage_schemes,
         test_load_percentage_schemes_dedup_counts_rowcount,

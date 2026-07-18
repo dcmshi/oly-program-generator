@@ -26,26 +26,43 @@ class StructuredLoader:
         """Insert or retrieve a source record. Returns the source ID.
 
         Returns the existing ID if the source already exists, or the new ID
-        after insertion. `url` disambiguates web articles whose titles collide
-        under a constant author (ING-L1); it is backfilled onto an existing
-        row when that row has none.
+        after insertion. `url` is the identity for web articles (audit2-M3):
+        the curator author is constant, so two distinct pages with the same
+        extracted title would otherwise merge into one source via
+        UNIQUE(title, author). URL-first lookup keeps them apart; on a
+        title+author collision with a DIFFERENT url, the title is
+        disambiguated with the URL slug before insert.
         """
         cursor = self.conn.cursor()
 
+        if url:
+            cursor.execute("SELECT id FROM sources WHERE url = %s", (url,))
+            by_url = cursor.fetchone()
+            if by_url:
+                cursor.close()
+                return by_url[0]
+
         cursor.execute(
-            "SELECT id FROM sources WHERE title = %s AND author = %s",
+            "SELECT id, url FROM sources WHERE title = %s AND author = %s",
             (title, author),
         )
         existing = cursor.fetchone()
         if existing:
-            if url:
-                cursor.execute(
-                    "UPDATE sources SET url = %s WHERE id = %s AND url IS NULL",
-                    (url, existing[0]),
-                )
-                self.conn.commit()
-            cursor.close()
-            return existing[0]
+            existing_id, existing_url = existing
+            if url and existing_url and existing_url != url:
+                # Same extracted title, different page — disambiguate and fall
+                # through to INSERT so the second page gets its own source row.
+                slug = url.rstrip("/").rsplit("/", 1)[-1]
+                title = f"{title} [{slug}]"[:300]
+            else:
+                if url:
+                    cursor.execute(
+                        "UPDATE sources SET url = %s WHERE id = %s AND url IS NULL",
+                        (url, existing_id),
+                    )
+                    self.conn.commit()
+                cursor.close()
+                return existing_id
 
         # Map doc_type string to source_type enum
         type_map = {

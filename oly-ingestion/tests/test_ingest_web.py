@@ -242,6 +242,52 @@ def test_charniga_utf8_without_charset_header_no_mojibake():
     assert "â€”" not in article["text"], "mojibake reached the chunker (ING-M4)"
 
 
+# ── audit2 M1/M2: article-shape regex edge cases ──────────────────────────────
+
+def test_article_regex_rejects_month_archives():
+    """audit2-M1: WP month archives (/YYYY/MM/) are listing pages, not articles."""
+    from ingest_web import _CHARNIGA_ARTICLE_RE
+    assert not _CHARNIGA_ARTICLE_RE.match("http://sportivnypress.com/2016/05/")
+    assert not _CHARNIGA_ARTICLE_RE.match("https://www.sportivnypress.com/2016/05")
+    assert not _CHARNIGA_ARTICLE_RE.match("http://sportivnypress.com/2016/")
+    # real permalinks still pass
+    assert _CHARNIGA_ARTICLE_RE.match("http://sportivnypress.com/2016/russian-training/")
+    assert _CHARNIGA_ARTICLE_RE.match("https://www.sportivnypress.com/2016/05/essay-name/")
+
+
+def test_article_regex_accepts_port_qualified_originals():
+    """audit2-M2: CDX originals from HTTP-era crawls carry :80 — the filter runs
+    BEFORE urlkey dedup, so rejecting them silently drops whole essays."""
+    from ingest_web import _CHARNIGA_ARTICLE_RE
+    assert _CHARNIGA_ARTICLE_RE.match("http://sportivnypress.com:80/2016/russian-training/")
+    assert _CHARNIGA_ARTICLE_RE.match("https://www.sportivnypress.com:443/2016/essay/")
+
+
+# ── audit2-L1: Catalyst transient failures must stay pending ─────────────────
+
+def test_catalyst_connection_error_is_transient_and_retried():
+    import ingest_web
+    import requests
+    from ingest_web import fetch_article
+
+    with patch.object(ingest_web.SESSION, "get", side_effect=requests.ConnectionError("boom")) as mock_get, \
+         patch("time.sleep"):
+        article, permanent = fetch_article("http://x/article/1/")
+    assert article is None
+    assert permanent is False, "a Wi-Fi blip must not permanently drop the article (audit2-L1)"
+    assert mock_get.call_count == 3
+
+
+def test_catalyst_404_is_permanent():
+    import ingest_web
+    from ingest_web import fetch_article
+
+    with patch.object(ingest_web.SESSION, "get", return_value=_mk_resp(status=404, raise_http=True)), \
+         patch("time.sleep"):
+        article, permanent = fetch_article("http://x/article/1/")
+    assert article is None and permanent is True
+
+
 # ── ING-L1: title suffix stripping + sources.url population ──────────────────
 
 def test_charniga_title_strips_endash_suffix():
