@@ -572,8 +572,17 @@ class IngestionPipeline:
             if isinstance(first_week, dict) and "sessions" in first_week:
                 sessions_per_week = len(first_week["sessions"])
 
+        # Prefer a distinguishing name: nothing ever sets "program_name", so the
+        # old fallback gave EVERY template of a source the same name (audit2-H1).
+        # The section title (set by the classifier) usually names the actual
+        # program; the source-title form remains the last resort.
+        section_title = str(section.metadata.get("title") or "").strip()
+        default_name = (
+            f"{section_title} ({source.title})" if section_title
+            else f"Program from {source.title}"
+        )
         return {
-            "name": section.metadata.get("program_name", f"Program from {source.title}"),
+            "name": section.metadata.get("program_name", default_name)[:300],
             "source_id": source_id,
             "athlete_level": parsed.get("athlete_level", section.metadata.get("athlete_level", "any")),
             "goal": parsed.get("goal", section.metadata.get("goal", "general_strength")),

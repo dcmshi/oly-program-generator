@@ -131,11 +131,18 @@ class StructuredLoader:
     def load_program(self, program: dict) -> int | None:
         """Load a program template into program_templates table.
 
-        Returns the new id, or None when skipped (invalid dimensions, unknown
-        template, or an already-loaded (source_id, name) duplicate — ING-M6).
+        Returns the new id, or None when skipped (invalid dimensions, or an
+        exact duplicate — ING-M6). Dedup identity is (source_id, name,
+        md5(program_structure)): names are auto-generated per source so name
+        alone would collapse distinct templates (audit2-H1).
         """
-        duration_weeks = program.get("duration_weeks", 0)
-        sessions_per_week = program.get("sessions_per_week", 0)
+        # LLM output can carry explicit nulls — the comparisons below must not
+        # TypeError past the guard into the generic handler (audit2-L6)
+        try:
+            duration_weeks = int(program.get("duration_weeks") or 0)
+            sessions_per_week = int(program.get("sessions_per_week") or 0)
+        except (TypeError, ValueError):
+            duration_weeks = sessions_per_week = 0
         if duration_weeks < 1 or not (1 <= sessions_per_week <= 14):
             logger.warning(
                 f"Skipping program '{program.get('name')}': "
@@ -153,6 +160,16 @@ class StructuredLoader:
             )
             goal = "general_strength"
 
+        # athlete_level has the same CHECK-violation → silent-rollback failure
+        # mode ING-M5 fixed for goal (audit2-L3)
+        athlete_level = str(program.get("athlete_level") or "any").strip().lower()
+        if athlete_level not in ("beginner", "intermediate", "advanced", "elite", "any"):
+            logger.warning(
+                f"Unknown athlete_level '{program.get('athlete_level')}' for "
+                f"'{program.get('name')}' — storing as any"
+            )
+            athlete_level = "any"
+
         cursor = self.conn.cursor()
         try:
             cursor.execute(
@@ -161,16 +178,16 @@ class StructuredLoader:
                     (name, source_id, athlete_level, goal,
                      duration_weeks, sessions_per_week, program_structure)
                 VALUES (%s, %s, %s, %s, %s, %s, %s)
-                ON CONFLICT (source_id, name) DO NOTHING
+                ON CONFLICT (source_id, name, md5(program_structure::text)) DO NOTHING
                 RETURNING id
                 """,
                 (
                     program["name"],
                     program["source_id"],
-                    program.get("athlete_level", "any"),
+                    athlete_level,
                     goal,
-                    program.get("duration_weeks", 0),
-                    program.get("sessions_per_week", 0),
+                    duration_weeks,
+                    sessions_per_week,
                     Json(program["program_structure"]),
                 ),
             )

@@ -226,6 +226,38 @@ def test_load_program_dedup():
     loader.close()
 
 
+def test_load_program_same_name_distinct_structure_both_load():
+    """Audit2-H1: template names are auto-generated ("Program from {title}") so
+    EVERY template of a source shares a name — dedup keyed on (source_id, name)
+    alone silently discards distinct programs (Takano: 16 → 1). Identity must
+    include the structure."""
+    loader = make_loader()
+    sid = loader.upsert_source(f"{TEST_PREFIX}Same Name Book", "Author", "book")
+
+    base = {
+        "name": f"{TEST_PREFIX}Program from Same Name Book",
+        "source_id": sid,
+        "athlete_level": "any",
+        "goal": "general_strength",
+        "duration_weeks": 4,
+        "sessions_per_week": 3,
+    }
+    id1 = loader.load_program({**base, "program_structure": {"weeks": [{"week_number": 1}]}})
+    id2 = loader.load_program({**base, "program_structure": {"weeks": [{"week_number": 2}]}})
+    assert isinstance(id1, int)
+    assert isinstance(id2, int), "distinct structure under the same auto-name must NOT be deduped"
+
+    cur = loader.conn.cursor()
+    cur.execute("SELECT count(*) FROM program_templates WHERE source_id = %s", (sid,))
+    total = cur.fetchone()[0]
+    cur.close()
+    assert total == 2, f"expected both templates stored, got {total}"
+
+    print("  load_program: same-name distinct-structure templates both kept ✓")
+    cleanup(loader, sid)
+    loader.close()
+
+
 def test_load_program_normalizes_legacy_goal():
     """ING-M5: the old parse-prompt vocabulary (technique/accumulation/
     intensification) violates the goal CHECK — load_program must normalize the
@@ -380,6 +412,7 @@ if __name__ == "__main__":
         test_load_percentage_schemes_dedup_counts_rowcount,
         test_load_program,
         test_load_program_dedup,
+        test_load_program_same_name_distinct_structure_both_load,
         test_load_program_normalizes_legacy_goal,
         test_create_and_complete_run,
         test_fail_run,
