@@ -104,11 +104,10 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
         # ── Create program record ─────────────────────────────
         llm_client = create_llm_client(settings)
 
-        maxes_snapshot = athlete_context.maxes
-        athlete_snapshot = {
-            k: v for k, v in athlete_context.athlete.items()
-            if k not in ("created_at", "updated_at")
-        }
+        # recorded-only, not the estimation-merged dict: else a later real max
+        # replacing an estimate reads as "strength progress" (audit5-L3)
+        maxes_snapshot = athlete_context.recorded_maxes or athlete_context.maxes
+        athlete_snapshot = _build_athlete_snapshot(athlete_context.athlete)
 
         program_id = execute_returning(
             conn,
@@ -314,11 +313,8 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                 })
 
         # ── Max test session (realization / intensification) ──
-        if PHASE_PROFILES.get(program_plan.phase, {}).get("includes_max_test"):
-            peak_week = max(
-                (wt.week_number for wt in program_plan.weekly_targets if not wt.is_deload),
-                default=program_plan.duration_weeks,
-            )
+        peak_week = compute_peak_week(program_plan.weekly_targets)
+        if PHASE_PROFILES.get(program_plan.phase, {}).get("includes_max_test") and peak_week is not None:
             max_test_day = compute_max_test_day(
                 program_plan.session_templates, program_plan.sessions_per_week
             )
@@ -420,6 +416,33 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                 vector_loader.close()
             except Exception as e:
                 logger.debug(f"vector_loader.close() failed (non-fatal): {e}")
+
+
+# ── Snapshot / peak-week helpers ───────────────────────────────
+
+# Never persist credential/identity material into generated_programs.
+# athlete_snapshot only needs the profile fields the prompt + feedback read;
+# copying password_hash/username/is_admin into a second table retained old
+# hashes past password changes and exposed them to any program-page/export
+# view (audit5-M1).
+_SNAPSHOT_EXCLUDE = frozenset({
+    "created_at", "updated_at", "password_hash", "username", "is_admin",
+})
+
+
+def _build_athlete_snapshot(athlete: dict) -> dict:
+    return {k: v for k, v in athlete.items() if k not in _SNAPSHOT_EXCLUDE}
+
+
+def compute_peak_week(weekly_targets):
+    """The last non-deload week's number, or None when every week is a deload.
+
+    A 1-week realization is entirely taper/deload — bolting a work-up-to-100%
+    max-test session onto it, days before the meet, is exactly wrong
+    (audit5-L5). None signals the caller to skip the max test.
+    """
+    working = [wt.week_number for wt in weekly_targets if not wt.is_deload]
+    return max(working) if working else None
 
 
 # ── Max test session builder ───────────────────────────────────

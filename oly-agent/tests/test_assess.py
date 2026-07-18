@@ -180,6 +180,18 @@ def test_assess_propagates_recent_logs():
     assert ctx.recent_logs[0]["exercise_name"] == "Snatch"
 
 
+# ── audit5 agent-L4: clean and jerk must be estimable so weights resolve ─────
+
+def test_clean_and_jerk_refs_estimated():
+    """A prescription referencing 'clean' or 'jerk' resolved to NULL kg (no max
+    source, no estimation ratio) — the athlete saw a % with no weight."""
+    known = {"clean_and_jerk": 120.0}
+    result = estimate_missing_maxes(known)
+    assert "clean" in result, "clean must be estimable from clean_and_jerk (audit5-L4)"
+    assert "jerk" in result, "jerk must be estimable from clean_and_jerk (audit5-L4)"
+    assert result["clean"] >= 120.0 and result["jerk"] >= 120.0
+
+
 # ── AGT-M2: past competition_date must not read as "competition this week" ───
 
 def test_past_competition_date_treated_as_none():

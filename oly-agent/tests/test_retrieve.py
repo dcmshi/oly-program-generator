@@ -90,6 +90,25 @@ def _plan(phase="accumulation", max_complexity=3):
     )
 
 
+# ── audit5 agent-M3: fault retrieval must cover jerk and squat families ──────
+
+def test_fault_retrieval_covers_jerk_and_squat_families():
+    """The loop queried only ('snatch','clean'), so the selectable jerk fault
+    (dip_forward) and squat correctives were unreachable — the prompt then
+    showed 'no specific exercises' and disabled the fault-coverage check."""
+    families = []
+
+    def capture(conn, sql, params):
+        if "movement_family = %s" in sql:  # the fault-family lookup, not the SELECT list
+            families.append(params[2])
+        return []
+
+    with patch("retrieve.fetch_all", side_effect=capture):
+        retrieve(_ctx(faults=["dip_forward"]), _plan(), conn=None, vector_loader=None)
+    assert {"snatch", "clean", "jerk", "squat"} <= set(families), \
+        f"fault retrieval must cover jerk+squat families, queried: {families}"
+
+
 # ── No faults, no injuries, no vector_loader ────────────────────────────────
 
 def test_returns_retrieval_context():
@@ -139,16 +158,16 @@ def test_faults_trigger_exercise_lookup_per_family():
         "typical_sets_low": 3, "typical_sets_high": 5,
         "typical_reps_low": 2, "typical_reps_high": 3,
     }
-    # fetch_all calls: snatch fault exercises, clean fault exercises,
+    # fetch_all calls: snatch/clean/jerk/squat fault exercises (audit5-M3),
     # template_references, available_exercises
-    with patch("retrieve.fetch_all", side_effect=[[fault_exercise], [], [], []]):
+    with patch("retrieve.fetch_all", side_effect=[[fault_exercise], [], [], [], [], []]):
         result = retrieve(_ctx(faults=["forward_miss"]), _plan(), conn=None, vector_loader=None)
     assert "snatch" in result.fault_exercises
     assert result.fault_exercises["snatch"][0]["name"] == "Snatch Balance"
 
 def test_faults_with_no_matching_exercises_gives_empty_dict():
     # Both family queries return []
-    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], [], [], []]):
         result = retrieve(_ctx(faults=["some_fault"]), _plan(), conn=None, vector_loader=None)
     assert result.fault_exercises == {}
 
@@ -193,7 +212,7 @@ def test_all_faults_searched_not_just_first_two():
     faults = ["forward_lean", "early_arm_bend", "slow_turnover", "press_out"]
     # fetch_all calls: snatch fault exercises, clean fault exercises,
     # template_references, available_exercises
-    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], [], [], []]):
         retrieve(_ctx(faults=faults), _plan(), conn=None, vector_loader=vl)
 
     fault_queries = [
@@ -212,7 +231,7 @@ def test_two_faults_still_searched():
     """The all-faults path works correctly when there are exactly 2 faults."""
     vl = _mock_vector_loader()
     faults = ["forward_lean", "press_out"]
-    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], [], [], []]):
         retrieve(_ctx(faults=faults), _plan(), conn=None, vector_loader=vl)
 
     fault_queries = [
@@ -318,7 +337,7 @@ def test_fault_correction_chunks_returned_when_faults_present():
         "raw_content": "Forward lean is corrected by...", "similarity": 0.8,
     }
     vl = _mock_vector_loader(return_chunks=[fault_chunk])
-    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], [], [], []]):
         result = retrieve(
             _ctx(faults=["forward_lean"]), _plan(), conn=None, vector_loader=vl
         )
@@ -359,7 +378,7 @@ def test_session_template_search_passes_min_similarity():
 def test_fault_search_passes_min_similarity():
     """similarity_search for fault correction passes min_similarity=0.45."""
     vl = _mock_vector_loader()
-    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], [], [], []]):
         retrieve(_ctx(faults=["forward_lean"]), _plan(), conn=None, vector_loader=vl)
 
     fault_calls = [c for c in vl.similarity_search.call_args_list
@@ -401,7 +420,7 @@ def test_fault_search_exception_caught():
     """similarity_search raising for fault search is caught — not re-raised."""
     vl = _mock_vector_loader()
     vl.similarity_search.side_effect = RuntimeError("Embedding API error")
-    with patch("retrieve.fetch_all", side_effect=[[], [], [], []]):
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], [], [], []]):
         result = retrieve(_ctx(faults=["forward_lean"]), _plan(), conn=None, vector_loader=vl)
     assert result.fault_correction_chunks == []
 

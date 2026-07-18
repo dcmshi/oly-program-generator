@@ -448,6 +448,36 @@ def test_multi_week_program_generates_correct_session_count():
 
 # ── Runner ────────────────────────────────────────────────────────────────────
 
+# ── audit5 agent-M1: athlete_snapshot must not persist credentials ────────────
+
+def test_athlete_snapshot_excludes_credentials():
+    from orchestrator import _build_athlete_snapshot
+    athlete = {
+        "id": 1, "name": "Test", "level": "intermediate",
+        "password_hash": "$2b$12$secret", "username": "test",
+        "is_admin": True, "created_at": "x", "updated_at": "y",
+        "sessions_per_week": 4,
+    }
+    snap = _build_athlete_snapshot(athlete)
+    for leaked in ("password_hash", "username", "is_admin", "created_at", "updated_at"):
+        assert leaked not in snap, f"{leaked} must not be snapshotted (audit5-M1)"
+    assert snap["name"] == "Test" and snap["level"] == "intermediate"
+
+
+# ── audit5 agent-L5: 1-week (all-deload) realization must skip the max-test ────
+
+def test_max_test_day_none_for_all_deload_realization():
+    from types import SimpleNamespace
+
+    from orchestrator import compute_peak_week
+    # every week is deload (1-week realization taper) → no peak week to test on
+    deload_weeks = [SimpleNamespace(week_number=1, is_deload=True)]
+    assert compute_peak_week(deload_weeks) is None
+    mixed = [SimpleNamespace(week_number=1, is_deload=False),
+             SimpleNamespace(week_number=2, is_deload=True)]
+    assert compute_peak_week(mixed) == 1
+
+
 # ── AGT-L7: explain respects the cost guard and its spend is counted ──────────
 
 def test_explain_skipped_when_cost_limit_reached():

@@ -157,6 +157,27 @@ corpus-shaped seed data + live Catalyst/Wayback dry-run probes).
 - [x] **Rehearsal PASSES (the airtight part):** migration round-trip over 16 distinct same-named templates + 2 exact dupes → all 16 survived, dupes collapsed (and the v1 constraint was directly proven un-appliable on that data); Catalyst crawl live: 428 URLs, selectors/pagination intact; Charniga CDX: 215 unique essays, content selectors confirmed against a live snapshot, mojibake fix verified end-to-end; Catalyst delete-SQL semantics verified live (cascade to chunk_log, url backfill on re-ingest, principle dedup).
 - [x] **Runbook shipped**: `docs/DB-MACHINE-RUNBOOK.md` — numbered, with expected outcomes, backup step, branch-rename fixup (incl. `--prune` + single-branch contingency), and the delete-before-Charniga ordering constraint.
 
+## 8. Audit 5 — 2026-07-18 full-repo sweep of least-audited surfaces (3 agents) — FIXED (2 deferred-low)
+
+Deliberately aimed at the corners the first four passes skipped (dashboard/program
+queries, extractors/processors, phase/session data, migrations 0000–0005). Real
+substance: 2 HIGH (both live-proven), 5 MEDIUM, plus LOWs.
+
+### Web (commit 9e409c5)
+- [x] **web-H1 — dashboard 500 + max-upsert rollback**: `get_athlete_maxes` still unpacked `estimate_missing_maxes` as `(kg, source)` tuples; A-R8 changed the contract to `{ref: float}` and this caller was missed. Any athlete with a snatch/C&J max got a 500 on the dashboard, and max upserts rolled back (never persisted). Suite was green because router tests mock this function. Fixed + real-boundary test.
+- [x] **web-H2 — ARQ worker dead on startup**: `WorkerSettings.redis_settings` was a `@classmethod`; arq reads `__dict__` verbatim and passed the classmethod object to `Worker()`, which crashed on `.host`. Web generation was dead end-to-end. Now a plain attribute; meta-test asserts `get_kwargs()` yields a real `RedisSettings`.
+- [ ] **web M1 / L1–L8 — DEFERRED to a follow-up** (dashboard make-rate warning gating; status-machine transition guards; enum-field 422; admin cosmetics; login `?error` whitelist). Filed for the next pass — none are data-loss or auth-bypass; see the web report.
+
+### Ingestion (commit 02a47c0)
+- [x] **ing-H1 — curated seed `faults_addressed` wiped**: `load_exercise` ON CONFLICT DO UPDATE overwrote curated fault mappings with the heuristic parser's `[]`. COALESCE/CASE now preserves non-empty curated fields. **DB-machine spot-check before re-ingest** (source #8 Everett OWS may have already collided): `SELECT name FROM exercises WHERE faults_addressed = '{}' AND category <> 'competition';`
+- [x] **ing-M1** `'variation'` (invalid enum) normalized → competition_variant; stats count real inserts. **ing-M2** classifier LLM fallback made reachable (was dead code at a flat 0.80) — signal-free prose stays confident, only weak-signal ambiguity drops to 0.55. **ing-M3** per-row SAVEPOINTs in load_principles/load_percentage_schemes. **ing-M4** `block_text` (html+epub) inserts br/td/th/div/table/tr separators — was mashing program lines/tables into single tokens (**materially improves the pending re-ingest**). **ing-L1** OCR %-corrections fire now.
+- [ ] **ing M5/M6, L2–L6 — DEFERRED** (vision-OCR batch tolerance + spend caching; VARCHAR(300) title truncation; severity aggregation; keyword-boundary false positives; max-pages; infer fallback). Filed; none block the re-ingest except a nice-to-have on M6 truncation.
+
+### Agent pipeline (commit pending)
+- [x] **agent-M1** `athlete_snapshot` no longer persists `password_hash`/`username`/`is_admin` into every program row (credential retention/leak). **agent-M3** fault retrieval covers jerk+squat families (the selectable `dip_forward` fault was unreachable and disabled Check 8). **agent-M4** `source_principle_ids` sanitized at parse (a `"P-3"` element IntegrityError'd the save after all LLM spend). **agent-L3** snapshot uses recorded-only maxes (estimates no longer read as strength progress). **agent-L4** clean/jerk estimable (were resolving to NULL kg). **agent-L5** 1-week all-deload realization skips the work-up-to-100% max test.
+- [x] **agent-M2 (= web L1) status-machine guards — folded into the deferred web follow-up** (SQL WHERE-status filters + 409). Re-completing an old program re-stamps `updated_at` and can win the previous-program pick — the AGT-H2 class through a side door.
+- [ ] **agent-L1 (per-week Prilepin block) + L2 (deepcopy accessors) — DEFERRED**: L1 is validation-retry churn (extra paid calls), not a correctness bug; L2 has no live trigger (nothing mutates the shared module constants today). Documented for a follow-up.
+
 ## Notes / non-findings from this pass
 
 - Charniga articles never consult `SOURCE_PROFILE_MAP` — the web path sizes chunks via `for_web_article(word_count)`. Not a bug, but CLAUDE.md's "add to SOURCE_PROFILE_MAP first" rule is a no-op for `--site charniga`; keep in mind for the DB-machine run.

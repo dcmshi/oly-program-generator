@@ -23,6 +23,11 @@ class AthleteContext:
     injuries: list[str]                 # from athletes.injuries
     sessions_per_week: int
     weeks_to_competition: int | None    # calculated from goal.competition_date
+    # DB-recorded maxes only (before estimation merge). maxes_snapshot uses this
+    # so an estimate later "improving" to a real value isn't reported as strength
+    # progress (audit5-L3). Defaults to None; the orchestrator falls back to
+    # `maxes` for any caller that didn't populate it.
+    recorded_maxes: dict[str, float] | None = None
 
 
 @dataclass

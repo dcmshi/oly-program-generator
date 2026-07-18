@@ -33,6 +33,12 @@ MAX_ESTIMATION_RATIOS = {
     "snatch_pull":     {"reference": "snatch",          "ratio": 1.15},
     "snatch_deadlift": {"reference": "snatch",          "ratio": 1.25},
     "overhead_squat":  {"reference": "snatch",          "ratio": 0.90},
+    # clean/jerk are first-class intensity_references (COMP_LIFT_REFS) the LLM
+    # can prescribe against, but without a max source or ratio they resolved to
+    # NULL kg — the athlete saw a % with no weight (audit5-L4). The C&J total is
+    # gated by the weaker of the two, so each ≈ the C&J max.
+    "clean":           {"reference": "clean_and_jerk", "ratio": 1.02},
+    "jerk":            {"reference": "clean_and_jerk", "ratio": 1.0},
 }
 
 
@@ -77,6 +83,7 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         (athlete_id,),
     )
     maxes = build_maxes_dict(max_rows)
+    recorded_maxes = dict(maxes)  # DB-recorded only, before the estimation merge (audit5-L3)
 
     # ── Fill in missing maxes via estimation ───────────────────
     estimated = estimate_missing_maxes(maxes)
@@ -151,6 +158,7 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         # .get return None (the key exists) → TypeErrors downstream (A-L3).
         sessions_per_week=athlete.get("sessions_per_week") or 4,
         weeks_to_competition=weeks_to_competition,
+        recorded_maxes=recorded_maxes,
     )
 
 

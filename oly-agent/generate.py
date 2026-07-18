@@ -88,7 +88,30 @@ def _coerce_numeric_fields(exercises: list[dict]) -> list[dict]:
                     ex[field] = float(ex[field])
                 except (TypeError, ValueError):
                     ex[field] = None
+        # source_principle_ids is an INT[]; a non-int element ("P-3") or a bare
+        # scalar passed parse+validate and then IntegrityError'd the save after
+        # all LLM spend (audit5-M4). Keep int-castable elements, drop the rest.
+        if "source_principle_ids" in ex:
+            ex["source_principle_ids"] = _coerce_int_list(ex["source_principle_ids"])
     return exercises
+
+
+def _coerce_int_list(value) -> list[int]:
+    """Best-effort list-of-ints from LLM output (scalar → [scalar], junk dropped)."""
+    if value is None:
+        return []
+    items = value if isinstance(value, list) else [value]
+    out: list[int] = []
+    for item in items:
+        if isinstance(item, bool) or item is None:
+            continue
+        try:
+            f = float(item)
+        except (TypeError, ValueError):
+            continue
+        if f.is_integer():
+            out.append(int(f))
+    return out
 
 
 def parse_llm_response(raw_response: str) -> list[dict]:

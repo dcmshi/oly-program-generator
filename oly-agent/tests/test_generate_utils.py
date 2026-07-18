@@ -151,6 +151,22 @@ def test_parse_unparseable_numeric_becomes_none():
     return True, ""
 
 
+def test_parse_sanitizes_source_principle_ids():
+    """audit5 agent-M4: source_principle_ids is an INT[] — a non-int element
+    ("P-3") or a bare scalar passed parse/validate and then IntegrityError'd the
+    save after all LLM spend. Sanitize at parse time."""
+    raw = ('[{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, '
+           '"reps": 2, "source_principle_ids": ["P-3", 2, 5, null, "7"]}]')
+    ex = parse_llm_response(raw)[0]
+    assert ex["source_principle_ids"] == [2, 5, 7], ex["source_principle_ids"]
+
+
+def test_parse_scalar_source_principle_ids_becomes_list():
+    raw = '[{"exercise_name": "Snatch", "source_principle_ids": 3}]'
+    ex = parse_llm_response(raw)[0]
+    assert ex["source_principle_ids"] == [3], ex["source_principle_ids"]
+
+
 def test_parse_bools_and_fractional_ints_become_none():
     """audit2-L1: JSON true/false must not survive coercion into int/float
     fields (psycopg2 sends SQL true → INSERT dies), and a fractional value in
@@ -945,6 +961,8 @@ TESTS = [
     ("parse: numeric strings coerced (AGT-L1)", test_parse_coerces_numeric_strings),
     ("parse: garbage numerics become None (AGT-L1)", test_parse_unparseable_numeric_becomes_none),
     ("parse: bools + fractional ints become None (audit2-L1)", test_parse_bools_and_fractional_ints_become_none),
+    ("parse: source_principle_ids sanitized (audit5 M4)", test_parse_sanitizes_source_principle_ids),
+    ("parse: scalar source_principle_ids → list (audit5 M4)", test_parse_scalar_source_principle_ids_becomes_list),
     ("prompt: malformed outcome_summary tolerated (AGT-L2)", test_prompt_tolerates_malformed_outcome_summary),
     ("validate names: blank name no catalogue spam (AGT-L8)", test_validate_blank_name_no_suggestions),
     ("prompt: shows plan sessions/week (audit2-L4)", test_prompt_shows_plan_sessions_per_week),

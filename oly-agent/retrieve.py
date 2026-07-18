@@ -46,7 +46,10 @@ def retrieve(
     # ── Path A: Fault-based exercise lookup ──────────────────
     fault_exercises: dict[str, list[dict]] = {}
     if athlete_context.technical_faults:
-        for family in ("snatch", "clean"):
+        # jerk + squat too: the selectable jerk fault (dip_forward) is addressed
+        # only by jerk-family exercises, and squat correctives never surfaced —
+        # the prompt then showed "no exercises" and disabled Check 8 (audit5-M3)
+        for family in ("snatch", "clean", "jerk", "squat"):
             rows = fetch_all(
                 conn,
                 """
