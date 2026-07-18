@@ -112,7 +112,7 @@ Use plain language. Avoid unexplained jargon. Target 3-5 short paragraphs.
 Level: {athlete_context.level}
 Goal: {goal} ({comp_context})
 Technical faults: {faults}
-Sessions per week: {athlete_context.sessions_per_week}
+Sessions per week: {plan.sessions_per_week}
 
 ## Program Structure
 Phase: {plan.phase}

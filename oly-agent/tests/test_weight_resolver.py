@@ -173,6 +173,41 @@ def test_resolve_exercise_ids_empty_list():
     return True, ""
 
 
+# ── apply_projected_maxes — audit2-L6 ─────────────────────────
+
+def test_projection_skipped_for_past_competition():
+    """audit2-L6: AGT-M2 stopped a past competition_date from driving phase
+    selection, but realization weights were still projected off the stale
+    goal's targets — for a meet that already happened."""
+    from datetime import date, timedelta
+
+    from weight_resolver import apply_projected_maxes
+
+    maxes = {"snatch": 100.0, "clean_and_jerk": 120.0}
+    stale_goal = {
+        "target_snatch_kg": 110.0, "target_cj_kg": 130.0,
+        "competition_date": date.today() - timedelta(days=30),
+    }
+    result = apply_projected_maxes(maxes, stale_goal, "realization")
+    assert result == maxes, f"stale goal must not project targets: {result}"
+    return True, ""
+
+
+def test_projection_applies_for_future_competition():
+    from datetime import date, timedelta
+
+    from weight_resolver import apply_projected_maxes
+
+    maxes = {"snatch": 100.0, "clean_and_jerk": 120.0}
+    goal = {
+        "target_snatch_kg": 110.0, "target_cj_kg": 130.0,
+        "competition_date": date.today() + timedelta(days=30),
+    }
+    result = apply_projected_maxes(maxes, goal, "realization")
+    assert result["snatch"] == 110.0, result
+    return True, ""
+
+
 # ── attach_source_chunk_ids ───────────────────────────────────
 
 def test_attach_chunk_ids_null_rationale_no_crash():
@@ -321,6 +356,9 @@ def test_projected_maxes_original_dict_not_mutated():
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
+    # apply_projected_maxes — audit2-L6
+    ("projection: past competition → current maxes (audit2-L6)", test_projection_skipped_for_past_competition),
+    ("projection: future competition → targets", test_projection_applies_for_future_competition),
     # attach_source_chunk_ids — AGT-M3
     ("attach_chunk_ids: null selection_rationale no crash (AGT-M3)", test_attach_chunk_ids_null_rationale_no_crash),
     # build_maxes_dict

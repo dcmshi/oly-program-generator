@@ -65,6 +65,31 @@ def test_exercise_defaults_for_blank_prompts():
     assert sets == 5 and weight == 80.0
 
 
+# ── audit2-M2: deviations computed before defaults, Decimal-safe ─────────────
+
+def test_deviation_decimal_prescribed_no_crash():
+    """prescribed weight arrives as decimal.Decimal from the DB — float math
+    on it raised TypeError mid-entry (audit2-M2)."""
+    from decimal import Decimal
+
+    from log import _compute_deviations
+
+    w_dev, r_dev = _compute_deviations(97.5, Decimal("100.0"), 8.0, Decimal("7.5"))
+    assert w_dev == -2.5
+    assert r_dev == 0.5
+
+
+def test_deviation_skipped_for_blank_weight():
+    """A blank weight defaults to 0.0 AFTER deviation math — a defaulted 0 must
+    not produce a bogus -100kg deviation (audit2-M2)."""
+    from decimal import Decimal
+
+    from log import _compute_deviations
+
+    w_dev, r_dev = _compute_deviations(None, Decimal("100.0"), None, None)
+    assert w_dev is None and r_dev is None
+
+
 # ── Make-rate warnings not gated on RPE presence (AGT-L5) ────────────────────
 
 def test_status_query_not_gated_on_rpe():
@@ -74,6 +99,18 @@ def test_status_query_not_gated_on_rpe():
     src = inspect.getsource(log_mod.cmd_status)
     assert "rpe IS NOT NULL OR" in src, \
         "make-rate-only rows must feed the <70% warning (AGT-L5)"
+
+
+def test_status_warnings_gated_per_metric_sample_size():
+    """audit2-L5: COUNT(*) >= 2 counts rows qualifying on EITHER metric, so one
+    rpe row + one make-rate row passed the gate with single-sample AVGs. Each
+    warning must require >= 2 samples of ITS OWN metric."""
+    import inspect
+
+    import log as log_mod
+    src = inspect.getsource(log_mod.cmd_status)
+    assert "COUNT(tle.rpe)" in src and "COUNT(tle.make_rate)" in src, \
+        "per-metric sample counts missing (audit2-L5)"
 
 
 if __name__ == "__main__":

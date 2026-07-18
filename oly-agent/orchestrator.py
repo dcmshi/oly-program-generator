@@ -197,6 +197,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     cumulative_comp_reps=cumulative_comp_reps,
                     effective_maxes=effective_maxes,
                     phase=program_plan.phase,
+                    sessions_per_week=program_plan.sessions_per_week,
                 )
 
                 # Deadline guard — the ARQ job timeout can only cancel the

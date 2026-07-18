@@ -107,10 +107,23 @@ def apply_projected_maxes(
     the current recorded max (never downgrades weights).
 
     Returns the original dict unchanged if phase != 'realization', no goal is
-    active, no targets are set, or targets are not higher than current maxes.
+    active, the goal's competition already happened, no targets are set, or
+    targets are not higher than current maxes.
     """
     if phase != "realization" or not active_goal:
         return maxes
+
+    # A stale goal must not drive realization loads off aspirational targets
+    # for a meet that already happened (audit2-L6; companion to AGT-M2)
+    comp_date = active_goal.get("competition_date")
+    if comp_date is not None:
+        from datetime import date as _date
+        if comp_date < _date.today():
+            logger.warning(
+                f"Goal competition_date {comp_date} is in the past — "
+                "using current maxes, not target projections. Update or clear the goal."
+            )
+            return maxes
 
     targets = {
         "snatch":         active_goal.get("target_snatch_kg"),

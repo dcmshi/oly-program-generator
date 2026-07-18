@@ -264,6 +264,23 @@ def cmd_session(athlete_id: int, conn, session_id: int | None = None) -> int | N
 
 # ── Command: exercise ────────────────────────────────────────────
 
+def _compute_deviations(weight_kg, prescribed_weight, rpe, rpe_target):
+    """(weight_dev, rpe_dev) vs prescription — None when either side is missing.
+
+    DB NUMERIC values arrive as decimal.Decimal; float−Decimal raises TypeError,
+    so both sides are coerced (audit2-M2 — the web mirror already did this).
+    """
+    weight_deviation = (
+        round(float(weight_kg) - float(prescribed_weight), 2)
+        if (weight_kg and prescribed_weight) else None
+    )
+    rpe_deviation = (
+        round(float(rpe) - float(rpe_target), 1)
+        if (rpe and rpe_target) else None
+    )
+    return weight_deviation, rpe_deviation
+
+
 def _apply_notnull_defaults(sets_completed, weight_kg, reps_per_set):
     """Blank interactive prompts must not violate the NOT NULL columns (AGT-L4);
     mirrors the web defaults (WEB-M5): sets from the rep entries, weight 0."""
@@ -336,20 +353,19 @@ def cmd_exercise(log_id: int, conn, session_id: int | None = None) -> None:
             reps_per_set = []
 
         weight_kg = _prompt("  Weight used (kg)", cast=float, default=None)
-        sets_completed, weight_kg = _apply_notnull_defaults(sets_completed, weight_kg, reps_per_set)
         rpe = _prompt("  RPE", cast=float, default=None)
         make_rate = _prompt("  Make rate % (e.g. 100 = all makes)", cast=float, default=None)
         if make_rate is not None:
             make_rate = make_rate / 100.0  # store as fraction
         tech_notes = input("  Technical notes (optional): ").strip() or None
 
-        # Compute deviations if prescribed data available
-        weight_deviation = None
-        rpe_deviation = None
-        if prescribed_weight and weight_kg is not None:
-            weight_deviation = round(weight_kg - prescribed_weight, 2)
-        if linked_ex and linked_ex.get("rpe_target") and rpe is not None:
-            rpe_deviation = round(rpe - float(linked_ex["rpe_target"]), 1)
+        # Deviations BEFORE defaults — a blank weight defaulted to 0.0 must not
+        # produce a bogus -prescribed deviation (audit2-M2)
+        weight_deviation, rpe_deviation = _compute_deviations(
+            weight_kg, prescribed_weight,
+            rpe, linked_ex.get("rpe_target") if linked_ex else None,
+        )
+        sets_completed, weight_kg = _apply_notnull_defaults(sets_completed, weight_kg, reps_per_set)
 
         execute(
             conn,
@@ -446,7 +462,12 @@ def cmd_status(athlete_id: int, conn) -> None:
                    AVG(tle.rpe) as avg_rpe,
                    AVG(tle.rpe_deviation) as avg_rpe_dev,
                    AVG(tle.make_rate) as avg_make_rate,
-                   COUNT(*) as sessions
+                   COUNT(*) as sessions,
+                   -- per-metric sample counts: COUNT(*) counts rows qualifying
+                   -- on EITHER metric, so one rpe row + one make-rate row
+                   -- passed the >=2 gate with single-sample AVGs (audit2-L5)
+                   COUNT(tle.rpe) as rpe_samples,
+                   COUNT(tle.make_rate) as make_rate_samples
             FROM training_log_exercises tle
             JOIN training_logs tl ON tl.id = tle.log_id
             WHERE tl.athlete_id = %s
@@ -455,7 +476,7 @@ def cmd_status(athlete_id: int, conn) -> None:
               -- the make-rate warning for make-rate-only entries (AGT-L5)
               AND (tle.rpe IS NOT NULL OR tle.make_rate IS NOT NULL)
             GROUP BY tle.exercise_name
-            HAVING COUNT(*) >= 2
+            HAVING COUNT(tle.rpe) >= 2 OR COUNT(tle.make_rate) >= 2
             ORDER BY avg_rpe_dev DESC NULLS LAST
             """,
             (athlete_id, date.today() - timedelta(days=14)),
@@ -469,12 +490,12 @@ def cmd_status(athlete_id: int, conn) -> None:
                 make = f"{float(ex['avg_make_rate'])*100:.0f}%" if ex["avg_make_rate"] else "—"
                 print(f"    {ex['exercise_name']:<35}  avg RPE {avg_rpe}  RPE dev {avg_dev}  make {make}")
 
-                if ex["avg_rpe_dev"] and float(ex["avg_rpe_dev"]) > 1.5:
+                if ex["rpe_samples"] >= 2 and ex["avg_rpe_dev"] and float(ex["avg_rpe_dev"]) > 1.5:
                     warnings.append(
                         f"{ex['exercise_name']}: avg RPE deviation +{float(ex['avg_rpe_dev']):.1f} "
                         f"(consistently harder than prescribed)"
                     )
-                if ex["avg_make_rate"] and float(ex["avg_make_rate"]) < 0.70:
+                if ex["make_rate_samples"] >= 2 and ex["avg_make_rate"] and float(ex["avg_make_rate"]) < 0.70:
                     warnings.append(
                         f"{ex['exercise_name']}: make rate {float(ex['avg_make_rate'])*100:.0f}% "
                         f"— consider reducing intensity"

@@ -151,6 +151,21 @@ def test_parse_unparseable_numeric_becomes_none():
     return True, ""
 
 
+def test_parse_bools_and_fractional_ints_become_none():
+    """audit2-L1: JSON true/false must not survive coercion into int/float
+    fields (psycopg2 sends SQL true → INSERT dies), and a fractional value in
+    an int field ("2.9" reps) must be rejected, not silently truncated past
+    the Prilepin reps/set check."""
+    raw = ('[{"exercise_name": "Snatch", "sets": true, "reps": "2.9", '
+           '"intensity_pct": false, "rpe_target": 7.5}]')
+    ex = parse_llm_response(raw)[0]
+    assert ex["sets"] is None, ex["sets"]
+    assert ex["reps"] is None, ex["reps"]
+    assert ex["intensity_pct"] is None, ex["intensity_pct"]
+    assert ex["rpe_target"] == 7.5
+    return True, ""
+
+
 # ── AGT-L2: malformed outcome_summary must not abort the prompt build ────────
 
 def test_prompt_tolerates_malformed_outcome_summary():
@@ -171,6 +186,27 @@ def test_validate_blank_name_no_suggestions():
     errors = validate_exercise_names([{"exercise_name": None}], ["Snatch", "Back Squat"])
     assert len(errors) == 1
     assert "Did you mean" not in errors[0], errors[0]
+    return True, ""
+
+
+# ── audit2-L4: prompt states the ACTUAL program frequency ─────────────────────
+
+def test_prompt_shows_plan_sessions_per_week():
+    """A 2/wk athlete gets a 3-day fallback program — the generation prompt must
+    not assert "Sessions/week: 2" for a 3-day structure (audit2-L4)."""
+    week_target = WeekTarget(1, 1.0, 72.0, 82.0, 18, [2, 4], False)
+    session_tmpl = SessionTemplate(1, "Snatch + Squat", "snatch", ["squat"], 0.30)
+    athlete = _make_athlete()
+    athlete.athlete["sessions_per_week"] = 2
+    athlete.sessions_per_week = 2
+    prompt = build_session_prompt(
+        athlete, week_target, session_tmpl, _make_retrieval(),
+        week_number=1, duration_weeks=4,
+        already_prescribed=[], session_rep_target=6, cumulative_comp_reps=0,
+        phase="accumulation", sessions_per_week=3,
+    )
+    assert "Sessions/week: 3" in prompt
+    assert "Sessions/week: 2" not in prompt
     return True, ""
 
 
@@ -908,8 +944,10 @@ TESTS = [
     # AGT-L1 / L2 / L8
     ("parse: numeric strings coerced (AGT-L1)", test_parse_coerces_numeric_strings),
     ("parse: garbage numerics become None (AGT-L1)", test_parse_unparseable_numeric_becomes_none),
+    ("parse: bools + fractional ints become None (audit2-L1)", test_parse_bools_and_fractional_ints_become_none),
     ("prompt: malformed outcome_summary tolerated (AGT-L2)", test_prompt_tolerates_malformed_outcome_summary),
     ("validate names: blank name no catalogue spam (AGT-L8)", test_validate_blank_name_no_suggestions),
+    ("prompt: shows plan sessions/week (audit2-L4)", test_prompt_shows_plan_sessions_per_week),
     # parse_llm_response
     ("parse: plain JSON array", test_parse_plain_json_array),
     ("parse: JSON with ```json fences", test_parse_json_with_markdown_fences),

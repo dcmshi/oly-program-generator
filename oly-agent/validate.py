@@ -42,6 +42,19 @@ _LIMITER_KEYWORDS: dict[str, list[str]] = {
 }
 
 
+def _numeric_pct(ex: dict) -> float | None:
+    """intensity_pct as float, or None when absent/non-numeric.
+
+    Check 0 files the "not numeric" error; the later checks must not crash on
+    the same value before the ValidationResult is returned (audit2-L3).
+    """
+    try:
+        pct = ex.get("intensity_pct")
+        return float(pct) if pct is not None else None
+    except (TypeError, ValueError):
+        return None
+
+
 def validate_session(
     session_exercises: list[dict],
     week_target: dict,
@@ -88,10 +101,10 @@ def validate_session(
 
     # ── Check 0: DB-constraint mirror ─────────────────────────
     # session_exercises enforces NOT NULL sets/reps (CHECK >= 1),
-    # intensity_pct in (0, 120], and UNIQUE(session_id, exercise_order).
-    # Violations must fail HERE so generate's retry loop can fix them —
-    # otherwise the IntegrityError fires at save time, after every session
-    # was already paid for (AGT-M4).
+    # NOT NULL exercise_order (UNIQUE per session), and intensity_pct in
+    # (0, 120]. Violations must fail HERE so generate's retry loop can fix
+    # them — otherwise the IntegrityError fires at save time, after every
+    # session was already paid for (AGT-M4, audit2-M1).
     seen_orders: set = set()
     for ex in session_exercises:
         name = ex.get("exercise_name") or "exercise"
@@ -113,13 +126,21 @@ def validate_session(
                     )
             except (TypeError, ValueError):
                 errors.append(f"{name}: intensity_pct {pct_raw!r} is not numeric")
+        # exercise_order is NOT NULL — the parse-time coercion can produce
+        # None ("one" → None) and an absent key slipped through (audit2-M1)
         order = ex.get("exercise_order")
-        if order is not None:
-            if order in seen_orders:
-                errors.append(
-                    f"duplicate exercise_order {order} — orders must be unique within the session"
-                )
-            seen_orders.add(order)
+        try:
+            order_val = int(order) if order is not None and not isinstance(order, bool) else None
+        except (TypeError, ValueError):
+            order_val = None
+        if order_val is None or order_val < 1:
+            errors.append(f"{name}: exercise_order must be an integer >= 1 (got {order!r})")
+        elif order_val in seen_orders:
+            errors.append(
+                f"duplicate exercise_order {order_val} — orders must be unique within the session"
+            )
+        else:
+            seen_orders.add(order_val)
 
     # ── Check 1: Prilepin's per-session volume compliance ─────
     # Prilepin's chart gives rep targets PER SESSION, not per week.
@@ -131,13 +152,22 @@ def validate_session(
     for ex in session_exercises:
         if ex.get("intensity_reference") not in COMP_LIFT_REFS:
             continue
-        pct = ex.get("intensity_pct")
+        pct = _numeric_pct(ex)
         if not pct:
             continue
-        zone = get_prilepin_zone(float(pct))
+        # Warmup ramping isn't training volume: the prompt MANDATES 2-3 warmup
+        # sets at 50-60% before each comp lift, and counting the 55-60 ones
+        # against Prilepin/weekly working budgets made well-formed sessions
+        # warn routinely (audit2-L2)
+        if pct <= WARMUP_INTENSITY_CUTOFF_PCT:
+            continue
+        zone = get_prilepin_zone(pct)
         if zone is None:
             continue
-        total = (ex.get("sets") or 0) * (ex.get("reps") or 0)
+        try:
+            total = int(ex.get("sets") or 0) * int(ex.get("reps") or 0)
+        except (TypeError, ValueError):
+            continue  # Check 0 already errored on the malformed field
         comp_lift_reps[zone] = comp_lift_reps.get(zone, 0) + total
 
     for zone, session_total in comp_lift_reps.items():
@@ -180,10 +210,9 @@ def validate_session(
 
     # ── Check 2: Intensity envelope ───────────────────────────
     for ex in session_exercises:
-        pct = ex.get("intensity_pct")
+        pct = _numeric_pct(ex)
         if pct is None:
             continue
-        pct = float(pct)
         # The week ceiling is a competition-lift ceiling. Pulls/squats reference
         # their own max and are routinely programmed above it (supramaximal
         # pulls), so only comp lifts hard-error here; non-comp lifts merely warn
@@ -210,7 +239,7 @@ def validate_session(
 
     # ── Check 3: Reps-per-set compliance ─────────────────────
     for ex in session_exercises:
-        pct = float(ex.get("intensity_pct") or 0)
+        pct = _numeric_pct(ex) or 0
         reps = ex.get("reps") or 0
         if pct >= 90 and reps > 2:
             errors.append(
@@ -267,11 +296,14 @@ def validate_session(
     # High-intensity sets should carry a high RPE target — if the LLM assigns
     # a low RPE to a heavy set it likely miscalibrated the prescription.
     for ex in session_exercises:
-        pct = float(ex.get("intensity_pct") or 0)
+        pct = _numeric_pct(ex) or 0
         rpe = ex.get("rpe_target")
         if rpe is None or pct == 0:
             continue
-        rpe = float(rpe)
+        try:
+            rpe = float(rpe)
+        except (TypeError, ValueError):
+            continue
         if pct >= 90 and rpe < 8.0:
             warnings.append(
                 f"{ex.get('exercise_name')} at {pct}% has RPE target {rpe:.1f} — "

@@ -591,6 +591,58 @@ def test_duplicate_exercise_order_is_error():
     return True, ""
 
 
+# ── audit2 M1/L3: exercise_order NOT NULL mirror + non-numeric pct safety ─────
+
+def test_missing_exercise_order_is_error():
+    """audit2-M1: exercise_order is NOT NULL in the DB; coercion can produce
+    None ("one" → None) and an absent key passes — both must fail HERE so the
+    retry loop fixes them, not the INSERT after every session was paid for."""
+    ex = _ex("Snatch", 3, 3, 75)
+    del ex["exercise_order"]
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid
+    assert any("exercise_order" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_null_exercise_order_is_error():
+    ex = _ex("Snatch", 3, 3, 75)
+    ex["exercise_order"] = None
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid
+    assert any("exercise_order" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_non_numeric_pct_returns_error_not_crash():
+    """audit2-L3: Check 0 files a "not numeric" error, but Checks 2/3/7 must not
+    crash on the same value before the result is returned."""
+    ex = _ex("Snatch", 3, 3, "abc")
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)  # must not raise
+    assert not result.is_valid
+    assert any("not numeric" in e for e in result.errors), result.errors
+    return True, ""
+
+
+# ── audit2-L2: warmup reps must not count toward Prilepin/working volume ─────
+
+def test_warmup_reps_excluded_from_volume_accounting():
+    """The prompt MANDATES 2-3 warmup sets at 50-60%; counting the 55-60 ones
+    toward the Prilepin session/weekly totals made well-formed sessions cry
+    wolf on the budget warning."""
+    exercises = [
+        _ex("Snatch", 3, 3, 58, order=1),   # warmup — must not count
+        _ex("Snatch", 3, 2, 75, order=2),   # working — 6 reps
+    ]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE,
+                              week_cumulative_reps={"70-80": 12})
+    assert result.is_valid, result.errors
+    assert "55-65" not in result.session_comp_reps, result.session_comp_reps
+    # 12 prior + 6 working = 18 ≤ 18×1.25 — no budget warning
+    assert not any("budget" in w.lower() for w in result.warnings), result.warnings
+    return True, ""
+
+
 # ── Weekly rep budget (AGT-L3) ────────────────────────────────
 
 def test_weekly_budget_overshoot_warns():
@@ -614,6 +666,10 @@ def test_weekly_budget_within_tolerance_no_warning():
 # ── Runner ────────────────────────────────────────────────────
 
 TESTS = [
+    ("Constraints: missing exercise_order → error (audit2-M1)", test_missing_exercise_order_is_error),
+    ("Constraints: null exercise_order → error (audit2-M1)", test_null_exercise_order_is_error),
+    ("Constraints: non-numeric pct → error, no crash (audit2-L3)", test_non_numeric_pct_returns_error_not_crash),
+    ("Volume: warmup reps excluded (audit2-L2)", test_warmup_reps_excluded_from_volume_accounting),
     ("Weekly budget: overshoot warns (AGT-L3)", test_weekly_budget_overshoot_warns),
     ("Weekly budget: within tolerance silent", test_weekly_budget_within_tolerance_no_warning),
     ("Constraints: null sets → error (AGT-M4)", test_null_sets_is_error),

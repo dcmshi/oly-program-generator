@@ -64,16 +64,26 @@ def _coerce_numeric_fields(exercises: list[dict]) -> list[dict]:
     Strings passed validation (which compares via float()) and then crashed
     arithmetic in the orchestrator/resolver, aborting the whole run (AGT-L1).
     Unparseable values become None so validation flags them into a retry.
+    Booleans become None too (psycopg2 sends SQL true → INSERT dies), and a
+    fractional value in an int field ("2.9" reps) is rejected rather than
+    silently truncated past the Prilepin reps/set check (audit2-L1).
     """
     for ex in exercises:
         for field in _INT_FIELDS:
-            if field in ex and ex[field] is not None and not isinstance(ex[field], bool):
+            if field in ex and ex[field] is not None:
+                if isinstance(ex[field], bool):
+                    ex[field] = None
+                    continue
                 try:
-                    ex[field] = int(float(ex[field]))
+                    as_float = float(ex[field])
+                    ex[field] = int(as_float) if as_float.is_integer() else None
                 except (TypeError, ValueError):
                     ex[field] = None
         for field in _FLOAT_FIELDS:
             if field in ex and ex[field] is not None:
+                if isinstance(ex[field], bool):
+                    ex[field] = None
+                    continue
                 try:
                     ex[field] = float(ex[field])
                 except (TypeError, ValueError):
@@ -170,8 +180,16 @@ def build_session_prompt(
     cumulative_comp_reps: int,
     effective_maxes: dict[str, float] | None = None,
     phase: str = "unspecified",
+    sessions_per_week: int | None = None,
 ) -> str:
-    """Assemble the full prompt for one session generation call."""
+    """Assemble the full prompt for one session generation call.
+
+    sessions_per_week is the PLAN's actual day count — the template
+    distribution may have fallen back to a different frequency than the
+    athlete's preference, and the prompt must describe the program being
+    generated, not the preference (audit2-L4). Falls back to the athlete's
+    value when not provided.
+    """
 
     # ── Athlete summary ──────────────────────────────────────
     faults_str = ", ".join(athlete_context.technical_faults) or "none identified"
@@ -435,7 +453,7 @@ You MUST NOT:
 ## Athlete Profile
 Name: {athlete_context.athlete['name']}
 Level: {athlete_context.level}
-Sessions/week: {athlete_context.sessions_per_week}
+Sessions/week: {sessions_per_week or athlete_context.sessions_per_week}
 Session duration: {athlete_context.athlete.get('session_duration_minutes', DEFAULT_SESSION_DURATION_MINUTES)} min
 Lift emphasis: {lift_emphasis} (snatch_biased = more snatch volume/variants; cj_biased = more C&J volume/variants; balanced = equal)
 Strength limiters: {strength_limiters_str}
