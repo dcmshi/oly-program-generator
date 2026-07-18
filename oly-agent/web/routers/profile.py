@@ -100,6 +100,10 @@ async def update_profile(
     if error:
         athlete = await q.get_athlete(conn, athlete_id)
         goal = await q.get_active_goal(conn, athlete_id)
+        # Echo the SUBMITTED values into the re-render — re-fetching from the
+        # DB silently discarded every other edit on the form (audit2-L4;
+        # setup already preserves input this way).
+        athlete = {**dict(athlete or {}), **data}
         return templates.TemplateResponse(request, "profile.html", {
             "request": request,
             "athlete": athlete,

@@ -579,6 +579,62 @@ def test_safe_back_rejects_protocol_relative_urls():
     assert _safe_back("/") == "/"
 
 
+def test_safe_back_rejects_control_char_smuggling():
+    """audit2-M2: browsers strip TAB/LF/CR before URL parsing, so '/\\t/evil.com'
+    becomes '//evil.com' client-side — the check must reject control chars."""
+    from web.routers.history import _safe_back
+    assert _safe_back("/\t/evil.com") == "/"
+    assert _safe_back("/\n/evil.com") == "/"
+    assert _safe_back("/\r/evil.com") == "/"
+    assert _safe_back("/pro\tgram/1") == "/"
+
+
+# ── audit2-M1: max promotion must not bypass the parse_float guard ───────────
+
+def test_exercise_log_nan_weight_never_promotes():
+    """WEB-L4 guarded the stored row, but the promotion branch re-parsed the
+    raw form value with bare float() — nan is truthy and beats any stored max,
+    poisoning athlete_maxes (audit2-M1)."""
+    with patch("web.queries.log_session.get_log_by_id", return_value=_log()), \
+         patch("web.queries.log_session.create_exercise_log", return_value=5), \
+         patch("web.queries.log_session.maybe_promote_max", return_value=False) as mock_promote, \
+         patch("web.queries.log_session.get_session_with_exercises", return_value=_session_detail()), \
+         patch("web.queries.log_session.get_logged_exercises", return_value=[]), \
+         patch("web.queries.log_session.get_exercise_log_entry", return_value=_tle()):
+        r = _client.post("/log/10/exercise", data={
+            "exercise_name": "Snatch", "session_exercise_id": "1",
+            "weight_kg": "nan", "sets_completed": "1", "reps_per_set": "1",
+        })
+    assert r.status_code == 200, r.status_code
+    assert not mock_promote.called, "nan weight must never reach maybe_promote_max (audit2-M1)"
+
+
+def test_update_exercise_log_inf_weight_never_promotes():
+    with patch("web.queries.log_session.get_log_by_id", return_value=_log()), \
+         patch("web.queries.log_session.update_exercise_log", return_value=None), \
+         patch("web.queries.log_session.maybe_promote_max", return_value=False) as mock_promote, \
+         patch("web.queries.log_session.get_exercise_log_entry", return_value=_tle()):
+        r = _client.post("/log/10/exercise/5", data={"weight_kg": "inf"})
+    assert r.status_code == 200, r.status_code
+    assert not mock_promote.called, "inf weight must never reach maybe_promote_max (audit2-M1)"
+
+
+# ── audit2-L4: profile error re-render must keep the submitted input ─────────
+
+def test_profile_error_rerender_preserves_submitted_values():
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.queries.profile.update_profile", return_value=None):
+        r = _client.post("/profile/update", data={
+            "name": "Edited Name Not Saved Yet",
+            "level": "advanced",
+            "timezone": "Mars/Olympus",  # forces the 422 re-render
+        })
+    assert r.status_code == 422
+    assert b"Edited Name Not Saved Yet" in r.content, \
+        "a bad timezone must not wipe the user's other edits (audit2-L4)"
+
+
 # ── WEB-M7: >72-byte passwords must not 500 (bcrypt 5.x raises) ──────────────
 
 def test_verify_password_over_72_bytes_returns_false():

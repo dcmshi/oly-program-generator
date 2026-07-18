@@ -216,10 +216,11 @@ async def create_session_log(conn, athlete_id: int, session_id: int, form: dict,
         session_id,
         log_date,
         _float(form.get("overall_rpe")),
-        _int(form.get("duration")),
+        _int(form.get("duration"), lo=1),
         _float(form.get("bodyweight")),
-        _int(form.get("sleep_quality")),
-        _int(form.get("stress_level")),
+        # CHECK (BETWEEN 1 AND 5) — out-of-range stores NULL, not a 500 (audit2-L3)
+        _int(form.get("sleep_quality"), lo=1, hi=5),
+        _int(form.get("stress_level"), lo=1, hi=5),
         form.get("notes") or None,
     )
 
@@ -276,10 +277,10 @@ async def update_session_log(conn, log_id: int, form: dict, today: date | None =
         """,
         log_date,
         _float(form.get("overall_rpe")),
-        _int(form.get("duration")),
+        _int(form.get("duration"), lo=1),
         _float(form.get("bodyweight")),
-        _int(form.get("sleep_quality")),
-        _int(form.get("stress_level")),
+        _int(form.get("sleep_quality"), lo=1, hi=5),
+        _int(form.get("stress_level"), lo=1, hi=5),
         form.get("notes") or None,
         log_id,
     )

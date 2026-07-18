@@ -25,9 +25,25 @@ def parse_float(v):
     return f
 
 
-def parse_int(v):
-    """Parse a form value to an int — or None."""
+# int4 tops out at ~2.1e9 — anything near it in a form field is garbage and
+# would 500 at the driver (audit2-L3)
+MAX_REASONABLE_INT = 2_000_000_000
+
+
+def parse_int(v, lo: int | None = None, hi: int | None = None):
+    """Parse a form value to an int — or None.
+
+    Optional lo/hi mirror DB CHECK constraints so out-of-range values store
+    NULL (or hit the caller's default) instead of 500ing on the constraint.
+    """
     try:
-        return int(v) if v else None
+        i = int(v) if v else None
     except (ValueError, TypeError):
         return None
+    if i is None or abs(i) >= MAX_REASONABLE_INT:
+        return None
+    if lo is not None and i < lo:
+        return None
+    if hi is not None and i > hi:
+        return None
+    return i

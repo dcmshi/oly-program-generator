@@ -396,6 +396,47 @@ def test_parse_float_rejects_nan_inf_huge():
     assert parse_float(None) is None
 
 
+def test_parse_int_bounded():
+    """audit2-L3: unbounded ints overflow int4 / violate CHECKs into 500s."""
+    from web.formparse import parse_int
+    assert parse_int("99999999999999999999") is None, "int4 overflow guard"
+    assert parse_int("4") == 4
+    assert parse_int("4", lo=1, hi=14) == 4
+    assert parse_int("99", lo=1, hi=14) is None, "CHECK-range guard"
+    assert parse_int("-5", lo=1, hi=14) is None
+    assert parse_int("abc") is None
+
+
+def test_session_log_bounded_int_fields():
+    """sleep_quality/stress_level have CHECK 1..5 — out-of-range must store
+    NULL, not 500 on the constraint (audit2-L3)."""
+    from web.queries import log_session as lsq
+    captured, fake = _capture_async(ret=10)
+    form = {"log_date": "", "sleep_quality": "7", "stress_level": "0", "duration": "60"}
+    with patch("web.async_db.async_execute_returning", fake):
+        asyncio.run(lsq.create_session_log(MagicMock(), 1, 2, form))
+    params = captured["params"]
+    assert params[6] is None, f"sleep_quality 7 violates CHECK 1..5: {params[6]}"
+    assert params[7] is None, f"stress_level 0 violates CHECK 1..5: {params[7]}"
+    assert params[4] == 60
+
+
+# ── audit2-L5: in-flight guard released if the enqueue itself fails ──────────
+
+def test_submit_generation_releases_guard_on_enqueue_failure():
+    pool = MagicMock()
+    pool.set = AsyncMock(return_value=True)
+    pool.delete = AsyncMock()
+    pool.enqueue_job = AsyncMock(side_effect=RuntimeError("redis hiccup"))
+    with patch.object(jobs, "_arq_pool", pool):
+        try:
+            asyncio.run(jobs.submit_generation(7))
+            raise AssertionError("expected the enqueue error to propagate")
+        except RuntimeError:
+            pass
+    pool.delete.assert_awaited_with("gen_inflight:7")
+
+
 def test_update_profile_nan_bodyweight_stored_as_null():
     from web.queries import profile as profile_q
     captured, fake = _capture_async()

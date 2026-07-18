@@ -18,8 +18,15 @@ def _safe_back(url: str) -> str:
 
     Rejects protocol-relative forms: browsers treat //host and /\\host as
     absolute URLs, so a plain leading-slash check is an open redirect (WEB-M4).
+    Also rejects control characters: browsers strip TAB/LF/CR before URL
+    parsing, so '/\\t/evil.com' becomes '//evil.com' client-side (audit2-M2).
     """
-    if url.startswith("/") and not url.startswith(("//", "/\\")) and "://" not in url:
+    if (
+        url.startswith("/")
+        and not url.startswith(("//", "/\\"))
+        and "://" not in url
+        and not any(c in url for c in "\t\n\r\x00")
+    ):
         return url
     return "/"
 

@@ -115,6 +115,21 @@ Clean on this pass: `feedback.py`, `retrieve.py` (only the known roadmap items
 `jobs.py` ownership check (W-L4 fix holds), `resolve_redis_dsn`, `shared/llm.py`
 (pricing hardcode = roadmap #17.3), `shared/timeutil.py` (INF-M1 is the known gap).
 
+## 5. Audit 2 — 2026-07-17 post-fix verification pass (3 parallel agents) — ALL FIXED
+
+Fresh 3-track audit run immediately after the fix campaign landed, focused on
+regressions introduced by the fixes themselves. 1 HIGH, 7 MEDIUM, 18 LOW filed;
+all verified, fixed with red-first tests, in commits `026f667`, `c6af397`,
+`174bb33`, and the web batch.
+
+- [x] **H1 (ingestion) — migration 0006 would have DESTROYED distinct templates**: names are auto-generated per source, so the `(source_id, name)` dedup key would have collapsed Takano's 16 templates into 1 on the corpus DB. Reworked to a content-aware identity (`md5(program_structure)` in the key) BEFORE any corpus DB applied it; names now include section titles. ✅ `026f667`
+- [x] **M (ingestion ×3)**: month archives passed the article regex; port-qualified CDX originals were dropped; `sources.url` never actually disambiguated same-titled essays. ✅ `c6af397`
+- [x] **M (agent ×2)**: `exercise_order` NOT NULL wasn't mirrored in Check 0 (coerced-None killed paid runs at save); log.py CLI deviation math crashed on Decimal and ran after the NOT-NULL defaults. ✅ `174bb33`
+- [x] **M (web ×2)**: max-promotion re-parsed weight with bare `float()` — `nan` bypassed the WEB-L4 guard into `athlete_maxes`; `_safe_back` was bypassable via TAB/LF/CR smuggling. ✅ web batch
+- [x] **L (18 across tracks)**: Catalyst transient-failure permanence, continuation KeyError, athlete_level CHECK, db_url host forms, `make up --wait`, null-dims guard, bool/fractional coercion, warmup reps in volume accounting, unreturnable pct error, prompt/rationale sessions-per-week, cmd_status sample sizes, stale-goal projection, NULL-source dedup, parse_int bounds + CHECK-range guards, profile re-render input loss, in-flight guard leak on enqueue failure. ✅ all in the three audit2 commits
+
+Clean under scrutiny (all three agents): middleware order + body-cap replay, Origin check, 0007 dup-merge SQL + partial-index inference, guard TTL ordering, explain tuple consumers, cost accounting, CDX parsing, `_get_with_retry` semantics, options.py template wiring, Makefile/CI/compose pins.
+
 ## Notes / non-findings from this pass
 
 - Charniga articles never consult `SOURCE_PROFILE_MAP` — the web path sizes chunks via `for_web_article(word_count)`. Not a bug, but CLAUDE.md's "add to SOURCE_PROFILE_MAP first" rule is a no-op for `--site charniga`; keep in mind for the DB-machine run.

@@ -7,6 +7,7 @@ from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
 from web.auth import get_current_athlete_id
 from web.deps import get_db, limiter
+from web.formparse import parse_float
 from web.queries import log_session as q
 from web.queries.dashboard import get_athlete_timezone
 
@@ -115,11 +116,13 @@ async def submit_exercise_log(
 
     # Auto-promote new max if this is a max attempt exercise. Use the STORED
     # session_exercise_id — create_exercise_log validated it belongs to this
-    # log's session, unlike the raw form value (WEB-L9).
+    # log's session, unlike the raw form value (WEB-L9). parse_float, not bare
+    # float(): nan/inf is truthy and beats any stored max, poisoning
+    # athlete_maxes — the exact harm WEB-L4 removed one layer down (audit2-M1).
     try:
         tle = await q.get_exercise_log_entry(conn, tle_id, log_id)
         se_id = tle["session_exercise_id"] if tle else None
-        weight_kg = float(weight_kg_raw) if weight_kg_raw else None
+        weight_kg = parse_float(weight_kg_raw)
         if se_id and weight_kg:
             promoted = await q.maybe_promote_max(conn, athlete_id, se_id, weight_kg, _date.today())
             if promoted:
@@ -182,9 +185,10 @@ async def update_exercise_log(
     await q.update_exercise_log(conn, tle_id, dict(form), log_id)
     logger.info(f"Exercise updated: tle_id={tle_id}, log_id={log_id}")
 
-    # Auto-promote new max if this is a max attempt exercise
+    # Auto-promote new max if this is a max attempt exercise. parse_float, not
+    # bare float(): nan/inf must never reach athlete_maxes (audit2-M1).
     try:
-        weight_kg = float(form.get("weight_kg")) if form.get("weight_kg") else None
+        weight_kg = parse_float(form.get("weight_kg"))
         tle = await q.get_exercise_log_entry(conn, tle_id, log_id)
         if tle and tle["session_exercise_id"] and weight_kg:
             promoted = await q.maybe_promote_max(

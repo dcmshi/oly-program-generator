@@ -82,7 +82,13 @@ async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: 
     # athlete_id is the job's first positional arg, so ownership travels with the
     # job payload itself — no separate owner key that could race the enqueue or
     # outlive/under-live the job (W-L4).
-    job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run, request_id=request_id)
+    try:
+        job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run, request_id=request_id)
+    except Exception:
+        # No job exists to release the guard via the status poll — without this
+        # the athlete is locked out for the full TTL (audit2-L5)
+        await _arq_pool.delete(_inflight_key(athlete_id))
+        raise
     logger.info(f"Job {job.job_id}: submitted for athlete {athlete_id} (dry_run={dry_run})")
     return job.job_id
 
