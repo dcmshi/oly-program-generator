@@ -521,6 +521,12 @@ class IngestionPipeline:
         except Exception as e:
             logger.warning(f"Program template parsing failed for '{source.title}': {e}")
 
+        # An explicit '"weeks": null' (or non-list junk) must not TypeError the
+        # template away at len()/comprehension time downstream (audit4; same
+        # input class as the null dims/week_number fixes).
+        if not isinstance(parsed.get("weeks"), list):
+            parsed.pop("weeks", None)
+
         # --- Continuation chunks for oversized sections ---
         # Run even when the first window parsed to {} — a section can open with
         # 5k of prose before the week blocks; gating on parsed["weeks"] dropped

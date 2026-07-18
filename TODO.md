@@ -144,6 +144,19 @@ red-first in one commit.
 
 Clean under scrutiny (audit3 agents): reworked 0006 verified live against pg16 (NULLS NOT DISTINCT arbiter inference, dedup DELETE semantics, downgrade from both states), `_CHARNIGA_ARTICLE_RE` 17-case probe matrix, fetch_article tuple contract, db_url 11-URL matrix, max-test-session/Check-0 interaction, `_safe_back` after the control-char fix, promotion parse_float consistency.
 
+## 7. Audit 4 — 2026-07-18 pre-ingestion pass (code review + DB-machine rehearsal) — ALL FIXED
+
+Two agents: a fix-the-fixes review of the audit3 diff, and an operational
+rehearsal of the DB-machine runbook (real migration round-trip over
+corpus-shaped seed data + live Catalyst/Wayback dry-run probes).
+
+- [x] **Code review of the audit3 diff: CLEAN — zero findings at any severity.** Every fix verified, every new test confirmed to flip red pre-fix. The four-pass severity convergence held.
+- [x] **Rehearsal F1 (HIGH) — CDX enumeration failed live with a Wayback 503, no retry, and 0 URLs masqueraded as a completed run** ✅ `collect_charniga_urls` goes through `_get_with_retry` (params support added); Wayback URLs switched to https (plain http failed live where https succeeded first try); a 0-URL collection now aborts loudly (`SystemExit(1)`) instead of "Nothing to ingest". Tests `test_cdx_503_is_retried`, `test_wayback_urls_use_https`.
+- [x] **Rehearsal F7 (LOW) — 6 numeric WP shortlinks (/2014/439/) leaked through the article regex** ✅ lookahead widened to any all-numeric final segment; hyphenated numeric slugs still pass. Test `test_article_regex_rejects_numeric_shortlinks`.
+- [x] **`"weeks": null` template loss (flagged by the code-review pass as pre-existing)** ✅ non-list `weeks` dropped after the first parse. Test `test_explicit_null_weeks_no_crash`.
+- [x] **Rehearsal PASSES (the airtight part):** migration round-trip over 16 distinct same-named templates + 2 exact dupes → all 16 survived, dupes collapsed (and the v1 constraint was directly proven un-appliable on that data); Catalyst crawl live: 428 URLs, selectors/pagination intact; Charniga CDX: 215 unique essays, content selectors confirmed against a live snapshot, mojibake fix verified end-to-end; Catalyst delete-SQL semantics verified live (cascade to chunk_log, url backfill on re-ingest, principle dedup).
+- [x] **Runbook shipped**: `docs/DB-MACHINE-RUNBOOK.md` — numbered, with expected outcomes, backup step, branch-rename fixup (incl. `--prune` + single-branch contingency), and the delete-before-Charniga ordering constraint.
+
 ## Notes / non-findings from this pass
 
 - Charniga articles never consult `SOURCE_PROFILE_MAP` — the web path sizes chunks via `for_web_article(word_count)`. Not a bug, but CLAUDE.md's "add to SOURCE_PROFILE_MAP first" rule is a no-op for `--site charniga`; keep in mind for the DB-machine run.

@@ -97,10 +97,12 @@ SESSION.headers.update({
 CHARNIGA_DOMAIN = "sportivnypress.com"
 CHARNIGA_PROGRESS_FILE = Path(__file__).parent / "sources" / "charniga_progress.json"
 # CDX enumerates every archived URL under the domain.
-WAYBACK_CDX_URL = "http://web.archive.org/cdx/search/cdx"
+# https, not http — the plain-http endpoint failed live (503/timeout) where
+# https succeeded on the first attempt (audit4-F1)
+WAYBACK_CDX_URL = "https://web.archive.org/cdx/search/cdx"
 # The `id_` suffix returns the RAW capture (no Wayback toolbar / JS injection),
 # so the parsed HTML is byte-identical to what was originally served.
-WAYBACK_RAW_FMT = "http://web.archive.org/web/{timestamp}id_/{original}"
+WAYBACK_RAW_FMT = "https://web.archive.org/web/{timestamp}id_/{original}"
 
 # Sportivny Press ran on WordPress (URL patterns /YYYY/slug/, /category/…).
 # WordPress renders the post body in .entry-content; the fallback chain covers
@@ -128,10 +130,12 @@ _CHARNIGA_SKIP = re.compile(
 # comment-page-N pagination through to be ingested as nav soup.
 # (:\d+)? — CDX originals from HTTP-era crawls carry :80; the filter runs
 # before urlkey dedup, so rejecting them dropped whole essays (audit2-M2).
-# (?!\d{1,2}/?$) — a purely numeric final segment is a month archive (/2016/05/),
-# which the optional month group let backtrack through as a "slug" (audit2-M1).
+# (?!\d+/?$) — a purely numeric final segment is a month archive (/2016/05/)
+# or a WP ?p=ID shortlink (/2014/439/) that duplicates a canonical essay
+# (audit2-M1, audit4-F7). Hyphenated numeric-looking slugs (/2017-review/)
+# still pass.
 _CHARNIGA_ARTICLE_RE = re.compile(
-    r"^https?://(www\.)?sportivnypress\.com(:\d+)?/\d{4}(/\d{2})?/(?!\d{1,2}/?$)[^/]+/?$",
+    r"^https?://(www\.)?sportivnypress\.com(:\d+)?/\d{4}(/\d{2})?/(?!\d+/?$)[^/]+/?$",
     re.I,
 )
 
@@ -288,12 +292,17 @@ def collect_charniga_urls() -> list[tuple[str, str]]:
         # Multiple `filter` values are ANDed by CDX.
         "filter": ["statuscode:200", "mimetype:text/html"],
     }
+    # Through the shared retry helper — a single transient CDX 503 used to
+    # return 0 URLs, and a real run then reported "Nothing to ingest",
+    # masquerading as success (audit4-F1).
+    resp, _ = _get_with_retry(WAYBACK_CDX_URL, timeout=60, params=params)
+    if resp is None:
+        logger.error("Wayback CDX query failed after retries")
+        return []
     try:
-        resp = SESSION.get(WAYBACK_CDX_URL, params=params, timeout=60)
-        resp.raise_for_status()
         rows = resp.json()
-    except (requests.RequestException, ValueError) as e:
-        logger.error(f"Wayback CDX query failed: {e}")
+    except ValueError as e:
+        logger.error(f"Wayback CDX returned unparseable JSON: {e}")
         return []
 
     # rows[0] is the header (["urlkey","original","timestamp"]); the rest are
@@ -328,7 +337,7 @@ def collect_charniga_urls() -> list[tuple[str, str]]:
 _RETRYABLE_HTTP_STATUSES = {403, 408, 429, 500, 502, 503, 504}
 
 
-def _get_with_retry(url: str, timeout: int = 30, attempts: int = 3):
+def _get_with_retry(url: str, timeout: int = 30, attempts: int = 3, params: dict | None = None):
     """GET with exponential backoff on transient failures (Wayback + live sites).
 
     Returns (response | None, permanent). permanent=True only for HTTP errors
@@ -339,7 +348,7 @@ def _get_with_retry(url: str, timeout: int = 30, attempts: int = 3):
     err = None
     for attempt in range(1, attempts + 1):
         try:
-            resp = SESSION.get(url, timeout=timeout)
+            resp = SESSION.get(url, timeout=timeout, params=params)
             resp.raise_for_status()
             return resp, False
         except requests.HTTPError as e:
@@ -590,6 +599,16 @@ def main():
             all_urls.extend((url, cat["name"]) for url in urls)
 
     logger.info(f"Total URLs collected: {len(all_urls)}")
+
+    if not all_urls and not args.dry_run:
+        # 0 collected URLs used to fall through to "Nothing to ingest. All URLs
+        # already processed." — a transient CDX/site failure masquerading as a
+        # completed run (audit4-F1). Fail loudly instead.
+        logger.error(
+            "URL collection returned nothing — likely a transient enumeration "
+            "failure, not an empty corpus. Nothing was marked ingested; re-run later."
+        )
+        raise SystemExit(1)
 
     if args.dry_run:
         for url, meta in all_urls:

@@ -338,6 +338,42 @@ def test_progress_flush_counts_successes():
         "a crash must lose at most 9 SUCCESSFUL ingests, not 9 pending items (ING-L2)"
 
 
+# ── audit4-F1: CDX enumeration must retry and use https ──────────────────────
+
+def test_cdx_503_is_retried():
+    """audit4-F1: a transient Wayback 503 on the CDX call returned 0 URLs with
+    no retry — and a real run then logs 'Nothing to ingest', masquerading as
+    success. The enumeration must go through the shared retry helper."""
+    import ingest_web
+    from ingest_web import collect_charniga_urls
+
+    with patch.object(ingest_web.SESSION, "get", return_value=_mk_resp(status=503, raise_http=True)) as mock_get, \
+         patch("time.sleep"):
+        pairs = collect_charniga_urls()
+    assert pairs == []
+    assert mock_get.call_count == 3, f"CDX 503 must be retried, got {mock_get.call_count} attempt(s)"
+
+
+def test_wayback_urls_use_https():
+    """audit4-F1: the plain-http CDX endpoint failed live where https succeeded
+    first try."""
+    from ingest_web import WAYBACK_CDX_URL, WAYBACK_RAW_FMT
+    assert WAYBACK_CDX_URL.startswith("https://"), WAYBACK_CDX_URL
+    assert WAYBACK_RAW_FMT.startswith("https://"), WAYBACK_RAW_FMT
+
+
+# ── audit4-F7: numeric WP shortlinks must not pass the article filter ─────────
+
+def test_article_regex_rejects_numeric_shortlinks():
+    """audit4-F7: /YYYY/439/ style WP shortlinks (3+ digits) leaked through the
+    1-2-digit month-archive lookahead — 6 of them in the live CDX probe."""
+    from ingest_web import _CHARNIGA_ARTICLE_RE
+    assert not _CHARNIGA_ARTICLE_RE.match("http://www.sportivnypress.com:80/2014/439/")
+    assert not _CHARNIGA_ARTICLE_RE.match("https://sportivnypress.com/2016/2218/")
+    # hyphenated numeric-looking slugs are real essays and must still pass
+    assert _CHARNIGA_ARTICLE_RE.match("https://sportivnypress.com/2016/05/2017-review/")
+
+
 # ── ING-M5: parse-prompt goal vocabulary must match the DB CHECK ──────────────
 
 def test_program_parse_prompt_goal_line_matches_db_check():
