@@ -110,6 +110,41 @@ def test_chapter_split():
     assert len(sections) >= 2
 
 
+# ── audit5-M2: genuinely ambiguous sections must be able to reach the LLM ─────
+
+def test_ambiguous_weaksignal_section_reaches_llm_threshold():
+    """The default-prose branch returned a flat 0.80, so `confidence < 0.6` was
+    never true and the LLM fallback was dead code. A mid-length section with a
+    weak/partial signal (a stray percentage, no principle language) must now
+    score below the 0.6 threshold so _llm_classify can adjudicate."""
+    clf = make_classifier()
+    text = (
+        "The competition day warm-up requires careful calibration and a good deal "
+        "of feel. An athlete who opens too heavy risks missing, while one who opens "
+        "too light may not peak at the right moment. On a good day the bar moves at "
+        "around 90% of what it did in the last session, but that number matters far "
+        "less than how the weight feels in the hands during the final approaches."
+    )
+    _, confidence = clf._classify_single(text)
+    assert confidence < 0.6, f"weak-signal ambiguous section scored {confidence} — LLM fallback stays dead"
+
+
+def test_signal_free_narrative_stays_confident_no_llm():
+    """Cost guard: plain narrative (the common case in a book ingest) must NOT
+    drop below threshold, or every prose paragraph fires a paid LLM call."""
+    clf = make_classifier()
+    text = (
+        "The gymnasium was quiet that morning as the athletes filtered in one by "
+        "one, each carrying the weight of expectation from the season before. "
+        "Nobody spoke much. The chalk dust hung in the light from the high windows "
+        "and the old platform boards creaked underfoot the way they always had, a "
+        "familiar sound that settled the nerves of everyone who had trained here."
+    )
+    ctype, confidence = clf._classify_single(text)
+    assert ctype == ContentType.PROSE and confidence >= 0.6, \
+        f"signal-free narrative must stay confident (no paid LLM), got {confidence}"
+
+
 # ── LLM fallback tests (require ANTHROPIC_API_KEY) ───────────
 # These passages are deliberately ambiguous so heuristics score < 0.6
 # and fall through to the LLM path.

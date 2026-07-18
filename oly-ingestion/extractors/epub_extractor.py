@@ -47,8 +47,13 @@ def extract_text_from_epub(path: Path) -> list[str]:
             # _chunk_section (which splits on \n\n) can split within long chapters.
             # insert_after adds a sibling NavigableString visible to get_text().
             from bs4 import NavigableString
-            for tag in soup.find_all(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li"]):
+            for tag in soup.find_all(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li",
+                                      "div", "blockquote", "table", "tr"]):
                 tag.insert_after(NavigableString("\n\n"))
+            # inline row/cell/break separators — same mashing bug as the HTML
+            # path (audit5-M4)
+            for tag in soup.find_all(["br", "td", "th"]):
+                tag.insert_after(NavigableString("\n"))
 
             import re
             text = soup.get_text(separator="")

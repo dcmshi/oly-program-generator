@@ -109,7 +109,11 @@ class StructuredLoader:
         loaded = 0
 
         for p in principles:
+            # SAVEPOINT per row: a plain rollback on one bad row (e.g. priority 0
+            # violates the CHECK) discarded ALL earlier uncommitted inserts of
+            # this call while still counting them (audit5-M3)
             try:
+                cursor.execute("SAVEPOINT p_row")
                 cursor.execute(
                     """
                     INSERT INTO programming_principles
@@ -132,9 +136,10 @@ class StructuredLoader:
                 # rowcount is 1 on insert, 0 when the conflict target skipped a
                 # duplicate — count only real inserts (I-L2).
                 loaded += cursor.rowcount
+                cursor.execute("RELEASE SAVEPOINT p_row")
             except Exception as e:
                 logger.error(f"Failed to load principle '{p.principle_name}': {e}")
-                self.conn.rollback()
+                cursor.execute("ROLLBACK TO SAVEPOINT p_row")
                 continue
 
         self.conn.commit()
@@ -239,8 +244,32 @@ class StructuredLoader:
 
     # ── Exercises ─────────────────────────────────────────────
 
+    # exercises.category is an enum; the heuristic parser emits 'variation',
+    # which isn't a valid label → INSERT fails and the variant is lost (audit5-M1)
+    _EXERCISE_CATEGORY_SYNONYMS = {"variation": "competition_variant"}
+    _ALLOWED_EXERCISE_CATEGORIES = frozenset({
+        "competition", "competition_variant", "strength", "pull",
+        "accessory", "positional", "complex",
+    })
+
     def load_exercise(self, exercise: dict) -> int | None:
-        """Load an exercise into the exercises table."""
+        """Load an exercise into the exercises table.
+
+        On a name conflict, curated fields are preserved: the heuristic book
+        parser always emits `faults_addressed=[]` and a first-sentence purpose,
+        which must NOT overwrite a curated seed row (audit5-H1). COALESCE keeps
+        the existing non-empty value; a genuinely new richer parse still fills
+        a NULL/empty seed field.
+        """
+        category = str(exercise.get("category") or "competition_variant").strip().lower()
+        category = self._EXERCISE_CATEGORY_SYNONYMS.get(category, category)
+        if category not in self._ALLOWED_EXERCISE_CATEGORIES:
+            logger.warning(
+                f"Unknown exercise category '{exercise.get('category')}' for "
+                f"'{exercise.get('name')}' — storing as competition_variant"
+            )
+            category = "competition_variant"
+
         cursor = self.conn.cursor()
         try:
             cursor.execute(
@@ -250,13 +279,18 @@ class StructuredLoader:
                      faults_addressed, source_id)
                 VALUES (%s, %s, %s, %s, %s, %s)
                 ON CONFLICT (name) DO UPDATE
-                    SET primary_purpose = EXCLUDED.primary_purpose,
-                        faults_addressed = EXCLUDED.faults_addressed
+                    SET primary_purpose = COALESCE(NULLIF(exercises.primary_purpose, ''),
+                                                   EXCLUDED.primary_purpose),
+                        faults_addressed = CASE
+                            WHEN COALESCE(array_length(exercises.faults_addressed, 1), 0) > 0
+                                THEN exercises.faults_addressed
+                            ELSE EXCLUDED.faults_addressed
+                        END
                 RETURNING id
                 """,
                 (
                     exercise["name"],
-                    exercise.get("category", "competition_variant"),
+                    category,
                     exercise.get("movement_family", "snatch"),
                     exercise.get("primary_purpose", ""),
                     exercise.get("faults_addressed", []),
@@ -280,7 +314,10 @@ class StructuredLoader:
         cursor = self.conn.cursor()
         loaded = 0
         for row in rows:
+            # SAVEPOINT per row — a bad row must not discard earlier inserts of
+            # this call (audit5-M3)
             try:
+                cursor.execute("SAVEPOINT s_row")
                 cursor.execute(
                     """
                     INSERT INTO percentage_schemes
@@ -305,9 +342,10 @@ class StructuredLoader:
                 # rowcount is 0 when ON CONFLICT skipped the row — a skip must
                 # not count as loaded (ING-L3, same class as the fixed I-L2)
                 loaded += cursor.rowcount
+                cursor.execute("RELEASE SAVEPOINT s_row")
             except Exception as e:
                 logger.error(f"Failed to load percentage scheme row: {e}")
-                self.conn.rollback()
+                cursor.execute("ROLLBACK TO SAVEPOINT s_row")
                 continue
         self.conn.commit()
         cursor.close()

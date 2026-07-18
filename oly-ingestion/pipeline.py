@@ -376,8 +376,11 @@ class IngestionPipeline:
 
                         case ContentType.EXERCISE_DESCRIPTION:
                             exercise = self._parse_exercise(section, source_id)
-                            self.structured_loader.load_exercise(exercise)
-                            stats["exercises"] += 1
+                            # _parse_exercise returns {} when no name was found,
+                            # and load_exercise returns None on failure — count
+                            # only real inserts (audit5-M1, cf. ING-M5)
+                            if exercise and self.structured_loader.load_exercise(exercise) is not None:
+                                stats["exercises"] += 1
 
                     # Checkpoint every 10 sections. Store the COUNT processed
                     # (i + 1), so a resume skips exactly the done sections and

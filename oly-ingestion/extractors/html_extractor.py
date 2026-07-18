@@ -22,8 +22,17 @@ def block_text(element) -> str:
     """
     from bs4 import NavigableString
 
-    for tag in element.find_all(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li"]):
+    # Paragraph-level breaks (\n\n) after block containers so the chunker can
+    # split within long articles.
+    for tag in element.find_all(["p", "h1", "h2", "h3", "h4", "h5", "h6", "li",
+                                 "div", "blockquote", "table", "tr"]):
         tag.insert_after(NavigableString("\n\n"))
+    # Line breaks (\n) after inline row/cell/break boundaries — without a
+    # separator, get_text("") mashed adjacent tokens together
+    # ("...80%Clean Pull...", "Snatch80%3x2..."), corrupting embeddings and
+    # keep-together heuristics for program listings and tables (audit5-M4)
+    for tag in element.find_all(["br", "td", "th"]):
+        tag.insert_after(NavigableString("\n"))
 
     text = element.get_text(separator="")
     text = re.sub(r"[ \t]+", " ", text)         # collapse horizontal whitespace

@@ -184,6 +184,41 @@ def test_block_text_on_soup_element():
     assert len(paragraphs) == 5, f"Expected 5 paragraphs, got {len(paragraphs)}"
 
 
+# ── audit5-M4: block-boundary separators ─────────────────────────────────────
+
+def test_br_separated_lines_not_mashed():
+    from bs4 import BeautifulSoup
+    html = "<div>Snatch 5x2 @ 80%<br>Clean Pull 4x3 @ 90%<br>Back Squat 5x5</div>"
+    text = block_text(BeautifulSoup(html, "lxml").find("div"))
+    assert "80%Clean" not in text, f"<br> boundary mashed: {text!r}"
+    assert "Clean Pull" in text and "Back Squat" in text
+
+
+def test_table_cells_not_mashed():
+    from bs4 import BeautifulSoup
+    html = ("<div><table><tr><td>Snatch</td><td>80%</td><td>3x2</td></tr>"
+            "<tr><td>Clean</td><td>85%</td><td>2x2</td></tr></table></div>")
+    text = block_text(BeautifulSoup(html, "lxml").find("div"))
+    assert "Snatch80%" not in text and "3x2Clean" not in text, f"table cells mashed: {text!r}"
+
+
+def test_div_paragraphs_not_mashed():
+    from bs4 import BeautifulSoup
+    html = "<section><div>First paragraph text.</div><div>Second paragraph text.</div></section>"
+    text = block_text(BeautifulSoup(html, "lxml").find("section"))
+    assert "text.Second" not in text, f"div boundary mashed: {text!r}"
+    blocks = [b for b in text.split("\n\n") if b.strip()]
+    assert len(blocks) == 2, f"div paragraphs should split into 2 blocks, got {len(blocks)}"
+
+
+def test_inline_tags_still_not_broken():
+    # the M4 separators must NOT split inline emphasis/links inside a paragraph
+    from bs4 import BeautifulSoup
+    html = "<p>See <em>this</em> point and <a href='#'>that</a> link.</p>"
+    text = block_text(BeautifulSoup(html, "lxml").find("p"))
+    assert "See this point and that link." in text, text
+
+
 # ── Runner ───────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

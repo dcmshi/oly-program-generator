@@ -69,7 +69,13 @@ def apply_ocr_corrections(text: str) -> str:
         Corrected text with common OCR errors fixed.
     """
     for error, correction in OCR_CORRECTIONS.items():
-        # Use word boundaries where the error is a standalone token
-        pattern = re.compile(r"\b" + re.escape(error) + r"\b")
+        # Word boundaries only where they make sense: `\b` requires a word char
+        # on that side, so a trailing `%` (or any non-word terminal char) with a
+        # `\b` after it could never match ("9O%", "l00%" were untouched — every
+        # %-entry was dead; audit5-L1). Use a boundary only on sides that end in
+        # a word character.
+        left = r"\b" if error[:1].isalnum() else ""
+        right = r"\b" if error[-1:].isalnum() else ""
+        pattern = re.compile(left + re.escape(error) + right)
         text = pattern.sub(correction, text)
     return text

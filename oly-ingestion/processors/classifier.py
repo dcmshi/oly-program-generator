@@ -196,7 +196,19 @@ class ContentClassifier:
         elif principle_matches >= 3:
             return ContentType.PRINCIPLE, 0.70
 
-        # Default: prose
+        # Default: prose. Genuinely AMBIGUOUS sections — a weak/partial signal
+        # that didn't clear any category (a lone principle indicator, or stray
+        # percentages without principle language) — score below the LLM
+        # threshold so _llm_classify can adjudicate. The old flat 0.80 made
+        # `confidence < 0.6` unreachable, so the LLM fallback was dead code
+        # (audit5-M2). Signal-FREE narrative stays confident 0.80 (no paid call
+        # on plain prose — the common case in a book ingest).
+        has_weak_signal = (
+            principle_matches >= 1 or has_percentages
+            or any(p.search(text) for p in self.EXERCISE_PATTERNS)
+        )
+        if word_count >= 50 and has_weak_signal:
+            return ContentType.PROSE, 0.55
         return ContentType.PROSE, 0.60 if word_count < 50 else 0.80
 
     def _get_client(self):

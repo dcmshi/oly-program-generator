@@ -559,10 +559,9 @@ def test_worker_settings_consumable_by_arq():
     redis_settings reaches Worker() as a classmethod object and the worker
     crashes on startup ('classmethod' has no attribute 'host'). The generation
     feature was dead end-to-end."""
+    import web.worker as worker
     from arq.connections import RedisSettings
     from arq.worker import get_kwargs
-
-    import web.worker as worker
 
     kwargs = get_kwargs(worker.WorkerSettings)
     assert isinstance(kwargs["redis_settings"], RedisSettings), \

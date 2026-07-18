@@ -148,6 +148,87 @@ def test_load_exercise():
     loader.close()
 
 
+# ── load_exercise — audit5-H1/M1/M3 ───────────────────────────
+
+def test_load_exercise_preserves_curated_faults():
+    """audit5-H1: a book EXERCISE_DESCRIPTION always emits faults_addressed=[]
+    and a heuristic purpose; the ON CONFLICT DO UPDATE must NOT wipe a curated
+    seed row's faults_addressed."""
+    loader = make_loader()
+    # 'Snatch Balance' is a seed exercise with curated faults_addressed
+    cur = loader.conn.cursor()
+    cur.execute("SELECT faults_addressed FROM exercises WHERE name = 'Snatch Balance'")
+    row = cur.fetchone()
+    cur.close()
+    if not row or not row[0]:
+        print("  (skipped: 'Snatch Balance' seed row absent)")
+        loader.close()
+        return
+    curated = row[0]
+
+    loader.load_exercise({
+        "name": "Snatch Balance", "category": "competition_variant",
+        "movement_family": "snatch", "primary_purpose": "heuristic first sentence",
+        "faults_addressed": [], "source_id": None,
+    })
+    cur = loader.conn.cursor()
+    cur.execute("SELECT faults_addressed FROM exercises WHERE name = 'Snatch Balance'")
+    after = cur.fetchone()[0]
+    cur.close()
+    assert after == curated, f"curated faults wiped: {curated} → {after}"
+    print("  load_exercise: curated faults_addressed preserved on conflict ✓")
+    loader.close()
+
+
+def test_load_exercise_variation_category_maps_to_valid_enum():
+    """audit5-M1: '_parse_exercise' emits category='variation', which is not a
+    valid exercise_category enum label → INSERT fails and the variant is lost.
+    load_exercise must normalize it."""
+    loader = make_loader()
+    ex_id = loader.load_exercise({
+        "name": f"{TEST_PREFIX}Power Clean Variant", "category": "variation",
+        "movement_family": "clean", "primary_purpose": "test",
+        "faults_addressed": [], "source_id": None,
+    })
+    assert isinstance(ex_id, int), "a 'variation' category must not drop the exercise (audit5-M1)"
+    cur = loader.conn.cursor()
+    cur.execute("SELECT category::text FROM exercises WHERE id = %s", (ex_id,))
+    cat = cur.fetchone()[0]
+    cur.execute("DELETE FROM exercises WHERE id = %s", (ex_id,))
+    loader.conn.commit()
+    cur.close()
+    assert cat == "competition_variant", cat
+    print(f"  load_exercise: 'variation' normalized to {cat!r} ✓")
+    loader.close()
+
+
+def test_load_principles_savepoint_keeps_valid_rows():
+    """audit5-M3: a mid-batch bad row (priority 0 violates CHECK) rolled back
+    ALL earlier uncommitted inserts while still counting them — valid rows lost."""
+    from types import SimpleNamespace
+    loader = make_loader()
+    sid = loader.upsert_source(f"{TEST_PREFIX}Savepoint Book", "Author", "book")
+
+    def _p(name, priority):
+        return SimpleNamespace(
+            principle_name=f"{TEST_PREFIX}{name}", category="volume",
+            rule_type="guideline", condition={}, recommendation={"x": 1},
+            rationale="r", priority=priority,
+        )
+    principles = [_p("good1", 5), _p("good2", 5), _p("bad", 0), _p("good3", 5)]
+    n = loader.load_principles(principles, sid)
+
+    cur = loader.conn.cursor()
+    cur.execute("SELECT count(*) FROM programming_principles WHERE source_id = %s", (sid,))
+    stored = cur.fetchone()[0]
+    cur.close()
+    assert stored == 3, f"3 valid principles must survive the 1 bad row, got {stored}"
+    assert n == stored, f"count must match stored rows, got {n} vs {stored}"
+    print("  load_principles: bad row isolated, valid rows kept ✓")
+    cleanup(loader, sid)
+    loader.close()
+
+
 # ── load_percentage_schemes ───────────────────────────────────
 
 def test_load_percentage_schemes():
@@ -463,6 +544,9 @@ if __name__ == "__main__":
         test_upsert_source_distinct_urls_distinct_sources,
         test_upsert_source_repeated_slug_collision_no_crash,
         test_load_exercise,
+        test_load_exercise_preserves_curated_faults,
+        test_load_exercise_variation_category_maps_to_valid_enum,
+        test_load_principles_savepoint_keeps_valid_rows,
         test_load_percentage_schemes,
         test_load_percentage_schemes_dedup_counts_rowcount,
         test_load_program,
