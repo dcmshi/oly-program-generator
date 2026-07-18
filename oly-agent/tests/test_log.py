@@ -109,8 +109,11 @@ def test_status_warnings_gated_per_metric_sample_size():
 
     import log as log_mod
     src = inspect.getsource(log_mod.cmd_status)
-    assert "COUNT(tle.rpe)" in src and "COUNT(tle.make_rate)" in src, \
-        "per-metric sample counts missing (audit2-L5)"
+    assert "COUNT(tle.make_rate)" in src, "per-metric sample counts missing (audit2-L5)"
+    # audit3-L1: the deviation warning averages rpe_deviation, which is NULL on
+    # unlinked entries — the gate must count the metric actually averaged
+    assert "COUNT(tle.rpe_deviation) as rpe_samples" in src, \
+        "rpe warning gate must count rpe_deviation samples, not rpe (audit3-L1)"
 
 
 if __name__ == "__main__":

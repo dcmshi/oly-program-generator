@@ -84,10 +84,16 @@ async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: 
     # outlive/under-live the job (W-L4).
     try:
         job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run, request_id=request_id)
-    except Exception:
+    except BaseException:
         # No job exists to release the guard via the status poll — without this
-        # the athlete is locked out for the full TTL (audit2-L5)
-        await _arq_pool.delete(_inflight_key(athlete_id))
+        # the athlete is locked out for the full TTL (audit2-L5). BaseException:
+        # a cancelled request (CancelledError) leaked it too (audit3-L3). The
+        # delete itself is guarded so a Redis outage doesn't mask the original
+        # error; the TTL remains the backstop.
+        try:
+            await _arq_pool.delete(_inflight_key(athlete_id))
+        except Exception as cleanup_err:
+            logger.warning(f"In-flight guard cleanup failed (TTL will expire it): {cleanup_err}")
         raise
     logger.info(f"Job {job.job_id}: submitted for athlete {athlete_id} (dry_run={dry_run})")
     return job.job_id

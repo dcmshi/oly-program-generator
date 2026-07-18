@@ -622,17 +622,23 @@ def test_update_exercise_log_inf_weight_never_promotes():
 # ── audit2-L4: profile error re-render must keep the submitted input ─────────
 
 def test_profile_error_rerender_preserves_submitted_values():
+    """audit2-L4 + audit3-H1: the form always submits date_of_birth (pre-filled),
+    and the template calls .isoformat() on it — the re-render must not 500 on
+    the raw form string."""
     with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
          patch("web.queries.profile.get_active_goal", return_value=None), \
          patch("web.queries.profile.update_profile", return_value=None):
         r = _client.post("/profile/update", data={
             "name": "Edited Name Not Saved Yet",
             "level": "advanced",
+            "date_of_birth": "1990-05-01",  # audit3-H1: this crashed the re-render
+            "bodyweight_kg": "82.5",
             "timezone": "Mars/Olympus",  # forces the 422 re-render
         })
-    assert r.status_code == 422
+    assert r.status_code == 422, f"Expected 422 re-render, got {r.status_code}"
     assert b"Edited Name Not Saved Yet" in r.content, \
         "a bad timezone must not wipe the user's other edits (audit2-L4)"
+    assert b"1990-05-01" in r.content, "submitted DOB must survive the re-render"
 
 
 # ── WEB-M7: >72-byte passwords must not 500 (bcrypt 5.x raises) ──────────────

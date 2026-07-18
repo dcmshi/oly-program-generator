@@ -643,6 +643,19 @@ def test_warmup_reps_excluded_from_volume_accounting():
     return True, ""
 
 
+def test_light_working_sets_61_to_65_still_count():
+    """audit3-M1: the exclusion must stop at the mandated warmup band (60%) —
+    reusing the 65% sub-floor cutoff silently deleted the ENTIRE 55-65 Prilepin
+    zone, so 120 reps @62% passed with zero errors on low-intensity weeks."""
+    light_week = {**WEEK_TARGET, "intensity_floor": 59, "intensity_ceiling": 66}
+    exercises = [_ex("Snatch", 40, 3, 62)]  # 120 reps at 62% — absurd volume
+    result = validate_session(exercises, light_week, PRINCIPLES, ATHLETE)
+    assert result.session_comp_reps.get("55-65") == 120, result.session_comp_reps
+    assert not result.is_valid, "120 reps in the 55-65 zone must blow the Prilepin hard cap"
+    assert any("excessive" in e.lower() for e in result.errors), result.errors
+    return True, ""
+
+
 # ── Weekly rep budget (AGT-L3) ────────────────────────────────
 
 def test_weekly_budget_overshoot_warns():
@@ -670,6 +683,7 @@ TESTS = [
     ("Constraints: null exercise_order → error (audit2-M1)", test_null_exercise_order_is_error),
     ("Constraints: non-numeric pct → error, no crash (audit2-L3)", test_non_numeric_pct_returns_error_not_crash),
     ("Volume: warmup reps excluded (audit2-L2)", test_warmup_reps_excluded_from_volume_accounting),
+    ("Volume: 61-65% working sets still count (audit3-M1)", test_light_working_sets_61_to_65_still_count),
     ("Weekly budget: overshoot warns (AGT-L3)", test_weekly_budget_overshoot_warns),
     ("Weekly budget: within tolerance silent", test_weekly_budget_within_tolerance_no_warning),
     ("Constraints: null sets → error (AGT-M4)", test_null_sets_is_error),

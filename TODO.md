@@ -130,6 +130,20 @@ all verified, fixed with red-first tests, in commits `026f667`, `c6af397`,
 
 Clean under scrutiny (all three agents): middleware order + body-cap replay, Origin check, 0007 dup-merge SQL + partial-index inference, guard TTL ordering, explain tuple consumers, cost accounting, CDX parsing, `_get_with_retry` semantics, options.py template wiring, Makefile/CI/compose pins.
 
+## 6. Audit 3 — 2026-07-17 fix-the-fixes pass (2 agents, scoped to the audit2 diff) — ALL FIXED
+
+Third pass over ONLY the audit2 fix commits. 1 HIGH, 3 MEDIUM, 6 LOW — every one
+a bug **in an audit2 fix itself** (regression or incomplete fix). All fixed
+red-first in one commit.
+
+- [x] **H1 — the profile re-render fix 500'd on its own target path**: merging raw form strings into the template context crashed `athlete.date_of_birth.isoformat()` whenever a DOB was submitted (the form always pre-fills it). The fix's test omitted exactly that field. ✅ DOB parsed to a date before merging; test now submits one.
+- [x] **M1 — warmup exclusion used the 65% sub-floor cutoff, silently deleting the entire 55–65 Prilepin zone**: 120 reps @62% passed with zero errors on low-intensity weeks; zone "55-65" became dead code. ✅ new `WARMUP_VOLUME_EXCLUSION_PCT = 60` (the mandated warmup band only); test pins 62% counting.
+- [x] **M2 — `parse_int` bounds never applied at `sessions_per_week`** (profile + setup; CHECK 1..14) — the exact 500 the commit claimed fixed. ✅ `lo=1, hi=14` at both call sites.
+- [x] **M (ingestion) — slug disambiguation could STILL violate UNIQUE(title, author)** (repeated slug across years, 300-char boundary, CDX url-variant drift), and the exception aborted the entire ingest run. ✅ collision re-check + deterministic url-hash fallback; ingest loop now isolates per-URL failures (rollback + continue).
+- [x] **L (6)** — rpe-deviation warning gated on the wrong count (`COUNT(rpe)` vs the averaged `rpe_deviation`); `reps_per_set` entries unbounded into INT[] overflow (web ×2 + CLI); guard leak on `CancelledError` + unguarded cleanup delete; explicit-null template dims bypassing inference; first-window null `week_number` TypeError; 403 treated as permanent (WAF false-drop). ✅ all fixed.
+
+Clean under scrutiny (audit3 agents): reworked 0006 verified live against pg16 (NULLS NOT DISTINCT arbiter inference, dedup DELETE semantics, downgrade from both states), `_CHARNIGA_ARTICLE_RE` 17-case probe matrix, fetch_article tuple contract, db_url 11-URL matrix, max-test-session/Check-0 interaction, `_safe_back` after the control-char fix, promotion parse_float consistency.
+
 ## Notes / non-findings from this pass
 
 - Charniga articles never consult `SOURCE_PROFILE_MAP` — the web path sizes chunks via `for_web_article(word_count)`. Not a bug, but CLAUDE.md's "add to SOURCE_PROFILE_MAP first" rule is a no-op for `--site charniga`; keep in mind for the DB-machine run.

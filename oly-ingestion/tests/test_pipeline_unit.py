@@ -91,6 +91,41 @@ def test_continuation_week_without_week_number_no_crash():
     assert 2 in week_numbers, week_numbers
 
 
+def test_explicit_null_dims_rescued_by_inference():
+    """audit3-L1 (ingestion): "duration_weeks": null (key present) bypassed the
+    ==0 inference gate, so a valid template was skipped downstream."""
+    llm_data = {
+        "athlete_level": "any", "goal": "general_strength",
+        "duration_weeks": None, "sessions_per_week": None,
+        "weeks": [
+            {"week_number": 1, "sessions": [{}] * 3},
+            {"week_number": 2, "sessions": [{}] * 3},
+        ],
+    }
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = _make_llm_response(llm_data)
+    result = _call(_make_pipeline(mock_client), _make_section("short " * 10))
+    assert result["duration_weeks"] == 2, result["duration_weeks"]
+    assert result["sessions_per_week"] == 3, result["sessions_per_week"]
+
+
+def test_first_window_null_week_number_no_crash():
+    """audit3-L2 (ingestion): a first-window week with "week_number": null hit
+    max({1, None}) outside the try → TypeError → template lost."""
+    first = {"duration_weeks": 0, "sessions_per_week": 0, "weeks": [
+        {"week_number": 1, "sessions": [{}] * 3},
+        {"week_number": None, "sessions": [{}] * 3},
+    ]}
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [
+        _make_llm_response(first),
+        _make_llm_response({}),
+        _make_llm_response({}),
+    ]
+    result = _call(_make_pipeline(mock_client), _make_section("x" * 20000))  # must not raise
+    assert result["duration_weeks"] >= 1, result
+
+
 def test_first_window_empty_continuation_still_scans():
     """ING-L4: a 20k-char section opening with prose legitimately parses the
     first window to {} — the continuation loop must still scan the remaining
@@ -278,6 +313,8 @@ def test_llm_failure_returns_empty_structure():
 
 if __name__ == "__main__":
     tests = [
+        ("Explicit-null dims rescued by inference (audit3-L1)", test_explicit_null_dims_rescued_by_inference),
+        ("First-window null week_number no crash (audit3-L2)", test_first_window_null_week_number_no_crash),
         ("Empty first window: continuation still scans (ING-L4)", test_first_window_empty_continuation_still_scans),
         ("Continuation week without week_number dropped, not crash (audit2-L2)", test_continuation_week_without_week_number_no_crash),
         ("Short section: single LLM call", test_short_section_single_llm_call),

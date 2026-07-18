@@ -53,8 +53,9 @@ async def create_athlete(conn, data: dict, password_hash: str) -> int:
         _date(data.get("date_of_birth")),
         data.get("weight_class") or None,
         _float(data.get("training_age_years")),
-        _int(data.get("sessions_per_week")) or 4,
-        _int(data.get("session_duration_minutes")) or 90,
+        # CHECK BETWEEN 1 AND 14 — out-of-range falls back to the default (audit3-M2)
+        _int(data.get("sessions_per_week"), lo=1, hi=14) or 4,
+        _int(data.get("session_duration_minutes"), lo=1) or 90,
         data.get("available_equipment") or [],
         data.get("injuries") or None,
         data.get("technical_faults") or [],

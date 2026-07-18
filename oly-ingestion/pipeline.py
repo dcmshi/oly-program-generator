@@ -527,7 +527,12 @@ class IngestionPipeline:
         # every later week in that case (ING-L4). MAX_EMPTY bounds the scan.
         if len(content) > CHUNK_SIZE:
             parsed.setdefault("weeks", [])
-            seen_weeks = {w["week_number"] for w in parsed["weeks"] if isinstance(w, dict) and "week_number" in w}
+            # is-not-None: a null week_number here hit max({1, None}) below —
+            # TypeError outside the try, whole template lost (audit3-L2)
+            seen_weeks = {
+                w["week_number"] for w in parsed["weeks"]
+                if isinstance(w, dict) and w.get("week_number") is not None
+            }
             offset = CHUNK_SIZE - OVERLAP
             MAX_EMPTY = 2  # tolerate prose-only windows between week blocks
             empty_streak = 0
@@ -565,13 +570,16 @@ class IngestionPipeline:
 
         program_structure = {k: v for k, v in parsed.items() if k not in PROGRAM_TEMPLATE_COLUMN_KEYS}
 
-        # Infer duration_weeks from parsed weeks array when LLM returned 0
-        duration_weeks = parsed.get("duration_weeks", section.metadata.get("duration_weeks", 0))
+        # Infer duration_weeks from parsed weeks array when LLM returned 0.
+        # `or`-chain, not .get(key, default): an explicit JSON null (key
+        # present) returned None and bypassed the ==0 inference, losing the
+        # template downstream (audit3-L1)
+        duration_weeks = parsed.get("duration_weeks") or section.metadata.get("duration_weeks") or 0
         if duration_weeks == 0 and "weeks" in parsed:
             duration_weeks = len(parsed["weeks"])
 
         # Infer sessions_per_week from first week's session count when LLM returned 0
-        sessions_per_week = parsed.get("sessions_per_week", section.metadata.get("sessions_per_week", 0))
+        sessions_per_week = parsed.get("sessions_per_week") or section.metadata.get("sessions_per_week") or 0
         if sessions_per_week == 0 and parsed.get("weeks"):
             first_week = parsed["weeks"][0]
             if isinstance(first_week, dict) and "sessions" in first_week:

@@ -278,6 +278,20 @@ def test_catalyst_connection_error_is_transient_and_retried():
     assert mock_get.call_count == 3
 
 
+def test_403_is_transient_not_persisted():
+    """audit3-L3 (ingestion): a WAF/rate-limit 403 marked the URL permanently
+    ingested — the exact silent-drop ING-H1/audit2-L1 set out to prevent."""
+    import ingest_web
+    from ingest_web import fetch_article
+
+    with patch.object(ingest_web.SESSION, "get", return_value=_mk_resp(status=403, raise_http=True)) as mock_get, \
+         patch("time.sleep"):
+        article, permanent = fetch_article("http://x/article/1/")
+    assert article is None
+    assert permanent is False, "403 is usually WAF/rate limiting — keep the URL pending"
+    assert mock_get.call_count == 3
+
+
 def test_catalyst_404_is_permanent():
     import ingest_web
     from ingest_web import fetch_article

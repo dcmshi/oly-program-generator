@@ -92,6 +92,30 @@ def test_upsert_source_distinct_urls_distinct_sources():
     loader.close()
 
 
+def test_upsert_source_repeated_slug_collision_no_crash():
+    """audit3-M1 (ingestion): three same-title pages whose URLs share a final
+    slug used to raise UniqueViolation on the third insert and abort the whole
+    ingest run. Every page must get its own source id, no exception."""
+    loader = make_loader()
+    title = f"{TEST_PREFIX}Repeated Slug Title"
+    ids = []
+    for year in (2016, 2017, 2018):
+        sid = loader.upsert_source(
+            title, "Andrew Charniga", "website",
+            url=f"http://sportivnypress.com/{year}/foo/",
+        )
+        assert isinstance(sid, int), f"insert for {year} failed"
+        ids.append(sid)
+    assert len(set(ids)) == 3, f"expected 3 distinct sources, got {ids}"
+
+    print(f"  upsert_source: repeated-slug collision → {len(set(ids))} distinct sources ✓")
+    cur = loader.conn.cursor()
+    cur.execute("DELETE FROM sources WHERE id = ANY(%s)", (ids,))
+    loader.conn.commit()
+    cur.close()
+    loader.close()
+
+
 # ── load_exercise ─────────────────────────────────────────────
 
 def test_load_exercise():
@@ -437,6 +461,7 @@ if __name__ == "__main__":
     tests = [
         test_upsert_source_creates_new,
         test_upsert_source_distinct_urls_distinct_sources,
+        test_upsert_source_repeated_slug_collision_no_crash,
         test_load_exercise,
         test_load_percentage_schemes,
         test_load_percentage_schemes_dedup_counts_rowcount,

@@ -323,7 +323,9 @@ def collect_charniga_urls() -> list[tuple[str, str]]:
 
 # Transient statuses (rate limit / server-side) must not be conflated with
 # permanent failures (404) when deciding whether to persist a URL as done.
-_RETRYABLE_HTTP_STATUSES = {429, 500, 502, 503, 504}
+# 403: usually WAF/rate-limiting for a bot UA, not a real denial — persisting
+# it silently dropped the article forever (audit3-L3). 408: request timeout.
+_RETRYABLE_HTTP_STATUSES = {403, 408, 429, 500, 502, 503, 504}
 
 
 def _get_with_retry(url: str, timeout: int = 30, attempts: int = 3):
@@ -626,21 +628,37 @@ def main():
     for i, (url, meta) in enumerate(pending, 1):
         logger.info(f"[{i}/{len(pending)}] {meta}: {url}")
 
-        if args.site == "charniga":
-            article, permanent_skip = fetch_charniga_snapshot(url, meta)  # meta = Wayback timestamp
-        else:
-            article, permanent_skip = fetch_article(url)
+        # One bad article must not abort the whole run: parts of the ingest
+        # (upsert_source, run creation) sit outside ingest_article's internal
+        # try, and an escaped exception used to kill the loop with the DB
+        # connection in a failed-transaction state (audit3-M1). The URL stays
+        # pending for the next run.
+        try:
+            if args.site == "charniga":
+                article, permanent_skip = fetch_charniga_snapshot(url, meta)  # meta = Wayback timestamp
+            else:
+                article, permanent_skip = fetch_article(url)
 
-        if article is None:
-            if permanent_skip:
-                ingested_urls.add(url)  # can never succeed — safe to mark as seen
-                save_progress(ingested_urls, progress_file)
-            # transient failures stay OUT of the progress file so the next run
-            # retries them instead of silently discarding corpus (ING-H1)
+            if article is None:
+                if permanent_skip:
+                    ingested_urls.add(url)  # can never succeed — safe to mark as seen
+                    save_progress(ingested_urls, progress_file)
+                # transient failures stay OUT of the progress file so the next run
+                # retries them instead of silently discarding corpus (ING-H1)
+                time.sleep(args.delay)
+                continue
+
+            run_stats, ok = ingest_article(article, components, run_stats)
+        except Exception as e:
+            logger.error(f"Unhandled error ingesting {url}: {e} — URL stays pending")
+            for comp_key in ("structured_loader", "vector_loader"):
+                try:
+                    components[comp_key].conn.rollback()
+                except Exception:
+                    pass
             time.sleep(args.delay)
             continue
 
-        run_stats, ok = ingest_article(article, components, run_stats)
         if ok:
             ingested_urls.add(url)  # only mark successful ingests — failures retry next run
             successes += 1

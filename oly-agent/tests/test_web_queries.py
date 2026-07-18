@@ -358,6 +358,23 @@ def test_submit_generation_guard_then_enqueue():
     assert pool.set.await_args.kwargs.get("ex"), "guard must expire (stuck-job safety)"
 
 
+def test_submit_generation_releases_guard_on_cancellation():
+    """audit3-L3: `except Exception` misses asyncio.CancelledError — a request
+    cancelled mid-enqueue leaked the guard for the full 660s TTL."""
+    import asyncio as _asyncio
+    pool = MagicMock()
+    pool.set = AsyncMock(return_value=True)
+    pool.delete = AsyncMock()
+    pool.enqueue_job = AsyncMock(side_effect=_asyncio.CancelledError())
+    with patch.object(jobs, "_arq_pool", pool):
+        try:
+            asyncio.run(jobs.submit_generation(7))
+            raise AssertionError("expected CancelledError to propagate")
+        except _asyncio.CancelledError:
+            pass
+    pool.delete.assert_awaited_with("gen_inflight:7")
+
+
 def test_job_status_terminal_clears_inflight():
     from arq.jobs import JobStatus
     job = _fake_job(args=[7], status=JobStatus.complete)
@@ -435,6 +452,40 @@ def test_submit_generation_releases_guard_on_enqueue_failure():
         except RuntimeError:
             pass
     pool.delete.assert_awaited_with("gen_inflight:7")
+
+
+def test_update_profile_sessions_per_week_bounded():
+    """audit3-M2: athletes.sessions_per_week has CHECK BETWEEN 1 AND 14 —
+    an out-of-range submit must fall back to the default, not 500."""
+    from web.queries import profile as profile_q
+    captured, fake = _capture_async()
+    data = {"name": "A", "level": "beginner", "sessions_per_week": "20"}
+    with patch("web.async_db.async_execute", fake):
+        asyncio.run(profile_q.update_profile(MagicMock(), 1, data))
+    assert captured["params"][9] == 4, f"20 violates CHECK 1..14, must default: {captured['params'][9]}"
+
+
+def test_create_athlete_sessions_per_week_bounded():
+    from web.queries import setup as setup_q
+    captured, fake = _capture_async()
+    data = {"name": "A", "level": "beginner", "username": "u", "sessions_per_week": "99"}
+    with patch("web.async_db.async_execute_returning", fake):
+        asyncio.run(setup_q.create_athlete(MagicMock(), data, "hash"))
+    assert captured["params"][9] == 4, f"99 violates CHECK 1..14, must default: {captured['params'][9]}"
+
+
+def test_reps_per_set_entries_bounded():
+    """audit3-L2: a huge rep entry parses fine in Python and overflows the
+    INT[] column into a 500 — bound the entries."""
+    from web.queries import log_session as lsq
+    captured, fake = _capture_async(ret=5)
+    form = {"exercise_name": "Snatch", "sets_completed": "2",
+            "reps_per_set": "3,99999999999999999999", "weight_kg": "70"}
+    with patch("web.async_db.async_execute_returning", fake), \
+         patch("web.async_db.async_fetch_one", AsyncMock(return_value=None)):
+        asyncio.run(lsq.create_exercise_log(MagicMock(), 10, form))
+    assert captured["params"][4] is None, \
+        f"overflowing rep entries must invalidate the list: {captured['params'][4]}"
 
 
 def test_update_profile_nan_bodyweight_stored_as_null():

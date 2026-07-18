@@ -34,6 +34,10 @@ MAX_SOURCE_CHUNKS_PER_EXERCISE: int = 3  # most-relevant chunk ids attached per 
 # above this % still warn to catch gross typos.
 SUPRAMAX_INTENSITY_WARN_PCT: float = 120.0
 WARMUP_INTENSITY_CUTOFF_PCT: float = 65.0  # sets at/below this are warm-ups (sub-floor by design)
+# Volume accounting excludes only the MANDATED warmup band (prompt: 50-60%).
+# Reusing the 65% sub-floor cutoff deleted the entire 55-65 Prilepin zone from
+# Check 1/1b — 120 reps @62% passed silently on low-intensity weeks (audit3-M1).
+WARMUP_VOLUME_EXCLUSION_PCT: float = 60.0
 
 # ── Weight resolution ────────────────────────────────────────────
 WEIGHT_ROUND_INCREMENT: float = 0.5  # round absolute weights to nearest 0.5 kg

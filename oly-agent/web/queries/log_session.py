@@ -13,6 +13,21 @@ from web.formparse import parse_int as _int
 from shared.constants import MAX_LOG_BACKFILL_DAYS
 
 
+def _parse_reps(raw) -> list[int]:
+    """Parse the comma-separated reps field into a bounded int list.
+
+    Entries outside 1..999 invalidate the whole list — a huge Python int parses
+    fine but overflows the INT[] column into a 500 (audit3-L2).
+    """
+    try:
+        reps = [int(r.strip()) for r in (raw or "").strip().split(",") if r.strip()]
+    except (ValueError, AttributeError):
+        return []
+    if any(r < 1 or r > 999 for r in reps):
+        return []
+    return reps
+
+
 def _parse_log_date(form: dict, today: date | None = None) -> date:
     """Parse the submitted log date, clamping out-of-range values to today.
 
@@ -108,11 +123,7 @@ async def update_exercise_log(conn, tle_id: int, form: dict, log_id: int):
     make_rate_raw = _float(form.get("make_rate"))
     make_rate = make_rate_raw / 100.0 if make_rate_raw is not None else None
 
-    reps_raw = form.get("reps_per_set", "").strip()
-    try:
-        reps_per_set = [int(r.strip()) for r in reps_raw.split(",") if r.strip()]
-    except (ValueError, AttributeError):
-        reps_per_set = []
+    reps_per_set = _parse_reps(form.get("reps_per_set"))
 
     # Fetch stored prescribed values to recompute deviations
     existing = await async_fetch_one(
@@ -312,11 +323,7 @@ async def create_exercise_log(conn, log_id: int, form: dict) -> int:
     prescribed_weight = _float(form.get("prescribed_weight_kg"))
     prescribed_rpe = _float(form.get("prescribed_rpe"))
 
-    reps_raw = form.get("reps_per_set", "").strip()
-    try:
-        reps_per_set = [int(r.strip()) for r in reps_raw.split(",") if r.strip()]
-    except (ValueError, AttributeError):
-        reps_per_set = []
+    reps_per_set = _parse_reps(form.get("reps_per_set"))
 
     make_rate_raw = _float(form.get("make_rate"))
     make_rate = make_rate_raw / 100.0 if make_rate_raw is not None else None

@@ -102,8 +102,15 @@ async def update_profile(
         goal = await q.get_active_goal(conn, athlete_id)
         # Echo the SUBMITTED values into the re-render — re-fetching from the
         # DB silently discarded every other edit on the form (audit2-L4;
-        # setup already preserves input this way).
-        athlete = {**dict(athlete or {}), **data}
+        # setup already preserves input this way). date_of_birth must be a
+        # date object: the template calls .isoformat() on it, and the raw form
+        # string 500'd the re-render (audit3-H1).
+        from web.queries.profile import _date as _parse_date
+        athlete = {
+            **dict(athlete or {}),
+            **data,
+            "date_of_birth": _parse_date(data.get("date_of_birth")),
+        }
         return templates.TemplateResponse(request, "profile.html", {
             "request": request,
             "athlete": athlete,

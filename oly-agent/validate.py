@@ -24,6 +24,7 @@ from shared.constants import (
     SESSION_DURATION_TOLERANCE,
     SUPRAMAX_INTENSITY_WARN_PCT,
     WARMUP_INTENSITY_CUTOFF_PCT,
+    WARMUP_VOLUME_EXCLUSION_PCT,
     WEEKLY_REP_BUDGET_TOLERANCE,
 )
 from shared.exercise_mapping import COMP_LIFT_REFS
@@ -158,8 +159,9 @@ def validate_session(
         # Warmup ramping isn't training volume: the prompt MANDATES 2-3 warmup
         # sets at 50-60% before each comp lift, and counting the 55-60 ones
         # against Prilepin/weekly working budgets made well-formed sessions
-        # warn routinely (audit2-L2)
-        if pct <= WARMUP_INTENSITY_CUTOFF_PCT:
+        # warn routinely (audit2-L2). Only the mandated band is excluded —
+        # 61-65% working sets still count toward the 55-65 zone (audit3-M1).
+        if pct <= WARMUP_VOLUME_EXCLUSION_PCT:
             continue
         zone = get_prilepin_zone(pct)
         if zone is None:

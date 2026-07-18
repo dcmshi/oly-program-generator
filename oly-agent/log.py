@@ -349,6 +349,9 @@ def cmd_exercise(log_id: int, conn, session_id: int | None = None) -> None:
                 reps_per_set = [int(r.strip()) for r in reps_input.split(",")]
             except ValueError:
                 reps_per_set = []
+            # entries outside 1..999 would overflow/garbage the INT[] column (audit3-L2)
+            if any(r < 1 or r > 999 for r in reps_per_set):
+                reps_per_set = []
         else:
             reps_per_set = []
 
@@ -466,7 +469,9 @@ def cmd_status(athlete_id: int, conn) -> None:
                    -- per-metric sample counts: COUNT(*) counts rows qualifying
                    -- on EITHER metric, so one rpe row + one make-rate row
                    -- passed the >=2 gate with single-sample AVGs (audit2-L5)
-                   COUNT(tle.rpe) as rpe_samples,
+                   -- the deviation warning averages rpe_deviation, which is
+                   -- NULL on unlinked entries — count what's averaged (audit3-L1)
+                   COUNT(tle.rpe_deviation) as rpe_samples,
                    COUNT(tle.make_rate) as make_rate_samples
             FROM training_log_exercises tle
             JOIN training_logs tl ON tl.id = tle.log_id

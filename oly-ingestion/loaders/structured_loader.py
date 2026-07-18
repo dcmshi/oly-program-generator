@@ -52,8 +52,22 @@ class StructuredLoader:
             if url and existing_url and existing_url != url:
                 # Same extracted title, different page — disambiguate and fall
                 # through to INSERT so the second page gets its own source row.
+                import hashlib
                 slug = url.rstrip("/").rsplit("/", 1)[-1]
-                title = f"{title} [{slug}]"[:300]
+                candidate = f"{title} [{slug}]"[:300]
+                # The slug can repeat across years (/2016/foo/, /2017/foo/) and
+                # a 300-char title truncates back to itself — either way the
+                # disambiguated title would STILL violate UNIQUE(title, author)
+                # and abort the run (audit3-M1). Fall back to a deterministic
+                # url-hash suffix, re-checked before INSERT.
+                cursor.execute(
+                    "SELECT 1 FROM sources WHERE title = %s AND author = %s",
+                    (candidate, author),
+                )
+                if candidate == title or cursor.fetchone():
+                    suffix = f" [{hashlib.md5(url.encode()).hexdigest()[:8]}]"
+                    candidate = title[: 300 - len(suffix)] + suffix
+                title = candidate
             else:
                 if url:
                     cursor.execute(
