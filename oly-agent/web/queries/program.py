@@ -1,6 +1,14 @@
 # web/queries/program.py
 """DB queries for the program view."""
 
+import sys
+from pathlib import Path
+
+# Module scope, not per-call — request-path sys.path.insert grew sys.path
+# unboundedly in the long-lived process (audit5-L4)
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
+
 # In-memory cache for exercise name → id lookups.
 # exercises are static seed data that never change at runtime.
 _exercise_id_cache: dict[str, int] = {}  # lower(name) → id
@@ -172,9 +180,6 @@ async def complete_program(conn, program_id: int, athlete_id: int) -> dict:
     connection for that work and leave the asyncpg conn untouched.
     Returns the outcome dict (also persisted to generated_programs.outcome_summary).
     """
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from feedback import compute_outcome, save_outcome
     from web.deps import get_settings
 
@@ -253,9 +258,6 @@ async def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
 
     Each row includes is_estimated=True/False so the template can style them differently.
     """
-    import sys
-    from pathlib import Path
-    sys.path.insert(0, str(Path(__file__).parent.parent.parent))
     from assess import estimate_missing_maxes
     from web.async_db import async_fetch_all
     from weight_resolver import build_maxes_dict
@@ -278,7 +280,9 @@ async def get_athlete_maxes(conn, athlete_id: int) -> list[dict]:
     known = build_maxes_dict([{"name": r["exercise_name"], "weight_kg": r["weight_kg"]} for r in rows])
     estimated = estimate_missing_maxes(known)
     ref_to_name = {v: k for k, v in EXERCISE_NAME_TO_INTENSITY_REF.items()}
-    for ref, (kg, _) in sorted(estimated.items()):
+    # {ref: kg} floats since A-R8 — the old (kg, source) tuple unpack TypeError'd
+    # the dashboard for any athlete with a snatch/C&J max (audit5-H1)
+    for ref, kg in sorted(estimated.items()):
         name = ref_to_name.get(ref, ref.replace("_", " ").title())
         result.append({
             "exercise_name": name,

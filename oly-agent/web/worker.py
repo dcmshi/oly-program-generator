@@ -75,6 +75,14 @@ async def run_generation(ctx, athlete_id: int, dry_run: bool = False, request_id
         request_id_var.reset(token)
 
 
+def _build_redis_settings() -> RedisSettings:
+    from web.jobs import resolve_redis_dsn
+
+    from shared.config import Settings
+    # resolve_redis_dsn forces IPv4 loopback — see note there (Windows ::1).
+    return RedisSettings.from_dsn(resolve_redis_dsn(Settings().redis_url))
+
+
 class WorkerSettings:
     on_startup = _on_startup
     functions = [run_generation]
@@ -82,10 +90,8 @@ class WorkerSettings:
     job_timeout = JOB_TIMEOUT_SECONDS  # hard limit; orchestrator deadline sits 30s inside it
     keep_result = 86400   # keep results in Redis for 24 hours
 
-    @classmethod
-    def redis_settings(cls) -> RedisSettings:
-        from web.jobs import resolve_redis_dsn
-
-        from shared.config import Settings
-        # resolve_redis_dsn forces IPv4 loopback — see note there (Windows ::1).
-        return RedisSettings.from_dsn(resolve_redis_dsn(Settings().redis_url))
+    # A plain attribute, NOT a classmethod: arq reads WorkerSettings.__dict__
+    # verbatim, so a classmethod object reached Worker(redis_settings=...) raw
+    # and the worker crashed on startup — generation was dead end-to-end
+    # (audit5-H2).
+    redis_settings = _build_redis_settings()

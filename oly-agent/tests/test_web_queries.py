@@ -530,6 +530,45 @@ def test_create_exercise_log_keeps_valid_session_exercise_id():
     assert captured["params"][1] == 999, captured["params"]
 
 
+# ── audit5 web-H1: get_athlete_maxes vs the real estimate contract ───────────
+
+def test_get_athlete_maxes_unpacks_real_estimates():
+    """audit5-H1: A-R8 changed estimate_missing_maxes to return {ref: float};
+    this web caller still unpacked 2-tuples → TypeError → dashboard 500 for any
+    athlete with a snatch/C&J max, and max upserts rolled back. The suite was
+    green because every router test mocks get_athlete_maxes."""
+    from decimal import Decimal
+
+    from web.queries import program as pq
+
+    async def fake_fetch_all(conn, sql, *params):
+        return [{"exercise_name": "Snatch", "weight_kg": Decimal("100.0"),
+                 "date_achieved": None}]
+
+    with patch("web.async_db.async_fetch_all", fake_fetch_all):
+        result = asyncio.run(pq.get_athlete_maxes(MagicMock(), 1))
+    estimated = [r for r in result if r["is_estimated"]]
+    assert estimated, "snatch-derived estimates must be present"
+    assert all(isinstance(r["weight_kg"], (int, float)) for r in estimated), result
+
+
+# ── audit5 web-H2: arq must receive a real RedisSettings, not the classmethod ─
+
+def test_worker_settings_consumable_by_arq():
+    """audit5-H2: arq reads WorkerSettings.__dict__ verbatim — a @classmethod
+    redis_settings reaches Worker() as a classmethod object and the worker
+    crashes on startup ('classmethod' has no attribute 'host'). The generation
+    feature was dead end-to-end."""
+    from arq.connections import RedisSettings
+    from arq.worker import get_kwargs
+
+    import web.worker as worker
+
+    kwargs = get_kwargs(worker.WorkerSettings)
+    assert isinstance(kwargs["redis_settings"], RedisSettings), \
+        f"arq got {type(kwargs['redis_settings']).__name__} instead of RedisSettings (audit5-H2)"
+
+
 # ── W-INFO: prefillExercise uses data-* attributes ───────────────────────────
 
 def test_prefill_uses_data_attributes_not_js_string():
