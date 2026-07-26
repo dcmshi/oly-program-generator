@@ -42,6 +42,26 @@ STRENGTH_LIMITER_OPTIONS = [
     ("Off-the-floor / first pull strength",        "positional_strength"),
 ]
 
+# DB enum vocabularies. These are written straight into enum columns, so an
+# out-of-vocabulary value is an asyncpg InvalidTextRepresentation → 500, not a
+# validation message (WEB-L10). Keep in sync with migration 0001's CREATE TYPE.
+GOAL_OPTIONS = [
+    ("General strength", "general_strength"),
+    ("Competition prep", "competition_prep"),
+    ("Technique focus",  "technique_focus"),
+    ("PR attempt",       "pr_attempt"),
+    ("Work capacity",    "work_capacity"),
+    ("Return to sport",  "return_to_sport"),
+]
+
+SEX_OPTIONS = [
+    ("Male",   "male"),
+    ("Female", "female"),
+]
+
+VALID_GOALS = {v for _, v in GOAL_OPTIONS}
+VALID_SEXES = {v for _, v in SEX_OPTIONS}
+
 MAX_EXERCISES = [
     "Snatch",
     "Clean & Jerk",

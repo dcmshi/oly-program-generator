@@ -116,6 +116,52 @@ def test_status_warnings_gated_per_metric_sample_size():
         "rpe warning gate must count rpe_deviation samples, not rpe (audit3-L1)"
 
 
+# ── AGT-L11: all three commands must agree on which program is current ───────
+
+def _capture_program_queries(returns):
+    """Run _current_program against a stubbed fetch_one; return (result, sqls)."""
+    from unittest.mock import patch
+
+    import log as log_mod
+    sqls = []
+
+    def _fake_fetch_one(conn, sql, params):
+        sqls.append(sql)
+        return returns[len(sqls) - 1]
+
+    with patch.object(log_mod, "fetch_one", _fake_fetch_one):
+        result = log_mod._current_program(None, 1, "id, name, start_date, duration_weeks")
+    return result, sqls
+
+
+def test_current_program_prefers_active():
+    result, sqls = _capture_program_queries([{"id": 7}])
+    assert result == {"id": 7}, result
+    assert "status = 'active'" in sqls[0], sqls[0]
+    assert len(sqls) == 1, "an active program must not trigger the fallback query"
+
+
+def test_current_program_falls_back_to_newest():
+    result, sqls = _capture_program_queries([None, {"id": 99}])
+    assert result == {"id": 99}, result
+    assert len(sqls) == 2 and "status = 'active'" not in sqls[1]
+
+
+def test_session_and_status_pick_the_active_program():
+    """log.py session/status used ORDER BY created_at DESC with no status
+    filter, so a newer draft hijacked both while `show` used the active
+    program — three commands, two different answers (AGT-L11)."""
+    import inspect
+
+    import log as log_mod
+    for fn in (log_mod.cmd_session, log_mod.cmd_status):
+        src = inspect.getsource(fn)
+        assert "_current_program(" in src, \
+            f"{fn.__name__} must select the program the same way cmd_show does"
+        assert "ORDER BY created_at DESC" not in src, \
+            f"{fn.__name__} still has its own status-blind program query"
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

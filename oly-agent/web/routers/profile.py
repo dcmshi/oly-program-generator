@@ -84,9 +84,11 @@ async def update_profile(
         "timezone": timezone.strip() or "UTC",
     }
 
-    # DB enum columns — an out-of-vocabulary value 500s at asyncpg (audit5-L7)
+    # DB enum columns — an out-of-vocabulary value 500s at asyncpg (audit5-L7).
+    # Sex vocabulary lives in web/options.py so setup validates the same set.
+    from web.options import VALID_SEXES
     _VALID_LEVELS = {"beginner", "intermediate", "advanced", "elite"}
-    _VALID_SEX = {"", "male", "female"}
+    _VALID_SEX = VALID_SEXES | {""}
 
     error = None
     if not data["name"]:
@@ -231,6 +233,21 @@ async def update_goals(
     target_total_kg: Annotated[str, Form()] = "",
     goal_notes: Annotated[str, Form(max_length=500)] = "",
 ):
+    # `goal` lands in the goal_type enum column — an out-of-vocabulary value is
+    # an asyncpg InvalidTextRepresentation → unhandled 500 (WEB-L10).
+    from web.options import VALID_GOALS
+    if goal not in VALID_GOALS:
+        from web.app import templates
+        athlete = await q.get_athlete(conn, athlete_id)
+        current = await q.get_active_goal(conn, athlete_id)
+        return templates.TemplateResponse(request, "profile.html", {
+            "request": request,
+            "athlete": athlete,
+            "goal": current,
+            "error": "Please select a valid training goal.",
+            "goal_error": True,
+        }, status_code=422)
+
     await q.upsert_goal(conn, athlete_id, {
         "goal": goal,
         "competition_date": competition_date or None,

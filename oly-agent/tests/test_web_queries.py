@@ -83,10 +83,11 @@ def test_log_date_garbage_falls_back_to_today():
 
 # ── W-L4: get_job_status ownership from job args ─────────────────────────────
 
-def _fake_job(args, status=None):
+def _fake_job(args, status=None, kwargs=None):
     from arq.jobs import JobStatus
     job = MagicMock()
-    job.info = AsyncMock(return_value=MagicMock(args=args) if args is not None else None)
+    info = MagicMock(args=args, kwargs=kwargs or {}) if args is not None else None
+    job.info = AsyncMock(return_value=info)
     job.status = AsyncMock(return_value=status or JobStatus.in_progress)
     return job
 
@@ -404,6 +405,76 @@ def test_job_status_terminal_clears_inflight():
         result = asyncio.run(jobs.get_job_status("jid", 7))
     assert result["status"] == "done"
     pool.delete.assert_awaited_with("gen_inflight:7")
+
+
+# ── WEB-L12: exercise_name must respect VARCHAR(200) NOT NULL ────────────────
+
+def test_parse_text_bounds_and_defaults():
+    from web.formparse import parse_text
+    assert parse_text("  Snatch  ", 200) == "Snatch"
+    assert parse_text("x" * 500, 200) == "x" * 200, "must truncate to the column width"
+    assert parse_text("", 200, default="Unnamed") == "Unnamed"
+    assert parse_text("   ", 200, default="Unnamed") == "Unnamed"
+    assert parse_text(None, 200, default="Unnamed") == "Unnamed"
+
+
+def test_create_exercise_log_bounds_exercise_name():
+    """queries/log_session.py passed the raw string into VARCHAR(200) NOT NULL:
+    >200 chars is an asyncpg 22001 → 500, blank inserts a junk row (WEB-L12)."""
+    import asyncio as _asyncio
+
+    from web.queries import log_session as qls
+
+    captured = {}
+
+    async def _fake_returning(conn, query, *args):
+        captured["args"] = args
+        return 1
+
+    async def _fake_fetch_one(conn, query, *args):
+        return None
+
+    with patch("web.async_db.async_execute_returning", _fake_returning), \
+         patch("web.async_db.async_fetch_one", _fake_fetch_one):
+        _asyncio.run(qls.create_exercise_log(MagicMock(), 1, {"exercise_name": "S" * 500}))
+        name = captured["args"][2]
+        assert len(name) <= 200, f"exercise_name must be truncated, got {len(name)} chars"
+
+        _asyncio.run(qls.create_exercise_log(MagicMock(), 1, {"exercise_name": "   "}))
+        assert captured["args"][2].strip(), "blank name must not insert an unnamed junk row"
+
+
+# ── WEB-L11: a failed real run must not report as a completed dry run ────────
+
+def _completed_job(dry_run: bool, program_id):
+    from arq.jobs import JobStatus
+    job = _fake_job(args=[7], status=JobStatus.complete, kwargs={"dry_run": dry_run})
+    job.result = AsyncMock(return_value={"program_id": program_id, "duration_seconds": 9.0})
+    pool = MagicMock()
+    pool.get = AsyncMock(return_value=b"jid")
+    pool.delete = AsyncMock()
+    with patch.object(jobs, "_arq_pool", pool), patch("arq.jobs.Job", return_value=job):
+        return asyncio.run(jobs.get_job_status("jid", 7))
+
+
+def test_job_status_failed_real_run_is_not_done():
+    """orchestrator.run returns None on failure but the ARQ job still completes,
+    so the UI painted the green '✓ Program generated / Dry run complete' banner
+    over a failed paid run (WEB-L11)."""
+    result = _completed_job(dry_run=False, program_id=None)
+    assert result["status"] == "failed", result
+    assert result["program_id"] is None
+    assert result["error"], "a failed run must carry a message for the UI"
+
+
+def test_job_status_dry_run_still_done():
+    result = _completed_job(dry_run=True, program_id=None)
+    assert result["status"] == "done", result
+
+
+def test_job_status_successful_run_still_done():
+    result = _completed_job(dry_run=False, program_id=42)
+    assert result["status"] == "done" and result["program_id"] == 42, result
 
 
 # ── WEB-L3: duplicate training_logs race ─────────────────────────────────────

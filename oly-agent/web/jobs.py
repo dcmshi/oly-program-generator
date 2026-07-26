@@ -140,9 +140,25 @@ async def get_job_status(job_id: str, athlete_id: int) -> dict:
     if status == JobStatus.complete:
         try:
             result = await job.result(timeout=None)
+            program_id = result.get("program_id")
+            # orchestrator.run returns None on failure and the ARQ job still
+            # completes normally, so a failed (fully paid) run reported as
+            # "done" with no program_id — which the template paints as the green
+            # "✓ Program generated / Dry run complete" banner (WEB-L11). Only a
+            # dry run legitimately produces no program; dry_run comes from the
+            # job's own enqueue payload, the same source as the ownership check.
+            dry_run = bool((getattr(info, "kwargs", None) or {}).get("dry_run"))
+            if program_id is None and not dry_run:
+                logger.error(f"Job {job_id} completed without a program (generation failed)")
+                return {
+                    "status": "failed",
+                    "program_id": None,
+                    "error": "Program generation failed. Check server logs for details.",
+                    "duration_seconds": result.get("duration_seconds"),
+                }
             return {
                 "status": "done",
-                "program_id": result.get("program_id"),
+                "program_id": program_id,
                 "error": None,
                 "duration_seconds": result.get("duration_seconds"),
             }

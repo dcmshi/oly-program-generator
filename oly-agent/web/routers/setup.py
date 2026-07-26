@@ -17,6 +17,8 @@ from web.options import (  # noqa: F401  (re-export)
     FAULT_OPTIONS,
     MAX_EXERCISES,
     STRENGTH_LIMITER_OPTIONS,
+    VALID_GOALS,
+    VALID_SEXES,
 )
 
 
@@ -78,6 +80,16 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
 
     if level not in ("beginner", "intermediate", "advanced", "elite"):
         errors.append("Please select a training level.")
+
+    # Both land in enum columns — a crafted value is an asyncpg
+    # InvalidTextRepresentation → unhandled 500 rather than a message (WEB-L10).
+    sex = form.get("biological_sex", "").strip()
+    if sex and sex not in VALID_SEXES:
+        errors.append("Please select a valid biological sex.")
+
+    goal_choice = form.get("goal_type", "").strip()
+    if goal_choice and goal_choice not in VALID_GOALS:
+        errors.append("Please select a valid training goal.")
 
     if errors:
         # Multi-select fields collapse to their last value in dict(raw_form);

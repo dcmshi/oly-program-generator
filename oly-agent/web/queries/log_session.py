@@ -9,8 +9,9 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from web.formparse import parse_float as _float  # noqa: F401 (WEB-L4)
 from web.formparse import parse_int as _int
+from web.formparse import parse_text
 
-from shared.constants import MAX_LOG_BACKFILL_DAYS
+from shared.constants import EXERCISE_NAME_MAX_CHARS, MAX_LOG_BACKFILL_DAYS
 
 
 def _parse_reps(raw) -> list[int]:
@@ -317,7 +318,11 @@ async def create_exercise_log(conn, log_id: int, form: dict) -> int:
         )
         if linked is None:
             se_id = None
-    exercise_name = form.get("exercise_name", "").strip()
+    # VARCHAR(200) NOT NULL — the input is `required` client-side, so this is
+    # the server-side mirror: truncate instead of an asyncpg 22001 → 500, and
+    # name the row instead of storing a blank one (WEB-L12).
+    exercise_name = parse_text(form.get("exercise_name"), EXERCISE_NAME_MAX_CHARS,
+                               default="Unnamed exercise")
     weight_kg = _float(form.get("weight_kg"))
     rpe = _float(form.get("rpe"))
     prescribed_weight = _float(form.get("prescribed_weight_kg"))

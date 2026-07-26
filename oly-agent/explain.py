@@ -25,7 +25,7 @@ def explain(
     program_sessions: list[dict],
     llm_client,
     settings,
-) -> str:
+) -> tuple[str, int, int]:
     """Generate a plain-language rationale for the program.
 
     Args:

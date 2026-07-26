@@ -536,6 +536,45 @@ def test_load_principles_dedup():
     loader.close()
 
 
+# ── load_prilepin_rows ────────────────────────────────────────
+
+def test_load_prilepin_savepoint_keeps_valid_rows():
+    """ING-L7: a bad row triggered a full-connection rollback, discarding every
+    earlier uncommitted row of the same call while `loaded` still counted them —
+    the class audit5-M3 fixed in load_principles/load_percentage_schemes."""
+    loader = make_loader()
+
+    def _row(low, high, note):
+        return {
+            "intensity_range_low": low, "intensity_range_high": high,
+            "reps_per_set_low": 1, "reps_per_set_high": 3,
+            "optimal_total_reps": 10, "total_reps_range_low": 7,
+            "total_reps_range_high": 12,
+            "movement_type": "competition_lifts", "notes": note,
+        }
+
+    # Third row violates CHECK (intensity_range_high > intensity_range_low)
+    rows = [
+        _row(31, 32, f"{TEST_PREFIX}good1"),
+        _row(33, 34, f"{TEST_PREFIX}good2"),
+        _row(50, 40, f"{TEST_PREFIX}bad"),
+        _row(35, 36, f"{TEST_PREFIX}good3"),
+    ]
+    n = loader.load_prilepin_rows(rows)
+
+    cur = loader.conn.cursor()
+    cur.execute("SELECT count(*) FROM prilepin_chart WHERE notes LIKE %s", (f"{TEST_PREFIX}%",))
+    stored = cur.fetchone()[0]
+    cur.execute("DELETE FROM prilepin_chart WHERE notes LIKE %s", (f"{TEST_PREFIX}%",))
+    loader.conn.commit()
+    cur.close()
+
+    assert stored == 3, f"3 valid Prilepin rows must survive the 1 bad row, got {stored}"
+    assert n == stored, f"count must match stored rows, got {n} vs {stored}"
+    print("  load_prilepin_rows: bad row isolated, valid rows kept ✓")
+    loader.close()
+
+
 # ── Runner ────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -549,6 +588,7 @@ if __name__ == "__main__":
         test_load_principles_savepoint_keeps_valid_rows,
         test_load_percentage_schemes,
         test_load_percentage_schemes_dedup_counts_rowcount,
+        test_load_prilepin_savepoint_keeps_valid_rows,
         test_load_program,
         test_load_program_dedup,
         test_load_program_same_name_distinct_structure_both_load,

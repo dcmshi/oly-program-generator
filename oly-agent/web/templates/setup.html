@@ -312,13 +312,7 @@
             <select name="goal_type"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
               <option value="">— none —</option>
-              {% for v, label in [
-                ("general_strength",   "General strength"),
-                ("competition_prep",   "Competition prep"),
-                ("technique_focus",    "Technique focus"),
-                ("work_capacity",      "Work capacity"),
-                ("return_to_sport",    "Return to sport"),
-              ] %}
+              {% for label, v in goal_options %}
               <option value="{{ v }}" {% if form.get('goal_type') == v %}selected{% endif %}>{{ label }}</option>
               {% endfor %}
             </select>

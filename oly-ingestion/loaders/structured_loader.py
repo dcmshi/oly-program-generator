@@ -356,7 +356,11 @@ class StructuredLoader:
         cursor = self.conn.cursor()
         loaded = 0
         for row in rows:
+            # SAVEPOINT per row — a plain rollback here discarded every earlier
+            # uncommitted row of this call while `loaded` still counted them
+            # (ING-L7; same class as audit5-M3 in the two loaders above)
             try:
+                cursor.execute("SAVEPOINT pr_row")
                 cursor.execute(
                     """
                     INSERT INTO prilepin_chart
@@ -379,9 +383,10 @@ class StructuredLoader:
                     ),
                 )
                 loaded += 1
+                cursor.execute("RELEASE SAVEPOINT pr_row")
             except Exception as e:
                 logger.error(f"Failed to load Prilepin row: {e}")
-                self.conn.rollback()
+                cursor.execute("ROLLBACK TO SAVEPOINT pr_row")
                 continue
         self.conn.commit()
         cursor.close()

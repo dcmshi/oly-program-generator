@@ -67,14 +67,21 @@ def _validate_session_link(raw: str, sessions: list[dict]) -> int | None:
     return None
 
 
-# ── Command: show ────────────────────────────────────────────────
+# ── Program selection ────────────────────────────────────────────
 
-def cmd_show(athlete_id: int, conn) -> None:
-    """Display the current week's prescribed sessions for the active program."""
+def _current_program(conn, athlete_id: int, columns: str) -> dict | None:
+    """Return the athlete's current program: the active one, else the newest.
+
+    Every command must agree on this. `session` and `status` used to take the
+    newest program regardless of status, so a freshly generated draft hijacked
+    them while `show` kept displaying the active program — the CLI then offered
+    the draft's sessions for logging and reported status against the wrong
+    program (AGT-L11).
+    """
     program = fetch_one(
         conn,
-        """
-        SELECT id, name, phase, start_date, duration_weeks, sessions_per_week
+        f"""
+        SELECT {columns}
         FROM generated_programs
         WHERE athlete_id = %s AND status = 'active'
         ORDER BY created_at DESC
@@ -82,19 +89,30 @@ def cmd_show(athlete_id: int, conn) -> None:
         """,
         (athlete_id,),
     )
-    if not program:
-        # Fall back to most recent draft
-        program = fetch_one(
-            conn,
-            """
-            SELECT id, name, phase, start_date, duration_weeks, sessions_per_week
-            FROM generated_programs
-            WHERE athlete_id = %s
-            ORDER BY created_at DESC
-            LIMIT 1
-            """,
-            (athlete_id,),
-        )
+    if program:
+        return program
+    # No active program — fall back to the most recent one (usually a draft)
+    return fetch_one(
+        conn,
+        f"""
+        SELECT {columns}
+        FROM generated_programs
+        WHERE athlete_id = %s
+        ORDER BY created_at DESC
+        LIMIT 1
+        """,
+        (athlete_id,),
+    )
+
+
+# ── Command: show ────────────────────────────────────────────────
+
+def cmd_show(athlete_id: int, conn) -> None:
+    """Display the current week's prescribed sessions for the active program."""
+    program = _current_program(
+        conn, athlete_id,
+        "id, name, phase, start_date, duration_weeks, sessions_per_week",
+    )
     if not program:
         print("No program found for this athlete.")
         return
@@ -178,16 +196,8 @@ def cmd_session(athlete_id: int, conn, session_id: int | None = None) -> int | N
 
     # If session_id not provided, show options for current week
     if session_id is None:
-        program = fetch_one(
-            conn,
-            """
-            SELECT id, name, start_date, duration_weeks
-            FROM generated_programs
-            WHERE athlete_id = %s
-            ORDER BY created_at DESC
-            LIMIT 1
-            """,
-            (athlete_id,),
+        program = _current_program(
+            conn, athlete_id, "id, name, start_date, duration_weeks"
         )
         if program:
             start_date = program["start_date"]
@@ -397,16 +407,8 @@ def cmd_exercise(log_id: int, conn, session_id: int | None = None) -> None:
 
 def cmd_status(athlete_id: int, conn) -> None:
     """Surface warnings from the active program: RPE overshoot, low make rates."""
-    program = fetch_one(
-        conn,
-        """
-        SELECT id, name, phase, start_date, duration_weeks
-        FROM generated_programs
-        WHERE athlete_id = %s
-        ORDER BY created_at DESC
-        LIMIT 1
-        """,
-        (athlete_id,),
+    program = _current_program(
+        conn, athlete_id, "id, name, phase, start_date, duration_weeks"
     )
     if not program:
         print("No program found.")

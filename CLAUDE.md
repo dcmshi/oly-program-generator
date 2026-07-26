@@ -94,15 +94,22 @@ D:\oly-program-generator\
     ├── sources/                     # PDFs go here (gitignored)
     ├── retag_chunks.py              # re-tag existing DB chunks after KEYWORD_TO_TOPIC changes
     └── tests/
-        ├── test_chunker.py          # 14 tests — no API keys needed
-        ├── test_classifier.py       # 10 tests (6 heuristic + 4 LLM)
+        ├── test_chunker.py          # 25 tests — no API keys needed
+        ├── test_classifier.py       # 12 tests (8 heuristic + 4 LLM)
+        ├── test_html_extractor.py   # 19 tests — no API keys needed
+        ├── test_ingest_web.py       # 23 tests — mocked HTTP (Catalyst + Charniga/Wayback)
+        ├── test_parse_exercise.py   # 13 tests — no API keys needed
+        ├── test_pipeline_unit.py    # 11 tests — mocked LLM (program-template parsing)
+        ├── test_structured_loader_unit.py # 7 tests — mocked psycopg2
+        ├── test_llm_helpers.py      # 7 tests — retry/backoff helpers
+        ├── test_vector_loader_units.py # 5 tests — no DB needed
         ├── test_vector_loader.py    # 8 tests — needs live DB + OPENAI_API_KEY
-        ├── test_structured_loader.py # 7 tests — needs live DB
+        ├── test_structured_loader.py # 18 tests — needs live DB
         ├── test_principle_extractor.py # 6 tests — needs ANTHROPIC_API_KEY
         ├── test_pipeline.py         # 4 e2e tests — needs both keys
-        ├── test_pdf_extractor.py    # 13 tests — mocked fitz/pdfplumber (1 INTEGRATION_TESTS=1)
+        ├── test_pdf_extractor.py    # 18 tests — mocked fitz/pdfplumber (1 INTEGRATION_TESTS=1)
         ├── test_epub_extractor.py   # 13 tests — mocked ebooklib; no fixtures needed
-        ├── test_retag_chunks.py     # 10 tests — mocked psycopg2 (1 INTEGRATION_TESTS=1)
+        ├── test_retag_chunks.py     # 13 tests — mocked psycopg2 (1 INTEGRATION_TESTS=1)
         └── test_retrieval_eval.py   # 22 retrieval quality queries (both keys)
 ```
 
@@ -130,15 +137,23 @@ cd oly-agent    && uv sync --extra dev --extra web   # web extra needed for uvic
 
 # ── Tests (no API keys needed) ──────────────────────────────────────────
 cd oly-ingestion
-PYTHONUTF8=1 uv run python tests/test_chunker.py          # 14 tests
-PYTHONUTF8=1 uv run python tests/test_classifier.py       # 6 heuristic tests
+PYTHONUTF8=1 uv run python tests/test_chunker.py          # 25 tests
+PYTHONUTF8=1 uv run python tests/test_classifier.py       # 8 heuristic tests
 PYTHONUTF8=1 uv run python tests/test_classifier.py --llm # + 4 LLM tests (needs ANTHROPIC_API_KEY)
-PYTHONUTF8=1 uv run python tests/test_pdf_extractor.py    # 13 tests (mocked; +1 skipped)
+PYTHONUTF8=1 uv run python tests/test_pdf_extractor.py    # 18 tests (mocked; +1 skipped)
 PYTHONUTF8=1 uv run python tests/test_epub_extractor.py   # 13 tests (mocked ebooklib)
-PYTHONUTF8=1 uv run python tests/test_retag_chunks.py     # 10 tests (mocked; +1 skipped)
+PYTHONUTF8=1 uv run python tests/test_retag_chunks.py     # 13 tests (mocked; +1 skipped)
+PYTHONUTF8=1 uv run python tests/test_html_extractor.py   # 19 tests
+PYTHONUTF8=1 uv run python tests/test_ingest_web.py       # 23 tests (Catalyst + Charniga, mocked HTTP)
+PYTHONUTF8=1 uv run python tests/test_parse_exercise.py   # 13 tests
+PYTHONUTF8=1 uv run python tests/test_pipeline_unit.py    # 11 tests
+PYTHONUTF8=1 uv run python tests/test_structured_loader_unit.py # 7 tests
+PYTHONUTF8=1 uv run python tests/test_llm_helpers.py      # 7 tests
+PYTHONUTF8=1 uv run python tests/test_vector_loader_units.py    # 5 tests
+# The 12 suites above are exactly what `make test-ingestion` runs (INF-M2).
 
 # ── Tests (need live DB, no API keys) ───────────────────────────────────
-PYTHONUTF8=1 uv run python tests/test_structured_loader.py  # 7 tests
+PYTHONUTF8=1 uv run python tests/test_structured_loader.py  # 18 tests
 
 # ── Tests (need live DB + API keys) ─────────────────────────────────────
 PYTHONUTF8=1 uv run python tests/test_vector_loader.py       # 8 tests (OPENAI_API_KEY)
@@ -198,16 +213,26 @@ PYTHONUTF8=1 uv run python log.py status   --athlete-id 1            # RPE + mak
 PYTHONUTF8=1 uv run python log.py history  --athlete-id 1 --weeks 2  # recent history
 
 # ── Agent Tests (no DB or API keys needed) ───────────────────────────────
-PYTHONUTF8=1 uv run python tests/test_validate.py        # 40 tests
-PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 15 tests
-PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 25 tests
-PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 43 tests
-PYTHONUTF8=1 uv run python tests/test_assess.py          # 16 tests
-PYTHONUTF8=1 uv run python tests/test_plan.py            # 35 tests
-PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 19 tests
-PYTHONUTF8=1 uv run python tests/test_explain.py         # 13 tests
-PYTHONUTF8=1 uv run python tests/test_orchestrator.py    # 12 tests (all 6 steps mocked)
-PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 21 tests (signed session cookies, mocked queries)
+# Counts are collected test functions — re-check with
+#   uv run pytest tests/ --collect-only -q   (INF-L11: these drifted badly)
+PYTHONUTF8=1 uv run python tests/test_validate.py        # 62 tests
+PYTHONUTF8=1 uv run python tests/test_phase_profiles.py  # 22 tests
+PYTHONUTF8=1 uv run python tests/test_weight_resolver.py # 29 tests
+PYTHONUTF8=1 uv run python tests/test_generate_utils.py  # 67 tests
+PYTHONUTF8=1 uv run python tests/test_assess.py          # 22 tests
+PYTHONUTF8=1 uv run python tests/test_plan.py            # 39 tests
+PYTHONUTF8=1 uv run python tests/test_retrieve.py        # 26 tests
+PYTHONUTF8=1 uv run python tests/test_explain.py         # 14 tests
+PYTHONUTF8=1 uv run python tests/test_orchestrator.py    # 22 tests (all 6 steps mocked)
+PYTHONUTF8=1 uv run python tests/test_web_routers.py     # 65 tests (signed session cookies, mocked queries)
+PYTHONUTF8=1 uv run python tests/test_web_queries.py     # 54 tests (query/job helpers, mocked conn)
+PYTHONUTF8=1 uv run python tests/test_schemas.py         # 14 tests
+PYTHONUTF8=1 uv run python tests/test_config.py          # 7 tests
+PYTHONUTF8=1 uv run python tests/test_formulas.py        # 5 tests
+PYTHONUTF8=1 uv run python tests/test_phase_progression.py # 15 tests
+PYTHONUTF8=1 uv run python tests/test_log.py             # 13 tests
+# The 16 suites above are exactly what `make test-agent` runs (INF-M2).
+# test_feedback.py (24 tests) needs a live DB and is not in that list.
 ```
 
 ## Docker / Database

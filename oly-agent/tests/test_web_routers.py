@@ -771,6 +771,94 @@ def test_login_unknown_user_still_runs_bcrypt():
     assert vp.called, "dummy verify must run for unknown users (WEB-L7 timing oracle)"
 
 
+# ── WEB-L10: enum columns must 422, not 500 at asyncpg ───────────────────────
+
+def test_profile_goals_rejects_unknown_goal():
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.queries.profile.upsert_goal", return_value=None) as mock_upsert:
+        r = _client.post("/profile/goals", data={"goal": "mars_colonization"})
+    assert r.status_code == 422, f"Expected 422, got {r.status_code}"
+    assert not mock_upsert.called, "an invalid goal must never reach the enum column"
+
+
+def test_profile_goals_accepts_full_db_vocabulary():
+    """The profile select used to offer 3 of the 6 enum values, so saving the
+    goal form silently downgraded a work_capacity/pr_attempt goal."""
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.queries.profile.upsert_goal", return_value=None) as mock_upsert:
+        r = _client.post("/profile/goals", data={"goal": "work_capacity"})
+    assert r.status_code == 200, f"Expected 200 after redirect, got {r.status_code}"
+    assert mock_upsert.called
+
+
+def test_profile_renders_all_goal_options():
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None):
+        r = _client.get("/profile")
+    for value in ("general_strength", "competition_prep", "technique_focus",
+                  "pr_attempt", "work_capacity", "return_to_sport"):
+        assert f'value="{value}"'.encode() in r.content, \
+            f"profile goal select is missing DB enum value {value}"
+
+
+def _setup_form(**overrides):
+    base = {
+        "username": "newguy", "password": "pppppppp", "confirm_password": "pppppppp",
+        "name": "New Guy", "level": "intermediate",
+    }
+    return {**base, **overrides}
+
+
+def test_setup_rejects_unknown_goal_type():
+    with patch("web.queries.setup.username_taken", return_value=False), \
+         patch("web.queries.setup.create_athlete", return_value=1) as mock_create:
+        r = _client.post("/setup", data=_setup_form(goal_type="world_domination"))
+    assert r.status_code == 422, f"Expected 422, got {r.status_code}"
+    assert not mock_create.called, "no athlete should be created on a bad goal"
+
+
+def test_setup_rejects_unknown_biological_sex():
+    with patch("web.queries.setup.username_taken", return_value=False), \
+         patch("web.queries.setup.create_athlete", return_value=1) as mock_create:
+        r = _client.post("/setup", data=_setup_form(biological_sex="helicopter"))
+    assert r.status_code == 422, f"Expected 422, got {r.status_code}"
+    assert not mock_create.called
+
+
+# ── WEB-M9: a Redis outage must not 500 every rate-limited route ──────────────
+
+def test_limiter_serves_requests_when_redis_is_down():
+    """slowapi/redis connect lazily, so the try/except around the Limiter
+    constructor never fires — with REDIS_URL set and Redis down, the first
+    request to any limited route (login included) raised ConnectionError → 500.
+    The limiter must degrade to in-memory counters and still enforce limits."""
+    from fastapi import FastAPI, Request
+    from slowapi import _rate_limit_exceeded_handler
+    from slowapi.errors import RateLimitExceeded
+    from web.deps import _init_limiter
+
+    dead = MagicMock()
+    dead.redis_url = "redis://127.0.0.1:6399"  # nothing is listening here
+    with patch("web.deps.get_settings", return_value=dead):
+        lim = _init_limiter()
+
+    probe = FastAPI()
+    probe.state.limiter = lim
+    probe.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+
+    @probe.get("/probe")
+    @lim.limit("2/minute")
+    async def _probe(request: Request):
+        return {"ok": True}
+
+    client = TestClient(probe)
+    codes = [client.get("/probe").status_code for _ in range(3)]
+    assert codes[:2] == [200, 200], f"Redis outage must not break the route, got {codes}"
+    assert codes[2] == 429, f"limits must still be enforced in memory, got {codes}"
+
+
 # ── Runner ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

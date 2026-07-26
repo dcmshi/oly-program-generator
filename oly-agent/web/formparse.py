@@ -30,6 +30,16 @@ def parse_float(v):
 MAX_REASONABLE_INT = 2_000_000_000
 
 
+def parse_text(v, max_len: int, default: str = "") -> str:
+    """Parse a form value to a stripped string bounded by a VARCHAR width.
+
+    Over-long values are an asyncpg 22001 (string data right truncated) → 500,
+    and a blank value inserts a junk row in a NOT NULL column (WEB-L12).
+    """
+    s = (v or "").strip() if isinstance(v, str) or v is None else str(v).strip()
+    return s[:max_len] if s else default
+
+
 def parse_int(v, lo: int | None = None, hi: int | None = None):
     """Parse a form value to an int — or None.
 

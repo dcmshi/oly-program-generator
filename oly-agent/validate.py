@@ -20,6 +20,9 @@ from models import ValidationResult
 
 from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
+    EXERCISE_NAME_MAX_CHARS,
+    INTENSITY_REFERENCE_MAX_CHARS,
+    MAX_RPE_TARGET,
     PRILEPIN_HARD_CAP_MULTIPLIER,
     SESSION_DURATION_TOLERANCE,
     SUPRAMAX_INTENSITY_WARN_PCT,
@@ -109,6 +112,34 @@ def validate_session(
     seen_orders: set = set()
     for ex in session_exercises:
         name = ex.get("exercise_name") or "exercise"
+        # exercise_name VARCHAR(200) NOT NULL, intensity_reference VARCHAR(100),
+        # rpe_target NUMERIC(3,1) — the three columns Check 0 originally missed
+        # (AGT-L9). Same failure mode as the rest: the row is written only after
+        # every session in the program has been generated and paid for.
+        raw_name = ex.get("exercise_name")
+        if not (raw_name or "").strip():
+            errors.append("exercise_name is required (NOT NULL) — got an empty value")
+        elif len(raw_name) > EXERCISE_NAME_MAX_CHARS:
+            errors.append(
+                f"{name[:40]}…: exercise_name is {len(raw_name)} chars, "
+                f"max {EXERCISE_NAME_MAX_CHARS}"
+            )
+        ref = ex.get("intensity_reference")
+        if ref is not None and len(str(ref)) > INTENSITY_REFERENCE_MAX_CHARS:
+            errors.append(
+                f"{name}: intensity_reference is {len(str(ref))} chars, "
+                f"max {INTENSITY_REFERENCE_MAX_CHARS}"
+            )
+        rpe_raw = ex.get("rpe_target")
+        if rpe_raw is not None:
+            try:
+                if abs(float(rpe_raw)) > MAX_RPE_TARGET:
+                    errors.append(
+                        f"{name}: rpe_target {rpe_raw} does not fit the column "
+                        f"(max {MAX_RPE_TARGET}) — the RPE scale tops out at 10"
+                    )
+            except (TypeError, ValueError):
+                errors.append(f"{name}: rpe_target {rpe_raw!r} is not numeric")
         for field in ("sets", "reps"):
             try:
                 value = int(ex.get(field) or 0)

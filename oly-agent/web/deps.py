@@ -28,11 +28,26 @@ def get_settings() -> Settings:
 
 
 def _init_limiter() -> Limiter:
-    """Create rate limiter, using Redis storage if REDIS_URL is configured."""
+    """Create rate limiter, using Redis storage if REDIS_URL is configured.
+
+    `in_memory_fallback_enabled` is what actually survives a Redis outage
+    (WEB-M9). slowapi and redis-py both connect lazily, so the constructor
+    never touches Redis and the try/except below can only catch a malformed
+    URI — with REDIS_URL set and Redis down, the first request to ANY limited
+    route (login included) raised ConnectionError → 500, even though only
+    background generation genuinely needs Redis. With the flag, slowapi marks
+    the storage dead on the first error, re-evaluates the same limits against
+    per-process in-memory counters, and periodically re-checks the backend so
+    it returns to shared counting on its own once Redis is back.
+    """
     s = get_settings()
     if s.redis_url:
         try:
-            return Limiter(key_func=get_remote_address, storage_uri=s.redis_url)
+            return Limiter(
+                key_func=get_remote_address,
+                storage_uri=s.redis_url,
+                in_memory_fallback_enabled=True,
+            )
         except Exception as e:
             logger.warning(f"Redis rate limiter unavailable ({e}), falling back to in-memory")
     return Limiter(key_func=get_remote_address)

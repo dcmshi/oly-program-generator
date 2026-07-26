@@ -47,6 +47,13 @@ MAX_PROGRAM_LIST_ROWS: int = 100   # program list page (most recent first)
 MAX_HISTORY_ROWS: int = 200        # per-exercise history page (most recent first)
 MAX_LOG_BACKFILL_DAYS: int = 365   # how far back a training log may be dated
 
+# ── DB column widths mirrored in validation ─────────────────────
+# Mirrors migration 0001; over-long values are a driver error (asyncpg 22001 /
+# psycopg2 StringDataRightTruncation), not a validation message.
+EXERCISE_NAME_MAX_CHARS: int = 200      # session_exercises / training_log_exercises
+INTENSITY_REFERENCE_MAX_CHARS: int = 100  # session_exercises.intensity_reference
+MAX_RPE_TARGET: float = 99.9            # session_exercises.rpe_target NUMERIC(3,1)
+
 # ── Phase advancement & outcome adjustments ─────────────────────
 # Used by plan._advance_phase / plan._apply_outcome_adjustments and mirrored
 # by feedback._compute_phase_verdict — keep both reading from here.

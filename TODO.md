@@ -178,7 +178,126 @@ substance: 2 HIGH (both live-proven), 5 MEDIUM, plus LOWs.
 - [x] **agent-M2 (= web L1) status-machine guards — folded into the deferred web follow-up** (SQL WHERE-status filters + 409). Re-completing an old program re-stamps `updated_at` and can win the previous-program pick — the AGT-H2 class through a side door.
 - [ ] **agent-L1 (per-week Prilepin block) + L2 (deepcopy accessors) — DEFERRED**: L1 is validation-retry churn (extra paid calls), not a correctness bug; L2 has no live trigger (nothing mutates the shared module constants today). Documented for a follow-up.
 
-## Notes / non-findings from this pass
+## 9. Audit 6 — 2026-07-25 inline pass (single reviewer, whole repo) — ALL FIXED
+
+Sixth pass, run inline (no subagents) over the unchanged post-audit5 tree
+(HEAD `4a26d3c`). Every previous section above was re-read first to avoid
+re-filing. Result: **1 MEDIUM, 8 LOW** — consistent with the severity
+convergence after five passes. Verified green on this machine with the full
+stack up (`make up`): **481/481 agent tests** (incl. `test_web_routers` +
+`test_feedback` against live Redis/Postgres), **164+2 ingestion no-key**,
+**17/17 live-DB `test_structured_loader`**, alembic at head 0007 (single
+head), ruff 0.15.22 clean. Bonus live proof of the MEDIUM below: with
+`REDIS_URL` set but Redis down, 12 `test_web_routers` tests fail with
+`redis.exceptions.ConnectionError` — the exact request-path 500 it describes.
+
+### Medium
+
+- [x] **WEB-M9 — Redis outage 500s every rate-limited route (login included).** ✅
+  Confirmed live first: a `Limiter(storage_uri="redis://127.0.0.1:6399")`
+  constructs without raising, and the first request to a limited route dies
+  with `ConnectionError`. Fixed with slowapi's own
+  `in_memory_fallback_enabled=True` rather than the proposed startup ping —
+  the ping only covers boot-time outages (a mid-run Redis failure still 500s
+  every route until restart), while the flag marks the storage dead on the
+  first error, re-evaluates **the same limits** against per-process counters,
+  and auto-recovers to shared counting when Redis returns. Verified end to
+  end: with Redis down the route serves 200, 200, then 429 at the 2/minute
+  cap. Test `test_limiter_serves_requests_when_redis_is_down`.
+
+### Low
+
+- [x] **WEB-L10 — `goal` enum unvalidated on the two goal-write paths** ✅
+  Canonical `GOAL_OPTIONS`/`SEX_OPTIONS` (+ `VALID_GOALS`/`VALID_SEXES`) added
+  to `web/options.py` — the DB enum vocabulary from migration 0001 — and
+  validated at `POST /profile/goals` (422 re-render with a message) and
+  `POST /setup` (goal_type + biological_sex join the errors list, no athlete
+  created). **Found while fixing:** the two goal selects had *diverged* like
+  WEB-M3 — profile offered 3 of the 6 enum values, setup 5, and `pr_attempt`
+  none — so opening /profile with a `work_capacity` goal and pressing Save
+  silently rewrote it to `general_strength`. Both templates now loop the
+  `goal_options` Jinja global. Tests `test_profile_goals_rejects_unknown_goal`,
+  `test_profile_goals_accepts_full_db_vocabulary`,
+  `test_profile_renders_all_goal_options`, `test_setup_rejects_unknown_goal_type`,
+  `test_setup_rejects_unknown_biological_sex`.
+- [x] **WEB-L11 — failed generation misreported as "Dry run complete".** ✅
+  `get_job_status` now reads `dry_run` from the job's own enqueue payload
+  (`info.kwargs`, the same source the ownership check already trusts — so
+  results queued before this change are classified correctly too) and returns
+  `failed` when a non-dry run completes with `program_id=None`. Tests
+  `test_job_status_failed_real_run_is_not_done`, `test_job_status_dry_run_still_done`,
+  `test_job_status_successful_run_still_done`.
+- [x] **WEB-L12 — `create_exercise_log` doesn't bound `exercise_name`.** ✅ New
+  `web/formparse.parse_text(v, max_len, default)` companion to
+  `parse_float`/`parse_int`; the name is truncated to
+  `EXERCISE_NAME_MAX_CHARS` (new in `shared/constants.py`, mirroring the
+  VARCHAR widths) and a blank falls back to "Unnamed exercise" instead of
+  storing a junk NOT NULL row. Tests `test_parse_text_bounds_and_defaults`,
+  `test_create_exercise_log_bounds_exercise_name`.
+- [x] **AGT-L9 — Check 0 doesn't mirror `rpe_target`/`intensity_reference`
+  column bounds.** ✅ Check 0 now also mirrors `rpe_target` ≤ `MAX_RPE_TARGET`
+  (NUMERIC(3,1)) and `intensity_reference` ≤ 100 chars — **plus
+  `exercise_name`**, which had the same gap and no catalogue check anywhere
+  else to catch it: a null/blank name (NOT NULL) or a >200-char name
+  IntegrityError'd at `_save_session` after the whole program was paid for.
+  5 tests (`test_rpe_target_over_column_range_is_error`,
+  `test_overlong_intensity_reference_is_error`, `test_overlong_exercise_name_is_error`,
+  `test_blank_exercise_name_is_error`, `test_normal_rpe_target_still_valid`).
+- [x] **AGT-L10 — `explain()` annotated `-> str` but returns a 3-tuple.** ✅
+  Now `-> tuple[str, int, int]`, matching the docstring and both return paths.
+- [x] **AGT-L11 — `log.py session`/`status` ignore program status.** ✅ New
+  `log._current_program(conn, athlete_id, columns)` — active first, newest as
+  fallback — is the single selector for all three commands (`show` kept its
+  behaviour, `session`/`status` now match it). Tests
+  `test_current_program_prefers_active`, `test_current_program_falls_back_to_newest`,
+  `test_session_and_status_pick_the_active_program`.
+- [x] **ING-L7 — `load_prilepin_rows` full-connection rollback per bad row** ✅
+  SAVEPOINT/RELEASE/ROLLBACK TO per row, matching the two loaders fixed in
+  audit5-M3. Proven live against pg16 before the fix: a 4-row batch with one
+  CHECK violation stored **1** of 3 valid rows while reporting `loaded=3`;
+  after, 3 stored and the count matches. Test
+  `test_load_prilepin_savepoint_keeps_valid_rows` (live DB, now 18/18).
+- [x] **INF-L11 — CLAUDE.md test counts are stale.** ✅ Recounted from
+  `pytest --collect-only` (agent 476 across 16 suites, ingestion 166 across
+  12) and corrected in both the file tree and the run sections. Also added the
+  suites the docs never listed at all (agent: web_queries/schemas/config/
+  formulas/phase_progression/log; ingestion: html_extractor/ingest_web/
+  parse_exercise/pipeline_unit/structured_loader_unit/llm_helpers/
+  vector_loader_units), each section now labelled as exactly what
+  `make test-agent` / `make test-ingestion` runs, with a note that
+  `test_feedback.py` (24) needs a live DB.
+
+### Fix-campaign verification (2026-07-25)
+
+All 9 fixed red-first: every test above was confirmed failing against the
+pre-fix tree (WEB-M9 with the real `redis.exceptions.ConnectionError`, ING-L7
+with 1-of-3 rows surviving on the live DB) before the change landed. Full
+green after: **476 agent no-key** (16 suites), **164 + 2 skipped ingestion
+no-key** (12 suites), **18/18 live-DB `test_structured_loader`**, **24/24
+live-DB `test_feedback`**, ruff 0.15.22 clean. Two findings grew during
+verification — the WEB-L10 goal-select divergence and the `exercise_name` gap
+in AGT-L9's Check 0 — both noted inline above.
+
+### Discarded during verification (audit 6)
+
+- `exercise_log_section.html` with `session=None` (log unlinked by program
+  deletion while the page is open): Jinja guards `session and session.exercises`;
+  renders degraded (broken `/log/` post target), no 500. Contrived path.
+- `upsert_athlete_max` read-then-upsert PR race: benign (same-athlete,
+  last-write-wins on a self-reported max).
+- `_parse_table` / `load_json` stat counting (`len(rows)` vs actual inserts):
+  stats-only nit, no data impact.
+- Warmup boundary: prompt's 50–60% band vs `WARMUP_VOLUME_EXCLUSION_PCT=60` —
+  consistent by design (audit3-M1).
+- `_split_on_sections` `re.match` vs `re.MULTILINE` anchoring: correct as-is.
+- Clean under scrutiny: `generate.py` retry/token accounting, `orchestrator`
+  deadline+cost guards, `feedback.py` outcome math, `jobs.py` in-flight guard
+  lifecycle, middleware stack ordering, all router ownership scoping,
+  `structured_loader.upsert_source` disambiguation, `ingest_web.py`
+  transient/permanent split, `pipeline.py` continuation scanning, chunker
+  boundary math, migration chain 0000→0007 (verified live in audit 4).
+
+## Notes / non-findings from audit 5 (2026-07-18)
 
 - Charniga articles never consult `SOURCE_PROFILE_MAP` — the web path sizes chunks via `for_web_article(word_count)`. Not a bug, but CLAUDE.md's "add to SOURCE_PROFILE_MAP first" rule is a no-op for `--site charniga`; keep in mind for the DB-machine run.
 - CDX parsing itself is correct (header row skipped, field order matches `fl=`, repeated `filter` params ANDed, lexicographic timestamp compare valid); the Catalyst path is regression-free from the progress-file parameterization.

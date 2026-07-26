@@ -591,6 +591,56 @@ def test_duplicate_exercise_order_is_error():
     return True, ""
 
 
+# ── AGT-L9: Check 0 must mirror the remaining column bounds ──────────────────
+
+def test_rpe_target_over_column_range_is_error():
+    """rpe_target is NUMERIC(3,1) — 100+ overflows the column and IntegrityErrors
+    at _save_session, after every session was already paid for (AGT-L9)."""
+    ex = _ex("Snatch", 3, 3, 75)
+    ex["rpe_target"] = 100.0
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "rpe_target 100 does not fit NUMERIC(3,1)"
+    assert any("rpe_target" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_normal_rpe_target_still_valid():
+    ex = _ex("Snatch", 3, 3, 75)
+    ex["rpe_target"] = 9.5
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert result.is_valid, result.errors
+    return True, ""
+
+
+def test_overlong_intensity_reference_is_error():
+    ex = _ex("Snatch", 3, 3, 75, ref="snatch_" + "x" * 200)
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "intensity_reference is VARCHAR(100)"
+    assert any("intensity_reference" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_overlong_exercise_name_is_error():
+    ex = _ex("Snatch " * 60, 3, 3, 75)
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "exercise_name is VARCHAR(200)"
+    assert any("exercise_name" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_blank_exercise_name_is_error():
+    """exercise_name is NOT NULL — a null/blank name IntegrityErrors at save."""
+    ex = _ex("", 3, 3, 75)
+    result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result.is_valid, "blank exercise_name must fail validation"
+    assert any("exercise_name" in e for e in result.errors), result.errors
+
+    ex2 = _ex(None, 3, 3, 75)
+    result2 = validate_session([ex2], WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert not result2.is_valid, "null exercise_name must fail validation"
+    return True, ""
+
+
 # ── audit2 M1/L3: exercise_order NOT NULL mirror + non-numeric pct safety ─────
 
 def test_missing_exercise_order_is_error():
