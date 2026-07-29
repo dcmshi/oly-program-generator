@@ -136,7 +136,7 @@ Expected: ~215 sources with `author='Andrew Charniga'` and urls set.
 
 - Re-run the retrieval eval (both keys): `PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py`
 - Update the baseline table in `docs/RETRIEVAL_EVAL.md`.
-- Update CLAUDE.md's corpus totals (source list + chunk counts).
+- Update `docs/CORPUS.md` (source list + chunk counts) and the corpus table in `README.md`.
 - `retag_chunks.py` only if `KEYWORD_TO_TOPIC` changed.
 
 ## Not rehearsable from the dev machine (verify here)

@@ -39,6 +39,40 @@ make migrate  # alembic upgrade head (creates all tables + seed data)
 > `ALEMBIC_DATABASE_URL` to a **direct** Postgres URL (not through a
 > transaction-mode pooler) — it passes through untouched.
 
+### 3. Ports
+
+| Port | Service | Used by |
+|------|---------|---------|
+| 5432 | **PgBouncer** (transaction pooling) | `DATABASE_URL` — all application + ingestion traffic |
+| 5433 | **Postgres direct** | psql, Alembic DDL, debugging |
+| 6379 | Redis | ARQ job queue |
+
+Connection strings: `postgresql://oly:oly@localhost:5432/oly_programming` (app)
+and `postgresql://oly:oly@localhost:5433/oly_programming` (direct).
+
+---
+
+## Database Operations
+
+```bash
+# Connect (no -it flag on Windows — there is no TTY)
+docker exec oly-postgres psql -U oly -d oly_programming -c "\dt"
+
+# Spot-check after an ingestion run
+docker exec oly-postgres psql -U oly -d oly_programming -c "
+  SELECT source_id, count(*) AS chunks FROM knowledge_chunks GROUP BY source_id;
+  SELECT source_id, count(*) AS principles FROM programming_principles GROUP BY source_id;
+  SELECT id, status, chunks_created FROM ingestion_runs ORDER BY id DESC LIMIT 5;
+"
+
+make reset   # down -v, up, migrate — drops all data and rebuilds
+```
+
+**Existing database that predates Alembic:** mark every migration as applied
+without running it with `cd oly-agent && uv run alembic stamp head`. Always
+stamp `head`, never a specific revision — a partial stamp goes stale as the
+chain grows and then dies mid-upgrade on non-idempotent DDL.
+
 ---
 
 ## Running the Web UI
@@ -87,6 +121,32 @@ PYTHONUTF8=1 uv run python ingest_web.py
 
 > The `make` targets set `PYTHONUTF8=1` automatically. When running `uv run` directly on Windows, prefix it manually.
 
+### Useful flags
+
+| Flag | Applies to | Effect |
+|------|-----------|--------|
+| `--vision` | `pipeline.py` | Enables the Claude vision OCR fallback for image-only PDFs (opt-in — it costs money) |
+| `--max-pages N` | `pipeline.py` | Limits extraction to the first N pages — use when testing an OCR run |
+| `--categories technique` | `ingest_web.py` | Restrict to one category instead of all priority categories |
+| `--site charniga` | `ingest_web.py` | Crawl Charniga via the Wayback CDX index instead of Catalyst |
+| `--limit 20` | `ingest_web.py` | Cap article count for a smoke test |
+| `--dry-run` | `ingest_web.py` | Collect URLs only, ingest nothing |
+
+Web ingestion records completed URLs in `sources/catalyst_progress.json` (and
+`charniga_progress.json`). Runs are safe to interrupt — a re-run resumes and
+skips what is already stored. Delete the progress file to force a full re-ingest.
+
+### Re-tagging existing chunks
+
+After changing `KEYWORD_TO_TOPIC` in the chunker, re-tag stored chunks in place —
+no re-embedding and no API cost:
+
+```bash
+PYTHONUTF8=1 uv run python retag_chunks.py               # all chunks
+PYTHONUTF8=1 uv run python retag_chunks.py --source-id 499
+PYTHONUTF8=1 uv run python retag_chunks.py --dry-run     # preview only
+```
+
 ---
 
 ## Running the Agent via CLI
@@ -101,10 +161,11 @@ uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
 uv run python orchestrator.py --athlete-id 1            # full generation
 
 # Training log
-uv run python log.py show    --athlete-id 1   # view current week
-uv run python log.py session --athlete-id 1   # log a session (interactive)
-uv run python log.py status  --athlete-id 1   # RPE / make-rate warnings
-uv run python log.py history --athlete-id 1   # recent session history
+uv run python log.py show     --athlete-id 1          # view current week
+uv run python log.py session  --athlete-id 1          # log a session (interactive)
+uv run python log.py exercise --log-id 5              # add exercise details to a logged session
+uv run python log.py status   --athlete-id 1          # RPE / make-rate warnings
+uv run python log.py history  --athlete-id 1 --weeks 2  # recent session history
 ```
 
 CLI generation only needs Postgres (no Redis, no web server, no ARQ worker).
@@ -127,7 +188,24 @@ cd oly-agent     && uv run pytest tests/test_feedback.py
 cd oly-ingestion && uv run pytest tests/test_structured_loader.py
 cd oly-ingestion && uv run pytest tests/test_vector_loader.py       # OPENAI_API_KEY
 cd oly-ingestion && uv run pytest tests/test_principle_extractor.py # ANTHROPIC_API_KEY
+cd oly-ingestion && uv run pytest tests/test_pipeline.py            # both keys, e2e
+cd oly-ingestion && uv run pytest tests/test_retrieval_eval.py      # both keys, quality baseline
 ```
+
+A few tests inside otherwise-mocked files need real API calls or a live DB.
+They are gated behind `INTEGRATION_TESTS=1` and reported as SKIP otherwise:
+
+```bash
+cd oly-ingestion
+INTEGRATION_TESTS=1 uv run pytest tests/test_pdf_extractor.py   # + vision OCR test
+INTEGRATION_TESTS=1 uv run pytest tests/test_retag_chunks.py    # + live DB test
+
+cd oly-agent
+INTEGRATION_TESTS=1 uv run pytest tests/test_orchestrator.py tests/test_web_routers.py
+```
+
+The canonical list of which suites run without a DB or keys is `AGENT_TESTS` /
+`INGESTION_TESTS` in the root `Makefile` — prefer that over any list in prose.
 
 ---
 
@@ -177,20 +255,26 @@ The flag takes effect on next login.
 oly-program-generator/
 ├── README.md
 ├── Makefile                         # Common dev tasks: make web, make test, make up …
-├── CLAUDE.md                        # Claude Code project instructions
+├── CLAUDE.md                        # Claude Code project instructions + invariants
 ├── ARCHITECTURE.md                  # Service architecture + Mermaid diagrams
-├── schema.sql                       # Ingestion schema DDL (seed data included)
-├── athlete_schema.sql               # Athlete / program schema DDL
+├── TODO.md                          # Current audit findings and their status
+├── schema.sql                       # Ingestion schema DDL (reference; managed by Alembic)
+├── athlete_schema.sql               # Athlete / program schema DDL (reference; managed by Alembic)
 ├── docs/
-│   ├── SETUP.md                     # This file — setup, ingestion, CLI, tests, backup
+│   ├── SETUP.md                     # This file — setup, DB ops, ingestion, CLI, tests, backup
 │   ├── CONTRIBUTING.md              # Security audit, scaling checklist, test coverage
 │   ├── SCHEMA.md                    # ER diagrams + table reference (20 tables)
+│   ├── CORPUS.md                    # Ingested sources + chunk-size profiles
 │   ├── RETRIEVAL_EVAL.md            # Retrieval quality baseline scores
+│   ├── DB-MACHINE-RUNBOOK.md        # Pending ops on the corpus DB machine
 │   └── design/                      # Historical build docs (pipeline, agent, code reference)
 │
 ├── shared/                          # Shared modules (imported by both subsystems)
 │   ├── config.py                    # Unified Settings dataclass (reads .env)
-│   ├── db.py                        # fetch_one / fetch_all / execute helpers
+│   ├── constants.py                 # Project-wide numeric constants
+│   ├── db.py                        # psycopg2 fetch_one / fetch_all / execute helpers
+│   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS
+│   ├── formulas.py · timeutil.py    # Derived metrics · timezone-aware "today"
 │   ├── llm.py                       # Anthropic client + cost estimation
 │   └── prilepin.py                  # Zone lookup + per-session rep targets
 │
@@ -198,24 +282,31 @@ oly-program-generator/
 │   ├── pyproject.toml
 │   ├── docker-compose.yml           # Postgres + PgBouncer + Redis
 │   ├── pipeline.py                  # EPUB / PDF ingestion orchestrator
-│   ├── ingest_web.py                # Web article ingestion (Catalyst Athletics)
+│   ├── ingest_web.py                # Web article ingestion (Catalyst · Charniga)
+│   ├── retag_chunks.py              # Re-tag stored chunks after KEYWORD_TO_TOPIC changes
 │   ├── extractors/                  # pdf_extractor · epub_extractor · html_extractor
-│   ├── processors/                  # chunker · classifier · principle_extractor
+│   ├── processors/                  # chunker · classifier · principle_extractor · ocr_corrections
 │   ├── loaders/                     # vector_loader · structured_loader
+│   ├── sources/                     # Source files + crawl progress JSON (gitignored)
 │   └── tests/
 │
 └── oly-agent/                       # Programming agent + web UI
     ├── pyproject.toml
     ├── orchestrator.py              # Main pipeline runner (CLI entry point)
     ├── assess.py / plan.py / retrieve.py / generate.py / validate.py / explain.py
-    ├── models.py · phase_profiles.py · session_templates.py · weight_resolver.py
-    ├── feedback.py · log.py
+    ├── models.py · schemas.py · phase_profiles.py · phase_progression.py
+    ├── session_templates.py · weight_resolver.py · feedback.py · log.py · setup_auth.py
     ├── migrations/                  # Alembic migrations (see `alembic history` for the chain)
-    ├── tests/                       # 275 unit tests (no DB/API needed for make test)
+    ├── tests/                       # Unit tests (no DB/API needed for make test)
     └── web/                         # FastAPI web UI
         ├── app.py                   # Application factory + middleware + Jinja2 filters
+        ├── async_db.py              # asyncpg pool (web-only async DB layer)
+        ├── worker.py · jobs.py      # ARQ worker entry point + job handler
+        ├── auth.py · deps.py        # bcrypt auth · settings/db/limiter dependencies
+        ├── formparse.py · options.py · logging_config.py
         ├── routers/                 # auth · setup · dashboard · program · log_session
-        │                            # generate · export · history · profile · admin
+        │                            # generate · export · history · profile · admin · health
         ├── queries/                 # Async DB query modules (one per router)
+        ├── static/                  # favicon
         └── templates/               # Jinja2 templates + HTMX partials
 ```

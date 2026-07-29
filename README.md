@@ -152,6 +152,7 @@ Content routed before chunking — classifier sends each section to exactly one 
 | Takano — *Weightlifting Programming: A Winning Coach's Guide* | PDF | 218 | 0 |
 | **Total** | | **3,796** | **151** |
 
+> Source ids, chunk-size profiles, and ingestion notes: [docs/CORPUS.md](docs/CORPUS.md)
 > Retrieval quality baseline scores (22 eval queries, top_k=5, min_sim=0.45): [docs/RETRIEVAL_EVAL.md](docs/RETRIEVAL_EVAL.md)
 
 ---
