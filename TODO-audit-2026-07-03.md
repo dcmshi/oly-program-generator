@@ -200,3 +200,30 @@ done** (batch 5), so #23 is unblocked once the corpus DB is available.
   - Fallback where a title is truly unsold: library / interlibrary loan or archive.org
     controlled digital lending (borrow-to-read). Reserve `--vision` OCR for scanned
     copies you actually own.
+
+  ### Acquisition update — 2026-07-31 (remaining rows sourced)
+
+  - **Row 1 Roman** — print in stock at [EliteFTS](https://elitefts.com/collections/best-books-to-read);
+    the Russian Weightlifting Library ebook compilation (Amazon/Kobo/Google Play) above
+    is still the cleanest text source.
+  - **Row 4 Kono** — both books were self-published in Honolulu
+    ([Densho](https://encyclopedia.densho.org/Tommy_Kono/)) and appear **print-only; no
+    legitimate ebook exists**. Used copies on eBay ([*Weightlifting, Olympic
+    Style*](https://www.ebay.com/itm/306821939996); *Championship Weightlifting* ~$120).
+    Free excerpt: [Catalyst Athletics](https://www.catalystathletics.com/article/63/Championship-Weightlifting-by-Tommy-Kono-Book-Excerpt/).
+    Route: used-print purchase + `--vision` OCR of the owned copy.
+  - **Row 6 Verkhoshansky SST** — official ebook direct from
+    [verkhoshansky.com](https://www.verkhoshansky.com/) (~€55, bundled with the Block
+    Training System ebook) — clean-text option. Print: ISBN 9788890403828, used ~$30–54
+    via [BooksRun](https://booksrun.com/9788890403828-special-strength-training-manual-for-coaches).
+  - **Row 7 SBS + tapering** — SBS articles free on strongerbyscience.com (same
+    `ingest_web.py` path, needs a new site config). Taper study accepted manuscript,
+    free PDF: [Bond University repository](https://pure.bond.edu.au/ws/files/29759929/AM_Higher_vs._Lower_Intensity_Strength_Training_Taper_Effects_on_Neuromuscular_Performance.pdf).
+    Storey & Smith 2012 is paywalled (Human Kinetics) — try author repositories /
+    ResearchGate request.
+  - **Row 8 Bompa & Buzzichelli** — [*Periodization Training for Sports*, 3rd
+    ed.](https://www.amazon.com.be/-/en/Tudor-Bompa/dp/1450469434) (ISBN 1450469434);
+    newer [*Periodization of Strength Training for Sports*, 4th ed.
+    (2021)](https://www.amazon.com.be/-/en/Periodization-Strength-Training-Sports-Tudor/dp/171820308X)
+    (ISBN 171820308X) arguably better for `periodization` chunk_type coverage. Prefer
+    Kindle over the Human Kinetics app ebook (easier text extraction).
