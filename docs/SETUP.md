@@ -264,7 +264,7 @@ oly-program-generator/
 │   ├── SETUP.md                     # This file — setup, DB ops, ingestion, CLI, tests, backup
 │   ├── CONTRIBUTING.md              # Security audit, scaling checklist, test coverage
 │   ├── SCHEMA.md                    # ER diagrams + table reference (20 tables)
-│   ├── CORPUS.md                    # Ingested sources + chunk-size profiles
+│   ├── CORPUS.md                    # Ingested + planned sources, chunk-size profiles
 │   ├── RETRIEVAL_EVAL.md            # Retrieval quality baseline scores
 │   ├── DB-MACHINE-RUNBOOK.md        # Pending ops on the corpus DB machine
 │   └── design/                      # Historical build docs (pipeline, agent, code reference)

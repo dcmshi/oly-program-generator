@@ -151,100 +151,14 @@ done** (batch 5), so #23 is unblocked once the corpus DB is available.
 - [ ] **#20 — Harden retrieval eval** (PREREQ #6; gates #21/#22). `test_retrieval_eval.py` is print-only (no assertions/exit code) and calls `similarity_search` WITHOUT the production `chunk_types` filters. (a) production-parity pass. (b) graded labels → hit-rate@5 + MRR, exit non-zero below baseline. (c) expand 22→~50 queries templated from LITERAL production strings (one per FAULT_OPTION, phase×movement, limiter). (d) update `RETRIEVAL_EVAL.md`.
 - [ ] **#21 — Hybrid lexical + vector search (RRF)** (PREREQ #20). Pure vector today (no tsvector/pg_trgm). (a) Alembic: `ADD COLUMN tsv tsvector GENERATED ALWAYS AS (to_tsvector('english', raw_content)) STORED` + GIN index (no re-embed). (b) `similarity_search(hybrid=True)`: vector top-20 + lexical top-20 CTEs merged via RRF `1/(60+rank)`, `min_similarity` on the vector leg only. (c) optional soft topic boost (not hard filter). Skip HyDE/rerankers (fixed-template queries, 4-chunk budget).
 - [ ] **#22 — Embedding upgrade: `text-embedding-3-large` @ dim 1536** (PREREQ #20/#21). Matryoshka truncation → keep `vector(1536)`, no schema change: pass `dimensions=1536` in `_embed_batch`/`_embed`, flip `config.py:33`. Backfill ~50-line script from stored `content` (~3.4M tokens ≈ **$0.45**); HNSW updates in place; re-run eval.
-- [ ] **#23 — New source ingestion (the recovered title/author table).** Add each to `SOURCE_PROFILE_MAP` in `chunker.py` BEFORE ingesting (unknown titles fall back to the 900-token programming profile); use owned copies; update the `docs/CORPUS.md` source list + corpus totals; re-run the retrieval eval after each batch. Corpus gaps this fills: concrete Soviet loading prescriptions beyond Medvedev, competition tapering/peaking, modern evidence-based programming.
+- [ ] **#23 — New source ingestion.** The ranked source list, acquisition routes
+  and per-source substitutes now live in one table in
+  [docs/CORPUS.md → Planned Additions](docs/CORPUS.md#planned-additions); this file
+  used to carry the table plus three dated "acquisition update" sections that had
+  to be read together to know any one source's current status. Prereqs #7/#8/#9
+  (principle UNIQUE, resume, vision-OCR) are done in batch 5, so this is unblocked
+  once the corpus DB is available. Charniga run steps are in
+  [docs/DB-MACHINE-RUNBOOK.md](docs/DB-MACHINE-RUNBOOK.md) §8.
 
-  | # | Source | Profile | Why |
-  |---|--------|---------|-----|
-  | 1 | **R.A. Roman — *The Training of the Weightlifter*** (Sportivny Press) | soviet | Concrete %/volume/frequency tables feeding Prilepin-style validation. |
-  | 2 | **A.S. Medvedev — the not-yet-ingested volume** (check which of *A System of Multi-Year Training* / *Programming and Organization of Training* is source_id 501) | soviet | The other Medvedev volume. |
-  | 3 | **Bud Charniga — translated essays** (~~sportivnypress.com~~ → Wayback Machine) | web | FREE web articles on Soviet methodology/restoration/technique. **Site defunct** (see 2026-07-07 note below) — recover from the Internet Archive. Scaffold now drafted: `ingest_web.py --site charniga`. Still the second web target after the Catalyst re-ingest. |
-  | 4 | **Tommy Kono — *Weightlifting, Olympic Style* + *Championship Weightlifting*** | programming | Enriches thin `fault_correction` retrieval. |
-  | 5 | **A.N. Vorobyev — *A Textbook on Weightlifting*** | theory_heavy | Soviet theory. |
-  | 6 | **Verkhoshansky — *Special Strength Training: Manual for Coaches*** | theory_heavy | Fills the strength-limiter query family. |
-  | 7 | **Stronger by Science (Nuckols) articles + tapering research** (Pritchard et al.; Storey & Smith 2012) | (new `research` profile?) | Modern evidence-based programming + tapering. |
-  | 8 | **Bompa & Buzzichelli — *Periodization*** | programming | `periodization` chunk_type coverage. |
-
-  ### Acquisition update — 2026-07-07 (source availability re-checked)
-
-  **sportivnypress.com is defunct.** The domain no longer resolves (DNS `ENOTFOUND`);
-  search engines still serve stale index entries. Andrew "Bud" Charniga died
-  **January 2025** ([USAW obituary](https://www.usaweightlifting.org/news/2025/january/27/celebrating-the-life-of-andrew-bud-charniga)),
-  and the domain lapsed since. This changes how rows 1–6 are obtained.
-
-  **Row 3 (Charniga free essays) → Internet Archive, no OCR.** The essays were
-  freely, publicly published ("viewable without password"), and are HTML — so
-  they go through `ingest_web.py`, *not* the vision-OCR path. Recovery mechanics
-  (scaffold drafted this session in `ingest_web.py`, `--site charniga`):
-  - **Enumerate** archived URLs via the Wayback CDX API:
-    `http://web.archive.org/cdx/search/cdx?url=sportivnypress.com/*&output=json&fl=original,timestamp&filter=statuscode:200&filter=mimetype:text/html`
-    → dedupe to the latest capture per URL, skipping WP plumbing/taxonomy/feed/asset URLs.
-  - **Fetch raw captures** with the `id_` suffix to strip the Wayback toolbar/JS:
-    `http://web.archive.org/web/<timestamp>id_/<original-url>` → clean HTML for `block_text()`.
-  - **DB-machine TODO before the full run:** confirm the real WordPress content
-    class (scaffold guesses `.entry-content` → `.post-content` → `<article>`) against
-    one live snapshot, then run `--site charniga --dry-run` to sanity-check the URL
-    list, then a `--limit` smoke test, then the full run + retrieval-eval refresh.
-    Progress tracked separately in `sources/charniga_progress.json`.
-
-  **Rows 1, 2, 4, 5, 6 (the books) → buy the EPUB/Kindle; do NOT hunt PDFs to OCR.**
-  Clean ebook text is better corpus input than OCR'd scans (cf. Everett/Israetel EPUBs
-  vs. the vision-OCR'd Laputin/Medvedev). "Use owned copies" (table header) stands.
-  Legitimately purchasable as of this check:
-  - **Medvedev** — [*A System of Multi-Year Training in Weightlifting*](https://www.amazon.com/System-Multi-Year-Training-Weightlifting-Russian-ebook/dp/B08HYBSGWS) (Kindle B08HYBSGWS)
-    **and** [*A Program of Multi-Year Training*](https://www.amazon.com/Program-Multi-Training-Weightlifting-Russian-ebook/dp/B08H8S4WT4) (Kindle B08H8S4WT4) — resolves row 2:
-    buy whichever is **not** already `source_id=501`.
-  - **Roman** — *The Training of the Weightlifter* (Charniga's Russian Weightlifting Library ebook compilation; on Amazon/Kobo/Google Play).
-  - **Vorobyev** — [*A Textbook on Weightlifting*](https://www.amazon.com/textbook-weightlifting-N-Vorobyev/dp/B0007BVA9M).
-  - **Verkhoshansky** — *Fundamentals of Special Strength Training in Sport* (Charniga translation; retailers/Goodreads).
-  - **Charniga compilations** — [*Weightlifting Training and Technique*](https://www.kobo.com/ww/en/ebook/weightlifting-training-and-technique) (Kobo) and *…and Biomechanics*.
-  - Fallback where a title is truly unsold: library / interlibrary loan or archive.org
-    controlled digital lending (borrow-to-read). Reserve `--vision` OCR for scanned
-    copies you actually own.
-
-  ### Acquisition update — 2026-07-31 (remaining rows sourced)
-
-  - **Row 1 Roman** — print in stock at [EliteFTS](https://elitefts.com/collections/best-books-to-read);
-    the Russian Weightlifting Library ebook compilation (Amazon/Kobo/Google Play) above
-    is still the cleanest text source.
-  - **Row 4 Kono** — both books were self-published in Honolulu
-    ([Densho](https://encyclopedia.densho.org/Tommy_Kono/)) and appear **print-only; no
-    legitimate ebook exists**. Used copies on eBay ([*Weightlifting, Olympic
-    Style*](https://www.ebay.com/itm/306821939996); *Championship Weightlifting* ~$120).
-    Free excerpt: [Catalyst Athletics](https://www.catalystathletics.com/article/63/Championship-Weightlifting-by-Tommy-Kono-Book-Excerpt/).
-    Route: used-print purchase + `--vision` OCR of the owned copy.
-  - **Row 6 Verkhoshansky SST** — official ebook direct from
-    [verkhoshansky.com](https://www.verkhoshansky.com/) (~€55, bundled with the Block
-    Training System ebook) — clean-text option. Print: ISBN 9788890403828, used ~$30–54
-    via [BooksRun](https://booksrun.com/9788890403828-special-strength-training-manual-for-coaches).
-  - **Row 7 SBS + tapering** — SBS articles free on strongerbyscience.com (same
-    `ingest_web.py` path, needs a new site config). Taper study accepted manuscript,
-    free PDF: [Bond University repository](https://pure.bond.edu.au/ws/files/29759929/AM_Higher_vs._Lower_Intensity_Strength_Training_Taper_Effects_on_Neuromuscular_Performance.pdf).
-    Storey & Smith 2012 is paywalled (Human Kinetics) — try author repositories /
-    ResearchGate request.
-  - **Row 8 Bompa & Buzzichelli** — [*Periodization Training for Sports*, 3rd
-    ed.](https://www.amazon.com.be/-/en/Tudor-Bompa/dp/1450469434) (ISBN 1450469434);
-    newer [*Periodization of Strength Training for Sports*, 4th ed.
-    (2021)](https://www.amazon.com.be/-/en/Periodization-Strength-Training-Sports-Tudor/dp/171820308X)
-    (ISBN 171820308X) arguably better for `periodization` chunk_type coverage. Prefer
-    Kindle over the Human Kinetics app ebook (easier text extraction).
-
-  ### Acquisition update — 2026-07-31 (additional free sources to scrape)
-
-  Books in rows 1–2 / 4–6 / 8 remain buy-only (no legitimate free full text). Pirate
-  PDFs / public-domain Saxon–Sandow are out of scope. Free material still worth
-  scraping, ordered by ingest priority:
-
-  | Priority | Source | How | Why |
-  |---------:|--------|-----|-----|
-  | 1 | **Charniga essays** (already row 3) | `ingest_web.py --site charniga` (Wayback CDX; scaffold ready) | ~215 free essays. Includes Roman / Prilepin HTML pieces formerly on Sportivny Press — partial Soviet loading coverage before buying the Roman book. |
-  | 2 | **Stronger by Science** (already row 7) | new `--site sbs` (or similar) on `ingest_web.py` | Periodization + taper articles (Nuckols et al.); free HTML. |
-  | 3 | **Pritchard PhD thesis** — *Tapering Strategies to Enhance Maximal Strength* (AUT, 2017) | PDF ingest (`research` profile) | Full open-access PDF: [AUT open repository](https://openrepository.aut.ac.nz/items/8319a680-1486-4c46-96dc-5736e3a7d732) / [direct bitstream](https://openrepository.aut.ac.nz/bitstreams/7e120607-9ac2-4638-b5f9-f8ed22ae77d3/download). Bigger than the single Bond AM — reviews + elite taper practices + training studies. |
-  | 4 | **Bond AM — short-term training cessation** (Pritchard et al.) | PDF ingest (`research` profile) | Free accepted manuscript: [Bond repository](https://pure.bond.edu.au/ws/files/27624950/AM_Short_term_training_cessation_as_a_method_of_tapering_to_improve_maximal_strength.pdf). Complements the higher-vs-lower intensity taper AM already linked under row 7. |
-  | 5 | **JTS / Max Aita programming articles** | new `--site jts` (or curated URL list) on `ingest_web.py` | Free series on [jtsstrength.com](https://www.jtsstrength.com/programming-for-weightlifting/) (long-term planning, exercise selection, training load) + Team Aita beginner content. Fills RETRIEVAL_EVAL Q4 (beginner → structured programming = 0 hits). |
-  | 6 | **Glenn Pendlay beginner program** (archived) | single-page web or PDF ingest | Free text on [Lift Vault](https://liftvault.com/programs/olympic/glenn-pendlay-beginner-olympic-weightlifting-program-spreadsheet/) (old Pendlay.com article). Same beginner gap as #5. |
-
-  **Author-request / not free yet (still chase):**
-  - Storey & Smith 2012 — Auckland researchspace is abstract-only (Springer copyright); ResearchGate / author request still the path.
-  - Winwood, Keogh, Travis & Pritchard 2023 — *The Tapering Practices of Competitive Weightlifters* (JSCR) — most on-target oly taper paper; paywalled; author request.
-
-  **Skip / low value for this corpus:** Chidlovski Lift Up (history/results, thin prescriptions); Mash Elite free hybrid/super-total programs (noisy); Saxon / Sandow public-domain books (wrong era).
+  Corpus gaps it fills: concrete Soviet loading prescriptions beyond Medvedev,
+  competition tapering/peaking, beginner-level structured programming.

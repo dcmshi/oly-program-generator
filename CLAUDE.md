@@ -15,7 +15,7 @@ Read these rather than re-deriving them; update them when the underlying thing c
 | `docs/SETUP.md` | Setup, ports, DB ops, ingestion + CLI commands, tests, backup/restore, project tree |
 | `ARCHITECTURE.md` | Service diagrams, generation sequence, deployment, production env vars |
 | `docs/SCHEMA.md` | ER diagrams + table reference (20 tables) |
-| `docs/CORPUS.md` | Ingested sources, chunk-size profiles, `SOURCE_PROFILE_MAP` |
+| `docs/CORPUS.md` | Ingested sources, chunk-size profiles, `SOURCE_PROFILE_MAP`, and the planned-additions table (what to ingest next, how to obtain each, and the substitute if that route fails) |
 | `docs/RETRIEVAL_EVAL.md` | Retrieval-quality baseline — re-run and update after any corpus or retrieval change |
 | `docs/CONTRIBUTING.md` | Security audit, scaling checklist, coverage |
 | `docs/DB-MACHINE-RUNBOOK.md` | Pending ops that must run on the corpus DB machine |
