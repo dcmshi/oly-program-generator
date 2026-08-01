@@ -57,39 +57,41 @@
         hx-swap="outerHTML"
         class="hidden grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3 mt-1 text-sm">
 
+    {# Ids are per-row: this partial repeats for every logged exercise, and the
+       add-exercise form on the same page reuses these field names. #}
     <div>
-      <label class="block text-xs text-gray-500 mb-1">Sets completed</label>
-      <input type="number" name="sets_completed" min="1"
+      <label for="tle-{{ tle.id }}-sets" class="block text-xs text-gray-500 mb-1">Sets completed</label>
+      <input type="number" name="sets_completed" id="tle-{{ tle.id }}-sets" min="1"
              value="{{ tle.sets_completed or '' }}"
              class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
     </div>
     <div>
-      <label class="block text-xs text-gray-500 mb-1">Reps per set</label>
-      <input type="text" name="reps_per_set"
+      <label for="tle-{{ tle.id }}-reps" class="block text-xs text-gray-500 mb-1">Reps per set</label>
+      <input type="text" name="reps_per_set" id="tle-{{ tle.id }}-reps"
              value="{{ tle.reps_per_set | join(',') if tle.reps_per_set else '' }}"
              class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
     </div>
     <div>
-      <label class="block text-xs text-gray-500 mb-1">Weight (kg)</label>
-      <input type="number" name="weight_kg" step="0.5"
+      <label for="tle-{{ tle.id }}-weight" class="block text-xs text-gray-500 mb-1">Weight (kg)</label>
+      <input type="number" name="weight_kg" id="tle-{{ tle.id }}-weight" step="0.5"
              value="{{ tle.weight_kg or '' }}"
              class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
     </div>
     <div>
-      <label class="block text-xs text-gray-500 mb-1">RPE</label>
-      <input type="number" name="rpe" min="1" max="10" step="0.5"
+      <label for="tle-{{ tle.id }}-rpe" class="block text-xs text-gray-500 mb-1">RPE</label>
+      <input type="number" name="rpe" id="tle-{{ tle.id }}-rpe" min="1" max="10" step="0.5"
              value="{{ tle.rpe or '' }}"
              class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
     </div>
     <div>
-      <label class="block text-xs text-gray-500 mb-1">Make rate %</label>
-      <input type="number" name="make_rate" min="0" max="100"
+      <label for="tle-{{ tle.id }}-make-rate" class="block text-xs text-gray-500 mb-1">Make rate %</label>
+      <input type="number" name="make_rate" id="tle-{{ tle.id }}-make-rate" min="0" max="100"
              value="{{ (tle.make_rate * 100) | round | int if tle.make_rate is not none else '' }}"
              class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
     </div>
     <div>
-      <label class="block text-xs text-gray-500 mb-1">Technical notes</label>
-      <input type="text" name="technical_notes"
+      <label for="tle-{{ tle.id }}-notes" class="block text-xs text-gray-500 mb-1">Technical notes</label>
+      <input type="text" name="technical_notes" id="tle-{{ tle.id }}-notes"
              value="{{ tle.technical_notes or '' }}"
              class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
     </div>

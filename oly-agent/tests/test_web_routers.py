@@ -923,6 +923,39 @@ def test_program_detail_header_badge_is_not_oob():
     assert "hx-swap-oob" not in r.text
 
 
+# ── FE-M9: rendered pages must have unique, resolvable field ids ──────────────
+
+def _check_label_targets(html, page):
+    import re
+    from collections import Counter
+    ids = re.findall(r'<(?:input|select|textarea)\b[^>]*\bid="([^"]+)"', html)
+    dupes = {i: n for i, n in Counter(ids).items() if n > 1}
+    assert not dupes, f"{page} renders duplicate field ids: {dupes}"
+    dangling = [f for f in re.findall(r'<label\b[^>]*\bfor="([^"]+)"', html) if f not in ids]
+    assert not dangling, f"{page} has label for= values matching no field: {dangling}"
+
+
+def test_profile_page_label_targets_resolve():
+    _check_label_targets(_render_profile(), "/profile")
+
+
+def test_setup_page_label_targets_resolve():
+    _check_label_targets(_render_setup(), "/setup")
+
+
+def test_log_page_label_targets_resolve_with_repeated_rows():
+    """Two logged exercises plus the add-exercise form share field names, so the
+    per-row ids have to keep them apart."""
+    two_rows = [_tle(), {**_tle(), "id": 6, "exercise_name": "Clean"}]
+    with patch("web.queries.log_session.get_session_with_exercises", return_value=_session_detail()), \
+         patch("web.queries.log_session.get_existing_log", return_value=_log()), \
+         patch("web.queries.log_session.get_logged_exercises", return_value=two_rows), \
+         patch("web.routers.log_session.get_athlete_timezone", return_value="UTC"):
+        r = _client.get("/log/1")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    _check_label_targets(r.text, "/log/1")
+
+
 # ── FE-M7: setup and profile must not drift ───────────────────────────────────
 
 def _render_setup():

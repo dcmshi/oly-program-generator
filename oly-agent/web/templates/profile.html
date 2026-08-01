@@ -37,21 +37,21 @@
     <div class="grid grid-cols-2 gap-4">
 
       <div class="col-span-2">
-        <label class="block text-xs font-medium text-gray-600 mb-1">Full name <span class="text-red-500">*</span></label>
-        <input type="text" name="name" value="{{ athlete.name or '' }}"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="name">Full name <span class="text-red-500">*</span></label>
+        <input type="text" name="name" id="name" value="{{ athlete.name or '' }}"
                required maxlength="200"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div class="col-span-2">
-        <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-gray-400">(optional)</span></label>
-        <input type="email" name="email" value="{{ athlete.email or '' }}" maxlength="200"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="email">Email <span class="text-gray-400">(optional)</span></label>
+        <input type="email" name="email" id="email" value="{{ athlete.email or '' }}" maxlength="200"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Level</label>
-        <select name="level" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="level">Level</label>
+        <select name="level" id="level" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           {% for v, l in [("beginner","Beginner"),("intermediate","Intermediate"),("advanced","Advanced"),("elite","Elite")] %}
           <option value="{{ v }}" {% if athlete.level == v %}selected{% endif %}>{{ l }}</option>
           {% endfor %}
@@ -59,7 +59,7 @@
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Biological sex</label>
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="biological_sex">Biological sex</label>
         <select name="biological_sex" id="biological_sex" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           <option value="">— not specified —</option>
           <option value="male"   {% if athlete.biological_sex == "male"   %}selected{% endif %}>Male</option>
@@ -68,29 +68,29 @@
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Date of birth</label>
-        <input type="date" name="date_of_birth"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="date_of_birth">Date of birth</label>
+        <input type="date" name="date_of_birth" id="date_of_birth"
                value="{{ athlete.date_of_birth.isoformat() if athlete.date_of_birth else '' }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       {# Bounds come from web/options.py so this form and setup can't drift. #}
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Bodyweight (kg)</label>
-        <input type="number" name="bodyweight_kg" value="{{ athlete.bodyweight_kg or '' }}"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="bodyweight_kg">Bodyweight (kg)</label>
+        <input type="number" name="bodyweight_kg" id="bodyweight_kg" value="{{ athlete.bodyweight_kg or '' }}"
                min="{{ bounds.bodyweight_kg.min }}" max="{{ bounds.bodyweight_kg.max }}" step="{{ bounds.bodyweight_kg.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Height (cm)</label>
-        <input type="number" name="height_cm" value="{{ athlete.height_cm or '' }}"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="height_cm">Height (cm)</label>
+        <input type="number" name="height_cm" id="height_cm" value="{{ athlete.height_cm or '' }}"
                min="{{ bounds.height_cm.min }}" max="{{ bounds.height_cm.max }}" step="{{ bounds.height_cm.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Weight class</label>
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="weight_class">Weight class</label>
         {% with selected = athlete.weight_class,
                 sex = athlete.biological_sex,
                 field_class = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" %}
@@ -99,29 +99,29 @@
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Training age (years)</label>
-        <input type="number" name="training_age_years" value="{{ athlete.training_age_years or '' }}"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="training_age_years">Training age (years)</label>
+        <input type="number" name="training_age_years" id="training_age_years" value="{{ athlete.training_age_years or '' }}"
                min="{{ bounds.training_age_years.min }}" max="{{ bounds.training_age_years.max }}" step="{{ bounds.training_age_years.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Sessions / week</label>
-        <input type="number" name="sessions_per_week" value="{{ athlete.sessions_per_week or 4 }}"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="sessions_per_week">Sessions / week</label>
+        <input type="number" name="sessions_per_week" id="sessions_per_week" value="{{ athlete.sessions_per_week or 4 }}"
                min="{{ bounds.sessions_per_week.min }}" max="{{ bounds.sessions_per_week.max }}" step="{{ bounds.sessions_per_week.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Session duration (min)</label>
-        <input type="number" name="session_duration_minutes" value="{{ athlete.session_duration_minutes or 90 }}"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="session_duration_minutes">Session duration (min)</label>
+        <input type="number" name="session_duration_minutes" id="session_duration_minutes" value="{{ athlete.session_duration_minutes or 90 }}"
                min="{{ bounds.session_duration_minutes.min }}" max="{{ bounds.session_duration_minutes.max }}" step="{{ bounds.session_duration_minutes.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Timezone</label>
-        <input type="text" name="timezone" value="{{ athlete.timezone or 'UTC' }}"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="timezone">Timezone</label>
+        <input type="text" name="timezone" id="timezone" value="{{ athlete.timezone or 'UTC' }}"
                placeholder="e.g. America/New_York"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
         <p class="text-xs text-gray-400 mt-1">IANA name — used for week &amp; log-date math.</p>
@@ -148,16 +148,16 @@
     <!-- Lift emphasis + competition experience -->
     <div class="grid grid-cols-2 gap-4">
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Lift emphasis</label>
-        <select name="lift_emphasis" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="lift_emphasis">Lift emphasis</label>
+        <select name="lift_emphasis" id="lift_emphasis" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           <option value="balanced"      {% if (athlete.lift_emphasis or 'balanced') == 'balanced'      %}selected{% endif %}>Balanced (snatch = C&amp;J)</option>
           <option value="snatch_biased" {% if athlete.lift_emphasis == 'snatch_biased' %}selected{% endif %}>Snatch-biased</option>
           <option value="cj_biased"     {% if athlete.lift_emphasis == 'cj_biased'     %}selected{% endif %}>C&amp;J-biased</option>
         </select>
       </div>
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Competition experience</label>
-        <select name="competition_experience" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="competition_experience">Competition experience</label>
+        <select name="competition_experience" id="competition_experience" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           <option value="none"          {% if (athlete.competition_experience or 'none') == 'none'          %}selected{% endif %}>None — never competed</option>
           <option value="local"         {% if athlete.competition_experience == 'local'         %}selected{% endif %}>Local / club meets</option>
           <option value="national"      {% if athlete.competition_experience == 'national'      %}selected{% endif %}>National level</option>
@@ -199,14 +199,14 @@
     </div>
 
     <div>
-      <label class="block text-xs font-medium text-gray-600 mb-1">Injuries / limitations</label>
-      <textarea name="injuries" rows="2" maxlength="1000"
+      <label class="block text-xs font-medium text-gray-600 mb-1" for="injuries">Injuries / limitations</label>
+      <textarea name="injuries" id="injuries" rows="2" maxlength="1000"
                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">{{ athlete.injuries or '' }}</textarea>
     </div>
 
     <div>
-      <label class="block text-xs font-medium text-gray-600 mb-1">Notes</label>
-      <textarea name="notes" rows="2" maxlength="2000"
+      <label class="block text-xs font-medium text-gray-600 mb-1" for="notes">Notes</label>
+      <textarea name="notes" id="notes" rows="2" maxlength="2000"
                 class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">{{ athlete.notes or '' }}</textarea>
     </div>
 
@@ -231,8 +231,8 @@
     <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
 
       <div class="col-span-1 sm:col-span-2">
-        <label class="block text-xs font-medium text-gray-600 mb-1">Goal type</label>
-        <select name="goal" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="goal">Goal type</label>
+        <select name="goal" id="goal" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           {% set current_goal = goal.goal if goal else "general_strength" %}
           {% for label, value in goal_options %}
           <option value="{{ value }}" {% if current_goal == value %}selected{% endif %}>{{ label }}</option>
@@ -241,38 +241,38 @@
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Target snatch (kg)</label>
-        <input type="number" name="target_snatch_kg"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="target_snatch_kg">Target snatch (kg)</label>
+        <input type="number" name="target_snatch_kg" id="target_snatch_kg"
                value="{{ goal.target_snatch_kg | int if goal and goal.target_snatch_kg else '' }}"
                min="20" max="300" step="0.5"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Target C&amp;J (kg)</label>
-        <input type="number" name="target_cj_kg"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="target_cj_kg">Target C&amp;J (kg)</label>
+        <input type="number" name="target_cj_kg" id="target_cj_kg"
                value="{{ goal.target_cj_kg | int if goal and goal.target_cj_kg else '' }}"
                min="20" max="400" step="0.5"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Competition date <span class="text-gray-400">(optional)</span></label>
-        <input type="date" name="competition_date"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="competition_date">Competition date <span class="text-gray-400">(optional)</span></label>
+        <input type="date" name="competition_date" id="competition_date"
                value="{{ goal.competition_date.isoformat() if goal and goal.competition_date else '' }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Competition name <span class="text-gray-400">(optional)</span></label>
-        <input type="text" name="competition_name" maxlength="200"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="competition_name">Competition name <span class="text-gray-400">(optional)</span></label>
+        <input type="text" name="competition_name" id="competition_name" maxlength="200"
                value="{{ goal.competition_name or '' if goal else '' }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div class="col-span-1 sm:col-span-2">
-        <label class="block text-xs font-medium text-gray-600 mb-1">Notes <span class="text-gray-400">(optional)</span></label>
-        <textarea name="goal_notes" rows="2" maxlength="500"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="goal_notes">Notes <span class="text-gray-400">(optional)</span></label>
+        <textarea name="goal_notes" id="goal_notes" rows="2" maxlength="500"
                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">{{ goal.notes or '' if goal else '' }}</textarea>
       </div>
 
@@ -301,14 +301,14 @@
       <h3 class="text-sm font-medium text-gray-700">Change username</h3>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">New username</label>
-          <input type="text" name="new_username" value="{{ athlete.username or '' }}"
+          <label class="block text-xs font-medium text-gray-600 mb-1" for="new_username">New username</label>
+          <input type="text" name="new_username" id="new_username" value="{{ athlete.username or '' }}"
                  minlength="3" maxlength="100" autocomplete="username"
                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Confirm with password</label>
-          <input type="password" name="confirm_password_u" autocomplete="current-password"
+          <label class="block text-xs font-medium text-gray-600 mb-1" for="confirm_password_u">Confirm with password</label>
+          <input type="password" name="confirm_password_u" id="confirm_password_u" autocomplete="current-password"
                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
         </div>
       </div>
@@ -326,20 +326,20 @@
     <form method="post" action="/profile/password" class="space-y-4">
       <h3 class="text-sm font-medium text-gray-700">Change password</h3>
       <div>
-        <label class="block text-xs font-medium text-gray-600 mb-1">Current password</label>
-        <input type="password" name="current_password" autocomplete="current-password"
+        <label class="block text-xs font-medium text-gray-600 mb-1" for="current_password">Current password</label>
+        <input type="password" name="current_password" id="current_password" autocomplete="current-password"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
       <div class="grid grid-cols-2 gap-4">
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">New password</label>
-          <input type="password" name="new_password" minlength="8" autocomplete="new-password"
+          <label class="block text-xs font-medium text-gray-600 mb-1" for="new_password">New password</label>
+          <input type="password" name="new_password" id="new_password" minlength="8" autocomplete="new-password"
                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           <p class="text-xs text-gray-400 mt-1">Min. 8 characters</p>
         </div>
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Confirm new password</label>
-          <input type="password" name="confirm_password" autocomplete="new-password"
+          <label class="block text-xs font-medium text-gray-600 mb-1" for="confirm_password">Confirm new password</label>
+          <input type="password" name="confirm_password" id="confirm_password" autocomplete="new-password"
                  class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
         </div>
       </div>

@@ -10,6 +10,7 @@ Run: python tests/test_web_queries.py
 """
 
 import asyncio
+import re
 import sys
 from datetime import UTC, date, timedelta
 from pathlib import Path
@@ -695,6 +696,42 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "data-name=" in tpl
     # the old JS-string interpolation form must be gone
     assert "prefillExercise('" not in tpl
+
+
+# ── FE-M9: every label must be associated with its control ───────────────────
+
+_FORM_TEMPLATES = [
+    "profile.html", "setup.html", "log_session.html", "login.html",
+    "partials/exercise_log_section.html", "partials/exercise_log_entry.html",
+    "partials/maxes_table.html", "partials/weight_class_select.html",
+]
+
+_LABEL = re.compile(r"<label\b(?![^>]*\bfor=)[^>]*>((?:(?!</?label)[\s\S])*?)</label>")
+
+
+def test_every_label_is_associated_with_a_control():
+    """Labels sat as bare siblings of their inputs with no for/id pair, so
+    clicking one didn't focus the field and screen readers announced the control
+    as unlabelled. A label that *wraps* its input is already associated."""
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    orphans = []
+    for name in _FORM_TEMPLATES:
+        text = (tpl_dir / name).read_text(encoding="utf-8")
+        for m in _LABEL.finditer(text):
+            body = m.group(1)
+            if "<input" in body or "<select" in body or "<textarea" in body:
+                continue  # wrapping label
+            orphans.append((name, re.sub(r"\s+", " ", body).strip()[:40]))
+    assert not orphans, f"labels with no for= and no wrapped control: {orphans}"
+
+
+def test_repeated_row_ids_are_scoped_per_row():
+    """exercise_log_entry.html renders once per logged exercise and shares field
+    names with the add-exercise form, so name-based ids would collide."""
+    tpl = (Path(__file__).parent.parent / "web" / "templates" / "partials"
+           / "exercise_log_entry.html").read_text(encoding="utf-8")
+    for field in ("sets", "reps", "weight", "rpe", "make-rate", "notes"):
+        assert f'id="tle-{{{{ tle.id }}}}-{field}"' in tpl, f"{field} id is not row-scoped"
 
 
 # ── FE-M8: the exercise row's edit form must be keyboard-reachable ────────────

@@ -29,13 +29,13 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label class="block text-xs text-gray-500 mb-1">Date</label>
-            <input type="date" name="log_date" value="{{ today }}"
+            <label for="log_date" class="block text-xs text-gray-500 mb-1">Date</label>
+            <input type="date" name="log_date" id="log_date" value="{{ today }}"
                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
-            <label class="block text-xs text-gray-500 mb-1">Overall session RPE</label>
-            <input type="number" name="overall_rpe" min="1" max="10" step="0.5" placeholder="7.5"
+            <label for="overall_rpe" class="block text-xs text-gray-500 mb-1">Overall session RPE</label>
+            <input type="number" name="overall_rpe" id="overall_rpe" min="1" max="10" step="0.5" placeholder="7.5"
                    class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
           </div>
         </div>
@@ -46,28 +46,28 @@
           </summary>
           <div class="px-3 pb-3 pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label class="block text-xs text-gray-500 mb-1">Duration (min)</label>
-              <input type="number" name="duration" placeholder="{{ session.estimated_duration_minutes }}"
+              <label for="duration" class="block text-xs text-gray-500 mb-1">Duration (min)</label>
+              <input type="number" name="duration" id="duration" placeholder="{{ session.estimated_duration_minutes }}"
                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label class="block text-xs text-gray-500 mb-1">Bodyweight (kg)</label>
-              <input type="number" name="bodyweight" step="0.1" placeholder="—"
+              <label for="bodyweight" class="block text-xs text-gray-500 mb-1">Bodyweight (kg)</label>
+              <input type="number" name="bodyweight" id="bodyweight" step="0.1" placeholder="—"
                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label class="block text-xs text-gray-500 mb-1">Sleep quality (1–5)</label>
-              <input type="number" name="sleep_quality" min="1" max="5"
+              <label for="sleep_quality" class="block text-xs text-gray-500 mb-1">Sleep quality (1–5)</label>
+              <input type="number" name="sleep_quality" id="sleep_quality" min="1" max="5"
                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label class="block text-xs text-gray-500 mb-1">Stress level (1–5)</label>
-              <input type="number" name="stress_level" min="1" max="5"
+              <label for="stress_level" class="block text-xs text-gray-500 mb-1">Stress level (1–5)</label>
+              <input type="number" name="stress_level" id="stress_level" min="1" max="5"
                      class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
             </div>
             <div class="col-span-2">
-              <label class="block text-xs text-gray-500 mb-1">Notes</label>
-              <textarea name="notes" rows="2" placeholder="How did it feel?"
+              <label for="notes" class="block text-xs text-gray-500 mb-1">Notes</label>
+              <textarea name="notes" id="notes" rows="2" placeholder="How did it feel?"
                         class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
             </div>
           </div>

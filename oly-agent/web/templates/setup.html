@@ -89,29 +89,29 @@
         <div class="grid grid-cols-1 gap-4">
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Username <span class="text-red-500">*</span></label>
-            <input type="text" name="username" value="{{ form.get('username','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="username">Username <span class="text-red-500">*</span></label>
+            <input type="text" name="username" id="username" value="{{ form.get('username','') }}"
                    required maxlength="100" autocomplete="username"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Password <span class="text-red-500">*</span></label>
-              <input type="password" name="password" required minlength="8" autocomplete="new-password"
+              <label class="block text-xs font-medium text-gray-600 mb-1" for="password">Password <span class="text-red-500">*</span></label>
+              <input type="password" name="password" id="password" required minlength="8" autocomplete="new-password"
                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
               <p class="text-xs text-gray-400 mt-1">Min. 8 characters</p>
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1">Confirm password <span class="text-red-500">*</span></label>
-              <input type="password" name="confirm_password" required minlength="8" autocomplete="new-password"
+              <label class="block text-xs font-medium text-gray-600 mb-1" for="confirm_password">Confirm password <span class="text-red-500">*</span></label>
+              <input type="password" name="confirm_password" id="confirm_password" required minlength="8" autocomplete="new-password"
                      class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Email <span class="text-gray-400">(optional)</span></label>
-            <input type="email" name="email" value="{{ form.get('email','') }}" maxlength="300"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="email">Email <span class="text-gray-400">(optional)</span></label>
+            <input type="email" name="email" id="email" value="{{ form.get('email','') }}" maxlength="300"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
@@ -124,15 +124,15 @@
         <div class="grid grid-cols-2 gap-4">
 
           <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Full name <span class="text-red-500">*</span></label>
-            <input type="text" name="name" value="{{ form.get('name','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="name">Full name <span class="text-red-500">*</span></label>
+            <input type="text" name="name" id="name" value="{{ form.get('name','') }}"
                    required maxlength="200"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Level <span class="text-red-500">*</span></label>
-            <select name="level" required
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="level">Level <span class="text-red-500">*</span></label>
+            <select name="level" id="level" required
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
               <option value="">— select —</option>
               {% for v in ["beginner","intermediate","advanced","elite"] %}
@@ -144,7 +144,7 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Sex</label>
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="biological_sex">Sex</label>
             <select name="biological_sex" id="biological_sex"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
               <option value="">— select —</option>
@@ -154,28 +154,28 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Date of birth</label>
-            <input type="date" name="date_of_birth" value="{{ form.get('date_of_birth','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="date_of_birth">Date of birth</label>
+            <input type="date" name="date_of_birth" id="date_of_birth" value="{{ form.get('date_of_birth','') }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           {# Bounds come from web/options.py so this form and profile can't drift. #}
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Bodyweight (kg)</label>
-            <input type="number" name="bodyweight_kg" value="{{ form.get('bodyweight_kg','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="bodyweight_kg">Bodyweight (kg)</label>
+            <input type="number" name="bodyweight_kg" id="bodyweight_kg" value="{{ form.get('bodyweight_kg','') }}"
                    min="{{ bounds.bodyweight_kg.min }}" max="{{ bounds.bodyweight_kg.max }}" step="{{ bounds.bodyweight_kg.step }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Height (cm)</label>
-            <input type="number" name="height_cm" value="{{ form.get('height_cm','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="height_cm">Height (cm)</label>
+            <input type="number" name="height_cm" id="height_cm" value="{{ form.get('height_cm','') }}"
                    min="{{ bounds.height_cm.min }}" max="{{ bounds.height_cm.max }}" step="{{ bounds.height_cm.step }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Weight class</label>
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="weight_class">Weight class</label>
             {% with selected = form.get('weight_class',''),
                     sex = form.get('biological_sex',''),
                     field_class = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" %}
@@ -192,23 +192,23 @@
         <div class="grid grid-cols-2 gap-4 mb-5">
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Years of weightlifting experience</label>
-            <input type="number" name="training_age_years" value="{{ form.get('training_age_years','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="training_age_years">Years of weightlifting experience</label>
+            <input type="number" name="training_age_years" id="training_age_years" value="{{ form.get('training_age_years','') }}"
                    min="{{ bounds.training_age_years.min }}" max="{{ bounds.training_age_years.max }}" step="{{ bounds.training_age_years.step }}"
                    placeholder="e.g. 3.5"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Sessions per week</label>
-            <input type="number" name="sessions_per_week" value="{{ form.get('sessions_per_week','4') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="sessions_per_week">Sessions per week</label>
+            <input type="number" name="sessions_per_week" id="sessions_per_week" value="{{ form.get('sessions_per_week','4') }}"
                    min="{{ bounds.sessions_per_week.min }}" max="{{ bounds.sessions_per_week.max }}" step="{{ bounds.sessions_per_week.step }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Session duration (min)</label>
-            <input type="number" name="session_duration_minutes" value="{{ form.get('session_duration_minutes','90') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="session_duration_minutes">Session duration (min)</label>
+            <input type="number" name="session_duration_minutes" id="session_duration_minutes" value="{{ form.get('session_duration_minutes','90') }}"
                    min="{{ bounds.session_duration_minutes.min }}" max="{{ bounds.session_duration_minutes.max }}" step="{{ bounds.session_duration_minutes.step }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
@@ -233,8 +233,8 @@
         <!-- Lift emphasis + competition experience -->
         <div class="grid grid-cols-2 gap-4 mb-5">
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Lift emphasis</label>
-            <select name="lift_emphasis"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="lift_emphasis">Lift emphasis</label>
+            <select name="lift_emphasis" id="lift_emphasis"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
               <option value="balanced"      {% if (form.get('lift_emphasis','balanced')) == 'balanced'      %}selected{% endif %}>Balanced (snatch = C&amp;J)</option>
               <option value="snatch_biased" {% if form.get('lift_emphasis') == 'snatch_biased' %}selected{% endif %}>Snatch-biased</option>
@@ -242,8 +242,8 @@
             </select>
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Competition experience</label>
-            <select name="competition_experience"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="competition_experience">Competition experience</label>
+            <select name="competition_experience" id="competition_experience"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
               <option value="none"          {% if (form.get('competition_experience','none')) == 'none'          %}selected{% endif %}>None — never competed</option>
               <option value="local"         {% if form.get('competition_experience') == 'local'         %}selected{% endif %}>Local / club meets</option>
@@ -282,8 +282,8 @@
 
         <!-- Injuries -->
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1">Injuries / restrictions</label>
-          <textarea name="injuries" rows="2" maxlength="500"
+          <label class="block text-xs font-medium text-gray-600 mb-1" for="injuries">Injuries / restrictions</label>
+          <textarea name="injuries" id="injuries" rows="2" maxlength="500"
                     placeholder="e.g. left shoulder impingement, right knee tendinitis"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none">{{ form.get('injuries','') }}</textarea>
         </div>
@@ -298,8 +298,8 @@
           {% for ex in max_exercises %}
           {% set field = "max_" ~ ex.lower().replace(" ", "_").replace("&", "and") %}
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">{{ ex }} (kg)</label>
-            <input type="number" name="{{ field }}" value="{{ form.get(field,'') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="{{ field }}">{{ ex }} (kg)</label>
+            <input type="number" name="{{ field }}" id="{{ field }}" value="{{ form.get(field,'') }}"
                    min="1" max="500" step="0.5"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
@@ -314,8 +314,8 @@
         <div class="grid grid-cols-2 gap-4">
 
           <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1">Primary goal</label>
-            <select name="goal_type"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="goal_type">Primary goal</label>
+            <select name="goal_type" id="goal_type"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
               <option value="">— none —</option>
               {% for label, v in goal_options %}
@@ -325,23 +325,23 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Competition date</label>
-            <input type="date" name="competition_date" value="{{ form.get('competition_date','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="competition_date">Competition date</label>
+            <input type="date" name="competition_date" id="competition_date" value="{{ form.get('competition_date','') }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div></div><!-- spacer -->
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Target Snatch (kg)</label>
-            <input type="number" name="target_snatch_kg" value="{{ form.get('target_snatch_kg','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="target_snatch_kg">Target Snatch (kg)</label>
+            <input type="number" name="target_snatch_kg" id="target_snatch_kg" value="{{ form.get('target_snatch_kg','') }}"
                    min="1" max="400" step="0.5"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1">Target Clean &amp; Jerk (kg)</label>
-            <input type="number" name="target_cj_kg" value="{{ form.get('target_cj_kg','') }}"
+            <label class="block text-xs font-medium text-gray-600 mb-1" for="target_cj_kg">Target Clean &amp; Jerk (kg)</label>
+            <input type="number" name="target_cj_kg" id="target_cj_kg" value="{{ form.get('target_cj_kg','') }}"
                    min="1" max="500" step="0.5"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
