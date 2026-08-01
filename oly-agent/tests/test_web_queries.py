@@ -941,10 +941,46 @@ def test_done_link_is_not_labelled_as_a_save():
 def test_theme_styles_the_htmx_request_state():
     css = (Path(__file__).parent.parent / "web" / "static" / "theme.css").read_text(encoding="utf-8")
     assert "button.htmx-request" in css, "buttons need an in-flight style"
-    assert 'form.htmx-request button[type="submit"]' in css, \
-        "form submits need one too — htmx marks the form, not the button"
+    assert 'form.htmx-request button:not([type="button"])' in css, \
+        "form submits need one too — htmx marks the form, not the button, and a " \
+        "button with no type attribute is still a submit button"
     assert "pointer-events: none" in css, "the in-flight state must block double-submits"
     assert "@keyframes oly-spin" in css
+
+
+def test_every_htmx_trigger_gets_a_busy_state():
+    """The in-flight CSS is selector-based rather than per-template, so this
+    checks the selectors actually reach every element that fires a request."""
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    uncovered = []
+    for p in sorted(tpl_dir.rglob("*.html")):
+        text = p.read_text(encoding="utf-8")
+        for m in re.finditer(r"<(\w+)\b([^>]*\bhx-(?:post|get|delete|put|patch)=[^>]*)>", text, re.S):
+            tag, attrs = m.group(1), m.group(2)
+            if tag == "button":
+                continue                                   # button.htmx-request
+            if tag == "form":
+                continue                                   # form.htmx-request button:not(...)
+            # Anything else only gets a busy state if it polls (deliberately
+            # excluded so #gen-status doesn't flicker every 3s).
+            if "hx-trigger" in attrs and "every" in attrs:
+                continue
+            uncovered.append(f"{p.name}: <{tag}>")
+    assert not uncovered, f"htmx triggers with no in-flight feedback: {uncovered}"
+
+
+def test_form_submits_declare_their_type():
+    """A <button> with no type is a submit button. The CSS handles that now, but
+    being explicit keeps the intent readable next to type="button" siblings."""
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    untyped = []
+    for p in sorted(tpl_dir.rglob("*.html")):
+        text = p.read_text(encoding="utf-8")
+        for fm in re.finditer(r"<form\b[^>]*\bhx-\w+=[^>]*>(.*?)</form>", text, re.S):
+            for bm in re.finditer(r"<button\b([^>]*)>", fm.group(1)):
+                if "type=" not in bm.group(1):
+                    untyped.append(p.name)
+    assert not untyped, f"buttons in hx- forms with no explicit type: {untyped}"
 
 
 def test_icon_only_buttons_opt_out_of_the_spinner():

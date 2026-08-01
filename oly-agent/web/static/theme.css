@@ -85,15 +85,18 @@ h1, h2, h3, h4 {
 /* In-flight state. htmx puts .htmx-request on whichever element issued the
    request — a button for hx-post/hx-delete, the form for a submit — so this
    covers every action without per-template markup. Scoped to buttons and forms
-   so the 3s poll on #gen-status doesn't flicker. */
+   so the 3s poll on #gen-status doesn't flicker.
+   A <button> with no type attribute is a submit button, so match on "not a
+   plain button" rather than [type="submit"]; otherwise a future form whose
+   submit omits the attribute would silently get no busy state. */
 button.htmx-request,
-form.htmx-request button[type="submit"] {
+form.htmx-request button:not([type="button"]) {
   opacity: 0.6;
   pointer-events: none;
   cursor: progress;
 }
 button.htmx-request::after,
-form.htmx-request button[type="submit"]::after {
+form.htmx-request button:not([type="button"])::after {
   content: "";
   display: inline-block;
   width: 0.7em;
@@ -107,5 +110,5 @@ form.htmx-request button[type="submit"]::after {
 }
 /* Icon-only buttons have no room for it — dimming is the whole signal. */
 button.icon-btn.htmx-request::after,
-form.htmx-request button.icon-btn[type="submit"]::after { content: none; }
+form.htmx-request button.icon-btn:not([type="button"])::after { content: none; }
 @keyframes oly-spin { to { transform: rotate(360deg); } }
