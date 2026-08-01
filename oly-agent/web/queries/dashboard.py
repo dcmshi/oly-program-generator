@@ -66,7 +66,10 @@ async def get_adherence(conn, program_id: int, week_number: int) -> dict:
     )
     p = (prescribed or {}).get("cnt", 0)
     n_logged = (logged or {}).get("cnt", 0)
-    return {"prescribed": p, "logged": n_logged, "pct": round(n_logged / p * 100) if p else 0}
+    # Clamped like the goal-progress and lift-ratio gauges: logging more sessions
+    # than prescribed otherwise rendered a bar wider than its own track.
+    pct = min(100, round(n_logged / p * 100)) if p else 0
+    return {"prescribed": p, "logged": n_logged, "pct": pct}
 
 
 async def get_lift_ratios(conn, athlete_id: int) -> list[dict]:

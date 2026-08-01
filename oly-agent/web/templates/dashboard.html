@@ -49,7 +49,7 @@
       <span class="text-gray-600">Adherence through week {{ current_week }}</span>
       <span class="font-medium">{{ adherence.logged }}/{{ adherence.prescribed }} sessions ({{ adherence.pct }}%)</span>
     </div>
-    <div class="w-full bg-gray-200 rounded-full h-2">
+    <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
       <div class="bg-gray-900 h-2 rounded-full" style="width: {{ adherence.pct }}%"></div>
     </div>
   </div>

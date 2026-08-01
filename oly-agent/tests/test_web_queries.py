@@ -697,6 +697,37 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-H5: the adherence bar must not overflow its track ─────────────────────
+
+def _adherence(prescribed, logged):
+    from web.queries.dashboard import get_adherence
+    with patch("web.async_db.async_fetch_one",
+               new=AsyncMock(side_effect=[{"cnt": prescribed}, {"cnt": logged}])):
+        return asyncio.run(get_adherence(MagicMock(), 1, 4))
+
+
+def test_adherence_pct_normal():
+    assert _adherence(16, 12)["pct"] == 75
+
+
+def test_adherence_pct_clamped_at_100():
+    """Logging more sessions than prescribed rendered style="width: 112%",
+    and the track has no overflow-hidden, so the bar spilled out of it."""
+    r = _adherence(16, 18)
+    assert r["pct"] == 100, f"expected clamp to 100, got {r['pct']}"
+    assert r["logged"] == 18, "the raw count must still be reported"
+
+
+def test_adherence_pct_zero_prescribed():
+    assert _adherence(0, 0)["pct"] == 0
+
+
+def test_adherence_track_clips_overflow():
+    tpl = (Path(__file__).parent.parent / "web" / "templates" / "dashboard.html").read_text(encoding="utf-8")
+    assert "rounded-full h-2 overflow-hidden" in tpl, \
+        "the adherence track needs overflow-hidden as a second line of defence"
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)
