@@ -697,6 +697,17 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-M6: the delete button must be reachable without hover ─────────────────
+
+def test_program_delete_button_visible_without_hover():
+    tpl = (Path(__file__).parent.parent / "web" / "templates" / "program_list.html").read_text(encoding="utf-8")
+    assert "opacity-60 focus:opacity-100 sm:opacity-0" in tpl, \
+        "the ✕ must be visible below sm — touch devices have no hover"
+    assert "sm:group-hover:opacity-100" in tpl, "keep the hover reveal on pointer widths"
+    assert "sm:focus:opacity-100" in tpl, \
+        "sm:opacity-0 outranks an unprefixed focus: variant, so focus needs the prefix too"
+
+
 # ── FE-M4: the exit link must not claim to save ──────────────────────────────
 
 def test_done_link_is_not_labelled_as_a_save():
