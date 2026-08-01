@@ -697,6 +697,18 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-M4: the exit link must not claim to save ──────────────────────────────
+
+def test_done_link_is_not_labelled_as_a_save():
+    """It is an <a href> to the program page — everything was already persisted
+    over HTMX — but the label read "Save Session ✓", which implies unsaved work
+    and trains users to fear leaving the page."""
+    tpl = (Path(__file__).parent.parent / "web" / "templates" / "partials"
+           / "exercise_log_section.html").read_text(encoding="utf-8")
+    assert "Save Session" not in tpl
+    assert "Done — back to program" in tpl
+
+
 # ── FE-M3: every HTMX action shows an in-flight state ────────────────────────
 
 def test_base_styles_the_htmx_request_state():
