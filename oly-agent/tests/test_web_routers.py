@@ -49,7 +49,13 @@ def _integration_only():
 # ── App + auth setup ──────────────────────────────────────────────────────────
 
 from web.app import app
-from web.deps import get_db, get_settings
+from web.deps import get_db, get_settings, limiter
+
+# These tests share one process, so the per-minute limits count across the whole
+# file: the 6th test to POST /program/{id}/complete (5/minute) got a 429 that had
+# nothing to do with what it was checking. Rate limiting itself is covered by
+# test_limiter_serves_requests_when_redis_is_down, which builds its own limiter.
+limiter.enabled = False
 
 _mock_conn = MagicMock()
 
@@ -1259,6 +1265,68 @@ def test_complete_response_refreshes_action_buttons_out_of_band():
         "the actions region must be refreshed out-of-band, not left showing Complete/Abandon"
     assert "Complete program" not in r.text
     assert "Export CSV" in r.text
+
+
+# ── FE-L4: one copy of the outcome card ───────────────────────────────────────
+
+def _stored_outcome(**overrides):
+    """What feedback.save_outcome() actually persists — note there is no
+    sessions_completed/sessions_prescribed in the JSONB."""
+    base = {
+        "adherence_pct": 83.0, "avg_rpe_deviation": 0.4, "avg_make_rate": 0.82,
+        "make_rate_by_lift": {"snatch": 0.8}, "avg_weekly_reps": 200.0,
+        "rpe_trend": "stable", "make_rate_trend": "stable",
+        "maxes_delta": {"Snatch": 2.5}, "athlete_feedback": "felt strong",
+        "phase_verdict": None,
+    }
+    return {**base, **overrides}
+
+
+def test_completed_program_page_renders_the_shared_card():
+    """program.html carried a near-identical 90-line copy of the card that had
+    already drifted — it showed neither the session count nor athlete_feedback."""
+    prog = _program(status="completed", outcome_summary=_stored_outcome())
+    with patch("web.queries.program.get_program", return_value=prog), \
+         patch("web.queries.program.get_program_weeks", return_value=_week_data()), \
+         patch("web.queries.program.get_program_volume_by_week", return_value=[]):
+        r = _client.get("/program/1")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert r.text.count("Program Outcome") == 1, "the card must render exactly once"
+    # Fields the old inline copy was missing.
+    assert "felt strong" in r.text, "athlete_feedback only existed in the partial"
+    assert "RPE trend" in r.text
+    assert "Max changes during this block" in r.text
+
+
+def test_stored_outcome_omits_the_session_count_gracefully():
+    """The JSONB has no sessions_prescribed, so an unguarded template would
+    render a bare "/ sessions"."""
+    prog = _program(status="completed", outcome_summary=_stored_outcome())
+    with patch("web.queries.program.get_program", return_value=prog), \
+         patch("web.queries.program.get_program_weeks", return_value=_week_data()), \
+         patch("web.queries.program.get_program_volume_by_week", return_value=[]):
+        r = _client.get("/program/1")
+    assert "sessions" not in r.text.split("Adherence")[1][:200], \
+        "the session count must be skipped when the stored summary lacks it"
+
+
+def test_complete_response_still_shows_the_session_count():
+    """The dataclass does carry it, so the same card shows it there."""
+    with patch("web.queries.program.get_program", return_value=_program(status="active")), \
+         patch("web.queries.program.complete_program", return_value=_outcome()):
+        r = _client.post("/program/1/complete")
+    assert r.status_code == 200
+    assert "20/24 sessions" in r.text, "the dataclass path must keep the count"
+
+
+def test_outcome_card_is_not_duplicated_in_the_templates():
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    with_heading = sorted(
+        p.name for p in tpl_dir.rglob("*.html")
+        if "Program Outcome</h3>" in p.read_text(encoding="utf-8")
+    )
+    assert with_heading == ["outcome_card.html"], \
+        f"the outcome card markup should live in one file, found it in {with_heading}"
 
 
 # ── FE-H3: HTMX failures must surface instead of doing nothing ────────────────
