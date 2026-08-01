@@ -923,6 +923,15 @@ def test_program_detail_header_badge_is_not_oob():
     assert "hx-swap-oob" not in r.text
 
 
+# ── FE-L2: the shared stylesheet must actually be served ──────────────────────
+
+def test_theme_css_is_served():
+    r = _unauthed.get("/static/theme.css")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert "--text-faint" in r.text, "the palette must reach the browser"
+    assert "text/css" in r.headers.get("content-type", "")
+
+
 # ── FE-M9: rendered pages must have unique, resolvable field ids ──────────────
 
 def _check_label_targets(html, page):

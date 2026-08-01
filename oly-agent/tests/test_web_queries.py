@@ -713,8 +713,11 @@ def _contrast(fg, bg):
     return (hi + 0.05) / (lo + 0.05)
 
 
-def _theme_vars(template):
-    text = (Path(__file__).parent.parent / "web" / "templates" / template).read_text(encoding="utf-8")
+_THEME_CSS = Path(__file__).parent.parent / "web" / "static" / "theme.css"
+
+
+def _theme_vars():
+    text = _THEME_CSS.read_text(encoding="utf-8")
     return dict(re.findall(r"(--[\w-]+):\s*(#[0-9A-Fa-f]{6})", text))
 
 
@@ -733,7 +736,7 @@ def test_muted_text_clears_aa_on_every_surface_it_sits_on():
     is excluded because it only ever carries text-gray-600/700 (progress-bar
     tracks and badges), not these two.
     """
-    v = _theme_vars("base.html")
+    v = _theme_vars()
     surfaces = {"--card": v["--card"], "--bg": v["--bg"], "--subtle": v["--subtle"]}
     failures = []
     for token in ("--text-faint", "--text-muted", "--text-sec"):
@@ -745,23 +748,37 @@ def test_muted_text_clears_aa_on_every_surface_it_sits_on():
 
 
 def test_text_tokens_keep_their_visual_hierarchy():
-    v = _theme_vars("base.html")
+    v = _theme_vars()
     faint = _relative_luminance(v["--text-faint"])
     muted = _relative_luminance(v["--text-muted"])
     sec = _relative_luminance(v["--text-sec"])
     assert faint > muted > sec, "faint should stay lightest and sec darkest"
 
 
-def test_standalone_pages_use_the_same_text_tokens():
-    """login.html and setup.html carry their own copy of the palette, so a fix in
-    base.html has to reach them too."""
-    base = _theme_vars("base.html")
-    for page in ("login.html", "setup.html"):
-        v = _theme_vars(page)
-        for token in ("--text-muted", "--text-faint", "--text-sec"):
-            if token in v:
-                assert v[token] == base[token], \
-                    f"{page} {token} is {v[token]}, base.html says {base[token]}"
+# ── FE-L2: one copy of the theme, no inline event handlers ───────────────────
+
+def test_theme_lives_in_one_stylesheet():
+    """base.html, login.html, setup.html and error.html each carried an inline
+    <style> block with a *different subset* of the palette and remaps, so a fix
+    in one silently skipped the others."""
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    for name in ("base.html", "login.html", "setup.html", "error.html"):
+        text = (tpl_dir / name).read_text(encoding="utf-8")
+        assert '/static/theme.css' in text, f"{name} does not load the shared stylesheet"
+        assert "--text-sec:" not in text, f"{name} still defines its own palette"
+    # program.html keeps a page-specific @media print block; nothing else should
+    # have an inline <style> at all.
+    with_styles = sorted(p.name for p in tpl_dir.rglob("*.html") if "<style>" in p.read_text(encoding="utf-8"))
+    assert with_styles == ["program.html"], f"unexpected inline styles in {with_styles}"
+
+
+def test_no_inline_event_handlers_outside_htmx_plumbing():
+    """error.html styled its button with onmouseover/onmouseout — the only thing
+    in the app a Content-Security-Policy would have broken."""
+    text = (Path(__file__).parent.parent / "web" / "templates" / "error.html").read_text(encoding="utf-8")
+    assert "onmouseover" not in text and "onmouseout" not in text
+    assert "btn-navy" in text, "the hover state belongs in theme.css"
+    assert ".btn-navy:hover" in _THEME_CSS.read_text(encoding="utf-8")
 
 
 # ── FE-M10: mobile nav needs ARIA state and a way to close ───────────────────
@@ -860,13 +877,13 @@ def test_done_link_is_not_labelled_as_a_save():
 
 # ── FE-M3: every HTMX action shows an in-flight state ────────────────────────
 
-def test_base_styles_the_htmx_request_state():
-    base = (Path(__file__).parent.parent / "web" / "templates" / "base.html").read_text(encoding="utf-8")
-    assert "button.htmx-request" in base, "buttons need an in-flight style"
-    assert 'form.htmx-request button[type="submit"]' in base, \
+def test_theme_styles_the_htmx_request_state():
+    css = (Path(__file__).parent.parent / "web" / "static" / "theme.css").read_text(encoding="utf-8")
+    assert "button.htmx-request" in css, "buttons need an in-flight style"
+    assert 'form.htmx-request button[type="submit"]' in css, \
         "form submits need one too — htmx marks the form, not the button"
-    assert "pointer-events: none" in base, "the in-flight state must block double-submits"
-    assert "@keyframes oly-spin" in base
+    assert "pointer-events: none" in css, "the in-flight state must block double-submits"
+    assert "@keyframes oly-spin" in css
 
 
 def test_icon_only_buttons_opt_out_of_the_spinner():
