@@ -923,6 +923,35 @@ def test_program_detail_header_badge_is_not_oob():
     assert "hx-swap-oob" not in r.text
 
 
+# ── FE-M1: base.html must declare every block its children define ─────────────
+
+def test_child_template_blocks_all_exist_in_base():
+    """log_session.html defined {% block extra_js %} but base.html declared only
+    title and content, so Jinja silently dropped the script."""
+    import re
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    base = (tpl_dir / "base.html").read_text(encoding="utf-8")
+    declared = set(re.findall(r"{%-?\s*block\s+(\w+)", base))
+    missing = {}
+    for child in tpl_dir.glob("*.html"):
+        text = child.read_text(encoding="utf-8")
+        if 'extends "base.html"' not in text:
+            continue
+        for name in re.findall(r"{%-?\s*block\s+(\w+)", text):
+            if name not in declared:
+                missing.setdefault(child.name, []).append(name)
+    assert not missing, f"blocks never rendered by base.html: {missing}"
+
+
+def test_log_session_date_script_reaches_the_page():
+    with patch("web.queries.log_session.get_session_with_exercises", return_value=_session_detail()):
+        with patch("web.queries.log_session.get_existing_log", return_value=None):
+            with patch("web.routers.log_session.get_athlete_timezone", return_value="UTC"):
+                r = _client.get("/log/1")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert 'input[name="log_date"]' in r.text, "the extra_js block must render"
+
+
 # ── FE-H4: status changes must re-render the action buttons ───────────────────
 
 def test_activate_response_drops_the_activate_button():
