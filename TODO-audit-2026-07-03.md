@@ -227,3 +227,24 @@ done** (batch 5), so #23 is unblocked once the corpus DB is available.
     (2021)](https://www.amazon.com.be/-/en/Periodization-Strength-Training-Sports-Tudor/dp/171820308X)
     (ISBN 171820308X) arguably better for `periodization` chunk_type coverage. Prefer
     Kindle over the Human Kinetics app ebook (easier text extraction).
+
+  ### Acquisition update — 2026-07-31 (additional free sources to scrape)
+
+  Books in rows 1–2 / 4–6 / 8 remain buy-only (no legitimate free full text). Pirate
+  PDFs / public-domain Saxon–Sandow are out of scope. Free material still worth
+  scraping, ordered by ingest priority:
+
+  | Priority | Source | How | Why |
+  |---------:|--------|-----|-----|
+  | 1 | **Charniga essays** (already row 3) | `ingest_web.py --site charniga` (Wayback CDX; scaffold ready) | ~215 free essays. Includes Roman / Prilepin HTML pieces formerly on Sportivny Press — partial Soviet loading coverage before buying the Roman book. |
+  | 2 | **Stronger by Science** (already row 7) | new `--site sbs` (or similar) on `ingest_web.py` | Periodization + taper articles (Nuckols et al.); free HTML. |
+  | 3 | **Pritchard PhD thesis** — *Tapering Strategies to Enhance Maximal Strength* (AUT, 2017) | PDF ingest (`research` profile) | Full open-access PDF: [AUT open repository](https://openrepository.aut.ac.nz/items/8319a680-1486-4c46-96dc-5736e3a7d732) / [direct bitstream](https://openrepository.aut.ac.nz/bitstreams/7e120607-9ac2-4638-b5f9-f8ed22ae77d3/download). Bigger than the single Bond AM — reviews + elite taper practices + training studies. |
+  | 4 | **Bond AM — short-term training cessation** (Pritchard et al.) | PDF ingest (`research` profile) | Free accepted manuscript: [Bond repository](https://pure.bond.edu.au/ws/files/27624950/AM_Short_term_training_cessation_as_a_method_of_tapering_to_improve_maximal_strength.pdf). Complements the higher-vs-lower intensity taper AM already linked under row 7. |
+  | 5 | **JTS / Max Aita programming articles** | new `--site jts` (or curated URL list) on `ingest_web.py` | Free series on [jtsstrength.com](https://www.jtsstrength.com/programming-for-weightlifting/) (long-term planning, exercise selection, training load) + Team Aita beginner content. Fills RETRIEVAL_EVAL Q4 (beginner → structured programming = 0 hits). |
+  | 6 | **Glenn Pendlay beginner program** (archived) | single-page web or PDF ingest | Free text on [Lift Vault](https://liftvault.com/programs/olympic/glenn-pendlay-beginner-olympic-weightlifting-program-spreadsheet/) (old Pendlay.com article). Same beginner gap as #5. |
+
+  **Author-request / not free yet (still chase):**
+  - Storey & Smith 2012 — Auckland researchspace is abstract-only (Springer copyright); ResearchGate / author request still the path.
+  - Winwood, Keogh, Travis & Pritchard 2023 — *The Tapering Practices of Competitive Weightlifters* (JSCR) — most on-target oly taper paper; paywalled; author request.
+
+  **Skip / low value for this corpus:** Chidlovski Lift Up (history/results, thin prescriptions); Mash Elite free hybrid/super-total programs (noisy); Saxon / Sandow public-domain books (wrong era).
