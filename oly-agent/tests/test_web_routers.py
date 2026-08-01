@@ -924,6 +924,38 @@ def test_program_detail_header_badge_is_not_oob():
     assert "hx-swap-oob" not in r.text
 
 
+# ── FE-H3: HTMX failures must surface instead of doing nothing ────────────────
+
+def test_base_pages_carry_htmx_error_handler():
+    with patch("web.queries.program.get_all_programs", return_value=[]):
+        r = _client.get("/program")
+    assert r.status_code == 200
+    for marker in ('id="htmx-error-toast"', 'id="htmx-error-message"',
+                   "htmx:responseError", "htmx:sendError"):
+        assert marker in r.text, f"base.html is missing {marker}"
+
+
+def test_rejected_action_returns_a_showable_message():
+    """The toast renders the response body, so a rejected action has to answer
+    with a short human-readable reason rather than a full error page."""
+    with patch("web.queries.program.get_program", return_value=_program(status="completed")):
+        with patch("web.queries.program.activate_program", return_value=None):
+            r = _client.post("/program/1/activate", headers={"HX-Request": "true"})
+    assert r.status_code == 409
+    body = r.text.strip()
+    assert 0 < len(body) <= 400, f"body must be short enough to show in a toast, got {len(body)}"
+    assert "draft" in body.lower(), f"expected a reason, got {body!r}"
+
+
+def test_generation_conflict_returns_a_showable_message():
+    from web import jobs
+    with patch("web.jobs.submit_generation", side_effect=jobs.GenerationInFlightError("busy")):
+        r = _client.post("/generate/run", headers={"HX-Request": "true"})
+    assert r.status_code == 409
+    assert "already" in r.text.lower(), f"expected an explanation, got {r.text!r}"
+    assert len(r.text.strip()) <= 400
+
+
 # ── Runner ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

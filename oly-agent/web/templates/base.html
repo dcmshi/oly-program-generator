@@ -150,5 +150,62 @@
     {% block content %}{% endblock %}
   </main>
 
+  <!-- HTMX error toast -->
+  <div id="htmx-error-toast" role="alert" aria-live="assertive"
+       class="hidden fixed bottom-4 left-1/2 -translate-x-1/2 z-50 w-[calc(100%-2rem)] max-w-md
+              bg-red-50 border border-red-200 rounded-xl shadow-lg px-4 py-3 print:hidden">
+    <div class="flex items-start gap-2.5">
+      <span class="shrink-0 text-red-500 leading-5">⚠</span>
+      <p id="htmx-error-message" class="flex-1 text-sm text-red-800"></p>
+      <button type="button" id="htmx-error-dismiss" aria-label="Dismiss"
+              class="shrink-0 text-red-400 hover:text-red-700 text-xs leading-5 px-1">✕</button>
+    </div>
+  </div>
+  <script>
+  (function () {
+    // htmx does not swap on 4xx/5xx, so without a listener here a rejected
+    // action (409 double-submit, 429 rate limit, 500 render error) produces no
+    // visible change at all — the click just appears to do nothing.
+    const toast = document.getElementById('htmx-error-toast');
+    const message = document.getElementById('htmx-error-message');
+    let timer = null;
+
+    function show(text) {
+      message.textContent = text;
+      toast.classList.remove('hidden');
+      clearTimeout(timer);
+      timer = setTimeout(hide, 8000);
+    }
+    function hide() {
+      toast.classList.add('hidden');
+    }
+    document.getElementById('htmx-error-dismiss').addEventListener('click', hide);
+
+    // slowapi's 429 body is a JSON blob, so use our own wording for it.
+    const FIXED = { 429: 'Too many requests — wait a moment and try again.' };
+
+    function describe(xhr) {
+      if (FIXED[xhr.status]) return FIXED[xhr.status];
+      // Routers answer HTMX requests with a short message or small fragment
+      // (see the exception handlers in app.py). DOMParser strips the markup
+      // without running scripts or loading anything.
+      const raw = (xhr.responseText || '').trim();
+      if (raw && raw.length <= 400) {
+        const doc = new DOMParser().parseFromString(raw, 'text/html');
+        const text = (doc.body.textContent || '').trim().replace(/\s+/g, ' ');
+        if (text) return text;
+      }
+      return 'Something went wrong (' + xhr.status + '). Please try again.';
+    }
+
+    document.body.addEventListener('htmx:responseError', function (evt) {
+      show(describe(evt.detail.xhr));
+    });
+    document.body.addEventListener('htmx:sendError', function () {
+      show('Could not reach the server — check your connection and try again.');
+    });
+  })();
+  </script>
+
 </body>
 </html>
