@@ -697,6 +697,27 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-M2: no dead frontend assets ───────────────────────────────────────────
+
+def test_no_unreferenced_partials():
+    """exercise_logged_row.html outlived exercise_log_entry.html by months with
+    nothing including it."""
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    corpus = "\n".join(p.read_text(encoding="utf-8") for p in tpl_dir.rglob("*.html"))
+    py = "\n".join(p.read_text(encoding="utf-8")
+                   for p in (Path(__file__).parent.parent / "web").rglob("*.py"))
+    orphans = [p.name for p in (tpl_dir / "partials").glob("*.html")
+               if f"partials/{p.name}" not in corpus and f"partials/{p.name}" not in py]
+    assert not orphans, f"partials nothing references: {orphans}"
+
+
+def test_no_alpine_leftovers():
+    """Alpine.js is never loaded, so the [x-cloak] rule styled nothing."""
+    base = (Path(__file__).parent.parent / "web" / "templates" / "base.html").read_text(encoding="utf-8")
+    assert "x-cloak" not in base
+    assert "alpine" not in base.lower()
+
+
 # ── FE-H5: the adherence bar must not overflow its track ─────────────────────
 
 def _adherence(prescribed, logged):
