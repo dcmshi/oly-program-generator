@@ -216,7 +216,9 @@
               <td class="py-1.5 pr-3 text-gray-400 text-xs">{{ ex.exercise_order }}</td>
               <td class="py-1.5 pr-3 font-medium">
                 {{ ex.exercise_name }}
-                {% if ex.selection_rationale and 'warmup' in ex.selection_rationale | lower %}
+                {# is_warmup is computed in get_program_weeks from the structure
+                   of the prescription, not from the rationale prose. #}
+                {% if ex.is_warmup %}
                 <span class="ml-1.5 inline-block text-xs font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-500 border border-blue-100">Warmup</span>
                 {% endif %}
               </td>

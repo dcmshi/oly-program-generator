@@ -698,6 +698,67 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-L5: the Warmup badge must key off structure, not prose ────────────────
+
+def test_warmup_set_detected_from_intensity():
+    from shared.constants import WARMUP_VOLUME_EXCLUSION_PCT
+    from shared.exercise_mapping import is_warmup_set
+    cutoff = WARMUP_VOLUME_EXCLUSION_PCT
+    assert is_warmup_set("snatch", 55) is True
+    assert is_warmup_set("snatch", cutoff) is True, "the band is inclusive"
+    assert is_warmup_set("clean_and_jerk", 50) is True
+    assert is_warmup_set("snatch", cutoff + 1) is False, "working sets are not warmups"
+    assert is_warmup_set("snatch", 85) is False
+
+
+def test_warmup_set_only_applies_to_competition_lifts():
+    """The prompt mandates the ramp before comp lifts; a light accessory set is
+    not a warmup."""
+    from shared.exercise_mapping import is_warmup_set
+    assert is_warmup_set("back_squat", 55) is False
+    assert is_warmup_set("push_press", 50) is False
+
+
+def test_warmup_set_handles_missing_and_junk_intensity():
+    from shared.exercise_mapping import is_warmup_set
+    assert is_warmup_set("snatch", None) is False
+    assert is_warmup_set(None, 55) is False
+    assert is_warmup_set("snatch", "not a number") is False
+    # asyncpg hands NUMERIC back as Decimal
+    from decimal import Decimal
+    assert is_warmup_set("snatch", Decimal("57.5")) is True
+
+
+def test_get_program_weeks_tags_warmup_rows():
+    """The template just reads ex.is_warmup, so the query has to set it."""
+    from web.queries.program import get_program_weeks
+    sessions = [{"id": 1, "week_number": 1, "day_number": 1, "session_label": "Snatch Day",
+                 "estimated_duration_minutes": 60, "focus_area": "snatch", "log_id": None}]
+    exercises = [
+        {"session_id": 1, "exercise_order": 1, "exercise_name": "Snatch", "sets": 2, "reps": 3,
+         "intensity_pct": 55.0, "intensity_reference": "snatch", "absolute_weight_kg": 55.0,
+         "rest_seconds": 90, "rpe_target": None, "selection_rationale": "ramp"},
+        {"session_id": 1, "exercise_order": 2, "exercise_name": "Snatch", "sets": 4, "reps": 2,
+         "intensity_pct": 85.0, "intensity_reference": "snatch", "absolute_weight_kg": 85.0,
+         "rest_seconds": 180, "rpe_target": 8.0, "selection_rationale": "not a warmup priority"},
+    ]
+    with patch("web.async_db.async_fetch_all",
+               new=AsyncMock(side_effect=[sessions, exercises])):
+        weeks = asyncio.run(get_program_weeks(MagicMock(), 1))
+
+    rows = weeks[0]["sessions"][0]["exercises"]
+    assert [r["is_warmup"] for r in rows] == [True, False], \
+        "the 55% ramp set is a warmup; the 85% working set is not, despite its rationale text"
+
+
+def test_badge_no_longer_substring_matches_the_rationale():
+    """'warmup' in selection_rationale fired on prose like "not a warmup
+    priority" and disappeared whenever the generator reworded."""
+    tpl = (Path(__file__).parent.parent / "web" / "templates" / "program.html").read_text(encoding="utf-8")
+    assert "selection_rationale | lower" not in tpl
+    assert "{% if ex.is_warmup %}" in tpl
+
+
 # ── FE-L1: remapped gray text must clear WCAG AA ─────────────────────────────
 
 def _relative_luminance(hex_color):

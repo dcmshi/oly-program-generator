@@ -9,6 +9,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
+from shared.exercise_mapping import is_warmup_set
+
 # In-memory cache for exercise name → id lookups.
 # exercises are static seed data that never change at runtime.
 _exercise_id_cache: dict[str, int] = {}  # lower(name) → id
@@ -153,8 +155,8 @@ async def get_program_weeks(conn, program_id: int) -> list[dict]:
             conn,
             """
             SELECT session_id, exercise_order, exercise_name, sets, reps,
-                   intensity_pct, absolute_weight_kg, rest_seconds, rpe_target,
-                   selection_rationale
+                   intensity_pct, intensity_reference, absolute_weight_kg,
+                   rest_seconds, rpe_target, selection_rationale
             FROM session_exercises
             WHERE session_id = ANY($1::int[])
             ORDER BY session_id, exercise_order
@@ -162,7 +164,9 @@ async def get_program_weeks(conn, program_id: int) -> list[dict]:
             all_session_ids,
         )
         for ex in exercises:
-            exercises_by_session.setdefault(ex["session_id"], []).append(ex)
+            row = dict(ex)
+            row["is_warmup"] = is_warmup_set(ex["intensity_reference"], ex["intensity_pct"])
+            exercises_by_session.setdefault(ex["session_id"], []).append(row)
 
     # Group sessions by week
     weeks: dict[int, list] = {}

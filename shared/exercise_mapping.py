@@ -5,6 +5,8 @@ Exercise name → intensity_reference mapping and competition lift sets.
 Single source of truth used by weight_resolver, validate, and feedback modules.
 """
 
+from shared.constants import WARMUP_VOLUME_EXCLUSION_PCT
+
 # Maps canonical DB exercise names to the intensity_reference key used by the agent.
 # The LLM outputs intensity_reference; the agent uses it to look up athlete maxes.
 EXERCISE_NAME_TO_INTENSITY_REF: dict[str, str] = {
@@ -40,3 +42,26 @@ def to_intensity_ref(name: str) -> str:
     if ref is None:
         ref = name.lower().replace(" ", "_").replace("&", "and")
     return ref
+
+
+def is_warmup_set(intensity_reference, intensity_pct) -> bool:
+    """True if this prescription is one of the mandated warmup ramp sets.
+
+    The generate prompt requires 2-3 sets at 50-60% before each competition
+    lift, and validate.py already excludes that band from Prilepin and weekly
+    volume for exactly this reason. Keying off the structure — competition lift
+    at or below WARMUP_VOLUME_EXCLUSION_PCT — is what makes the UI's "Warmup"
+    badge trustworthy; it used to substring-match `selection_rationale`, so it
+    fired on prose like "not a warmup priority" and vanished whenever the
+    generator reworded (FE-L5).
+
+    Note validate.py's *intensity floor* check uses the wider
+    WARMUP_INTENSITY_CUTOFF_PCT (65%) instead. That is a separate question —
+    "is this set too light to warn about" — not "is this a warmup".
+    """
+    if intensity_reference not in COMP_LIFT_REFS or intensity_pct is None:
+        return False
+    try:
+        return float(intensity_pct) <= WARMUP_VOLUME_EXCLUSION_PCT
+    except (TypeError, ValueError):
+        return False
