@@ -4,8 +4,8 @@
 {% block content %}
 <h1 class="text-2xl font-bold mb-2">Generate Program</h1>
 <p class="text-gray-500 text-sm mb-6">
-  Runs ASSESS → PLAN → RETRIEVE → GENERATE (16 LLM calls) → EXPLAIN.
-  Takes ~5 minutes and costs ~$0.50.
+  Runs ASSESS → PLAN → RETRIEVE → GENERATE → EXPLAIN. Takes a few minutes —
+  one paid model call per session, so it also costs real money.
 </p>
 
 <!-- Last program summary -->
@@ -41,6 +41,8 @@
   </form>
 </div>
 
-<div id="gen-output" class="mt-6"></div>
+<div id="gen-output" class="mt-6">
+  {% if job_id %}{% include "partials/generate_result.html" %}{% endif %}
+</div>
 
 {% endblock %}

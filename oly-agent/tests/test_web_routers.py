@@ -923,6 +923,66 @@ def test_program_detail_header_badge_is_not_oob():
     assert "hx-swap-oob" not in r.text
 
 
+# ── FE-M5: generate page copy + resuming an in-flight job ─────────────────────
+
+def test_generate_page_resumes_polling_for_an_inflight_job():
+    """Polling only lived in the swapped partial, so navigating away from
+    /generate and back while a job ran showed no sign of it."""
+    with patch("web.queries.program.get_all_programs", return_value=[]), \
+         patch("web.jobs.get_inflight_job_id", return_value="abc123"):
+        r = _client.get("/generate")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert 'hx-get="/generate/status/abc123"' in r.text, "must resume polling the running job"
+    assert 'hx-trigger="every 3s"' in r.text
+
+
+def test_generate_page_idle_when_nothing_is_running():
+    with patch("web.queries.program.get_all_programs", return_value=[]), \
+         patch("web.jobs.get_inflight_job_id", return_value=None):
+        r = _client.get("/generate")
+    assert r.status_code == 200
+    assert "/generate/status/" not in r.text, "no poller without a job"
+
+
+def test_generate_page_copy_has_no_hardcoded_pipeline_numbers():
+    """"16 LLM calls", "~5 minutes", "~$0.50" drift the moment the pipeline
+    changes, and nothing recomputes them."""
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    for name in ("generate.html", "partials/generate_result.html"):
+        text = (tpl_dir / name).read_text(encoding="utf-8")
+        for stale in ("16 LLM calls", "~5 minutes", "$0.50"):
+            assert stale not in text, f"{name} still hardcodes {stale!r}"
+
+
+def test_get_inflight_job_id_ignores_the_unstamped_guard():
+    """submit_generation claims the guard with "1" before it knows the job id."""
+    import asyncio
+    from unittest.mock import AsyncMock
+    from web import jobs
+
+    async def probe(value):
+        pool = MagicMock()
+        pool.get = AsyncMock(return_value=value)
+        with patch.object(jobs, "_arq_pool", pool):
+            return await jobs.get_inflight_job_id(1)
+
+    assert asyncio.run(probe(b"1")) is None
+    assert asyncio.run(probe(None)) is None
+    assert asyncio.run(probe(b"job-42")) == "job-42"
+    assert asyncio.run(probe("job-42")) == "job-42"
+
+
+def test_get_inflight_job_id_survives_a_redis_outage():
+    import asyncio
+    from unittest.mock import AsyncMock
+    from web import jobs
+
+    pool = MagicMock()
+    pool.get = AsyncMock(side_effect=ConnectionError("redis is down"))
+    with patch.object(jobs, "_arq_pool", pool):
+        assert asyncio.run(jobs.get_inflight_job_id(1)) is None
+
+
 # ── FE-M1: base.html must declare every block its children define ─────────────
 
 def test_child_template_blocks_all_exist_in_base():

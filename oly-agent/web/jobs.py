@@ -106,6 +106,25 @@ async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: 
     return job.job_id
 
 
+async def get_inflight_job_id(athlete_id: int) -> str | None:
+    """Return the athlete's in-flight generation job id, if there is one.
+
+    Lets the generate page resume polling after the athlete navigates away and
+    comes back — otherwise a running job is invisible until it finishes.
+    """
+    if _arq_pool is None:
+        return None
+    try:
+        held = await _arq_pool.get(_inflight_key(athlete_id))
+    except Exception as e:
+        logger.warning(f"In-flight lookup failed for athlete {athlete_id}: {e}")
+        return None
+    job_id = held.decode() if isinstance(held, bytes) else held
+    # submit_generation claims the guard with "1" and only then stamps the real
+    # job id, so a bare "1" means there is nothing pollable yet.
+    return job_id if job_id and job_id != "1" else None
+
+
 async def get_job_status(job_id: str, athlete_id: int) -> dict:
     """Return a normalised job dict.  Returns a 'failed / not found' sentinel on any error."""
     _not_found = {"status": "failed", "error": "Job not found", "program_id": None, "duration_seconds": None}

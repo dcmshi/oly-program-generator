@@ -21,8 +21,13 @@ async def generate_page(
     from web.app import templates
     programs = await qp.get_all_programs(conn, athlete_id)
     last = programs[0] if programs else None
+    # Pick up a job that is still running from an earlier visit, so leaving the
+    # page and coming back resumes polling instead of showing nothing.
+    inflight = await jobs.get_inflight_job_id(athlete_id)
     return templates.TemplateResponse(request, "generate.html", {
         "request": request, "last_program": last,
+        "job_id": inflight,
+        "job": {"status": "running"} if inflight else None,
     })
 
 
