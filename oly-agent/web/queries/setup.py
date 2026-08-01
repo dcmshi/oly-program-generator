@@ -5,6 +5,7 @@ from datetime import date
 
 from web.formparse import parse_float as _float  # finite + bounded (WEB-L4)
 from web.formparse import parse_int as _int
+from web.options import FIELD_BOUNDS as _B
 
 
 def _date(v):
@@ -53,9 +54,13 @@ async def create_athlete(conn, data: dict, password_hash: str) -> int:
         _date(data.get("date_of_birth")),
         data.get("weight_class") or None,
         _float(data.get("training_age_years")),
-        # CHECK BETWEEN 1 AND 14 — out-of-range falls back to the default (audit3-M2)
-        _int(data.get("sessions_per_week"), lo=1, hi=14) or 4,
-        _int(data.get("session_duration_minutes"), lo=1) or 90,
+        # CHECK BETWEEN 1 AND 14 — out-of-range falls back to the default (audit3-M2).
+        # Bounds come from web/options.py, the same source as the form's
+        # min/max, so the two can't disagree (FE-M7).
+        _int(data.get("sessions_per_week"),
+             lo=_B["sessions_per_week"]["min"], hi=_B["sessions_per_week"]["max"]) or 4,
+        _int(data.get("session_duration_minutes"),
+             lo=_B["session_duration_minutes"]["min"], hi=_B["session_duration_minutes"]["max"]) or 90,
         data.get("available_equipment") or [],
         data.get("injuries") or None,
         data.get("technical_faults") or [],

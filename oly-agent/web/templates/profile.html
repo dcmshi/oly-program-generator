@@ -60,7 +60,7 @@
 
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Biological sex</label>
-        <select name="biological_sex" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+        <select name="biological_sex" id="biological_sex" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           <option value="">— not specified —</option>
           <option value="male"   {% if athlete.biological_sex == "male"   %}selected{% endif %}>Male</option>
           <option value="female" {% if athlete.biological_sex == "female" %}selected{% endif %}>Female</option>
@@ -74,54 +74,48 @@
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
+      {# Bounds come from web/options.py so this form and setup can't drift. #}
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Bodyweight (kg)</label>
         <input type="number" name="bodyweight_kg" value="{{ athlete.bodyweight_kg or '' }}"
-               min="30" max="300" step="0.1"
+               min="{{ bounds.bodyweight_kg.min }}" max="{{ bounds.bodyweight_kg.max }}" step="{{ bounds.bodyweight_kg.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Height (cm)</label>
         <input type="number" name="height_cm" value="{{ athlete.height_cm or '' }}"
-               min="100" max="250" step="0.5"
+               min="{{ bounds.height_cm.min }}" max="{{ bounds.height_cm.max }}" step="{{ bounds.height_cm.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Weight class</label>
-        <select name="weight_class" class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-          <option value="">— select —</option>
-          {% if athlete.biological_sex == "female" %}
-          {% for wc in ["45","49","55","59","64","71","76","81","87","+87"] %}
-          <option value="{{ wc }}" {% if athlete.weight_class == wc %}selected{% endif %}>{{ wc }} kg</option>
-          {% endfor %}
-          {% else %}
-          {% for wc in ["55","61","67","73","81","89","96","102","109","+109"] %}
-          <option value="{{ wc }}" {% if athlete.weight_class == wc %}selected{% endif %}>{{ wc }} kg</option>
-          {% endfor %}
-          {% endif %}
-        </select>
+        {% with selected = athlete.weight_class,
+                sex = athlete.biological_sex,
+                field_class = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" %}
+        {% include "partials/weight_class_select.html" %}
+        {% endwith %}
       </div>
 
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Training age (years)</label>
         <input type="number" name="training_age_years" value="{{ athlete.training_age_years or '' }}"
-               min="0" max="50" step="0.5"
+               min="{{ bounds.training_age_years.min }}" max="{{ bounds.training_age_years.max }}" step="{{ bounds.training_age_years.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Sessions / week</label>
         <input type="number" name="sessions_per_week" value="{{ athlete.sessions_per_week or 4 }}"
-               min="1" max="14" step="1"
+               min="{{ bounds.sessions_per_week.min }}" max="{{ bounds.sessions_per_week.max }}" step="{{ bounds.sessions_per_week.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 
       <div>
         <label class="block text-xs font-medium text-gray-600 mb-1">Session duration (min)</label>
         <input type="number" name="session_duration_minutes" value="{{ athlete.session_duration_minutes or 90 }}"
-               min="30" max="300" step="5"
+               min="{{ bounds.session_duration_minutes.min }}" max="{{ bounds.session_duration_minutes.max }}" step="{{ bounds.session_duration_minutes.step }}"
                class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
       </div>
 

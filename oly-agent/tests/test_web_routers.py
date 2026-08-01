@@ -923,6 +923,115 @@ def test_program_detail_header_badge_is_not_oob():
     assert "hx-swap-oob" not in r.text
 
 
+# ── FE-M7: setup and profile must not drift ───────────────────────────────────
+
+def _render_setup():
+    r = _client.get("/setup")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    return r.text
+
+
+def _render_profile():
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None):
+        r = _client.get("/profile")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    return r.text
+
+
+def test_both_forms_use_the_weight_class_select():
+    """Setup was a free-text box whose placeholder taught the wrong format
+    ("102+" rather than the "+109" the profile select actually stores)."""
+    for name, html in (("setup", _render_setup()), ("profile", _render_profile())):
+        assert 'name="weight_class" id="weight_class"' in html, f"{name} is not using the shared select"
+        assert 'placeholder="e.g. 89, 96, 102+"' not in html, f"{name} still has the wrong-format hint"
+        assert 'data-sex="male"' in html and 'data-sex="female"' in html, \
+            f"{name} must render both class sets so the filter can switch them"
+
+
+def test_weight_class_options_switch_without_a_reload():
+    """Profile rendered options from the *saved* biological_sex, so changing the
+    select did nothing until save + reload."""
+    html = _render_profile()
+    assert 'id="biological_sex"' in html, "the filter script keys off this id"
+    assert "sexSelect.addEventListener('change', applySex)" in html
+
+
+def test_form_bounds_come_from_one_source():
+    """Bodyweight max was 250 in setup and 300 in profile; height step 0.1 vs
+    0.5; duration max 240 vs 300; training age 40 vs 50."""
+    from web.options import FIELD_BOUNDS
+    setup_html, profile_html = _render_setup(), _render_profile()
+    for field, b in FIELD_BOUNDS.items():
+        attrs = f'min="{b["min"]}" max="{b["max"]}" step="{b["step"]}"'
+        assert attrs in setup_html, f"setup {field} does not use the shared bounds ({attrs})"
+        assert attrs in profile_html, f"profile {field} does not use the shared bounds ({attrs})"
+
+
+def test_setup_uses_multi_value_checkbox_names():
+    html = _render_setup()
+    for field in ("available_equipment", "technical_faults", "strength_limiters"):
+        assert f'name="{field}"' in html, f"setup should post {field} as a multi-value field"
+    assert 'name="equip_' not in html, "the per-option equip_<val> convention is gone"
+    assert 'name="fault_' not in html, "the per-option fault_<val> convention is gone"
+
+
+def test_setup_stores_multi_value_equipment_and_faults():
+    captured = {}
+
+    async def _create(conn, data, pw_hash):
+        captured.update(data)
+        return 7
+
+    # A successful setup writes a new athlete_id into the session, so this runs
+    # on its own client — reusing _client would re-authenticate every later test
+    # as the athlete created here.
+    client = TestClient(app, follow_redirects=False)
+    with patch("web.queries.setup.username_taken", return_value=False), \
+         patch("web.queries.setup.create_athlete", side_effect=_create), \
+         patch("web.queries.setup.create_maxes", return_value=None), \
+         patch("web.queries.setup.create_goal", return_value=None):
+        r = client.post("/setup", data=_setup_form(
+            available_equipment=["barbell", "blocks", "not_a_real_thing"],
+            technical_faults=["slow_turnover", "made_up_fault"],
+            strength_limiters=["squat_limited"],
+        ))
+    assert r.status_code == 303, f"Expected 303, got {r.status_code}"
+    assert captured["available_equipment"] == ["barbell", "blocks"], \
+        f"unknown equipment must be dropped, got {captured['available_equipment']}"
+    assert captured["technical_faults"] == ["slow_turnover"], \
+        f"a slug outside FAULT_OPTIONS stops matching retrieve.py, got {captured['technical_faults']}"
+    assert captured["strength_limiters"] == ["squat_limited"]
+
+
+def test_setup_error_rerender_rechecks_every_multi_value_field():
+    import re
+    with patch("web.queries.setup.username_taken", return_value=False), \
+         patch("web.queries.setup.create_athlete", return_value=1):
+        r = _client.post("/setup", data=_setup_form(
+            level="wizard",
+            available_equipment=["blocks"],
+            technical_faults=["slow_turnover"],
+            strength_limiters=["squat_limited"],
+        ))
+    assert r.status_code == 422, f"Expected 422, got {r.status_code}"
+    for value in ("blocks", "slow_turnover", "squat_limited"):
+        tag = re.search(rf'<input[^>]*value="{value}"[^>]*>', r.text)
+        assert tag, f"{value} is missing from the re-rendered form"
+        assert "checked" in tag.group(0), f"{value} lost its checked state: {tag.group(0)}"
+
+
+def test_out_of_range_session_duration_falls_back():
+    """The form and the query now read the same bounds, so a value the form
+    would reject can't slip past into the DB either."""
+    from web.formparse import parse_int
+    from web.options import FIELD_BOUNDS
+    b = FIELD_BOUNDS["session_duration_minutes"]
+    assert parse_int(str(b["max"] + 100), lo=b["min"], hi=b["max"]) is None
+    assert parse_int(str(b["min"] - 10), lo=b["min"], hi=b["max"]) is None
+    assert parse_int("90", lo=b["min"], hi=b["max"]) == 90
+
+
 # ── FE-M5: generate page copy + resuming an in-flight job ─────────────────────
 
 def test_generate_page_resumes_polling_for_an_inflight_job():
@@ -958,6 +1067,7 @@ def test_get_inflight_job_id_ignores_the_unstamped_guard():
     """submit_generation claims the guard with "1" before it knows the job id."""
     import asyncio
     from unittest.mock import AsyncMock
+
     from web import jobs
 
     async def probe(value):
@@ -975,6 +1085,7 @@ def test_get_inflight_job_id_ignores_the_unstamped_guard():
 def test_get_inflight_job_id_survives_a_redis_outage():
     import asyncio
     from unittest.mock import AsyncMock
+
     from web import jobs
 
     pool = MagicMock()

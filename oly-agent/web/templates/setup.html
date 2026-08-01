@@ -145,7 +145,7 @@
 
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Sex</label>
-            <select name="biological_sex"
+            <select name="biological_sex" id="biological_sex"
                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
               <option value="">— select —</option>
               <option value="male"   {% if form.get('biological_sex')=='male'   %}selected{% endif %}>Male</option>
@@ -159,25 +159,28 @@
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
+          {# Bounds come from web/options.py so this form and profile can't drift. #}
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Bodyweight (kg)</label>
             <input type="number" name="bodyweight_kg" value="{{ form.get('bodyweight_kg','') }}"
-                   min="30" max="250" step="0.1"
+                   min="{{ bounds.bodyweight_kg.min }}" max="{{ bounds.bodyweight_kg.max }}" step="{{ bounds.bodyweight_kg.step }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Height (cm)</label>
             <input type="number" name="height_cm" value="{{ form.get('height_cm','') }}"
-                   min="100" max="250" step="0.1"
+                   min="{{ bounds.height_cm.min }}" max="{{ bounds.height_cm.max }}" step="{{ bounds.height_cm.step }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Weight class</label>
-            <input type="text" name="weight_class" value="{{ form.get('weight_class','') }}"
-                   maxlength="20" placeholder="e.g. 89, 96, 102+"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+            {% with selected = form.get('weight_class',''),
+                    sex = form.get('biological_sex',''),
+                    field_class = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" %}
+            {% include "partials/weight_class_select.html" %}
+            {% endwith %}
           </div>
 
         </div>
@@ -191,21 +194,22 @@
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Years of weightlifting experience</label>
             <input type="number" name="training_age_years" value="{{ form.get('training_age_years','') }}"
-                   min="0" max="40" step="0.5" placeholder="e.g. 3.5"
+                   min="{{ bounds.training_age_years.min }}" max="{{ bounds.training_age_years.max }}" step="{{ bounds.training_age_years.step }}"
+                   placeholder="e.g. 3.5"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Sessions per week</label>
             <input type="number" name="sessions_per_week" value="{{ form.get('sessions_per_week','4') }}"
-                   min="1" max="14"
+                   min="{{ bounds.sessions_per_week.min }}" max="{{ bounds.sessions_per_week.max }}" step="{{ bounds.sessions_per_week.step }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
           <div>
             <label class="block text-xs font-medium text-gray-600 mb-1">Session duration (min)</label>
             <input type="number" name="session_duration_minutes" value="{{ form.get('session_duration_minutes','90') }}"
-                   min="30" max="240" step="5"
+                   min="{{ bounds.session_duration_minutes.min }}" max="{{ bounds.session_duration_minutes.max }}" step="{{ bounds.session_duration_minutes.step }}"
                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
           </div>
 
@@ -214,10 +218,12 @@
         <!-- Equipment -->
         <p class="text-xs font-medium text-gray-600 mb-2">Available equipment</p>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">
+          {# Multi-value name, same as profile — this form used to invent a
+             per-option equip_<val>/fault_<val> field instead. #}
           {% for label, val in equipment_options %}
           <label class="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" name="equip_{{ val }}" value="on"
-                   {% if form.get('equip_' ~ val) == 'on' %}checked{% endif %}
+            <input type="checkbox" name="available_equipment" value="{{ val }}"
+                   {% if val in (form.get('available_equipment') or []) %}checked{% endif %}
                    class="rounded border-gray-300">
             {{ label }}
           </label>
@@ -266,8 +272,8 @@
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
           {% for label, val in fault_options %}
           <label class="flex items-center gap-2 text-sm cursor-pointer">
-            <input type="checkbox" name="fault_{{ val }}" value="on"
-                   {% if form.get('fault_' ~ val) == 'on' %}checked{% endif %}
+            <input type="checkbox" name="technical_faults" value="{{ val }}"
+                   {% if val in (form.get('technical_faults') or []) %}checked{% endif %}
                    class="rounded border-gray-300">
             {{ label }}
           </label>

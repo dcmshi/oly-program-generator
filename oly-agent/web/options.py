@@ -62,6 +62,26 @@ SEX_OPTIONS = [
 VALID_GOALS = {v for _, v in GOAL_OPTIONS}
 VALID_SEXES = {v for _, v in SEX_OPTIONS}
 
+# IWF weight classes, keyed by biological_sex. Both sets are rendered by
+# partials/weight_class_select.html and filtered client-side, so setup (which
+# picks sex on the same form) and profile offer identical options (FE-M7).
+WEIGHT_CLASSES = {
+    "male":   ["55", "61", "67", "73", "81", "89", "96", "102", "109", "+109"],
+    "female": ["45", "49", "55", "59", "64", "71", "76", "81", "87", "+87"],
+}
+
+# Numeric input bounds shared by the setup wizard and the profile editor, which
+# disagreed on every one of them (bodyweight 250 vs 300, height step 0.1 vs 0.5,
+# duration 240 vs 300, training age 40 vs 50). sessions_per_week and
+# session_duration_minutes are also enforced server-side in the query modules.
+FIELD_BOUNDS = {
+    "bodyweight_kg":            {"min": 30,  "max": 300, "step": "0.1"},
+    "height_cm":                {"min": 100, "max": 250, "step": "0.5"},
+    "training_age_years":       {"min": 0,   "max": 50,  "step": "0.5"},
+    "sessions_per_week":        {"min": 1,   "max": 14,  "step": "1"},
+    "session_duration_minutes": {"min": 30,  "max": 300, "step": "5"},
+}
+
 MAX_EXERCISES = [
     "Snatch",
     "Clean & Jerk",

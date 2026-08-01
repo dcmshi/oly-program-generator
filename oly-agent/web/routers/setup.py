@@ -95,14 +95,20 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         # Multi-select fields collapse to their last value in dict(raw_form);
         # the template needs the full list to re-check every selected box, and
         # calling .getlist on the plain dict crashed the re-render (WEB-H2).
-        form["strength_limiters"] = raw_form.getlist("strength_limiters")
+        for field in ("available_equipment", "technical_faults", "strength_limiters"):
+            form[field] = raw_form.getlist(field)
         return templates.TemplateResponse(request,
             "setup.html", _template_ctx(request, errors, form), status_code=422
         )
 
-    # ── Collect equipment + faults from individual checkbox fields ──
-    equipment = [val for _, val in EQUIPMENT_OPTIONS if form.get(f"equip_{val}") == "on"]
-    faults    = [val for _, val in FAULT_OPTIONS    if form.get(f"fault_{val}") == "on"]
+    # ── Collect equipment + faults ────────────────────────────
+    # Multi-value fields, matching profile (FE-M7). Still filtered against the
+    # canonical vocabularies: these land in text[] columns, and a fault slug
+    # outside FAULT_OPTIONS silently stops matching retrieve.py's fault mapping.
+    _valid_equipment = {val for _, val in EQUIPMENT_OPTIONS}
+    _valid_faults    = {val for _, val in FAULT_OPTIONS}
+    equipment = [v for v in raw_form.getlist("available_equipment") if v in _valid_equipment]
+    faults    = [v for v in raw_form.getlist("technical_faults")    if v in _valid_faults]
 
     athlete_data = {
         "name": name,

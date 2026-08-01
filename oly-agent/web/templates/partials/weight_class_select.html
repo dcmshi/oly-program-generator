@@ -1,0 +1,43 @@
+{# Shared by setup and profile. Both option sets are always rendered and
+   filtered client-side off #biological_sex: setup picks sex on the same form
+   (it used to be a free-text box with a wrong-format placeholder), and profile
+   rendered options from the *saved* sex, so switching the select there needed a
+   save and reload before the right classes appeared. Callers pass `selected`,
+   `sex`, and `field_class`. #}
+<select name="weight_class" id="weight_class" class="{{ field_class }}">
+  <option value="">— select —</option>
+  {% for group_sex, classes in weight_classes.items() %}
+  <optgroup label="{{ 'Women' if group_sex == 'female' else 'Men' }}" data-sex="{{ group_sex }}">
+    {% for wc in classes %}
+    {# 55 and 81 exist in both sets, so only mark the copy in the group that is
+       actually showing — two selected options would leave the browser picking
+       the last one, which the filter may then hide. #}
+    <option value="{{ wc }}"
+            {% if selected == wc and group_sex == (sex or 'male') %}selected{% endif %}>{{ wc }} kg</option>
+    {% endfor %}
+  </optgroup>
+  {% endfor %}
+</select>
+<script>
+(function () {
+  const sexSelect = document.getElementById('biological_sex');
+  const wcSelect = document.getElementById('weight_class');
+  if (!sexSelect || !wcSelect) return;
+
+  function applySex() {
+    const sex = sexSelect.value;
+    const chosen = wcSelect.selectedOptions[0];
+    let chosenHidden = false;
+    wcSelect.querySelectorAll('optgroup').forEach(function (group) {
+      const show = !sex || group.dataset.sex === sex;
+      group.hidden = !show;
+      group.disabled = !show;
+      if (!show && chosen && group.contains(chosen)) chosenHidden = true;
+    });
+    if (chosenHidden) wcSelect.value = '';
+  }
+
+  sexSelect.addEventListener('change', applySex);
+  applySex();
+})();
+</script>

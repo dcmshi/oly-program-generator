@@ -288,14 +288,18 @@ templates.env.filters["parse_rationale"]  = _parse_rationale
 from web.options import (
     EQUIPMENT_OPTIONS,
     FAULT_OPTIONS,
+    FIELD_BOUNDS,
     GOAL_OPTIONS,
     STRENGTH_LIMITER_OPTIONS,
+    WEIGHT_CLASSES,
 )
 
 templates.env.globals["equipment_options"] = EQUIPMENT_OPTIONS
 templates.env.globals["fault_options"]     = FAULT_OPTIONS
 templates.env.globals["limiter_options"]   = STRENGTH_LIMITER_OPTIONS
 templates.env.globals["goal_options"]      = GOAL_OPTIONS
+templates.env.globals["weight_classes"]    = WEIGHT_CLASSES
+templates.env.globals["bounds"]            = FIELD_BOUNDS
 
 # ── Error pages ───────────────────────────────────────────────
 # HTMX requests get a small text fragment (a full page would be swapped into
