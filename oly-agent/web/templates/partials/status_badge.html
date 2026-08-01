@@ -1,4 +1,7 @@
-<span id="status-badge"
+<!-- oob=True makes this badge ride along with another swap: htmx retargets it
+     at the header #status-badge instead of leaving a second element with the
+     same id in the response body. -->
+<span id="status-badge"{% if oob %} hx-swap-oob="true"{% endif %}
       class="text-xs px-2 py-0.5 rounded-full font-medium {{ status | status_color }}">
   {{ status }}
 </span>

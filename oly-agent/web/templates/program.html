@@ -12,10 +12,7 @@
       <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ program.phase | phase_color }}">
         {{ program.phase | upper }}
       </span>
-      <span id="status-badge"
-            class="text-xs px-2 py-0.5 rounded-full font-medium {{ program.status | status_color }}">
-        {{ program.status }}
-      </span>
+      {% with status = program.status %}{% include "partials/status_badge.html" %}{% endwith %}
       <span class="text-gray-400 text-sm">
         {{ program.duration_weeks }} wks · {{ program.sessions_per_week }} days/wk · starts {{ program.start_date }}
       </span>

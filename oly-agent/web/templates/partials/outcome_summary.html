@@ -1,11 +1,11 @@
+<!-- Out-of-band: refresh the badge already in the page header. Emitting a
+     second #status-badge inside the swapped fragment left two elements with
+     the same id showing contradictory statuses until a reload. Must stay a
+     top-level node — htmx only processes hx-swap-oob on the fragment root. -->
+{% with status = "completed", oob = True %}{% include "partials/status_badge.html" %}{% endwith %}
+
 <!-- Replaces the action buttons area after program completion -->
 <div id="program-actions" class="space-y-4">
-
-  <!-- Updated status badge -->
-  <span id="status-badge"
-        class="text-xs px-2 py-0.5 rounded-full font-medium bg-blue-100 text-blue-800">
-    completed
-  </span>
 
   <!-- Outcome metrics card -->
   <div class="bg-blue-50 border border-blue-100 rounded-xl p-5">

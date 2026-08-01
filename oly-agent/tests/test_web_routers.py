@@ -859,6 +859,47 @@ def test_limiter_serves_requests_when_redis_is_down():
     assert codes[2] == 429, f"limits must still be enforced in memory, got {codes}"
 
 
+# ── FE-H1: completing a program must not emit a second #status-badge ──────────
+
+def _outcome(**overrides):
+    from models import ProgramOutcome
+    base = {
+        "program_id": 1, "athlete_id": 1, "maxes_delta": {"Snatch": 2.5},
+        "sessions_prescribed": 24, "sessions_completed": 20, "adherence_pct": 83.0,
+        "avg_rpe_deviation": 0.4, "avg_make_rate": 0.82,
+        "make_rate_by_lift": {"snatch": 0.8}, "phase_verdict": {},
+        "avg_weekly_reps": 200.0, "rpe_trend": "stable", "make_rate_trend": "stable",
+        "athlete_feedback": None,
+    }
+    return ProgramOutcome(**{**base, **overrides})
+
+
+def test_complete_emits_single_oob_status_badge():
+    """The header badge said 'active' while the swapped fragment said
+    'completed', with both carrying id="status-badge"."""
+    with patch("web.queries.program.get_program", return_value=_program(status="active")):
+        with patch("web.queries.program.complete_program", return_value=_outcome()):
+            r = _client.post("/program/1/complete")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    body = r.text
+    n_badges = body.count('id="status-badge"')
+    assert n_badges == 1, f"expected exactly one #status-badge, got {n_badges}"
+    assert 'hx-swap-oob="true"' in body, "the badge must be swapped out-of-band into the header"
+    assert "completed" in body
+
+
+def test_program_detail_header_badge_is_not_oob():
+    """The full page renders the badge in place — an hx-swap-oob attribute
+    there would make htmx relocate it on any later swap."""
+    with patch("web.queries.program.get_program", return_value=_program()):
+        with patch("web.queries.program.get_program_weeks", return_value=_week_data()):
+            with patch("web.queries.program.get_program_volume_by_week", return_value=[]):
+                r = _client.get("/program/1")
+    assert r.status_code == 200
+    assert 'id="status-badge"' in r.text
+    assert "hx-swap-oob" not in r.text
+
+
 # ── Runner ─────────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":
