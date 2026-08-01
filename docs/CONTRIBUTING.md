@@ -67,7 +67,7 @@ Architecture review completed 2026-03-16. All 12 items resolved.
 
 | # | Issue | File | Status |
 |---|-------|------|--------|
-| S3 | Static files served by the app — ties up the app process; should be handled by reverse proxy or CDN | `oly-agent/web/app.py` | ⬜ Open |
+| S3 | Static files served by the app — ties up the app process; should be handled by the reverse proxy | `oly-agent/web/app.py` | ⬜ Open — and now larger: since the CDN assets were vendored (audit 7 / FE-L3) `/static` also serves htmx, Chart.js, `tailwind.css` and 8 woff2 files (~470 KB). All immutable and safe for the proxy to serve directly with a long `Cache-Control`; a public CDN is *not* wanted here, since removing that third-party dependency was the point |
 | S4 | DB connection pool vs Postgres `max_connections=100` — 10 web instances exhausts the limit | `oly-agent/web/async_db.py` | ✅ Done (PgBouncer transaction pooling on :5432; Postgres direct on :5433; `statement_cache_size=0` in asyncpg) |
 | S5 | pgvector full table scan on every retrieval without HNSW/IVFFlat index | `schema.sql` | ✅ Done (HNSW index `idx_chunks_embedding` — `m=16, ef_construction=64`, `vector_cosine_ops`) |
 

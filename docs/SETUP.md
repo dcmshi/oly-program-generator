@@ -172,6 +172,31 @@ CLI generation only needs Postgres (no Redis, no web server, no ARQ worker).
 
 ---
 
+## Frontend Assets
+
+Nothing is loaded from a CDN — Tailwind, htmx, Chart.js and both webfonts are all
+served from `oly-agent/web/static/`. The generated files are **committed**, so a
+clone runs and deploys without npm or network access, and neither target below is
+part of setup.
+
+```bash
+make css      # compile web/static/tailwind.css from web/tailwind/  (needs npm)
+make fonts    # refetch the self-hosted woff2 files + regenerate fonts.css
+```
+
+Run `make css` after using a Tailwind utility class that no template used before —
+the compiler only emits what it finds in the content globs, so a brand-new class
+silently has no styles until you rebuild.
+
+The colour palette lives in `web/tailwind/tailwind.config.js`, defined by role:
+`paper` (surfaces), `line` (borders), `ink` (text on those surfaces), `navy` (nav
+and primary buttons, with its own light text shades for use *on* navy), and
+`canvas` (page background). Tailwind's default `gray` is deliberately left
+unremapped and unused — a stray `text-gray-500` renders visibly cool against the
+warm theme, and a test fails on any `-gray-` utility.
+`web/tailwind/build_palette.py` regenerates the accent tints and audits the
+contrast of every fill/text pair the templates use.
+
 ## Running Tests
 
 ```bash

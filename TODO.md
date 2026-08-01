@@ -297,6 +297,108 @@ in AGT-L9's Check 0 — both noted inline above.
   transient/permanent split, `pipeline.py` continuation scanning, chunker
   boundary math, migration chain 0000→0007 (verified live in audit 4).
 
+## 10. Audit 7 — 2026-07-31 frontend & design pass — ALL FIXED
+
+Scope: `oly-agent/web/templates/**` plus the router/template contract in
+`web/{app,options}.py` and `routers/{program,log_session,generate,setup,history}.py`
+— the surface every earlier audit treated as secondary. Result: **5 HIGH,
+10 MEDIUM, 6 LOW**, each fixed in its own commit with regression tests. Verified
+green on this machine: **552 agent** + **164+2 ingestion** no-key tests, ruff
+0.15.22 clean, and the rendered pages checked in a browser (the CSS work is
+visual, so tests alone weren't evidence).
+
+Regression coverage lives in `tests/test_web_routers.py` (rendered-page and
+router behaviour) and `tests/test_web_queries.py` (template-source invariants,
+palette contrast, dead-asset checks).
+
+### High
+
+- [x] **FE-H1** — the complete response emitted a second `<span id="status-badge">`
+  while the header still read "active"; now one badge, swapped `hx-swap-oob`.
+- [x] **FE-H2** — completing a program replaced `#program-actions` and took Export
+  CSV/PDF with it; complete now fills a dedicated `#outcome-area`.
+- [x] **FE-H3** — htmx doesn't swap on 4xx/5xx and nothing listened, so a 409
+  double-submit, any 429, or a 500 mid-render did *nothing* visible. Global
+  `htmx:responseError`/`htmx:sendError` toast in `base.html`.
+- [x] **FE-H4** — Activate/Abandon swapped only the badge, leaving both buttons
+  live; and `abandon` was the one status endpoint with no guard, so it would flip
+  a *completed* program and strand the outcome just computed for it. Buttons moved
+  to `partials/program_actions.html`, keyed off status; abandon 409s.
+- [x] **FE-H5** — `get_adherence` didn't clamp, so over-logging rendered
+  `width: 112%` on a track with no `overflow-hidden`.
+
+### Medium
+
+- [x] **FE-M1** — `{% block extra_js %}` was never declared in `base.html`, so
+  Jinja silently dropped it. A test now walks every base-extending template.
+- [x] **FE-M2** — deleted `exercise_logged_row.html` (unreferenced), the
+  `[x-cloak]` rule (Alpine is never loaded) and the unused `.htmx-indicator` CSS.
+- [x] **FE-M3** — no busy state on any action. Styles htmx's own `.htmx-request`
+  instead of per-template markup. **Follow-up:** the selector matched only
+  `[type="submit"]`, so a typeless submit button would have been missed → now
+  `:not([type="button"])`, with a test walking every `hx-*` trigger.
+- [x] **FE-M4** — "Save Session ✓" was an `<a href>`; everything was already
+  persisted. Renamed to "Done — back to program".
+- [x] **FE-M5** — dropped the hardcoded "16 LLM calls / ~5 min / ~$0.50"; added
+  `jobs.get_inflight_job_id()` so returning to `/generate` resumes polling.
+- [x] **FE-M6** — the program-delete ✕ was hover-only, i.e. invisible on touch.
+- [x] **FE-M7** — setup and profile collected the same data three ways: free-text
+  vs select weight class (with a wrong-format hint), four disagreeing numeric
+  bounds, and `equip_<val>`/`fault_<val>` vs multi-value names. Now one shared
+  select partial, `FIELD_BOUNDS` in `web/options.py`, and consistent field names.
+- [x] **FE-M8** — the exercise row toggled its edit form from a bare
+  `<div onclick>`; keyboard users couldn't open it at all.
+- [x] **FE-M9** — labels sat as bare siblings of their inputs everywhere except
+  `login.html`. `for`/`id` throughout; per-row ids in `exercise_log_entry.html`.
+- [x] **FE-M10** — the hamburger had no `aria-expanded`, and the menu closed on
+  neither outside click nor Escape.
+
+### Low
+
+- [x] **FE-L1** — `text-gray-400`/`500` were remapped to 2.7:1 and 4.4:1 on the
+  warm card. See the FE-L2 note below: this fix was correct for cards and *wrong*
+  for the nav, which FE-L2 then resolved properly.
+- [x] **FE-L2** — the theme was ~40 `!important` overrides on Tailwind's gray
+  scale, copy-pasted into four templates as different subsets. Now a role-based
+  palette (`paper`/`line`/`ink`/`navy`/`canvas`) in `web/tailwind/tailwind.config.js`;
+  the compiled CSS contains **no** `!important`. `static/theme.css` is gone — it
+  was served raw so `theme()` never resolved — and its component classes moved
+  into the build's `input.css`, outside `@layer components` because Tailwind
+  tree-shakes that layer and `.htmx-request` only exists at runtime.
+- [x] **FE-L3** — every page pulled from `cdn.tailwindcss.com` (a dev-only
+  in-browser compiler), unpkg, jsdelivr and Google Fonts. All vendored under
+  `web/static/`; `make css` / `make fonts` regenerate, outputs committed.
+- [x] **FE-L4** — ~90 lines of outcome-card markup duplicated between
+  `program.html` and the partial, already drifted. One `partials/outcome_card.html`,
+  rendering from both the dataclass and the stored JSONB.
+- [x] **FE-L5** — the "Warmup" badge substring-matched `selection_rationale`, so
+  it fired on "not a warmup priority". Now `shared/exercise_mapping.is_warmup_set()`,
+  reusing the ≤`WARMUP_VOLUME_EXCLUSION_PCT` rule `validate.py` already applies.
+- [x] **FE-L6** — the Logout form rendered regardless of session state.
+
+### Two findings worth remembering
+
+- **A single remapped token can't serve two backgrounds.** `text-gray-400` meant
+  "faint metadata on a cream card" in most templates and "light link on the navy
+  nav" in `base.html`. FE-L1 darkened it for the cards and thereby took the nav's
+  profile link and hamburger from 5.18:1 to **2.58:1** — a regression introduced
+  and then caught inside the same audit, because the FE-L1 contrast test only
+  checked light surfaces. FE-L2's split (`ink-*` vs `navy-100/200`) is the fix, and
+  the test now covers on-navy pairs too.
+- **Neither webfont had ever loaded.** The Google Fonts URL the templates built
+  was a malformed two-axis DM Sans request (`opsz,wght@9..40,300;400;500;600`),
+  which Google answers with a 400 — so every page had been falling back to the
+  generic sans-serif. Self-hosting fixed the typography as a side effect.
+
+### Verified non-issues (don't re-file)
+
+- `_safe_back` open-redirect handling in `routers/history.py` — correctly rejects
+  protocol-relative, `://` and control-char variants.
+- CSRF posture — `OriginCheckMiddleware` + `SameSite=Lax` + 64 KB body cap.
+- Goal-progress and lift-ratio gauges already clamp pct to 0–100.
+- `prefillExercise` uses `data-*` attributes, not JS-string interpolation.
+- HTMX auth expiry returns `HX-Redirect`, so mid-interaction expiry redirects cleanly.
+
 ## Notes / non-findings from audit 5 (2026-07-18)
 
 - Charniga articles never consult `SOURCE_PROFILE_MAP` — the web path sizes chunks via `for_web_article(word_count)`. Not a bug, but CLAUDE.md's "add to SOURCE_PROFILE_MAP first" rule is a no-op for `--site charniga`; keep in mind for the DB-machine run.

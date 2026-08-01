@@ -4,7 +4,7 @@
 
 ```mermaid
 flowchart TB
-    Browser["🌐 Browser<br/>HTMX · Tailwind CSS"]
+    Browser["🌐 Browser<br/>HTMX · Tailwind CSS<br/><i>all assets self-hosted</i>"]
 
     subgraph infra["Infrastructure  (docker compose up -d)"]
         PG[("🗄 Postgres 16 + pgvector<br/>localhost:5432")]
@@ -214,6 +214,14 @@ Internet ──► Reverse │  nginx / Caddy / ALB  (HTTPS termination)│
    └─────────────────┘   └─────────────────┘   │   max_jobs=1)   │
                                                 └─────────────────┘
 ```
+
+**Static assets.** The browser makes no third-party requests: Tailwind (compiled),
+htmx, Chart.js and both webfonts are all served from `/static`. The app will serve
+them itself, but they are immutable and better handed to the reverse proxy with a
+long `Cache-Control` — see S3 in [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md). No
+outbound internet access is needed to render a page, and a Content-Security-Policy
+can be `default-src 'self'` apart from the inline `<script>` blocks in
+`base.html`/`program.html`.
 
 **Required environment variables for production:**
 

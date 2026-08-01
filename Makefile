@@ -133,7 +133,7 @@ css:
 	cd oly-agent/web/tailwind && npm install --silent && npm run build
 
 fonts:
-	cd oly-agent && python web/static/build_fonts.py
+	cd oly-agent && python web/tailwind/build_fonts.py
 
 # ── Coverage ──────────────────────────────────────────────────────────────────
 
