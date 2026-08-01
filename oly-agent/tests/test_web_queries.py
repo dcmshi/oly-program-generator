@@ -698,6 +698,72 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-L1: remapped gray text must clear WCAG AA ─────────────────────────────
+
+def _relative_luminance(hex_color):
+    h = hex_color.lstrip("#")
+    channels = [int(h[i:i + 2], 16) / 255 for i in (0, 2, 4)]
+    linear = [c / 12.92 if c <= 0.03928 else ((c + 0.055) / 1.055) ** 2.4 for c in channels]
+    return 0.2126 * linear[0] + 0.7152 * linear[1] + 0.0722 * linear[2]
+
+
+def _contrast(fg, bg):
+    a, b = _relative_luminance(fg), _relative_luminance(bg)
+    hi, lo = max(a, b), min(a, b)
+    return (hi + 0.05) / (lo + 0.05)
+
+
+def _theme_vars(template):
+    text = (Path(__file__).parent.parent / "web" / "templates" / template).read_text(encoding="utf-8")
+    return dict(re.findall(r"(--[\w-]+):\s*(#[0-9A-Fa-f]{6})", text))
+
+
+def test_contrast_helper_matches_known_ratios():
+    # Sanity-check the formula against the extremes before trusting it below.
+    assert round(_contrast("#000000", "#FFFFFF"), 1) == 21.0
+    assert round(_contrast("#777777", "#FFFFFF"), 2) == 4.48
+
+
+def test_muted_text_clears_aa_on_every_surface_it_sits_on():
+    """text-gray-400 and text-gray-500 carry dates, "Day N" labels, helper text
+    and table metadata — all small text, so they need 4.5:1. They were remapped
+    to #A09A94 (2.7:1) and #7A7570 (4.4:1) on the warm card.
+
+    The surfaces are the card, the page background, and bg-gray-50; bg-gray-100
+    is excluded because it only ever carries text-gray-600/700 (progress-bar
+    tracks and badges), not these two.
+    """
+    v = _theme_vars("base.html")
+    surfaces = {"--card": v["--card"], "--bg": v["--bg"], "--subtle": v["--subtle"]}
+    failures = []
+    for token in ("--text-faint", "--text-muted", "--text-sec"):
+        for surface, bg in surfaces.items():
+            ratio = _contrast(v[token], bg)
+            if ratio < 4.5:
+                failures.append(f"{token} ({v[token]}) on {surface} ({bg}) = {ratio:.2f}:1")
+    assert not failures, "below the 4.5:1 AA threshold for small text: " + "; ".join(failures)
+
+
+def test_text_tokens_keep_their_visual_hierarchy():
+    v = _theme_vars("base.html")
+    faint = _relative_luminance(v["--text-faint"])
+    muted = _relative_luminance(v["--text-muted"])
+    sec = _relative_luminance(v["--text-sec"])
+    assert faint > muted > sec, "faint should stay lightest and sec darkest"
+
+
+def test_standalone_pages_use_the_same_text_tokens():
+    """login.html and setup.html carry their own copy of the palette, so a fix in
+    base.html has to reach them too."""
+    base = _theme_vars("base.html")
+    for page in ("login.html", "setup.html"):
+        v = _theme_vars(page)
+        for token in ("--text-muted", "--text-faint", "--text-sec"):
+            if token in v:
+                assert v[token] == base[token], \
+                    f"{page} {token} is {v[token]}, base.html says {base[token]}"
+
+
 # ── FE-M10: mobile nav needs ARIA state and a way to close ───────────────────
 
 def test_nav_toggle_exposes_and_updates_its_state():
