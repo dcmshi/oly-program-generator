@@ -964,11 +964,24 @@ def test_nav_links_still_render_for_anonymous():
 
 # ── FE-L2 / FE-L3: local assets must all be served ────────────────────────────
 
-def test_theme_css_is_served():
-    r = _unauthed.get("/static/theme.css")
+def test_compiled_css_is_served_with_the_palette_in_it():
+    r = _unauthed.get("/static/tailwind.css")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
-    assert "--text-faint" in r.text, "the palette must reach the browser"
     assert "text/css" in r.headers.get("content-type", "")
+    # Tailwind emits colours as space-separated rgb triplets for opacity support:
+    # paper #FDFBF8 and navy #1C2B3A.
+    assert "253 251 248" in r.text, "the paper surface must reach the browser"
+    assert "28 43 58" in r.text, "the navy must reach the browser"
+
+
+def test_theme_css_is_gone():
+    """Its two component classes moved into the Tailwind build so they can use
+    theme(); a stale link would 404 and take the busy-state CSS with it."""
+    r = _unauthed.get("/static/theme.css")
+    assert r.status_code == 404, f"expected theme.css to be removed, got {r.status_code}"
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    stale = [p.name for p in tpl_dir.rglob("*.html") if "theme.css" in p.read_text(encoding="utf-8")]
+    assert not stale, f"templates still link the deleted theme.css: {stale}"
 
 
 def test_every_local_asset_a_template_references_exists():
@@ -1006,7 +1019,7 @@ def test_compiled_css_covers_the_classes_templates_use():
     # One representative of each variant kind the templates rely on.
     for cls in (r"print\:hidden", r"print\:table-cell", r"sm\:group-hover\:opacity-100",
                 r"sm\:focus\:opacity-100", r"hover\:bg-red-500", r"sm\:table-cell",
-                "animate-spin", "divide-gray-50"):
+                "animate-spin", "divide-line-faint"):
         assert cls in css, f"compiled tailwind.css is missing {cls}"
     # An arbitrary value Tailwind has to normalise: calc(100%-2rem) is invalid CSS
     # without spaces around the operator.

@@ -2,10 +2,10 @@
 
   <!-- Collapsible session edit panel -->
   {% if log %}
-  <details class="bg-gray-50 border border-gray-200 rounded-xl">
-    <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-600 select-none">
+  <details class="bg-paper-100 border border-line rounded-xl">
+    <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-ink-sec select-none">
       ✓ {{ log.log_date }}{% if log.overall_rpe %} · RPE {{ log.overall_rpe }}{% endif %}
-      <span class="text-gray-400 font-normal ml-1">— tap to edit session details</span>
+      <span class="text-ink-faint font-normal ml-1">— tap to edit session details</span>
     </summary>
     <div class="px-4 pb-4 pt-2">
       <form hx-post="/log/{{ session.id }}"
@@ -15,57 +15,57 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <div>
-            <label for="log_date" class="block text-xs text-gray-500 mb-1">Date</label>
+            <label for="log_date" class="block text-xs text-ink-muted mb-1">Date</label>
             <input type="date" name="log_date" id="log_date" value="{{ log.log_date }}"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm bg-paper">
           </div>
           <div>
-            <label for="overall_rpe" class="block text-xs text-gray-500 mb-1">Overall session RPE</label>
+            <label for="overall_rpe" class="block text-xs text-ink-muted mb-1">Overall session RPE</label>
             <input type="number" name="overall_rpe" id="overall_rpe" min="1" max="10" step="0.5"
                    value="{{ log.overall_rpe or '' }}"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm bg-white">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm bg-paper">
           </div>
         </div>
 
-        <details class="border border-gray-100 rounded-lg bg-white">
-          <summary class="cursor-pointer px-3 py-2 text-xs text-gray-400 hover:text-gray-600 select-none">
+        <details class="border border-line-light rounded-lg bg-paper">
+          <summary class="cursor-pointer px-3 py-2 text-xs text-ink-faint hover:text-ink-sec select-none">
             + Duration, bodyweight, wellness
           </summary>
           <div class="px-3 pb-3 pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label for="duration" class="block text-xs text-gray-500 mb-1">Duration (min)</label>
+              <label for="duration" class="block text-xs text-ink-muted mb-1">Duration (min)</label>
               <input type="number" name="duration" id="duration"
                      value="{{ log.session_duration_minutes or '' }}"
-                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                     class="w-full border border-line rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label for="bodyweight" class="block text-xs text-gray-500 mb-1">Bodyweight (kg)</label>
+              <label for="bodyweight" class="block text-xs text-ink-muted mb-1">Bodyweight (kg)</label>
               <input type="number" name="bodyweight" id="bodyweight" step="0.1"
                      value="{{ log.bodyweight_kg or '' }}"
-                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                     class="w-full border border-line rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label for="sleep_quality" class="block text-xs text-gray-500 mb-1">Sleep quality (1–5)</label>
+              <label for="sleep_quality" class="block text-xs text-ink-muted mb-1">Sleep quality (1–5)</label>
               <input type="number" name="sleep_quality" id="sleep_quality" min="1" max="5"
                      value="{{ log.sleep_quality or '' }}"
-                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                     class="w-full border border-line rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label for="stress_level" class="block text-xs text-gray-500 mb-1">Stress level (1–5)</label>
+              <label for="stress_level" class="block text-xs text-ink-muted mb-1">Stress level (1–5)</label>
               <input type="number" name="stress_level" id="stress_level" min="1" max="5"
                      value="{{ log.stress_level or '' }}"
-                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                     class="w-full border border-line rounded-lg px-3 py-2 text-sm">
             </div>
             <div class="col-span-2">
-              <label for="notes" class="block text-xs text-gray-500 mb-1">Notes</label>
+              <label for="notes" class="block text-xs text-ink-muted mb-1">Notes</label>
               <textarea name="notes" id="notes" rows="2"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none">{{ log.athlete_notes or '' }}</textarea>
+                        class="w-full border border-line rounded-lg px-3 py-2 text-sm resize-none">{{ log.athlete_notes or '' }}</textarea>
             </div>
           </div>
         </details>
 
         <button type="submit"
-                class="bg-gray-700 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-gray-900">
+                class="bg-navy-700 text-white px-4 py-1.5 rounded-lg text-sm hover:bg-navy">
           Save changes
         </button>
       </form>
@@ -74,7 +74,7 @@
   {% endif %}
 
   <!-- Logged exercises -->
-  <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+  <div class="bg-paper border border-line rounded-xl p-5 shadow-sm">
     <h2 class="font-semibold mb-3">Exercises</h2>
 
     <div id="logged-exercises" class="space-y-2 mb-4">
@@ -99,14 +99,14 @@
       {% endfor %}
     {% endif %}
 
-    <details class="border border-gray-200 rounded-xl" {% if not logged_exercises %}open{% endif %}>
-      <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-gray-700">+ Add exercise</summary>
+    <details class="border border-line rounded-xl" {% if not logged_exercises %}open{% endif %}>
+      <summary class="cursor-pointer px-4 py-3 text-sm font-medium text-ink-700">+ Add exercise</summary>
       <div class="px-4 pb-4 pt-2">
 
         <!-- Remaining prescribed exercises -->
         {% if ns.remaining %}
         <div class="mb-3">
-          <p class="text-xs text-gray-400 mb-2">Prescribed exercises (click to pre-fill)</p>
+          <p class="text-xs text-ink-faint mb-2">Prescribed exercises (click to pre-fill)</p>
           <div class="flex flex-wrap gap-1">
             {% for ex in ns.remaining %}
             <button type="button"
@@ -117,7 +117,7 @@
                     data-sets="{{ ex.sets }}"
                     data-reps="{{ ex.reps }}"
                     onclick="prefillExercise(this)"
-                    class="text-xs bg-gray-100 hover:bg-gray-200 px-2.5 py-1.5 rounded-md">
+                    class="text-xs bg-paper-200 hover:bg-paper-400 px-2.5 py-1.5 rounded-md">
               {{ ex.exercise_order }}. {{ ex.exercise_name }}
               {% if ex.absolute_weight_kg %}@{{ ex.absolute_weight_kg }}kg{% endif %}
               · {{ ex.sets }}×{{ ex.reps }}
@@ -126,7 +126,7 @@
           </div>
         </div>
         {% elif session and session.exercises %}
-        <p class="text-xs text-gray-400 mb-3">All prescribed exercises logged. Add extras below if needed.</p>
+        <p class="text-xs text-ink-faint mb-3">All prescribed exercises logged. Add extras below if needed.</p>
         {% endif %}
 
         <form hx-post="/log/{{ log_id }}/exercise"
@@ -139,47 +139,47 @@
           <input type="hidden" name="prescribed_rpe" id="prescribed_rpe">
 
           <div class="col-span-2">
-            <label for="exercise_name_input" class="block text-xs text-gray-500 mb-1">Exercise name</label>
+            <label for="exercise_name_input" class="block text-xs text-ink-muted mb-1">Exercise name</label>
             <input type="text" name="exercise_name" id="exercise_name_input" required
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
-            <label for="sets_input" class="block text-xs text-gray-500 mb-1">Sets completed</label>
+            <label for="sets_input" class="block text-xs text-ink-muted mb-1">Sets completed</label>
             <input type="number" name="sets_completed" id="sets_input" min="1" required
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
-            <label for="reps_input" class="block text-xs text-gray-500 mb-1">Reps per set</label>
+            <label for="reps_input" class="block text-xs text-ink-muted mb-1">Reps per set</label>
             <input type="text" name="reps_per_set" id="reps_input" placeholder="3,3,3"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
-            <label for="weight_input" class="block text-xs text-gray-500 mb-1">Weight (kg)</label>
+            <label for="weight_input" class="block text-xs text-ink-muted mb-1">Weight (kg)</label>
             <input type="number" name="weight_kg" step="0.5" id="weight_input"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
-            <label for="rpe_input" class="block text-xs text-gray-500 mb-1">RPE</label>
+            <label for="rpe_input" class="block text-xs text-ink-muted mb-1">RPE</label>
             <input type="number" name="rpe" min="1" max="10" step="0.5" id="rpe_input"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
-            <label for="make_rate_input" class="block text-xs text-gray-500 mb-1">
+            <label for="make_rate_input" class="block text-xs text-ink-muted mb-1">
               Make rate %
-              <span class="text-gray-400 font-normal">(successful lifts — e.g. 80 = 4/5)</span>
+              <span class="text-ink-faint font-normal">(successful lifts — e.g. 80 = 4/5)</span>
             </label>
             <input type="number" name="make_rate" id="make_rate_input" min="0" max="100" placeholder="100"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
-            <label for="technical_notes_input" class="block text-xs text-gray-500 mb-1">Technical notes (optional)</label>
+            <label for="technical_notes_input" class="block text-xs text-ink-muted mb-1">Technical notes (optional)</label>
             <input type="text" name="technical_notes" id="technical_notes_input" placeholder="e.g. missed jerk catch"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
 
           <div class="col-span-2">
             <button type="submit"
-                    class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700">
+                    class="bg-navy text-white px-4 py-2 rounded-lg text-sm hover:bg-navy-700">
               Save exercise
             </button>
           </div>
@@ -189,7 +189,7 @@
 
     <!-- Everything on this page is already persisted over HTMX, so this is
          navigation, not a save. -->
-    <div class="mt-5 pt-4 border-t border-gray-100">
+    <div class="mt-5 pt-4 border-t border-line-light">
       <a href="/program/{{ session.program_id }}"
          class="block w-full text-center bg-green-600 text-white px-5 py-2.5 rounded-lg text-sm font-medium hover:bg-green-700">
         Done — back to program

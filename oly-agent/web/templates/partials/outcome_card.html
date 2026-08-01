@@ -12,7 +12,7 @@
       <p class="text-2xl font-bold text-blue-900">{{ outcome.adherence_pct }}%</p>
       <p class="text-xs text-blue-600 mt-0.5">Adherence</p>
       {% if outcome.sessions_prescribed %}
-      <p class="text-xs text-gray-400">{{ outcome.sessions_completed }}/{{ outcome.sessions_prescribed }} sessions</p>
+      <p class="text-xs text-ink-faint">{{ outcome.sessions_completed }}/{{ outcome.sessions_prescribed }} sessions</p>
       {% endif %}
     </div>
     <div>
@@ -21,7 +21,7 @@
         {{ '+' if dev > 0 else '' }}{{ '%.2f' | format(dev) }}
       </p>
       <p class="text-xs text-blue-600 mt-0.5">Avg RPE deviation</p>
-      <p class="text-xs text-gray-400">actual − target</p>
+      <p class="text-xs text-ink-faint">actual − target</p>
     </div>
     <div>
       {% set mr = outcome.avg_make_rate %}
@@ -33,13 +33,13 @@
       {% if outcome.make_rate_by_lift %}
       <div class="flex flex-wrap justify-center gap-x-2 mt-1">
         {% for ref, rate in outcome.make_rate_by_lift.items() %}
-        <span class="text-xs {{ 'text-red-500' if rate < 0.75 else 'text-gray-400' }}">
+        <span class="text-xs {{ 'text-red-500' if rate < 0.75 else 'text-ink-faint' }}">
           {{ lift_labels.get(ref, ref) }} {{ (rate * 100) | round | int }}%
         </span>
         {% endfor %}
       </div>
       {% else %}
-      <p class="text-xs text-gray-400">competition lifts</p>
+      <p class="text-xs text-ink-faint">competition lifts</p>
       {% endif %}
     </div>
   </div>

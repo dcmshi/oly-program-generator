@@ -6,9 +6,8 @@
   <title>Create Account — Oly Agent</title>
   <link rel="stylesheet" href="/static/tailwind.css">
   <link rel="stylesheet" href="/static/fonts.css">
-  <link rel="stylesheet" href="/static/theme.css">
 </head>
-<body class="text-gray-900 min-h-screen py-12">
+<body class="text-ink min-h-screen py-12">
 
   <div class="max-w-2xl mx-auto px-4">
 
@@ -30,9 +29,9 @@
         </svg>
         Oly Agent
       </a>
-      <p class="text-gray-500 text-sm mt-2">
+      <p class="text-ink-muted text-sm mt-2">
         Already have an account?
-        <a href="/login" class="text-gray-900 font-medium hover:underline">Sign in</a>
+        <a href="/login" class="text-ink font-medium hover:underline">Sign in</a>
       </p>
     </div>
 
@@ -50,56 +49,56 @@
     <form method="post" action="/setup" class="space-y-6">
 
       <!-- ── Account ─────────────────────────────────────────── -->
-      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 class="font-semibold text-gray-900 mb-4">Account</h2>
+      <div class="bg-paper rounded-xl border border-line shadow-sm p-6">
+        <h2 class="font-semibold text-ink mb-4">Account</h2>
         <div class="grid grid-cols-1 gap-4">
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="username">Username <span class="text-red-500">*</span></label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="username">Username <span class="text-red-500">*</span></label>
             <input type="text" name="username" id="username" value="{{ form.get('username','') }}"
                    required maxlength="100" autocomplete="username"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           <div class="grid grid-cols-2 gap-4">
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1" for="password">Password <span class="text-red-500">*</span></label>
+              <label class="block text-xs font-medium text-ink-sec mb-1" for="password">Password <span class="text-red-500">*</span></label>
               <input type="password" name="password" id="password" required minlength="8" autocomplete="new-password"
-                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
-              <p class="text-xs text-gray-400 mt-1">Min. 8 characters</p>
+                     class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
+              <p class="text-xs text-ink-faint mt-1">Min. 8 characters</p>
             </div>
             <div>
-              <label class="block text-xs font-medium text-gray-600 mb-1" for="confirm_password">Confirm password <span class="text-red-500">*</span></label>
+              <label class="block text-xs font-medium text-ink-sec mb-1" for="confirm_password">Confirm password <span class="text-red-500">*</span></label>
               <input type="password" name="confirm_password" id="confirm_password" required minlength="8" autocomplete="new-password"
-                     class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                     class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
             </div>
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="email">Email <span class="text-gray-400">(optional)</span></label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="email">Email <span class="text-ink-faint">(optional)</span></label>
             <input type="email" name="email" id="email" value="{{ form.get('email','') }}" maxlength="300"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
         </div>
       </div>
 
       <!-- ── Profile ─────────────────────────────────────────── -->
-      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 class="font-semibold text-gray-900 mb-4">Profile</h2>
+      <div class="bg-paper rounded-xl border border-line shadow-sm p-6">
+        <h2 class="font-semibold text-ink mb-4">Profile</h2>
         <div class="grid grid-cols-2 gap-4">
 
           <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="name">Full name <span class="text-red-500">*</span></label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="name">Full name <span class="text-red-500">*</span></label>
             <input type="text" name="name" id="name" value="{{ form.get('name','') }}"
                    required maxlength="200"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="level">Level <span class="text-red-500">*</span></label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="level">Level <span class="text-red-500">*</span></label>
             <select name="level" id="level" required
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
               <option value="">— select —</option>
               {% for v in ["beginner","intermediate","advanced","elite"] %}
               <option value="{{ v }}" {% if form.get('level') == v %}selected{% endif %}>
@@ -110,9 +109,9 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="biological_sex">Sex</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="biological_sex">Sex</label>
             <select name="biological_sex" id="biological_sex"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
               <option value="">— select —</option>
               <option value="male"   {% if form.get('biological_sex')=='male'   %}selected{% endif %}>Male</option>
               <option value="female" {% if form.get('biological_sex')=='female' %}selected{% endif %}>Female</option>
@@ -120,31 +119,31 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="date_of_birth">Date of birth</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="date_of_birth">Date of birth</label>
             <input type="date" name="date_of_birth" id="date_of_birth" value="{{ form.get('date_of_birth','') }}"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           {# Bounds come from web/options.py so this form and profile can't drift. #}
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="bodyweight_kg">Bodyweight (kg)</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="bodyweight_kg">Bodyweight (kg)</label>
             <input type="number" name="bodyweight_kg" id="bodyweight_kg" value="{{ form.get('bodyweight_kg','') }}"
                    min="{{ bounds.bodyweight_kg.min }}" max="{{ bounds.bodyweight_kg.max }}" step="{{ bounds.bodyweight_kg.step }}"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="height_cm">Height (cm)</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="height_cm">Height (cm)</label>
             <input type="number" name="height_cm" id="height_cm" value="{{ form.get('height_cm','') }}"
                    min="{{ bounds.height_cm.min }}" max="{{ bounds.height_cm.max }}" step="{{ bounds.height_cm.step }}"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="weight_class">Weight class</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="weight_class">Weight class</label>
             {% with selected = form.get('weight_class',''),
                     sex = form.get('biological_sex',''),
-                    field_class = "w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900" %}
+                    field_class = "w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy" %}
             {% include "partials/weight_class_select.html" %}
             {% endwith %}
           </div>
@@ -153,36 +152,36 @@
       </div>
 
       <!-- ── Training Setup ──────────────────────────────────── -->
-      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 class="font-semibold text-gray-900 mb-4">Training</h2>
+      <div class="bg-paper rounded-xl border border-line shadow-sm p-6">
+        <h2 class="font-semibold text-ink mb-4">Training</h2>
         <div class="grid grid-cols-2 gap-4 mb-5">
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="training_age_years">Years of weightlifting experience</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="training_age_years">Years of weightlifting experience</label>
             <input type="number" name="training_age_years" id="training_age_years" value="{{ form.get('training_age_years','') }}"
                    min="{{ bounds.training_age_years.min }}" max="{{ bounds.training_age_years.max }}" step="{{ bounds.training_age_years.step }}"
                    placeholder="e.g. 3.5"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="sessions_per_week">Sessions per week</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="sessions_per_week">Sessions per week</label>
             <input type="number" name="sessions_per_week" id="sessions_per_week" value="{{ form.get('sessions_per_week','4') }}"
                    min="{{ bounds.sessions_per_week.min }}" max="{{ bounds.sessions_per_week.max }}" step="{{ bounds.sessions_per_week.step }}"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="session_duration_minutes">Session duration (min)</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="session_duration_minutes">Session duration (min)</label>
             <input type="number" name="session_duration_minutes" id="session_duration_minutes" value="{{ form.get('session_duration_minutes','90') }}"
                    min="{{ bounds.session_duration_minutes.min }}" max="{{ bounds.session_duration_minutes.max }}" step="{{ bounds.session_duration_minutes.step }}"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
         </div>
 
         <!-- Equipment -->
-        <p class="text-xs font-medium text-gray-600 mb-2">Available equipment</p>
+        <p class="text-xs font-medium text-ink-sec mb-2">Available equipment</p>
         <div class="grid grid-cols-2 sm:grid-cols-3 gap-2 mb-5">
           {# Multi-value name, same as profile — this form used to invent a
              per-option equip_<val>/fault_<val> field instead. #}
@@ -190,7 +189,7 @@
           <label class="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" name="available_equipment" value="{{ val }}"
                    {% if val in (form.get('available_equipment') or []) %}checked{% endif %}
-                   class="rounded border-gray-300">
+                   class="rounded border-line-dark">
             {{ label }}
           </label>
           {% endfor %}
@@ -199,18 +198,18 @@
         <!-- Lift emphasis + competition experience -->
         <div class="grid grid-cols-2 gap-4 mb-5">
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="lift_emphasis">Lift emphasis</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="lift_emphasis">Lift emphasis</label>
             <select name="lift_emphasis" id="lift_emphasis"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
               <option value="balanced"      {% if (form.get('lift_emphasis','balanced')) == 'balanced'      %}selected{% endif %}>Balanced (snatch = C&amp;J)</option>
               <option value="snatch_biased" {% if form.get('lift_emphasis') == 'snatch_biased' %}selected{% endif %}>Snatch-biased</option>
               <option value="cj_biased"     {% if form.get('lift_emphasis') == 'cj_biased'     %}selected{% endif %}>C&amp;J-biased</option>
             </select>
           </div>
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="competition_experience">Competition experience</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="competition_experience">Competition experience</label>
             <select name="competition_experience" id="competition_experience"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
               <option value="none"          {% if (form.get('competition_experience','none')) == 'none'          %}selected{% endif %}>None — never competed</option>
               <option value="local"         {% if form.get('competition_experience') == 'local'         %}selected{% endif %}>Local / club meets</option>
               <option value="national"      {% if form.get('competition_experience') == 'national'      %}selected{% endif %}>National level</option>
@@ -220,27 +219,27 @@
         </div>
 
         <!-- Strength limiters -->
-        <p class="text-xs font-medium text-gray-600 mb-2">Strength limiters <span class="text-gray-400 font-normal">(what's currently holding performance back?)</span></p>
+        <p class="text-xs font-medium text-ink-sec mb-2">Strength limiters <span class="text-ink-faint font-normal">(what's currently holding performance back?)</span></p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
           {# canonical list shared with profile — registered as a Jinja global (WEB-M3) #}
           {% for label, val in limiter_options %}
           <label class="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" name="strength_limiters" value="{{ val }}"
                    {% if val in (form.get('strength_limiters') or []) %}checked{% endif %}
-                   class="rounded border-gray-300">
+                   class="rounded border-line-dark">
             {{ label }}
           </label>
           {% endfor %}
         </div>
 
         <!-- Technical faults -->
-        <p class="text-xs font-medium text-gray-600 mb-2">Technical faults <span class="text-gray-400 font-normal">(check all that apply)</span></p>
+        <p class="text-xs font-medium text-ink-sec mb-2">Technical faults <span class="text-ink-faint font-normal">(check all that apply)</span></p>
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mb-5">
           {% for label, val in fault_options %}
           <label class="flex items-center gap-2 text-sm cursor-pointer">
             <input type="checkbox" name="technical_faults" value="{{ val }}"
                    {% if val in (form.get('technical_faults') or []) %}checked{% endif %}
-                   class="rounded border-gray-300">
+                   class="rounded border-line-dark">
             {{ label }}
           </label>
           {% endfor %}
@@ -248,41 +247,41 @@
 
         <!-- Injuries -->
         <div>
-          <label class="block text-xs font-medium text-gray-600 mb-1" for="injuries">Injuries / restrictions</label>
+          <label class="block text-xs font-medium text-ink-sec mb-1" for="injuries">Injuries / restrictions</label>
           <textarea name="injuries" id="injuries" rows="2" maxlength="500"
                     placeholder="e.g. left shoulder impingement, right knee tendinitis"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900 resize-none">{{ form.get('injuries','') }}</textarea>
+                    class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy resize-none">{{ form.get('injuries','') }}</textarea>
         </div>
 
       </div>
 
       <!-- ── Current Maxes ────────────────────────────────────── -->
-      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 class="font-semibold text-gray-900 mb-1">Current Maxes</h2>
-        <p class="text-xs text-gray-400 mb-4">Leave blank for exercises you haven't tested. You can add or update maxes from the dashboard.</p>
+      <div class="bg-paper rounded-xl border border-line shadow-sm p-6">
+        <h2 class="font-semibold text-ink mb-1">Current Maxes</h2>
+        <p class="text-xs text-ink-faint mb-4">Leave blank for exercises you haven't tested. You can add or update maxes from the dashboard.</p>
         <div class="grid grid-cols-2 gap-4">
           {% for ex in max_exercises %}
           {% set field = "max_" ~ ex.lower().replace(" ", "_").replace("&", "and") %}
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="{{ field }}">{{ ex }} (kg)</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="{{ field }}">{{ ex }} (kg)</label>
             <input type="number" name="{{ field }}" id="{{ field }}" value="{{ form.get(field,'') }}"
                    min="1" max="500" step="0.5"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
           {% endfor %}
         </div>
       </div>
 
       <!-- ── Goal ────────────────────────────────────────────── -->
-      <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-6">
-        <h2 class="font-semibold text-gray-900 mb-1">Training Goal</h2>
-        <p class="text-xs text-gray-400 mb-4">Optional — you can set or change this later.</p>
+      <div class="bg-paper rounded-xl border border-line shadow-sm p-6">
+        <h2 class="font-semibold text-ink mb-1">Training Goal</h2>
+        <p class="text-xs text-ink-faint mb-4">Optional — you can set or change this later.</p>
         <div class="grid grid-cols-2 gap-4">
 
           <div class="col-span-2">
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="goal_type">Primary goal</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="goal_type">Primary goal</label>
             <select name="goal_type" id="goal_type"
-                    class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                    class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
               <option value="">— none —</option>
               {% for label, v in goal_options %}
               <option value="{{ v }}" {% if form.get('goal_type') == v %}selected{% endif %}>{{ label }}</option>
@@ -291,25 +290,25 @@
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="competition_date">Competition date</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="competition_date">Competition date</label>
             <input type="date" name="competition_date" id="competition_date" value="{{ form.get('competition_date','') }}"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           <div></div><!-- spacer -->
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="target_snatch_kg">Target Snatch (kg)</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="target_snatch_kg">Target Snatch (kg)</label>
             <input type="number" name="target_snatch_kg" id="target_snatch_kg" value="{{ form.get('target_snatch_kg','') }}"
                    min="1" max="400" step="0.5"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
           <div>
-            <label class="block text-xs font-medium text-gray-600 mb-1" for="target_cj_kg">Target Clean &amp; Jerk (kg)</label>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="target_cj_kg">Target Clean &amp; Jerk (kg)</label>
             <input type="number" name="target_cj_kg" id="target_cj_kg" value="{{ form.get('target_cj_kg','') }}"
                    min="1" max="500" step="0.5"
-                   class="w-full border border-gray-300 rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-gray-900">
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
         </div>
@@ -317,14 +316,14 @@
 
       <!-- Submit -->
       <button type="submit"
-              class="w-full py-3 bg-gray-900 text-white font-medium rounded-xl hover:bg-gray-700 transition-colors">
+              class="w-full py-3 bg-navy text-white font-medium rounded-xl hover:bg-navy-700 transition-colors">
         Create account
       </button>
 
     </form>
 
-    <p class="text-center text-xs text-gray-400 mt-6 pb-6">
-      Already have an account? <a href="/login" class="text-gray-600 hover:underline">Sign in</a>
+    <p class="text-center text-xs text-ink-faint mt-6 pb-6">
+      Already have an account? <a href="/login" class="text-ink-sec hover:underline">Sign in</a>
     </p>
 
   </div>

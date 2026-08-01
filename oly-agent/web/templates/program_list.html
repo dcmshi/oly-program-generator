@@ -4,22 +4,22 @@
 {% block content %}
 <div class="flex items-center justify-between mb-6">
   <h1 class="text-2xl font-bold">Programs</h1>
-  <a href="/generate" class="bg-gray-900 text-white px-4 py-2 rounded-lg text-sm hover:bg-gray-700">
+  <a href="/generate" class="bg-navy text-white px-4 py-2 rounded-lg text-sm hover:bg-navy-700">
     + Generate new
   </a>
 </div>
 
 {% if not programs %}
-  <p class="text-gray-500">No programs yet. <a href="/generate" class="text-blue-600 hover:underline">Generate one.</a></p>
+  <p class="text-ink-muted">No programs yet. <a href="/generate" class="text-blue-600 hover:underline">Generate one.</a></p>
 {% else %}
   <div class="space-y-3">
     {% for p in programs %}
     <div id="program-card-{{ p.id }}" class="relative group">
-      <a href="/program/{{ p.id }}" class="block bg-white border border-gray-200 rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
+      <a href="/program/{{ p.id }}" class="block bg-paper border border-line rounded-xl p-4 shadow-sm hover:shadow-md transition-shadow">
         <div class="flex items-start justify-between gap-3">
           <div class="min-w-0">
             <p class="font-semibold">{{ p.name }}</p>
-            <p class="text-sm text-gray-500 mt-0.5">
+            <p class="text-sm text-ink-muted mt-0.5">
               {{ p.duration_weeks }} wks · {{ p.sessions_per_week }} days/wk · {{ p.start_date }}
             </p>
             {% if p.outcome_summary %}
@@ -41,7 +41,7 @@
               </span>
               {% endif %}
               {% set dev = o.avg_rpe_deviation %}
-              <span class="{{ 'text-amber-500' if dev | abs > 1.0 else 'text-gray-400' }}">
+              <span class="{{ 'text-amber-500' if dev | abs > 1.0 else 'text-ink-faint' }}">
                 RPE {{ '+' if dev > 0 else '' }}{{ '%.1f' | format(dev) }}
               </span>
               {% if o.maxes_delta %}
@@ -71,7 +71,7 @@
         hx-confirm="Delete '{{ p.name }}'? This cannot be undone."
         {# Visible by default: touch devices have no hover, so opacity-0 left the
            only way to delete a program on mobile an invisible target. #}
-        class="icon-btn absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-gray-300 hover:text-white hover:bg-red-500 transition-colors opacity-60 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 text-xs font-bold leading-none"
+        class="icon-btn absolute top-2 right-2 w-6 h-6 flex items-center justify-center rounded-full text-ink-ghost hover:text-white hover:bg-red-500 transition-colors opacity-60 focus:opacity-100 sm:opacity-0 sm:group-hover:opacity-100 sm:focus:opacity-100 text-xs font-bold leading-none"
         title="Delete program"
       >✕</button>
     </div>

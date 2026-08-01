@@ -3,15 +3,15 @@
 
 {% block content %}
 <h1 class="text-2xl font-bold mb-2">Generate Program</h1>
-<p class="text-gray-500 text-sm mb-6">
+<p class="text-ink-muted text-sm mb-6">
   Runs ASSESS → PLAN → RETRIEVE → GENERATE → EXPLAIN. Takes a few minutes —
   one paid model call per session, so it also costs real money.
 </p>
 
 <!-- Last program summary -->
 {% if last_program %}
-<div class="bg-gray-50 border border-gray-200 rounded-xl p-4 mb-6 text-sm">
-  <p class="text-gray-500 mb-1">Last generated</p>
+<div class="bg-paper-100 border border-line rounded-xl p-4 mb-6 text-sm">
+  <p class="text-ink-muted mb-1">Last generated</p>
   <p class="font-semibold">{{ last_program.name }}</p>
   <div class="flex items-center gap-2 mt-1">
     <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ last_program.phase | phase_color }}">
@@ -26,7 +26,7 @@
 {% endif %}
 
 <!-- Generate form -->
-<div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm">
+<div class="bg-paper border border-line rounded-xl p-5 shadow-sm">
   <form hx-post="/generate/run"
         hx-target="#gen-output"
         hx-swap="innerHTML">
@@ -35,7 +35,7 @@
       Dry run (ASSESS + PLAN only, no LLM calls)
     </label>
     <button type="submit"
-            class="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm hover:bg-gray-700">
+            class="bg-navy text-white px-5 py-2 rounded-lg text-sm hover:bg-navy-700">
       Generate program
     </button>
   </form>

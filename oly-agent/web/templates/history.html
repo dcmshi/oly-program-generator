@@ -5,45 +5,45 @@
 
 <!-- Header -->
 <div class="mb-6">
-  <a href="{{ back }}" class="text-sm text-gray-400 hover:text-gray-700">
+  <a href="{{ back }}" class="text-sm text-ink-faint hover:text-ink-700">
     ← {% if back.startswith('/log/') %}Back to session{% else %}Dashboard{% endif %}
   </a>
   <h1 class="text-2xl font-bold mt-1">{{ exercise }}</h1>
-  <p class="text-sm text-gray-500 mt-0.5">Training history</p>
+  <p class="text-sm text-ink-muted mt-0.5">Training history</p>
 </div>
 
 <!-- Summary strip -->
 {% if summary.total > 0 %}
 <div class="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-6">
 
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 text-center">
+  <div class="bg-paper rounded-xl border border-line shadow-sm px-4 py-3 text-center">
     <p class="text-2xl font-bold">{{ summary.total }}</p>
-    <p class="text-xs text-gray-500 mt-0.5">Sessions logged</p>
+    <p class="text-xs text-ink-muted mt-0.5">Sessions logged</p>
   </div>
 
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 text-center">
+  <div class="bg-paper rounded-xl border border-line shadow-sm px-4 py-3 text-center">
     <p class="text-2xl font-bold">{{ summary.best_kg | fmt_weight }}</p>
-    <p class="text-xs text-gray-500 mt-0.5">Best weight</p>
+    <p class="text-xs text-ink-muted mt-0.5">Best weight</p>
   </div>
 
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 text-center">
+  <div class="bg-paper rounded-xl border border-line shadow-sm px-4 py-3 text-center">
     <p class="text-2xl font-bold">{{ summary.latest_kg | fmt_weight }}</p>
-    <p class="text-xs text-gray-500 mt-0.5">Most recent</p>
+    <p class="text-xs text-ink-muted mt-0.5">Most recent</p>
   </div>
 
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm px-4 py-3 text-center">
+  <div class="bg-paper rounded-xl border border-line shadow-sm px-4 py-3 text-center">
     {% if summary.trend == 'up' %}
       <p class="text-2xl font-bold text-green-600">↑</p>
-      <p class="text-xs text-gray-500 mt-0.5">Trending up</p>
+      <p class="text-xs text-ink-muted mt-0.5">Trending up</p>
     {% elif summary.trend == 'down' %}
       <p class="text-2xl font-bold text-red-500">↓</p>
-      <p class="text-xs text-gray-500 mt-0.5">Trending down</p>
+      <p class="text-xs text-ink-muted mt-0.5">Trending down</p>
     {% elif summary.trend == 'flat' %}
-      <p class="text-2xl font-bold text-gray-400">→</p>
-      <p class="text-xs text-gray-500 mt-0.5">Holding steady</p>
+      <p class="text-2xl font-bold text-ink-faint">→</p>
+      <p class="text-xs text-ink-muted mt-0.5">Holding steady</p>
     {% else %}
-      <p class="text-2xl font-bold text-gray-300">—</p>
-      <p class="text-xs text-gray-500 mt-0.5">Not enough data</p>
+      <p class="text-2xl font-bold text-ink-ghost">—</p>
+      <p class="text-xs text-ink-muted mt-0.5">Not enough data</p>
     {% endif %}
   </div>
 
@@ -52,11 +52,11 @@
 
 <!-- History table -->
 {% if rows %}
-<div class="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+<div class="bg-paper rounded-xl border border-line shadow-sm overflow-hidden">
   <div class="overflow-x-auto">
     <table class="w-full text-sm">
       <thead>
-        <tr class="text-xs text-gray-400 border-b border-gray-100 bg-gray-50">
+        <tr class="text-xs text-ink-faint border-b border-line-light bg-paper-100">
           <th class="text-left px-4 py-3 font-medium">Date</th>
           <th class="text-left px-4 py-3 font-medium hidden sm:table-cell">Program</th>
           <th class="text-right px-4 py-3 font-medium">Sets×Reps</th>
@@ -67,17 +67,17 @@
           <th class="text-left px-4 py-3 font-medium hidden lg:table-cell">Notes</th>
         </tr>
       </thead>
-      <tbody class="divide-y divide-gray-50">
+      <tbody class="divide-y divide-line-faint">
         {% for r in rows %}
-        <tr class="hover:bg-gray-50">
-          <td class="px-4 py-2.5 text-gray-700 whitespace-nowrap">
+        <tr class="hover:bg-paper-150">
+          <td class="px-4 py-2.5 text-ink-700 whitespace-nowrap">
             {{ r.log_date.strftime('%d %b %Y') if r.log_date else '—' }}
           </td>
-          <td class="px-4 py-2.5 text-gray-500 text-xs whitespace-nowrap hidden sm:table-cell">
+          <td class="px-4 py-2.5 text-ink-muted text-xs whitespace-nowrap hidden sm:table-cell">
             {{ r.program_name }}<br>
-            <span class="text-gray-400">{% if r.week_number %}W{{ r.week_number }}D{{ r.day_number }}{% else %}—{% endif %}</span>
+            <span class="text-ink-faint">{% if r.week_number %}W{{ r.week_number }}D{{ r.day_number }}{% else %}—{% endif %}</span>
           </td>
-          <td class="px-4 py-2.5 text-right text-gray-600 whitespace-nowrap">
+          <td class="px-4 py-2.5 text-right text-ink-sec whitespace-nowrap">
             {% if r.sets_completed and r.reps_per_set %}
               {{ r.sets_completed }}×{{ r.reps_per_set | reps_list }}
             {% else %}
@@ -94,15 +94,15 @@
                 {{ '+' if dev > 0 else '' }}{{ '%g' | format(dev) }} kg
               </span>
             {% else %}
-              <span class="text-gray-300">—</span>
+              <span class="text-ink-ghost">—</span>
             {% endif %}
           </td>
-          <td class="px-4 py-2.5 text-right text-gray-500 whitespace-nowrap">
+          <td class="px-4 py-2.5 text-right text-ink-muted whitespace-nowrap">
             {% if r.rpe is not none %}
               {{ r.rpe | fmt_rpe }}
               {% if r.rpe_deviation is not none %}
                 {% set rd = r.rpe_deviation | float %}
-                <span class="text-xs {{ 'text-amber-500' if rd | abs > 1.0 else 'text-gray-400' }}">
+                <span class="text-xs {{ 'text-amber-500' if rd | abs > 1.0 else 'text-ink-faint' }}">
                   ({{ '+' if rd > 0 else '' }}{{ '%g' | format(rd) }})
                 </span>
               {% endif %}
@@ -117,10 +117,10 @@
                 {{ mr }}%
               </span>
             {% else %}
-              <span class="text-gray-300">—</span>
+              <span class="text-ink-ghost">—</span>
             {% endif %}
           </td>
-          <td class="px-4 py-2.5 text-gray-500 text-xs max-w-xs truncate hidden lg:table-cell">
+          <td class="px-4 py-2.5 text-ink-muted text-xs max-w-xs truncate hidden lg:table-cell">
             {{ r.technical_notes or '' }}
           </td>
         </tr>
@@ -131,8 +131,8 @@
 </div>
 
 {% else %}
-<div class="text-center py-16 text-gray-400">
-  <p class="text-lg mb-1">No logged sessions for <strong class="text-gray-600">{{ exercise }}</strong> yet.</p>
+<div class="text-center py-16 text-ink-faint">
+  <p class="text-lg mb-1">No logged sessions for <strong class="text-ink-sec">{{ exercise }}</strong> yet.</p>
   <p class="text-sm">Entries appear here once you log a session that includes this exercise.</p>
 </div>
 {% endif %}

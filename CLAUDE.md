@@ -102,6 +102,8 @@ Content is **routed before chunking** — the classifier sends each section down
 
 ### Web UI
 
+- **CSS is compiled and committed, not loaded from a CDN.** `web/static/tailwind.css` is built from `web/tailwind/` by `make css`; every JS/font asset is vendored under `web/static/`. Adding a utility class a template didn't already use means rebuilding, or it won't exist in the output.
+- **The palette lives in `web/tailwind/tailwind.config.js`, by role.** Use `paper`/`line`/`ink`/`navy` (and `canvas`), never Tailwind's default `gray` — it is intentionally left cool and unremapped, so a stray `text-gray-500` renders visibly off-theme. `ink` shades are for cream surfaces and `navy-100`/`navy-200` for text on the navy nav; conflating them is what took the nav to 2.58:1. `web/tailwind/build_palette.py` regenerates the accent tints and audits contrast.
 - **Do not add `passlib`.** passlib 1.7.4 is incompatible with bcrypt 5.x — `web/auth.py` wraps the `bcrypt` library directly (`bcrypt.hashpw` / `bcrypt.checkpw`).
 - **Middleware order:** `add_middleware` wraps in reverse, so `SessionMiddleware` must be added *after* `AuthMiddleware` to run outermost. The session has to be populated before the auth guard reads it.
 - **HTMX auth expiry:** `AuthMiddleware` checks the `HX-Request` header and returns an `HX-Redirect` response header with status 200 instead of a 302, so HTMX does a full-page redirect rather than swapping the login page into a fragment.

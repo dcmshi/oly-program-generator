@@ -1,18 +1,18 @@
 {% if ratios %}
 <div class="mt-8">
   <h2 class="text-lg font-semibold mb-3">Lift Ratios</h2>
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm divide-y divide-gray-100">
+  <div class="bg-paper rounded-xl border border-line shadow-sm divide-y divide-line-light">
     {% for r in ratios %}
     <div class="px-5 py-4">
 
       <!-- Row header -->
       <div class="flex items-center justify-between mb-2">
         <div class="flex items-center gap-2.5">
-          <span class="text-sm font-medium text-gray-800">{{ r.label }}</span>
+          <span class="text-sm font-medium text-ink-800">{{ r.label }}</span>
           {% if r.status == 'ok' %}
-          <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-700 font-medium">Good</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-green-100 text-green-800 font-medium">Good</span>
           {% elif r.status == 'low' %}
-          <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-700 font-medium">Low</span>
+          <span class="text-xs px-2 py-0.5 rounded-full bg-amber-100 text-amber-800 font-medium">Low</span>
           {% else %}
           <span class="text-xs px-2 py-0.5 rounded-full bg-blue-100 text-blue-700 font-medium">High</span>
           {% endif %}
@@ -24,14 +24,14 @@
             {% else %}text-blue-600{% endif %}">
             {{ r.value }}
           </span>
-          <span class="text-xs text-gray-400 ml-1">
+          <span class="text-xs text-ink-faint ml-1">
             target {{ r.target_low }}–{{ r.target_high }}
           </span>
         </div>
       </div>
 
       <!-- Bar gauge -->
-      <div class="relative h-2 bg-gray-100 rounded-full overflow-hidden mb-2">
+      <div class="relative h-2 bg-paper-200 rounded-full overflow-hidden mb-2">
         <!-- Target zone -->
         <div class="absolute top-0 h-full rounded-full bg-green-200"
              style="left: {{ r.target_low_pct }}%; width: {{ r.target_width_pct }}%;"></div>
@@ -45,8 +45,8 @@
 
       <!-- Source values + message -->
       <div class="flex items-start justify-between gap-2">
-        <p class="text-xs text-gray-500">{{ r.message }}</p>
-        <p class="text-xs text-gray-400 tabular-nums shrink-0">
+        <p class="text-xs text-ink-muted">{{ r.message }}</p>
+        <p class="text-xs text-ink-faint tabular-nums shrink-0">
           {{ r.numerator_kg | fmt_weight }} / {{ r.denominator_kg | fmt_weight }}
         </p>
       </div>

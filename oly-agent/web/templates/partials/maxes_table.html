@@ -25,26 +25,26 @@
   {% if maxes %}
   <table class="w-full text-sm mb-4">
     <thead>
-      <tr class="text-xs text-gray-400 border-b border-gray-100">
+      <tr class="text-xs text-ink-faint border-b border-line-light">
         <th class="text-left py-1 font-medium">Exercise</th>
         <th class="text-right py-1 font-medium">Max</th>
         <th class="text-right py-1 font-medium">Date</th>
         <th class="py-1 w-6"></th>
       </tr>
     </thead>
-    <tbody class="divide-y divide-gray-50">
+    <tbody class="divide-y divide-line-faint">
       {% for m in maxes %}
-      <tr class="{{ 'text-gray-400' if m.is_estimated else '' }}">
+      <tr class="{{ 'text-ink-faint' if m.is_estimated else '' }}">
         <td class="py-1.5 font-medium">
           <a href="/history?exercise={{ m.exercise_name | urlencode }}"
              class="hover:underline hover:text-blue-600 transition-colors">
             {{ m.exercise_name }}</a>
           {% if m.is_estimated %}
-          <span class="ml-1.5 inline-block text-xs font-medium px-1.5 py-0.5 rounded bg-gray-50 text-gray-400 border border-gray-200">est.</span>
+          <span class="ml-1.5 inline-block text-xs font-medium px-1.5 py-0.5 rounded bg-paper-100 text-ink-faint border border-line">est.</span>
           {% endif %}
         </td>
         <td class="py-1.5 text-right">{{ m.weight_kg | fmt_weight }}</td>
-        <td class="py-1.5 text-right text-gray-400 text-xs">{{ m.date_achieved or '—' }}</td>
+        <td class="py-1.5 text-right text-ink-faint text-xs">{{ m.date_achieved or '—' }}</td>
         <td class="py-1.5 text-right">
           {% if not m.is_estimated %}
           <form hx-post="/program/maxes/delete"
@@ -53,7 +53,7 @@
                 hx-confirm="Remove {{ m.exercise_name }} max? The agent will use an estimated value instead."
                 class="inline">
             <input type="hidden" name="exercise_name" value="{{ m.exercise_name }}">
-            <button type="submit" class="icon-btn text-gray-300 hover:text-red-400 transition-colors text-xs px-1" title="Remove max">✕</button>
+            <button type="submit" class="icon-btn text-ink-ghost hover:text-red-400 transition-colors text-xs px-1" title="Remove max">✕</button>
           </form>
           {% endif %}
         </td>
@@ -62,7 +62,7 @@
     </tbody>
   </table>
   {% else %}
-  <p class="text-sm text-gray-400 mb-4">No maxes recorded yet.</p>
+  <p class="text-sm text-ink-faint mb-4">No maxes recorded yet.</p>
   {% endif %}
 
   <!-- Update form -->
@@ -71,10 +71,10 @@
         hx-swap="outerHTML"
         class="flex flex-col sm:flex-row gap-2 sm:items-end">
     <div class="w-full sm:w-auto">
-      <label for="max_exercise_name" class="block text-xs text-gray-500 mb-1">Exercise</label>
+      <label for="max_exercise_name" class="block text-xs text-ink-muted mb-1">Exercise</label>
       <input name="exercise_name" id="max_exercise_name" list="exercise-options" required
              placeholder="e.g. Snatch"
-             class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-full sm:w-44">
+             class="border border-line rounded-lg px-3 py-1.5 text-sm w-full sm:w-44">
       <datalist id="exercise-options">
         <option value="Snatch">
         <option value="Clean &amp; Jerk">
@@ -91,13 +91,13 @@
       </datalist>
     </div>
     <div class="w-full sm:w-auto">
-      <label for="max_weight_kg" class="block text-xs text-gray-500 mb-1">Weight (kg)</label>
+      <label for="max_weight_kg" class="block text-xs text-ink-muted mb-1">Weight (kg)</label>
       <input name="weight_kg" id="max_weight_kg" type="number" step="0.5" min="1" max="500" required
              placeholder="100.0"
-             class="border border-gray-200 rounded-lg px-3 py-1.5 text-sm w-full sm:w-24">
+             class="border border-line rounded-lg px-3 py-1.5 text-sm w-full sm:w-24">
     </div>
     <button type="submit"
-            class="bg-gray-900 text-white text-sm px-4 py-2 sm:py-1.5 rounded-lg hover:bg-gray-700 w-full sm:w-auto">
+            class="bg-navy text-white text-sm px-4 py-2 sm:py-1.5 rounded-lg hover:bg-navy-700 w-full sm:w-auto">
       Update max
     </button>
   </form>

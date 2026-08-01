@@ -3,9 +3,9 @@
 
 {% block content %}
 
-<a href="/" class="text-sm text-gray-400 hover:text-gray-700">← Dashboard</a>
+<a href="/" class="text-sm text-ink-faint hover:text-ink-700">← Dashboard</a>
 <h1 class="text-2xl font-bold mt-2 mb-1">Log Session</h1>
-<p class="text-gray-500 text-sm mb-6">
+<p class="text-ink-muted text-sm mb-6">
   W{{ session.week_number }}D{{ session.day_number }} · {{ session.session_label }}
   · ~{{ session.estimated_duration_minutes }} min
 </p>
@@ -17,9 +17,9 @@
 {% else %}
   <!-- Step 1: session header form -->
   <div id="session-form-area">
-    <div class="bg-white border border-gray-200 rounded-xl p-5 shadow-sm mb-6">
+    <div class="bg-paper border border-line rounded-xl p-5 shadow-sm mb-6">
       <h2 class="font-semibold mb-1">Session details</h2>
-      <p class="text-xs text-gray-400 mb-4">
+      <p class="text-xs text-ink-faint mb-4">
         Date and RPE are all you need. Wellness fields are optional.
       </p>
       <form hx-post="/log/{{ session.id }}"
@@ -29,52 +29,52 @@
 
         <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
           <div>
-            <label for="log_date" class="block text-xs text-gray-500 mb-1">Date</label>
+            <label for="log_date" class="block text-xs text-ink-muted mb-1">Date</label>
             <input type="date" name="log_date" id="log_date" value="{{ today }}"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
           <div>
-            <label for="overall_rpe" class="block text-xs text-gray-500 mb-1">Overall session RPE</label>
+            <label for="overall_rpe" class="block text-xs text-ink-muted mb-1">Overall session RPE</label>
             <input type="number" name="overall_rpe" id="overall_rpe" min="1" max="10" step="0.5" placeholder="7.5"
-                   class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                   class="w-full border border-line rounded-lg px-3 py-2 text-sm">
           </div>
         </div>
 
-        <details class="border border-gray-100 rounded-lg">
-          <summary class="cursor-pointer px-3 py-2 text-xs text-gray-400 hover:text-gray-600 select-none">
+        <details class="border border-line-light rounded-lg">
+          <summary class="cursor-pointer px-3 py-2 text-xs text-ink-faint hover:text-ink-sec select-none">
             + Optional: duration, bodyweight, wellness
           </summary>
           <div class="px-3 pb-3 pt-2 grid grid-cols-1 sm:grid-cols-2 gap-3">
             <div>
-              <label for="duration" class="block text-xs text-gray-500 mb-1">Duration (min)</label>
+              <label for="duration" class="block text-xs text-ink-muted mb-1">Duration (min)</label>
               <input type="number" name="duration" id="duration" placeholder="{{ session.estimated_duration_minutes }}"
-                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                     class="w-full border border-line rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label for="bodyweight" class="block text-xs text-gray-500 mb-1">Bodyweight (kg)</label>
+              <label for="bodyweight" class="block text-xs text-ink-muted mb-1">Bodyweight (kg)</label>
               <input type="number" name="bodyweight" id="bodyweight" step="0.1" placeholder="—"
-                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                     class="w-full border border-line rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label for="sleep_quality" class="block text-xs text-gray-500 mb-1">Sleep quality (1–5)</label>
+              <label for="sleep_quality" class="block text-xs text-ink-muted mb-1">Sleep quality (1–5)</label>
               <input type="number" name="sleep_quality" id="sleep_quality" min="1" max="5"
-                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                     class="w-full border border-line rounded-lg px-3 py-2 text-sm">
             </div>
             <div>
-              <label for="stress_level" class="block text-xs text-gray-500 mb-1">Stress level (1–5)</label>
+              <label for="stress_level" class="block text-xs text-ink-muted mb-1">Stress level (1–5)</label>
               <input type="number" name="stress_level" id="stress_level" min="1" max="5"
-                     class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm">
+                     class="w-full border border-line rounded-lg px-3 py-2 text-sm">
             </div>
             <div class="col-span-2">
-              <label for="notes" class="block text-xs text-gray-500 mb-1">Notes</label>
+              <label for="notes" class="block text-xs text-ink-muted mb-1">Notes</label>
               <textarea name="notes" id="notes" rows="2" placeholder="How did it feel?"
-                        class="w-full border border-gray-200 rounded-lg px-3 py-2 text-sm resize-none"></textarea>
+                        class="w-full border border-line rounded-lg px-3 py-2 text-sm resize-none"></textarea>
             </div>
           </div>
         </details>
 
         <button type="submit"
-                class="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm hover:bg-gray-700">
+                class="bg-navy text-white px-5 py-2 rounded-lg text-sm hover:bg-navy-700">
           Save &amp; log exercises →
         </button>
       </form>

@@ -243,9 +243,9 @@ def _status_color(status: str) -> str:
         "active":     "bg-green-100 text-green-800",
         "draft":      "bg-yellow-100 text-yellow-800",
         "completed":  "bg-blue-100 text-blue-800",
-        "superseded": "bg-gray-100 text-gray-500",
+        "superseded": "bg-paper-200 text-ink-muted",
         "abandoned":  "bg-red-100 text-red-700",
-    }.get(status, "bg-gray-100 text-gray-600")
+    }.get(status, "bg-paper-200 text-ink-sec")
 
 def _phase_color(phase: str) -> str:
     return {
@@ -253,7 +253,7 @@ def _phase_color(phase: str) -> str:
         "intensification": "bg-orange-100 text-orange-800",
         "realization":     "bg-red-100 text-red-800",
         "general_prep":    "bg-purple-100 text-purple-800",
-    }.get(phase, "bg-gray-100 text-gray-700")
+    }.get(phase, "bg-paper-200 text-ink-700")
 
 def _parse_rationale(text: str) -> list[dict]:
     """Split rationale text into {heading, body} sections on # lines."""

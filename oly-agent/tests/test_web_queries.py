@@ -774,12 +774,31 @@ def _contrast(fg, bg):
     return (hi + 0.05) / (lo + 0.05)
 
 
-_THEME_CSS = Path(__file__).parent.parent / "web" / "static" / "theme.css"
+_WEB = Path(__file__).parent.parent / "web"
+_CONFIG = _WEB / "tailwind" / "tailwind.config.js"
+_COMPILED = _WEB / "static" / "tailwind.css"
 
 
-def _theme_vars():
-    text = _THEME_CSS.read_text(encoding="utf-8")
-    return dict(re.findall(r"(--[\w-]+):\s*(#[0-9A-Fa-f]{6})", text))
+def _palette():
+    """Parse the colour tokens out of tailwind.config.js.
+
+    Reads the config rather than the compiled CSS so a failure points at the
+    value a human edits. None of the colour groups nest, so a flat scan is
+    enough. Returns {"paper": "#FDFBF8", "paper-100": ..., "blue-100": ...}.
+    """
+    text = _CONFIG.read_text(encoding="utf-8")
+    marker = "colors: {"
+    # Slice past the wrapper, or the group scan below matches `colors: {` itself.
+    colors = text[text.index(marker) + len(marker):]
+    out = {}
+    # Top-level singles, e.g. canvas: '#F4F0EA'
+    for name, value in re.findall(r"^\s{8}(\w+): '(#[0-9A-Fa-f]{6})'", colors, re.M):
+        out[name] = value
+    # Grouped scales, e.g. paper: { DEFAULT: '#FDFBF8', 100: '#EDE8E0', ... }
+    for group, body in re.findall(r"(\w+): \{(.*?)\}", colors, re.S):
+        for shade, value in re.findall(r"(\w+): '(#[0-9A-Fa-f]{6})'", body):
+            out[group if shade == "DEFAULT" else f"{group}-{shade}"] = value
+    return out
 
 
 def test_contrast_helper_matches_known_ratios():
@@ -788,58 +807,145 @@ def test_contrast_helper_matches_known_ratios():
     assert round(_contrast("#777777", "#FFFFFF"), 2) == 4.48
 
 
-def test_muted_text_clears_aa_on_every_surface_it_sits_on():
-    """text-gray-400 and text-gray-500 carry dates, "Day N" labels, helper text
-    and table metadata — all small text, so they need 4.5:1. They were remapped
-    to #A09A94 (2.7:1) and #7A7570 (4.4:1) on the warm card.
+def test_palette_parses():
+    p = _palette()
+    for token in ("canvas", "paper", "paper-100", "ink", "ink-faint", "ink-muted",
+                  "ink-sec", "ink-ghost", "navy", "navy-100", "navy-200", "blue-100"):
+        assert token in p, f"{token} missing from the parsed palette: {sorted(p)}"
 
-    The surfaces are the card, the page background, and bg-gray-50; bg-gray-100
-    is excluded because it only ever carries text-gray-600/700 (progress-bar
-    tracks and badges), not these two.
+
+def test_ink_clears_aa_on_the_text_bearing_surfaces():
+    """ink-faint/muted/sec carry dates, "Day N" labels, helper text and table
+    metadata — small text, so 4.5:1. The old remap put them at #A09A94 (2.7:1)
+    and #7A7570 (4.4:1) on the warm card.
+
+    Only canvas/paper/paper-100 are checked: paper-200 and paper-300 are fills
+    (progress-bar tracks, pill badges) that carry ink-700 or darker at most. That
+    assumption isn't taken on trust — test_themed_pairs_clear_aa below derives the
+    real class co-occurrences from the templates, so putting ink-faint on a
+    paper-300 fill would fail there.
     """
-    v = _theme_vars()
-    surfaces = {"--card": v["--card"], "--bg": v["--bg"], "--subtle": v["--subtle"]}
+    p = _palette()
     failures = []
-    for token in ("--text-faint", "--text-muted", "--text-sec"):
-        for surface, bg in surfaces.items():
-            ratio = _contrast(v[token], bg)
+    for token in ("ink", "ink-800", "ink-700", "ink-sec", "ink-muted", "ink-faint"):
+        for surface in ("canvas", "paper", "paper-100"):
+            ratio = _contrast(p[token], p[surface])
             if ratio < 4.5:
-                failures.append(f"{token} ({v[token]}) on {surface} ({bg}) = {ratio:.2f}:1")
-    assert not failures, "below the 4.5:1 AA threshold for small text: " + "; ".join(failures)
+                failures.append(f"{token} on {surface} = {ratio:.2f}:1")
+    assert not failures, "small text below 4.5:1: " + "; ".join(failures)
 
 
-def test_text_tokens_keep_their_visual_hierarchy():
-    v = _theme_vars()
-    faint = _relative_luminance(v["--text-faint"])
-    muted = _relative_luminance(v["--text-muted"])
-    sec = _relative_luminance(v["--text-sec"])
-    assert faint > muted > sec, "faint should stay lightest and sec darkest"
+def test_nav_text_clears_aa_on_the_navy_nav():
+    """The regression that motivated the palette split: the nav used
+    text-gray-400, the same token as card metadata, and the !important remap
+    force-darkened it to #6C6761 — 2.58:1 on navy. One token cannot serve both
+    a cream card and a navy bar, so the nav has its own shades."""
+    p = _palette()
+    failures = []
+    for token in ("navy-100", "navy-200"):
+        ratio = _contrast(p[token], p["navy"])
+        if ratio < 4.5:
+            failures.append(f"{token} on navy = {ratio:.2f}:1")
+    assert not failures, "nav text below 4.5:1: " + "; ".join(failures)
+    assert _contrast("#FFFFFF", p["navy"]) >= 4.5, "hover:text-white must clear AA too"
 
 
-# ── FE-L2: one copy of the theme, no inline event handlers ───────────────────
+def test_nav_uses_the_navy_text_tokens_not_the_ink_ones():
+    base = (_WEB / "templates" / "base.html").read_text(encoding="utf-8")
+    nav = base[base.index("<nav"):base.index("</nav>")]
+    assert "text-navy-100" in nav and "text-navy-200" in nav
+    assert "text-ink" not in nav, \
+        "ink shades are tuned for cream surfaces and are unreadable on the navy nav"
 
-def test_theme_lives_in_one_stylesheet():
-    """base.html, login.html, setup.html and error.html each carried an inline
-    <style> block with a *different subset* of the palette and remaps, so a fix
-    in one silently skipped the others."""
-    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+
+def test_icon_only_controls_clear_the_non_text_threshold():
+    """ink-ghost is for the hover-reveal ✕ buttons. As a graphical control it
+    needs 3:1, which Tailwind's gray-300 (#D1D5DB) never met."""
+    p = _palette()
+    for surface in ("paper", "paper-100"):
+        ratio = _contrast(p["ink-ghost"], p[surface])
+        assert ratio >= 3.0, f"ink-ghost on {surface} = {ratio:.2f}:1, needs 3:1"
+    assert _contrast("#D1D5DB", p["paper"]) < 3.0, \
+        "sanity: the old value really was below the threshold"
+
+
+def test_ink_keeps_its_visual_hierarchy():
+    p = _palette()
+    order = [_relative_luminance(p[t]) for t in ("ink-ghost", "ink-faint", "ink-muted", "ink-sec", "ink-800", "ink")]
+    assert order == sorted(order, reverse=True), \
+        f"ink should darken monotonically from ghost to DEFAULT, got {order}"
+
+
+def test_themed_pairs_clear_aa():
+    """Every bg-X/text-Y pair in themed tokens that the templates actually use —
+    accents and ink-on-paper alike. Three accent pairs were already under 4.5:1
+    with Tailwind's own tints (amber-700 on amber-100, blue-500 on blue-50,
+    green-700 on green-100) and were bumped a shade."""
+    p = _palette()
+    pairs = set()
+    for tpl in (_WEB / "templates").rglob("*.html"):
+        for m in re.finditer(r'class="([^"]+)"', tpl.read_text(encoding="utf-8")):
+            cls = m.group(1).split()
+            bgs = [c[3:] for c in cls if re.fullmatch(r"bg-[a-z]+-\d{2,3}", c)]
+            txt = [c[5:] for c in cls if re.fullmatch(r"text-[a-z]+-\d{2,3}", c)]
+            pairs.update((b, t) for b in bgs for t in txt)
+
+    checked, failures = 0, []
+    for bg, fg in sorted(pairs):
+        if bg not in p or fg not in p:
+            continue          # not a themed token (e.g. a Tailwind default)
+        checked += 1
+        ratio = _contrast(p[fg], p[bg])
+        if ratio < 4.5:
+            failures.append(f"text-{fg} on bg-{bg} = {ratio:.2f}:1")
+    assert checked >= 8, f"expected to check the accent badges, only saw {checked} pairs"
+    assert not failures, "accent pairs below 4.5:1: " + "; ".join(failures)
+
+
+# ── FE-L2: one compiled stylesheet, no overrides, no inline handlers ──────────
+
+def test_no_important_overrides_anywhere():
+    """The theme used to be ~40 !important rules retinting Tailwind's gray scale.
+    With the palette defined in the config, Tailwind generates the right colours
+    and nothing needs overriding."""
+    css = _COMPILED.read_text(encoding="utf-8")
+    assert "!important" not in css, "the compiled CSS should need no overrides"
+
+
+def test_templates_carry_no_palette_of_their_own():
+    """base/login/setup/error each had an inline <style> block with a *different
+    subset* of the palette, so a fix in one silently skipped the others."""
+    tpl_dir = _WEB / "templates"
     for name in ("base.html", "login.html", "setup.html", "error.html"):
         text = (tpl_dir / name).read_text(encoding="utf-8")
-        assert '/static/theme.css' in text, f"{name} does not load the shared stylesheet"
-        assert "--text-sec:" not in text, f"{name} still defines its own palette"
+        assert "/static/tailwind.css" in text, f"{name} does not load the compiled CSS"
+        assert "--text-sec" not in text and "--navy" not in text, \
+            f"{name} still defines its own palette"
     # program.html keeps a page-specific @media print block; nothing else should
     # have an inline <style> at all.
     with_styles = sorted(p.name for p in tpl_dir.rglob("*.html") if "<style>" in p.read_text(encoding="utf-8"))
     assert with_styles == ["program.html"], f"unexpected inline styles in {with_styles}"
 
 
+def test_no_default_gray_utilities_remain():
+    """Tailwind's default gray is cool and is no longer remapped, so a stray
+    text-gray-500 would now render visibly off-theme instead of being caught by
+    the old override list."""
+    offenders = {}
+    for f in list((_WEB / "templates").rglob("*.html")) + [_WEB / "app.py"]:
+        found = re.findall(r"(?:bg|text|border|divide|ring)-gray-\d{2,3}", f.read_text(encoding="utf-8"))
+        if found:
+            offenders[f.name] = sorted(set(found))
+    assert not offenders, f"use the role-based tokens instead of Tailwind's gray: {offenders}"
+
+
 def test_no_inline_event_handlers_outside_htmx_plumbing():
     """error.html styled its button with onmouseover/onmouseout — the only thing
     in the app a Content-Security-Policy would have broken."""
-    text = (Path(__file__).parent.parent / "web" / "templates" / "error.html").read_text(encoding="utf-8")
+    text = (_WEB / "templates" / "error.html").read_text(encoding="utf-8")
     assert "onmouseover" not in text and "onmouseout" not in text
-    assert "btn-navy" in text, "the hover state belongs in theme.css"
-    assert ".btn-navy:hover" in _THEME_CSS.read_text(encoding="utf-8")
+    assert "btn-navy" in text, "the hover state belongs in the stylesheet"
+    assert ".btn-navy:hover" in _COMPILED.read_text(encoding="utf-8")
 
 
 # ── FE-M10: mobile nav needs ARIA state and a way to close ───────────────────
@@ -939,12 +1045,15 @@ def test_done_link_is_not_labelled_as_a_save():
 # ── FE-M3: every HTMX action shows an in-flight state ────────────────────────
 
 def test_theme_styles_the_htmx_request_state():
-    css = (Path(__file__).parent.parent / "web" / "static" / "theme.css").read_text(encoding="utf-8")
+    # The minifier strips the quotes from attribute selectors and spaces from
+    # declarations, so match on the normalised form.
+    css = (Path(__file__).parent.parent / "web" / "static" / "tailwind.css").read_text(encoding="utf-8")
     assert "button.htmx-request" in css, "buttons need an in-flight style"
-    assert 'form.htmx-request button:not([type="button"])' in css, \
+    assert "form.htmx-request button:not([type=button])" in css, \
         "form submits need one too — htmx marks the form, not the button, and a " \
         "button with no type attribute is still a submit button"
-    assert "pointer-events: none" in css, "the in-flight state must block double-submits"
+    assert "pointer-events:none" in css.replace(" ", ""), \
+        "the in-flight state must block double-submits"
     assert "@keyframes oly-spin" in css
 
 

@@ -5,8 +5,8 @@
 
 {% if not program %}
   <div class="text-center py-20">
-    <p class="text-gray-500 text-lg mb-4">No program found.</p>
-    <a href="/generate" class="bg-gray-900 text-white px-5 py-2 rounded-lg text-sm hover:bg-gray-700">
+    <p class="text-ink-muted text-lg mb-4">No program found.</p>
+    <a href="/generate" class="bg-navy text-white px-5 py-2 rounded-lg text-sm hover:bg-navy-700">
       Generate a Program
     </a>
   </div>
@@ -24,7 +24,7 @@
         <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ program.status | status_color }}">
           {{ program.status }}
         </span>
-        <span class="text-gray-500 text-sm">Week {{ current_week }} of {{ program.duration_weeks }}</span>
+        <span class="text-ink-muted text-sm">Week {{ current_week }} of {{ program.duration_weeks }}</span>
       </div>
     </div>
     <a href="/program/{{ program.id }}" class="text-sm text-blue-600 hover:underline">View full program →</a>
@@ -46,11 +46,11 @@
   {% if adherence.prescribed %}
   <div class="mb-6">
     <div class="flex items-center justify-between text-sm mb-1">
-      <span class="text-gray-600">Adherence through week {{ current_week }}</span>
+      <span class="text-ink-sec">Adherence through week {{ current_week }}</span>
       <span class="font-medium">{{ adherence.logged }}/{{ adherence.prescribed }} sessions ({{ adherence.pct }}%)</span>
     </div>
-    <div class="w-full bg-gray-200 rounded-full h-2 overflow-hidden">
-      <div class="bg-gray-900 h-2 rounded-full" style="width: {{ adherence.pct }}%"></div>
+    <div class="w-full bg-paper-300 rounded-full h-2 overflow-hidden">
+      <div class="bg-navy h-2 rounded-full" style="width: {{ adherence.pct }}%"></div>
     </div>
   </div>
   {% endif %}
@@ -60,19 +60,19 @@
   <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
     {% for s in sessions %}
     <a href="/log/{{ s.id }}"
-       class="bg-white rounded-xl border border-gray-200 p-4 shadow-sm hover:border-gray-400 hover:shadow transition block">
+       class="bg-paper rounded-xl border border-line p-4 shadow-sm hover:border-line-hover hover:shadow transition block">
       <div class="flex items-start justify-between">
         <div>
-          <p class="text-xs text-gray-400 uppercase tracking-wide">Day {{ s.day_number }}</p>
+          <p class="text-xs text-ink-faint uppercase tracking-wide">Day {{ s.day_number }}</p>
           <p class="font-semibold text-base">{{ s.session_label }}</p>
-          <p class="text-xs text-gray-500 mt-0.5">~{{ s.estimated_duration_minutes }} min · {{ s.focus_area }}</p>
+          <p class="text-xs text-ink-muted mt-0.5">~{{ s.estimated_duration_minutes }} min · {{ s.focus_area }}</p>
         </div>
         {% if s.log_id %}
-          <span class="text-xs bg-green-100 text-green-700 px-2 py-1 rounded-full font-medium">
+          <span class="text-xs bg-green-100 text-green-800 px-2 py-1 rounded-full font-medium">
             ✓ Logged{% if s.overall_rpe %} · RPE {{ s.overall_rpe }}{% endif %}
           </span>
         {% else %}
-          <span class="text-xs bg-gray-900 text-white px-3 py-1.5 rounded-lg">
+          <span class="text-xs bg-navy text-white px-3 py-1.5 rounded-lg">
             Log session
           </span>
         {% endif %}
@@ -82,7 +82,7 @@
   </div>
 
   {% if sessions | length == 0 %}
-  <p class="text-gray-400 text-sm">No sessions scheduled for this week.</p>
+  <p class="text-ink-faint text-sm">No sessions scheduled for this week.</p>
   {% endif %}
 
 {% endif %}
@@ -92,30 +92,30 @@
 <div class="mt-8">
   <div class="flex items-center justify-between mb-3">
     <h2 class="text-lg font-semibold">Goal Progress</h2>
-    <a href="/profile" class="text-xs text-gray-400 hover:text-gray-600">Edit goal →</a>
+    <a href="/profile" class="text-xs text-ink-faint hover:text-ink-sec">Edit goal →</a>
   </div>
-  <div class="bg-white rounded-xl border border-gray-200 shadow-sm p-5">
+  <div class="bg-paper rounded-xl border border-line shadow-sm p-5">
 
     <!-- Header row: goal type + competition countdown -->
     <div class="flex items-center justify-between mb-4">
       <span class="text-xs font-semibold uppercase tracking-wide px-2 py-0.5 rounded-full
                    {% if goal_progress.goal == 'competition_prep' %}bg-blue-100 text-blue-800
                    {% elif goal_progress.goal == 'technique_focus' %}bg-purple-100 text-purple-800
-                   {% else %}bg-gray-100 text-gray-700{% endif %}">
+                   {% else %}bg-paper-200 text-ink-700{% endif %}">
         {{ goal_progress.goal_label }}
       </span>
       {% if goal_progress.competition_date %}
       <div class="text-right">
         {% if goal_progress.competition_name %}
-        <p class="text-xs font-medium text-gray-700">{{ goal_progress.competition_name }}</p>
+        <p class="text-xs font-medium text-ink-700">{{ goal_progress.competition_name }}</p>
         {% endif %}
         {% if goal_progress.days_to_comp is not none %}
           {% if goal_progress.days_to_comp > 0 %}
-          <p class="text-xs text-gray-500">{{ goal_progress.days_to_comp }} days away</p>
+          <p class="text-xs text-ink-muted">{{ goal_progress.days_to_comp }} days away</p>
           {% elif goal_progress.days_to_comp == 0 %}
           <p class="text-xs font-semibold text-amber-600">Competition day!</p>
           {% else %}
-          <p class="text-xs text-gray-400">{{ goal_progress.competition_date }}</p>
+          <p class="text-xs text-ink-faint">{{ goal_progress.competition_date }}</p>
           {% endif %}
         {% endif %}
       </div>
@@ -129,10 +129,10 @@
       {% set s = goal_progress.snatch %}
       <div>
         <div class="flex items-center justify-between text-sm mb-1.5">
-          <span class="font-medium text-gray-700">Snatch</span>
-          <span class="text-gray-500">
-            <span class="font-semibold text-gray-900">{{ s.current | int }} kg</span>
-            <span class="text-gray-400"> / {{ s.target | int }} kg target</span>
+          <span class="font-medium text-ink-700">Snatch</span>
+          <span class="text-ink-muted">
+            <span class="font-semibold text-ink">{{ s.current | int }} kg</span>
+            <span class="text-ink-faint"> / {{ s.target | int }} kg target</span>
             {% if s.gap > 0 %}
             <span class="ml-1 text-xs text-amber-600">−{{ s.gap }} kg</span>
             {% else %}
@@ -140,12 +140,12 @@
             {% endif %}
           </span>
         </div>
-        <div class="w-full bg-gray-100 rounded-full h-2.5">
+        <div class="w-full bg-paper-200 rounded-full h-2.5">
           <div class="h-2.5 rounded-full transition-all
-                      {{ 'bg-green-500' if s.pct >= 100 else 'bg-gray-900' }}"
+                      {{ 'bg-green-500' if s.pct >= 100 else 'bg-navy' }}"
                style="width: {{ s.pct }}%"></div>
         </div>
-        <div class="flex justify-between text-xs text-gray-400 mt-0.5">
+        <div class="flex justify-between text-xs text-ink-faint mt-0.5">
           <span>0</span>
           <span>{{ s.pct }}%</span>
           <span>{{ s.target | int }}</span>
@@ -157,10 +157,10 @@
       {% set c = goal_progress.cj %}
       <div>
         <div class="flex items-center justify-between text-sm mb-1.5">
-          <span class="font-medium text-gray-700">Clean &amp; Jerk</span>
-          <span class="text-gray-500">
-            <span class="font-semibold text-gray-900">{{ c.current | int }} kg</span>
-            <span class="text-gray-400"> / {{ c.target | int }} kg target</span>
+          <span class="font-medium text-ink-700">Clean &amp; Jerk</span>
+          <span class="text-ink-muted">
+            <span class="font-semibold text-ink">{{ c.current | int }} kg</span>
+            <span class="text-ink-faint"> / {{ c.target | int }} kg target</span>
             {% if c.gap > 0 %}
             <span class="ml-1 text-xs text-amber-600">−{{ c.gap }} kg</span>
             {% else %}
@@ -168,12 +168,12 @@
             {% endif %}
           </span>
         </div>
-        <div class="w-full bg-gray-100 rounded-full h-2.5">
+        <div class="w-full bg-paper-200 rounded-full h-2.5">
           <div class="h-2.5 rounded-full transition-all
-                      {{ 'bg-green-500' if c.pct >= 100 else 'bg-gray-900' }}"
+                      {{ 'bg-green-500' if c.pct >= 100 else 'bg-navy' }}"
                style="width: {{ c.pct }}%"></div>
         </div>
-        <div class="flex justify-between text-xs text-gray-400 mt-0.5">
+        <div class="flex justify-between text-xs text-ink-faint mt-0.5">
           <span>0</span>
           <span>{{ c.pct }}%</span>
           <span>{{ c.target | int }}</span>
@@ -183,7 +183,7 @@
 
     </div>
     {% else %}
-    <p class="text-sm text-gray-400">
+    <p class="text-sm text-ink-faint">
       No target lifts set. <a href="/profile" class="text-blue-600 hover:underline">Add targets →</a>
     </p>
     {% endif %}

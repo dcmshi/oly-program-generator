@@ -4,8 +4,8 @@
        can't itself be a <button> — hence the explicit toggle below, which is
        what keyboard and screen-reader users get. -->
   <div onclick="toggleEdit({{ tle.id }})"
-       class="bg-gray-50 rounded-lg px-3 py-2.5 text-sm cursor-pointer
-              hover:ring-1 hover:ring-gray-300 hover:bg-white transition-all select-none">
+       class="bg-paper-100 rounded-lg px-3 py-2.5 text-sm cursor-pointer
+              hover:ring-1 hover:ring-line-dark hover:bg-paper transition-all select-none">
     <!-- Name row (always visible) + delete button -->
     <div class="flex items-center gap-2">
       <a href="/history?exercise={{ tle.exercise_name | urlencode }}{% if session_id %}&amp;back=/log/{{ session_id }}{% endif %}"
@@ -14,9 +14,9 @@
         {{ tle.exercise_name }}</a>
       <!-- Desktop: stats inline -->
       <div class="hidden sm:flex items-center gap-3 shrink-0">
-        <span class="text-gray-500">{{ tle.reps_per_set | reps_list }}</span>
-        <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
-        <span class="text-gray-400">{{ tle.rpe | fmt_rpe }}</span>
+        <span class="text-ink-muted">{{ tle.reps_per_set | reps_list }}</span>
+        <span class="text-ink-sec font-medium">{{ tle.weight_kg | fmt_weight }}</span>
+        <span class="text-ink-faint">{{ tle.rpe | fmt_rpe }}</span>
         {% if tle.make_rate %}
         <span class="text-xs {% if tle.make_rate < 0.75 %}text-red-500{% else %}text-green-600{% endif %}">
           {{ (tle.make_rate * 100) | round | int }}% makes
@@ -28,19 +28,19 @@
               aria-expanded="false"
               aria-controls="tle-edit-{{ tle.id }}"
               onclick="event.stopPropagation(); toggleEdit({{ tle.id }})"
-              class="shrink-0 ml-auto text-gray-400 hover:text-gray-800 hover:bg-gray-200 rounded text-xs px-1.5 py-1 transition-colors"
+              class="shrink-0 ml-auto text-ink-faint hover:text-ink-800 hover:bg-paper-400 rounded text-xs px-1.5 py-1 transition-colors"
               title="Edit {{ tle.exercise_name }}">Edit</button>
       <button hx-delete="/log/{{ log_id }}/exercise/{{ tle.id }}"
               hx-target="#exercise-log-area"
               hx-swap="outerHTML"
               hx-confirm="Remove {{ tle.exercise_name }} from this session?"
               onclick="event.stopPropagation()"
-              class="icon-btn shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded text-xs px-1.5 py-1 transition-colors" title="Remove">✕</button>
+              class="icon-btn shrink-0 text-ink-faint hover:text-red-500 hover:bg-red-50 rounded text-xs px-1.5 py-1 transition-colors" title="Remove">✕</button>
     </div>
     <!-- Mobile: stats below name -->
-    <div class="flex items-center gap-2.5 sm:hidden mt-1 text-xs text-gray-500">
+    <div class="flex items-center gap-2.5 sm:hidden mt-1 text-xs text-ink-muted">
       <span>{{ tle.reps_per_set | reps_list }}</span>
-      <span class="text-gray-600 font-medium">{{ tle.weight_kg | fmt_weight }}</span>
+      <span class="text-ink-sec font-medium">{{ tle.weight_kg | fmt_weight }}</span>
       <span>{{ tle.rpe | fmt_rpe }}</span>
       {% if tle.make_rate %}
       <span class="{% if tle.make_rate < 0.75 %}text-red-500{% else %}text-green-600{% endif %}">
@@ -55,54 +55,54 @@
         hx-post="/log/{{ log_id }}/exercise/{{ tle.id }}"
         hx-target="#tle-{{ tle.id }}"
         hx-swap="outerHTML"
-        class="hidden grid grid-cols-1 sm:grid-cols-2 gap-2 bg-gray-50 border border-gray-200 rounded-lg p-3 mt-1 text-sm">
+        class="hidden grid grid-cols-1 sm:grid-cols-2 gap-2 bg-paper-100 border border-line rounded-lg p-3 mt-1 text-sm">
 
     {# Ids are per-row: this partial repeats for every logged exercise, and the
        add-exercise form on the same page reuses these field names. #}
     <div>
-      <label for="tle-{{ tle.id }}-sets" class="block text-xs text-gray-500 mb-1">Sets completed</label>
+      <label for="tle-{{ tle.id }}-sets" class="block text-xs text-ink-muted mb-1">Sets completed</label>
       <input type="number" name="sets_completed" id="tle-{{ tle.id }}-sets" min="1"
              value="{{ tle.sets_completed or '' }}"
-             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+             class="w-full border border-line rounded-lg px-2 py-1.5 text-sm bg-paper">
     </div>
     <div>
-      <label for="tle-{{ tle.id }}-reps" class="block text-xs text-gray-500 mb-1">Reps per set</label>
+      <label for="tle-{{ tle.id }}-reps" class="block text-xs text-ink-muted mb-1">Reps per set</label>
       <input type="text" name="reps_per_set" id="tle-{{ tle.id }}-reps"
              value="{{ tle.reps_per_set | join(',') if tle.reps_per_set else '' }}"
-             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+             class="w-full border border-line rounded-lg px-2 py-1.5 text-sm bg-paper">
     </div>
     <div>
-      <label for="tle-{{ tle.id }}-weight" class="block text-xs text-gray-500 mb-1">Weight (kg)</label>
+      <label for="tle-{{ tle.id }}-weight" class="block text-xs text-ink-muted mb-1">Weight (kg)</label>
       <input type="number" name="weight_kg" id="tle-{{ tle.id }}-weight" step="0.5"
              value="{{ tle.weight_kg or '' }}"
-             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+             class="w-full border border-line rounded-lg px-2 py-1.5 text-sm bg-paper">
     </div>
     <div>
-      <label for="tle-{{ tle.id }}-rpe" class="block text-xs text-gray-500 mb-1">RPE</label>
+      <label for="tle-{{ tle.id }}-rpe" class="block text-xs text-ink-muted mb-1">RPE</label>
       <input type="number" name="rpe" id="tle-{{ tle.id }}-rpe" min="1" max="10" step="0.5"
              value="{{ tle.rpe or '' }}"
-             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+             class="w-full border border-line rounded-lg px-2 py-1.5 text-sm bg-paper">
     </div>
     <div>
-      <label for="tle-{{ tle.id }}-make-rate" class="block text-xs text-gray-500 mb-1">Make rate %</label>
+      <label for="tle-{{ tle.id }}-make-rate" class="block text-xs text-ink-muted mb-1">Make rate %</label>
       <input type="number" name="make_rate" id="tle-{{ tle.id }}-make-rate" min="0" max="100"
              value="{{ (tle.make_rate * 100) | round | int if tle.make_rate is not none else '' }}"
-             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+             class="w-full border border-line rounded-lg px-2 py-1.5 text-sm bg-paper">
     </div>
     <div>
-      <label for="tle-{{ tle.id }}-notes" class="block text-xs text-gray-500 mb-1">Technical notes</label>
+      <label for="tle-{{ tle.id }}-notes" class="block text-xs text-ink-muted mb-1">Technical notes</label>
       <input type="text" name="technical_notes" id="tle-{{ tle.id }}-notes"
              value="{{ tle.technical_notes or '' }}"
-             class="w-full border border-gray-200 rounded-lg px-2 py-1.5 text-sm bg-white">
+             class="w-full border border-line rounded-lg px-2 py-1.5 text-sm bg-paper">
     </div>
 
     <div class="col-span-2 flex gap-2 mt-1">
       <button type="submit"
-              class="bg-gray-900 text-white px-3 py-1.5 rounded-lg text-xs hover:bg-gray-700">
+              class="bg-navy text-white px-3 py-1.5 rounded-lg text-xs hover:bg-navy-700">
         Save
       </button>
       <button type="button" onclick="toggleEdit({{ tle.id }})"
-              class="border border-gray-200 text-gray-500 px-3 py-1.5 rounded-lg text-xs hover:bg-gray-50">
+              class="border border-line text-ink-muted px-3 py-1.5 rounded-lg text-xs hover:bg-paper-150">
         Cancel
       </button>
     </div>

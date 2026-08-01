@@ -8,12 +8,11 @@
   <script src="/static/vendor/htmx.min.js"></script>
   <link rel="stylesheet" href="/static/tailwind.css">
   <link rel="stylesheet" href="/static/fonts.css">
-  <link rel="stylesheet" href="/static/theme.css">
 </head>
-<body class="text-gray-900 min-h-screen">
+<body class="text-ink min-h-screen">
 
   <!-- Nav -->
-  <nav class="bg-gray-900 text-white shadow">
+  <nav class="bg-navy text-white shadow">
     <div class="px-4 py-3 flex items-center gap-4">
       <a href="/" class="flex items-center gap-2 font-bold text-lg tracking-tight shrink-0">
         <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 84 28" fill="none" class="h-7 w-auto">
@@ -31,11 +30,11 @@
       </a>
       <!-- Desktop links -->
       <div class="hidden sm:flex items-center gap-5 ml-1">
-        <a href="/" class="text-gray-300 hover:text-white text-sm">Dashboard</a>
-        <a href="/program" class="text-gray-300 hover:text-white text-sm">Programs</a>
-        <a href="/generate" class="text-gray-300 hover:text-white text-sm">Generate</a>
+        <a href="/" class="text-navy-100 hover:text-white text-sm">Dashboard</a>
+        <a href="/program" class="text-navy-100 hover:text-white text-sm">Programs</a>
+        <a href="/generate" class="text-navy-100 hover:text-white text-sm">Generate</a>
         {% if request.session.get("is_admin") %}
-        <a href="/admin/jobs" class="text-gray-300 hover:text-white text-sm">Jobs</a>
+        <a href="/admin/jobs" class="text-navy-100 hover:text-white text-sm">Jobs</a>
         {% endif %}
       </div>
       <!-- Desktop right. Guarded on athlete_id, the session key AuthMiddleware
@@ -45,16 +44,16 @@
       <div class="hidden sm:flex ml-auto items-center gap-4">
         {% if request.session.get("athlete_id") %}
         {% if request.session.get("athlete_name") %}
-        <a href="/profile" class="text-gray-400 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
+        <a href="/profile" class="text-navy-200 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
         {% endif %}
         <form method="post" action="/logout">
-          <button type="submit" class="text-gray-300 hover:text-white text-sm">Logout</button>
+          <button type="submit" class="text-navy-100 hover:text-white text-sm">Logout</button>
         </form>
         {% endif %}
       </div>
       <!-- Mobile hamburger -->
       <button id="nav-toggle" type="button"
-              class="sm:hidden ml-auto p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              class="sm:hidden ml-auto p-2 rounded-md text-navy-200 hover:text-white hover:bg-navy-800 transition-colors"
               aria-label="Menu" aria-expanded="false" aria-controls="nav-menu">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
@@ -62,19 +61,19 @@
       </button>
     </div>
     <!-- Mobile menu (hidden by default) -->
-    <div id="nav-menu" class="hidden sm:hidden border-t border-gray-800 px-4 py-2 space-y-0.5">
-      <a href="/" class="block py-2 text-gray-300 hover:text-white text-sm">Dashboard</a>
-      <a href="/program" class="block py-2 text-gray-300 hover:text-white text-sm">Programs</a>
-      <a href="/generate" class="block py-2 text-gray-300 hover:text-white text-sm">Generate</a>
+    <div id="nav-menu" class="hidden sm:hidden border-t border-navy-line px-4 py-2 space-y-0.5">
+      <a href="/" class="block py-2 text-navy-100 hover:text-white text-sm">Dashboard</a>
+      <a href="/program" class="block py-2 text-navy-100 hover:text-white text-sm">Programs</a>
+      <a href="/generate" class="block py-2 text-navy-100 hover:text-white text-sm">Generate</a>
       {% if request.session.get("is_admin") %}
-      <a href="/admin/jobs" class="block py-2 text-gray-300 hover:text-white text-sm">Jobs</a>
+      <a href="/admin/jobs" class="block py-2 text-navy-100 hover:text-white text-sm">Jobs</a>
       {% endif %}
       {% if request.session.get("athlete_id") %}
       {% if request.session.get("athlete_name") %}
-      <a href="/profile" class="block py-2 text-gray-400 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
+      <a href="/profile" class="block py-2 text-navy-200 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
       {% endif %}
       <form method="post" action="/logout" class="py-1">
-        <button type="submit" class="text-gray-300 hover:text-white text-sm">Logout</button>
+        <button type="submit" class="text-navy-100 hover:text-white text-sm">Logout</button>
       </form>
       {% endif %}
     </div>
