@@ -698,6 +698,21 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-M10: mobile nav needs ARIA state and a way to close ───────────────────
+
+def test_nav_toggle_exposes_and_updates_its_state():
+    base = (Path(__file__).parent.parent / "web" / "templates" / "base.html").read_text(encoding="utf-8")
+    assert 'aria-expanded="false" aria-controls="nav-menu"' in base, \
+        "the hamburger had only aria-label — nothing announced open/closed"
+    assert "toggle.setAttribute('aria-expanded'" in base, "the state must follow the menu"
+
+
+def test_nav_menu_closes_on_outside_click_and_escape():
+    base = (Path(__file__).parent.parent / "web" / "templates" / "base.html").read_text(encoding="utf-8")
+    assert "evt.key === 'Escape'" in base, "Escape must close the menu"
+    assert "!menu.contains(evt.target)" in base, "tapping outside must close the menu"
+
+
 # ── FE-M9: every label must be associated with its control ───────────────────
 
 _FORM_TEMPLATES = [

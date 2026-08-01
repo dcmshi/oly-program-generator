@@ -140,7 +140,9 @@
         </form>
       </div>
       <!-- Mobile hamburger -->
-      <button id="nav-toggle" class="sm:hidden ml-auto p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors" aria-label="Menu">
+      <button id="nav-toggle" type="button"
+              class="sm:hidden ml-auto p-2 rounded-md text-gray-400 hover:text-white hover:bg-gray-800 transition-colors"
+              aria-label="Menu" aria-expanded="false" aria-controls="nav-menu">
         <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2">
           <path stroke-linecap="round" stroke-linejoin="round" d="M4 6h16M4 12h16M4 18h16"/>
         </svg>
@@ -163,9 +165,35 @@
     </div>
   </nav>
   <script>
-    document.getElementById('nav-toggle').addEventListener('click', function() {
-      document.getElementById('nav-menu').classList.toggle('hidden');
+  (function () {
+    const toggle = document.getElementById('nav-toggle');
+    const menu = document.getElementById('nav-menu');
+
+    function setOpen(open) {
+      menu.classList.toggle('hidden', !open);
+      toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
+    }
+
+    toggle.addEventListener('click', function (evt) {
+      evt.stopPropagation();
+      setOpen(menu.classList.contains('hidden'));
     });
+
+    // Nav links trigger a full page load, so the menu closing on navigation was
+    // incidental; tapping outside it or pressing Escape left it open.
+    menu.addEventListener('click', function (evt) {
+      if (evt.target.closest('a, button')) setOpen(false);
+    });
+    document.addEventListener('click', function (evt) {
+      if (!menu.contains(evt.target) && !toggle.contains(evt.target)) setOpen(false);
+    });
+    document.addEventListener('keydown', function (evt) {
+      if (evt.key === 'Escape' && !menu.classList.contains('hidden')) {
+        setOpen(false);
+        toggle.focus();
+      }
+    });
+  })();
   </script>
 
   <!-- Content -->
