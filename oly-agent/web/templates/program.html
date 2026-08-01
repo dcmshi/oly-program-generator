@@ -31,8 +31,8 @@
 
     {% if program.status == 'active' %}
     <button hx-post="/program/{{ program.id }}/complete"
-            hx-target="#program-actions"
-            hx-swap="outerHTML"
+            hx-target="#outcome-area"
+            hx-swap="innerHTML"
             hx-confirm="Mark this program as complete and compute outcomes?"
             class="bg-blue-600 text-white text-sm px-4 py-2 rounded-lg hover:bg-blue-700">
       Complete program
@@ -91,7 +91,9 @@
 {% endif %}
 {% endif %}
 
-<!-- Outcome summary (completed programs) -->
+<!-- Outcome summary — rendered here on load for completed programs, and filled
+     by the complete button's swap without touching the export controls. -->
+<div id="outcome-area">
 {% if program.status == 'completed' and program.outcome_summary %}
 {% set o = program.outcome_summary %}
 <div class="bg-blue-50 border border-blue-100 rounded-xl p-5 mt-4">
@@ -180,6 +182,7 @@
 
 </div>
 {% endif %}
+</div>
 
 <!-- Rationale accordion -->
 {% if program.rationale %}

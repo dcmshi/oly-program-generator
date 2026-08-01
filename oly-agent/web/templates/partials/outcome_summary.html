@@ -4,10 +4,9 @@
      top-level node — htmx only processes hx-swap-oob on the fragment root. -->
 {% with status = "completed", oob = True %}{% include "partials/status_badge.html" %}{% endwith %}
 
-<!-- Replaces the action buttons area after program completion -->
-<div id="program-actions" class="space-y-4">
-
-  <!-- Outcome metrics card -->
+<!-- Fills #outcome-area. Deliberately NOT #program-actions: that div also holds
+     the Export CSV / Export PDF controls, which an outerHTML swap there wiped
+     out until the next full page load. -->
   <div class="bg-blue-50 border border-blue-100 rounded-xl p-5">
     <h3 class="font-semibold text-blue-900 mb-3">Program Outcome</h3>
 
@@ -126,5 +125,3 @@
     {% endif %}
 
   </div>
-
-</div>

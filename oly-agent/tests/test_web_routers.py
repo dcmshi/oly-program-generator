@@ -888,6 +888,30 @@ def test_complete_emits_single_oob_status_badge():
     assert "completed" in body
 
 
+def test_complete_response_keeps_export_controls_alive():
+    """FE-H2: the complete response used to replace #program-actions wholesale,
+    taking the Export CSV / Export PDF controls with it. It must now fill
+    #outcome-area and leave the actions region to the page."""
+    with patch("web.queries.program.get_program", return_value=_program(status="active")):
+        with patch("web.queries.program.complete_program", return_value=_outcome()):
+            r = _client.post("/program/1/complete")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert 'id="program-actions"' not in r.text, \
+        "the outcome fragment must not claim #program-actions — it holds the export controls"
+    assert "Program Outcome" in r.text
+
+
+def test_program_detail_has_outcome_area_target():
+    with patch("web.queries.program.get_program", return_value=_program()):
+        with patch("web.queries.program.get_program_weeks", return_value=_week_data()):
+            with patch("web.queries.program.get_program_volume_by_week", return_value=[]):
+                r = _client.get("/program/1")
+    assert r.status_code == 200
+    assert 'id="outcome-area"' in r.text, "complete's hx-target must exist in the page"
+    assert 'hx-target="#outcome-area"' in r.text
+    assert "Export CSV" in r.text
+
+
 def test_program_detail_header_badge_is_not_oob():
     """The full page renders the badge in place — an hx-swap-oob attribute
     there would make htmx relocate it on any later swap."""
