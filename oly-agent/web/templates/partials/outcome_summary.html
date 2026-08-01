@@ -4,6 +4,10 @@
      top-level node — htmx only processes hx-swap-oob on the fragment root. -->
 {% with status = "completed", oob = True %}{% include "partials/status_badge.html" %}{% endwith %}
 
+<!-- Out-of-band: drop the Complete / Abandon buttons now that the program is
+     finished, keeping the export controls. -->
+{% with oob = True %}{% include "partials/program_actions.html" %}{% endwith %}
+
 <!-- Fills #outcome-area. Deliberately NOT #program-actions: that div also holds
      the Export CSV / Export PDF controls, which an outerHTML swap there wiped
      out until the next full page load. -->

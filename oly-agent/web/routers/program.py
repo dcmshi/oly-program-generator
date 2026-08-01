@@ -67,8 +67,8 @@ async def activate(
     await q.activate_program(conn, program_id, athlete_id)
     program = await q.get_program(conn, program_id)
     logger.info(f"Program {program_id} activated for athlete {athlete_id}")
-    return templates.TemplateResponse(request, "partials/status_badge.html", {
-        "request": request, "status": program["status"],
+    return templates.TemplateResponse(request, "partials/program_actions_update.html", {
+        "request": request, "program": program,
     })
 
 
@@ -95,6 +95,9 @@ async def complete(
     logger.info(f"Program {program_id} completed: adherence={outcome.adherence_pct}%, make_rate={outcome.avg_make_rate:.0%}")
     return templates.TemplateResponse(request, "partials/outcome_summary.html", {
         "request": request, "outcome": outcome, "program_id": program_id,
+        # The partial refreshes the action buttons out-of-band, so it needs the
+        # post-completion status rather than the row we read above.
+        "program": {**dict(program), "status": "completed"},
     })
 
 
@@ -127,10 +130,14 @@ async def abandon(
     program = await q.get_program(conn, program_id)
     if not program or program["athlete_id"] != athlete_id:
         raise HTTPException(status_code=404, detail="Program not found")
+    # Same guard as activate and complete: without it, abandoning a completed
+    # program flipped its status and stranded the computed outcome_summary.
+    if program["status"] not in ("draft", "active"):
+        raise HTTPException(status_code=409, detail="Only a draft or active program can be abandoned")
     await q.abandon_program(conn, program_id, athlete_id)
     logger.info(f"Program {program_id} abandoned by athlete {athlete_id}")
-    return templates.TemplateResponse(request, "partials/status_badge.html", {
-        "request": request, "status": "abandoned",
+    return templates.TemplateResponse(request, "partials/program_actions_update.html", {
+        "request": request, "program": {**dict(program), "status": "abandoned"},
     })
 
 

@@ -896,9 +896,8 @@ def test_complete_response_keeps_export_controls_alive():
         with patch("web.queries.program.complete_program", return_value=_outcome()):
             r = _client.post("/program/1/complete")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
-    assert 'id="program-actions"' not in r.text, \
-        "the outcome fragment must not claim #program-actions — it holds the export controls"
     assert "Program Outcome" in r.text
+    assert "Export CSV" in r.text, "the export controls must survive completion"
 
 
 def test_program_detail_has_outcome_area_target():
@@ -922,6 +921,60 @@ def test_program_detail_header_badge_is_not_oob():
     assert r.status_code == 200
     assert 'id="status-badge"' in r.text
     assert "hx-swap-oob" not in r.text
+
+
+# ── FE-H4: status changes must re-render the action buttons ───────────────────
+
+def test_activate_response_drops_the_activate_button():
+    with patch("web.queries.program.activate_program", return_value=None):
+        with patch("web.queries.program.get_program",
+                   side_effect=[_program(status="draft"), _program(status="active")]):
+            r = _client.post("/program/1/activate")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert '/program/1/activate"' not in r.text, "the Activate button must be gone after activating"
+    assert "Complete program" in r.text, "an active program can be completed"
+    assert 'id="program-actions"' in r.text, "the response must replace the actions region"
+    assert 'hx-swap-oob="true"' in r.text, "the header badge must update too"
+
+
+def test_abandon_response_leaves_no_action_buttons():
+    with patch("web.queries.program.get_program", return_value=_program(status="active")):
+        with patch("web.queries.program.abandon_program", return_value=None):
+            r = _client.post("/program/1/abandon")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert "Complete program" not in r.text
+    assert '/program/1/abandon"' not in r.text, "the Abandon button must be gone after abandoning"
+    assert "Export CSV" in r.text, "exports stay available on an abandoned program"
+    assert "abandoned" in r.text
+
+
+def test_abandon_409_when_already_completed():
+    """abandon was the only status endpoint without a guard, so it happily
+    flipped a completed program to abandoned and stranded its outcome."""
+    with patch("web.queries.program.get_program", return_value=_program(status="completed")):
+        with patch("web.queries.program.abandon_program", return_value=None) as mock_abandon:
+            r = _client.post("/program/1/abandon")
+    assert r.status_code == 409, f"Expected 409, got {r.status_code}"
+    assert not mock_abandon.called, "abandon must not run on a completed program"
+
+
+def test_abandon_409_when_already_abandoned():
+    with patch("web.queries.program.get_program", return_value=_program(status="abandoned")):
+        with patch("web.queries.program.abandon_program", return_value=None) as mock_abandon:
+            r = _client.post("/program/1/abandon")
+    assert r.status_code == 409, f"Expected 409, got {r.status_code}"
+    assert not mock_abandon.called
+
+
+def test_complete_response_refreshes_action_buttons_out_of_band():
+    with patch("web.queries.program.get_program", return_value=_program(status="active")):
+        with patch("web.queries.program.complete_program", return_value=_outcome()):
+            r = _client.post("/program/1/complete")
+    assert r.status_code == 200
+    assert 'id="program-actions" hx-swap-oob="true"' in r.text, \
+        "the actions region must be refreshed out-of-band, not left showing Complete/Abandon"
+    assert "Complete program" not in r.text
+    assert "Export CSV" in r.text
 
 
 # ── FE-H3: HTMX failures must surface instead of doing nothing ────────────────

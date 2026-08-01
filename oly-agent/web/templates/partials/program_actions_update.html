@@ -1,0 +1,4 @@
+<!-- Response for activate / abandon: swap the actions region in place and carry
+     the header status badge along out-of-band. -->
+{% include "partials/program_actions.html" %}
+{% with status = program.status, oob = True %}{% include "partials/status_badge.html" %}{% endwith %}
