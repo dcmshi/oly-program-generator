@@ -697,6 +697,27 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-M3: every HTMX action shows an in-flight state ────────────────────────
+
+def test_base_styles_the_htmx_request_state():
+    base = (Path(__file__).parent.parent / "web" / "templates" / "base.html").read_text(encoding="utf-8")
+    assert "button.htmx-request" in base, "buttons need an in-flight style"
+    assert 'form.htmx-request button[type="submit"]' in base, \
+        "form submits need one too — htmx marks the form, not the button"
+    assert "pointer-events: none" in base, "the in-flight state must block double-submits"
+    assert "@keyframes oly-spin" in base
+
+
+def test_icon_only_buttons_opt_out_of_the_spinner():
+    """A spinner pseudo-element inside a 24px round ✕ button just breaks its
+    layout, so those dim instead."""
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    for name in ("program_list.html", "partials/exercise_log_entry.html",
+                 "partials/maxes_table.html"):
+        text = (tpl_dir / name).read_text(encoding="utf-8")
+        assert "icon-btn" in text, f"{name} has an icon-only HTMX button with no opt-out"
+
+
 # ── FE-M2: no dead frontend assets ───────────────────────────────────────────
 
 def test_no_unreferenced_partials():
