@@ -1,5 +1,8 @@
 <div id="tle-{{ tle.id }}">
-  <!-- Display row — click anywhere to expand edit form -->
+  <!-- Clicking the row expands the edit form as a convenience for pointers. It
+       can't be the only way in — the row holds a link and a delete button, so it
+       can't itself be a <button> — hence the explicit toggle below, which is
+       what keyboard and screen-reader users get. -->
   <div onclick="toggleEdit({{ tle.id }})"
        class="bg-gray-50 rounded-lg px-3 py-2.5 text-sm cursor-pointer
               hover:ring-1 hover:ring-gray-300 hover:bg-white transition-all select-none">
@@ -20,12 +23,19 @@
         </span>
         {% endif %}
       </div>
+      <button type="button"
+              id="tle-toggle-{{ tle.id }}"
+              aria-expanded="false"
+              aria-controls="tle-edit-{{ tle.id }}"
+              onclick="event.stopPropagation(); toggleEdit({{ tle.id }})"
+              class="shrink-0 ml-auto text-gray-400 hover:text-gray-800 hover:bg-gray-200 rounded text-xs px-1.5 py-1 transition-colors"
+              title="Edit {{ tle.exercise_name }}">Edit</button>
       <button hx-delete="/log/{{ log_id }}/exercise/{{ tle.id }}"
               hx-target="#exercise-log-area"
               hx-swap="outerHTML"
               hx-confirm="Remove {{ tle.exercise_name }} from this session?"
               onclick="event.stopPropagation()"
-              class="icon-btn shrink-0 ml-auto text-gray-400 hover:text-red-500 hover:bg-red-50 rounded text-xs px-1.5 py-1 transition-colors" title="Remove">✕</button>
+              class="icon-btn shrink-0 text-gray-400 hover:text-red-500 hover:bg-red-50 rounded text-xs px-1.5 py-1 transition-colors" title="Remove">✕</button>
     </div>
     <!-- Mobile: stats below name -->
     <div class="flex items-center gap-2.5 sm:hidden mt-1 text-xs text-gray-500">

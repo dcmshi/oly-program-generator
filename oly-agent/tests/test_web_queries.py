@@ -697,6 +697,26 @@ def test_prefill_uses_data_attributes_not_js_string():
     assert "prefillExercise('" not in tpl
 
 
+# ── FE-M8: the exercise row's edit form must be keyboard-reachable ────────────
+
+def test_exercise_row_has_a_real_toggle_button():
+    """The row was a <div onclick> with no role, tabindex or key handler, so a
+    keyboard user could not open the edit form at all."""
+    tpl = (Path(__file__).parent.parent / "web" / "templates" / "partials"
+           / "exercise_log_entry.html").read_text(encoding="utf-8")
+    assert 'aria-controls="tle-edit-{{ tle.id }}"' in tpl, \
+        "the toggle must point at the form it opens"
+    assert 'aria-expanded="false"' in tpl
+    assert 'id="tle-toggle-{{ tle.id }}"' in tpl, "toggleEdit needs it to sync aria-expanded"
+
+
+def test_toggle_edit_syncs_aria_expanded():
+    tpl = (Path(__file__).parent.parent / "web" / "templates" / "partials"
+           / "exercise_log_section.html").read_text(encoding="utf-8")
+    assert "function toggleEdit" in tpl
+    assert "aria-expanded" in tpl, "the toggle's state must follow the form's visibility"
+
+
 # ── FE-M6: the delete button must be reachable without hover ─────────────────
 
 def test_program_delete_button_visible_without_hover():

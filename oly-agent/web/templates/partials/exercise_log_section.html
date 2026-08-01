@@ -221,6 +221,10 @@ function prefillExercise(btn) {
 }
 
 function toggleEdit(tleId) {
-  document.getElementById('tle-edit-' + tleId).classList.toggle('hidden');
+  const form = document.getElementById('tle-edit-' + tleId);
+  if (!form) return;
+  const open = !form.classList.toggle('hidden');
+  const toggle = document.getElementById('tle-toggle-' + tleId);
+  if (toggle) toggle.setAttribute('aria-expanded', open ? 'true' : 'false');
 }
 </script>
