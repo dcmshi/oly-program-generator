@@ -1,0 +1,11 @@
+{
+  "name": "oly-agent-css",
+  "private": true,
+  "description": "Tailwind build for oly-agent's web UI. Output is committed to web/static/tailwind.css; nothing here is needed at runtime.",
+  "scripts": {
+    "build": "tailwindcss -c tailwind.config.js -i input.css -o ../static/tailwind.css --minify"
+  },
+  "devDependencies": {
+    "tailwindcss": "3.4.17"
+  }
+}

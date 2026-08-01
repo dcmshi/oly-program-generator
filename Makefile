@@ -14,6 +14,7 @@ export PYTHONUTF8 := 1
 
 .PHONY: help up down reset migrate sync web worker \
         test test-agent test-ingestion lint \
+        css fonts \
         coverage coverage-agent coverage-ingestion
 
 # ── Help ──────────────────────────────────────────────────────────────────────
@@ -36,6 +37,10 @@ help:
 	@echo "    make test-agent       oly-agent unit + web router tests"
 	@echo "    make test-ingestion   oly-ingestion unit tests"
 	@echo "    make lint             ruff check (config in ruff.toml)"
+	@echo ""
+	@echo "  Frontend assets (output is committed — only rerun after changes)"
+	@echo "    make css              compile web/static/tailwind.css (needs npm)"
+	@echo "    make fonts            refetch the self-hosted woff2 files"
 	@echo ""
 	@echo "  Coverage"
 	@echo "    make coverage         coverage for both subsystems"
@@ -118,6 +123,17 @@ test-agent:
 
 test-ingestion:
 	cd oly-ingestion && uv run pytest $(INGESTION_TESTS) -q
+
+# ── Frontend assets ───────────────────────────────────────────────────────────
+# tailwind.css, fonts.css and the woff2 files are committed, so neither target
+# is needed to run, test, or deploy the app — only after changing templates
+# (new utility classes) or the font families.
+
+css:
+	cd oly-agent/web/tailwind && npm install --silent && npm run build
+
+fonts:
+	cd oly-agent && python web/static/build_fonts.py
 
 # ── Coverage ──────────────────────────────────────────────────────────────────
 

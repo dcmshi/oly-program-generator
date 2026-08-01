@@ -1,0 +1,6 @@
+/* Build entrypoint. Matches what the Play CDN injected: preflight plus the
+   component and utility layers. The warm theme lives in static/theme.css, which
+   loads after this. */
+@tailwind base;
+@tailwind components;
+@tailwind utilities;

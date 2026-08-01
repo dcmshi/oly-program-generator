@@ -923,13 +923,55 @@ def test_program_detail_header_badge_is_not_oob():
     assert "hx-swap-oob" not in r.text
 
 
-# ── FE-L2: the shared stylesheet must actually be served ──────────────────────
+# ── FE-L2 / FE-L3: local assets must all be served ────────────────────────────
 
 def test_theme_css_is_served():
     r = _unauthed.get("/static/theme.css")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
     assert "--text-faint" in r.text, "the palette must reach the browser"
     assert "text/css" in r.headers.get("content-type", "")
+
+
+def test_every_local_asset_a_template_references_exists():
+    """The whole point of vendoring is that no page depends on a third party, so
+    a typo'd /static path would be a silently broken page instead of a fallback."""
+    import re
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    refs = set()
+    for tpl in tpl_dir.rglob("*.html"):
+        refs |= set(re.findall(r'(?:href|src)="(/static/[^"{]+)"', tpl.read_text(encoding="utf-8")))
+    assert refs, "expected the templates to reference local assets"
+    for path in sorted(refs):
+        r = _unauthed.get(path)
+        assert r.status_code == 200, f"{path} is referenced but not served ({r.status_code})"
+
+
+def test_no_page_loads_a_third_party_asset():
+    """cdn.tailwindcss.com (a dev-only in-browser compiler), unpkg, jsdelivr and
+    Google Fonts each broke or degraded every page when unreachable."""
+    import re
+    tpl_dir = Path(__file__).parent.parent / "web" / "templates"
+    offenders = {}
+    for tpl in tpl_dir.rglob("*.html"):
+        external = re.findall(r'(?:href|src)="(https?://[^"]+)"', tpl.read_text(encoding="utf-8"))
+        if external:
+            offenders[tpl.name] = external
+    assert not offenders, f"templates still load remote assets: {offenders}"
+
+
+def test_compiled_css_covers_the_classes_templates_use():
+    """The Play CDN generated utilities on the fly; a compiled build only
+    contains what the content globs found, so a class in a file Tailwind isn't
+    scanning would silently have no styles."""
+    css = (Path(__file__).parent.parent / "web" / "static" / "tailwind.css").read_text(encoding="utf-8")
+    # One representative of each variant kind the templates rely on.
+    for cls in (r"print\:hidden", r"print\:table-cell", r"sm\:group-hover\:opacity-100",
+                r"sm\:focus\:opacity-100", r"hover\:bg-red-500", r"sm\:table-cell",
+                "animate-spin", "divide-gray-50"):
+        assert cls in css, f"compiled tailwind.css is missing {cls}"
+    # An arbitrary value Tailwind has to normalise: calc(100%-2rem) is invalid CSS
+    # without spaces around the operator.
+    assert "calc(100% - 2rem)" in css
 
 
 # ── FE-M9: rendered pages must have unique, resolvable field ids ──────────────
