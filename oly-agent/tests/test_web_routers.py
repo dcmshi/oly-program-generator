@@ -929,6 +929,39 @@ def test_program_detail_header_badge_is_not_oob():
     assert "hx-swap-oob" not in r.text
 
 
+# ── FE-L6: Logout must not render for anonymous visitors ──────────────────────
+
+def _render_base(session):
+    """Render base.html directly — every route behind it requires auth, so an
+    anonymous render can't be reached through the app."""
+    from types import SimpleNamespace
+
+    from web.app import templates
+    return templates.get_template("base.html").render(
+        request=SimpleNamespace(session=session)
+    )
+
+
+def test_logout_hidden_without_a_session():
+    html = _render_base({})
+    assert "/logout" not in html, \
+        "the Logout form rendered unconditionally — latent today, wrong the first " \
+        "time a semi-public page extends base"
+    assert "/profile" not in html
+
+
+def test_logout_shown_for_a_logged_in_athlete():
+    html = _render_base({"athlete_id": 1, "athlete_name": "Test"})
+    assert html.count('action="/logout"') == 2, "desktop and mobile nav both have one"
+    assert "Test" in html, "the profile link shows the athlete name"
+
+
+def test_nav_links_still_render_for_anonymous():
+    """Only the identity controls are guarded; the nav itself is unchanged."""
+    html = _render_base({})
+    assert "Dashboard" in html and "Programs" in html and "Generate" in html
+
+
 # ── FE-L2 / FE-L3: local assets must all be served ────────────────────────────
 
 def test_theme_css_is_served():

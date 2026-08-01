@@ -38,14 +38,19 @@
         <a href="/admin/jobs" class="text-gray-300 hover:text-white text-sm">Jobs</a>
         {% endif %}
       </div>
-      <!-- Desktop right -->
+      <!-- Desktop right. Guarded on athlete_id, the session key AuthMiddleware
+           actually checks: every page extending base is behind the guard today,
+           so an unconditional Logout was latent, but the first semi-public page
+           to extend base would have offered it to anonymous visitors. -->
       <div class="hidden sm:flex ml-auto items-center gap-4">
+        {% if request.session.get("athlete_id") %}
         {% if request.session.get("athlete_name") %}
         <a href="/profile" class="text-gray-400 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
         {% endif %}
         <form method="post" action="/logout">
           <button type="submit" class="text-gray-300 hover:text-white text-sm">Logout</button>
         </form>
+        {% endif %}
       </div>
       <!-- Mobile hamburger -->
       <button id="nav-toggle" type="button"
@@ -64,12 +69,14 @@
       {% if request.session.get("is_admin") %}
       <a href="/admin/jobs" class="block py-2 text-gray-300 hover:text-white text-sm">Jobs</a>
       {% endif %}
+      {% if request.session.get("athlete_id") %}
       {% if request.session.get("athlete_name") %}
       <a href="/profile" class="block py-2 text-gray-400 hover:text-white text-sm">{{ request.session.get("athlete_name") }}</a>
       {% endif %}
       <form method="post" action="/logout" class="py-1">
         <button type="submit" class="text-gray-300 hover:text-white text-sm">Logout</button>
       </form>
+      {% endif %}
     </div>
   </nav>
   <script>
