@@ -25,6 +25,7 @@ from shared.constants import (
     ADVANCE_MIN_MAKE_RATE,
     EXCELLENT_ADHERENCE_PCT,
     EXCELLENT_MAKE_RATE,
+    MAX_PRINCIPLE_CANDIDATES,
 )
 from shared.db import fetch_all
 from shared.prilepin import compute_session_rep_target
@@ -262,20 +263,30 @@ def _apply_outcome_adjustments(raw_targets: list[dict], previous_program: dict) 
 
 
 def _load_principles(conn, phase: str, athlete_level: str) -> list[dict]:
-    """Load programming principles applicable to this phase and level."""
+    """Load the CANDIDATE principles for this phase and level.
+
+    This is a SQL superset: `jsonb @> to_jsonb(text)` matches both a string
+    condition (`"phase": "accumulation"`) and an array one
+    (`"phase": ["accumulation", "intensification"]`) — the previous
+    `condition->>'phase' = %s` silently excluded every array-valued phase
+    (RAG-H3). The other condition keys (movement_family, weeks-out, week-of-
+    block, make rate, RPE, training age) are evaluated per session by
+    `principle_matcher.select_principles` in the orchestrator, so the cap only
+    needs to leave enough candidates for that pass.
+    """
     return fetch_all(
         conn,
         """
         SELECT id, principle_name, recommendation, rationale, priority, condition
         FROM programming_principles
         WHERE (condition IS NULL
-               OR condition->>'phase' IS NULL
-               OR condition->>'phase' = %s)
+               OR condition->'phase' IS NULL
+               OR condition->'phase' @> to_jsonb(%s::text))
           AND (condition IS NULL
                OR condition->'athlete_level' IS NULL
                OR condition->'athlete_level' @> to_jsonb(%s::text))
         ORDER BY priority DESC
-        LIMIT 20
+        LIMIT %s
         """,
-        (phase, athlete_level),
+        (phase, athlete_level, MAX_PRINCIPLE_CANDIDATES),
     )

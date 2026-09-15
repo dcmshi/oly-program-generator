@@ -24,6 +24,7 @@ from generate import build_session_prompt, generate_session_with_retries
 from models import AthleteContext, ProgramPlan, SessionTemplate
 from phase_profiles import PHASE_PROFILES
 from plan import plan
+from principle_matcher import build_session_state, select_principles
 from retrieve import retrieve
 from validate import validate_session
 from weight_resolver import apply_projected_maxes, attach_source_chunk_ids, resolve_exercise_ids, resolve_weights
@@ -184,6 +185,16 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                 )
                 cumulative_comp_reps = sum(week_cumulative_reps.values())
 
+                # Per-session principle selection (RAG-H3): the plan's list is a
+                # phase/level superset; apply every condition field for THIS
+                # week and THIS day's primary movement before prompting/validating.
+                session_state = build_session_state(
+                    athlete_context, program_plan, week_number, session_template
+                )
+                session_principles = select_principles(
+                    retrieval_context.active_principles, session_state
+                )
+
                 prompt = build_session_prompt(
                     athlete_context=athlete_context,
                     week_target=week_target,
@@ -197,6 +208,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     effective_maxes=effective_maxes,
                     phase=program_plan.phase,
                     sessions_per_week=program_plan.sessions_per_week,
+                    active_principles=session_principles,
                 )
 
                 # Deadline guard — the ARQ job timeout can only cancel the
@@ -248,7 +260,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     available_exercise_names=available_exercise_names,
                     week_target=asdict(week_target),
                     athlete=athlete_context.athlete,
-                    active_principles=retrieval_context.active_principles,
+                    active_principles=session_principles,
                     week_cumulative_reps=week_cumulative_reps,
                     program_id=program_id,
                     week_number=week_number,
@@ -287,7 +299,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                 validation = validate_session(
                     session_exercises=exercises,
                     week_target=asdict(week_target),
-                    active_principles=retrieval_context.active_principles,
+                    active_principles=session_principles,
                     athlete=athlete_context.athlete,
                     week_cumulative_reps=week_cumulative_reps,
                 )

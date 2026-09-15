@@ -541,3 +541,36 @@ if __name__ == "__main__":
         detail = f"  → {r[2]}" if len(r) > 2 else ""
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {skipped} skipped, {failed} failed")
+
+
+# ── RAG-H3: principles are selected per session ──────────────────────────────
+
+def test_principles_selected_per_session_by_movement_family():
+    """A snatch-only rule reaches the snatch day's generate + validate calls and
+    NOT the clean day's; an unconditional rule reaches both. The plan's list is
+    a superset that the orchestrator narrows per session."""
+    snatch_rule = {"id": 1, "principle_name": "snatch only", "priority": 9,
+                   "condition": {"movement_family": "snatch"}, "recommendation": {}}
+    any_rule = {"id": 2, "principle_name": "always", "priority": 5, "condition": None, "recommendation": {}}
+    clean_day = SessionTemplate(day_number=2, label="C&J", primary_movement="clean",
+                                secondary_movements=["jerk"], session_volume_share=0.5, notes="")
+    two_day_plan = ProgramPlan(
+        phase="accumulation", duration_weeks=1, sessions_per_week=2, deload_week=None,
+        weekly_targets=[_week_target(1)], session_templates=[_session_template(1), clean_day],
+        active_principles=[snatch_rule, any_rule], supporting_chunks=[],
+    )
+    retrieval = _retrieval_context()
+    retrieval.active_principles = [snatch_rule, any_rule]
+
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={"plan": two_day_plan, "retrieve": retrieval})
+        run(1, _settings())
+
+    gen_calls = mocks["generate"].call_args_list
+    assert len(gen_calls) == 2
+    assert [p["id"] for p in gen_calls[0].kwargs["active_principles"]] == [1, 2]   # snatch day
+    assert [p["id"] for p in gen_calls[1].kwargs["active_principles"]] == [2]      # clean day
+    val_calls = mocks["validate"].call_args_list
+    assert [p["id"] for p in val_calls[1].kwargs["active_principles"]] == [2]
+    prompt_calls = mocks["build_session_prompt"].call_args_list
+    assert [p["id"] for p in prompt_calls[1].kwargs["active_principles"]] == [2]

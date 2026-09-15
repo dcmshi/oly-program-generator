@@ -204,6 +204,7 @@ def build_session_prompt(
     effective_maxes: dict[str, float] | None = None,
     phase: str = "unspecified",
     sessions_per_week: int | None = None,
+    active_principles: list[dict] | None = None,
 ) -> str:
     """Assemble the full prompt for one session generation call.
 
@@ -212,7 +213,14 @@ def build_session_prompt(
     athlete's preference, and the prompt must describe the program being
     generated, not the preference (audit2-L4). Falls back to the athlete's
     value when not provided.
+
+    active_principles is the per-session selection from
+    `principle_matcher.select_principles` (RAG-H3) — only rules whose every
+    condition (phase, level, movement family, weeks out, …) holds for this
+    week and this day. Falls back to the program-level candidate list.
     """
+    if active_principles is None:
+        active_principles = retrieval_context.active_principles
 
     # ── Athlete summary ──────────────────────────────────────
     faults_str = ", ".join(athlete_context.technical_faults) or "none identified"
@@ -330,7 +338,7 @@ def build_session_prompt(
 
     # ── Principles ────────────────────────────────────────────
     principle_lines = []
-    for p in retrieval_context.active_principles[:MAX_PRINCIPLES_IN_PROMPT]:
+    for p in active_principles[:MAX_PRINCIPLES_IN_PROMPT]:
         rec = p.get("recommendation", {})
         rec_str = json.dumps(rec) if isinstance(rec, dict) else str(rec)
         principle_lines.append(f"  [{p['id']}] {p['principle_name']}: {rec_str}")

@@ -77,7 +77,7 @@ def _chunk(id_, chunk_type, text):
     return {"id": id_, "chunk_type": chunk_type, "raw_content": text, "similarity": 0.8}
 
 
-def _make_prompt(athlete=None, retrieval=None):
+def _make_prompt(athlete=None, retrieval=None, **kwargs):
     athlete = athlete or _make_athlete()
     retrieval = retrieval or _make_retrieval()
     week_target = WeekTarget(1, 1.0, 72.0, 82.0, 18, [2, 4], False)
@@ -87,6 +87,7 @@ def _make_prompt(athlete=None, retrieval=None):
         week_number=1, duration_weeks=4,
         already_prescribed=[], session_rep_target=6, cumulative_comp_reps=0,
         phase="accumulation",
+        **kwargs,
     )
 
 
@@ -1072,3 +1073,31 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ── RAG-H3: per-session principle override ───────────────────────────────────
+
+def test_prompt_uses_per_session_principles_when_given():
+    """The orchestrator passes only the principles whose conditions hold for this
+    session; the program-level candidate list must not leak into the prompt."""
+    retrieval = _make_retrieval()
+    retrieval.active_principles = [
+        {"id": 7, "principle_name": "Clean-only rule", "recommendation": {"x": 1}, "priority": 9,
+         "condition": {"movement_family": "clean"}},
+    ]
+    session_only = [
+        {"id": 8, "principle_name": "Snatch-only rule", "recommendation": {"y": 2}, "priority": 9,
+         "condition": {"movement_family": "snatch"}},
+    ]
+    prompt = _make_prompt(_make_athlete(), retrieval, active_principles=session_only)
+    assert "[8] Snatch-only rule" in prompt
+    assert "Clean-only rule" not in prompt
+
+
+def test_prompt_falls_back_to_retrieval_principles_when_not_given():
+    retrieval = _make_retrieval()
+    retrieval.active_principles = [
+        {"id": 7, "principle_name": "Program-level rule", "recommendation": {"x": 1}, "priority": 9, "condition": None},
+    ]
+    prompt = _make_prompt(_make_athlete(), retrieval)
+    assert "[7] Program-level rule" in prompt

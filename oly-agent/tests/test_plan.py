@@ -334,3 +334,27 @@ if __name__ == "__main__":
         detail = f"  → {r[2]}" if len(r) > 2 else ""
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
+
+
+# ── RAG-H3: principle candidates ─────────────────────────────────────────────
+
+def test_load_principles_sql_matches_array_phases_and_caps_candidates():
+    """`->>'phase' = %s` returned the text form of an array (never equal) and
+    silently dropped multi-phase rules; `@> to_jsonb(text)` matches both the
+    string and the array form. The LIMIT is the per-session matcher's pool."""
+    from plan import _load_principles
+
+    from shared.constants import MAX_PRINCIPLE_CANDIDATES
+
+    captured = {}
+
+    def fake_fetch_all(conn, sql, params):
+        captured["sql"], captured["params"] = sql, params
+        return []
+
+    with patch("plan.fetch_all", side_effect=fake_fetch_all):
+        _load_principles(None, "intensification", "advanced")
+
+    assert "condition->'phase' @> to_jsonb(%s::text)" in captured["sql"]
+    assert "condition->>'phase' =" not in captured["sql"]
+    assert captured["params"] == ("intensification", "advanced", MAX_PRINCIPLE_CANDIDATES)

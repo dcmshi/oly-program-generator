@@ -100,3 +100,9 @@ MIN_SECTION_CHARS: int = 300
 CHUNK_TYPE_PREFERENCE_BOOST: float = 0.05
 VECTOR_SEARCH_CANDIDATE_MULTIPLIER: int = 4
 VECTOR_SEARCH_MIN_CANDIDATES: int = 20
+
+# ── Principle selection (RAG-H3) ────────────────────────────────
+# plan._load_principles pre-filters by phase/level in SQL (a superset); the
+# per-session match in principle_matcher applies every condition field, so the
+# SQL cap only needs to leave enough candidates for that second pass.
+MAX_PRINCIPLE_CANDIDATES: int = 50
