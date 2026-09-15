@@ -333,6 +333,64 @@ def test_mixed_empty_and_valid_chunks_only_valid_embedded():
     sl.close()
 
 
+# ── Filtered HNSW recall (RAG-H5) ──────────────────────────────
+
+_MIN_CORPUS_FOR_HNSW_TEST = 500  # needs a real corpus for the index to matter
+
+
+def test_filtered_search_with_index_forced_matches_exact_counts():
+    """RAG-H5: with the HNSW index forced (enable_seqscan=off), a filtered search must
+    return the same number of rows as an exact scan — i.e. min(top_k, true matches).
+
+    Without hnsw.iterative_scan the scan collects ef_search candidates and post-filters,
+    so selective chunk_type + min_similarity predicates returned 0 rows on 46/60 probe
+    queries. Query vectors are drawn from stored `concept` embeddings, so no OpenAI
+    call is made. Skips when the DB holds too few chunks for the index to matter.
+    """
+    import psycopg2
+
+    vl, _sl = make_loaders()
+    truth = psycopg2.connect(Settings().database_url)  # separate session: seq scan = exact
+    try:
+        cur = vl.conn.cursor()
+        cur.execute("SELECT count(*) FROM knowledge_chunks")
+        if cur.fetchone()[0] < _MIN_CORPUS_FOR_HNSW_TEST:
+            print("  SKIP: corpus too small for the HNSW index to be used")
+            return
+        cur.execute("SET enable_seqscan = off")
+        cur.execute(
+            "SELECT id, embedding FROM knowledge_chunks WHERE chunk_type = 'concept' ORDER BY id LIMIT 20"
+        )
+        probes = cur.fetchall()
+        cur.close()
+
+        tcur = truth.cursor()
+        short = []
+        for chunk_id, emb in probes:
+            vl._embed = lambda _q, _e=emb: _e  # stored vector stands in for the query embedding
+            results = vl.similarity_search(
+                "unused", top_k=5, chunk_types=["fault_correction"], min_similarity=0.45
+            )
+            tcur.execute(
+                """
+                SELECT count(*) FROM knowledge_chunks
+                WHERE chunk_type::text = 'fault_correction'
+                  AND 1 - (embedding <=> %s::vector) >= 0.45
+                """,
+                (emb,),
+            )
+            expected = min(5, tcur.fetchone()[0])
+            if len(results) != expected:
+                short.append((chunk_id, len(results), expected))
+        tcur.close()
+        assert not short, f"filtered HNSW returned fewer rows than exact scan for {len(short)}/20 queries: {short[:5]}"
+        print("  filtered HNSW (index forced): 20/20 queries match exact counts OK")
+    finally:
+        truth.close()
+        vl.conn.rollback()
+        vl.close()
+
+
 # ── Runner ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -345,6 +403,7 @@ if __name__ == "__main__":
         test_load_with_run_logging,
         test_empty_content_chunks_skipped_before_embed,
         test_mixed_empty_and_valid_chunks_only_valid_embedded,
+        test_filtered_search_with_index_forced_matches_exact_counts,
     ]
     passed = failed = 0
     for test in tests:

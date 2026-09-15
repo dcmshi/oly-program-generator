@@ -70,3 +70,13 @@ EXCELLENT_MAKE_RATE: float = 0.85         # make rate for "excellent performance
 # need a much smaller threshold or every real decline reads as "stable".
 RPE_TREND_THRESHOLD: float = 0.5          # for RPE-deviation sequences
 MAKE_RATE_TREND_THRESHOLD: float = 0.07   # for make-rate (0-1) sequences
+
+# ── pgvector HNSW query settings ────────────────────────────────
+# A filtered HNSW scan collects ef_search candidates and only THEN applies the
+# WHERE clause. With the production chunk_type + min_similarity predicates that
+# returned 0 rows on 46/60 probe queries once the planner used the index
+# (RAG-H5). iterative_scan (pgvector >= 0.8) keeps scanning until LIMIT is met;
+# a wider ef_search cuts how often that is needed. Applied per transaction by
+# VectorLoader.similarity_search.
+HNSW_EF_SEARCH: int = 100
+HNSW_ITERATIVE_SCAN: str = "relaxed_order"

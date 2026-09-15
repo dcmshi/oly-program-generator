@@ -62,6 +62,71 @@ def test_partition_empty():
     assert new == [] and skipped == 0
 
 
+# ── HNSW query settings (RAG-H5) — mocked cursor, no DB ─────────────────────
+
+def _loader_with_mock_cursor(fail_on_set: bool = False):
+    """A VectorLoader with no DB/API: only the attributes similarity_search touches."""
+    from unittest.mock import MagicMock
+
+    import psycopg2
+
+    vl = VectorLoader.__new__(VectorLoader)
+    vl.settings = MagicMock(embedding_model="text-embedding-3-small")
+    vl._hnsw_settings_supported = None
+    vl._embed = lambda _q: [0.0, 0.0, 0.0]
+
+    cur = MagicMock()
+    cur.description = [("id",), ("content",)]
+    cur.fetchall.return_value = []
+    if fail_on_set:
+        def _execute(sql, *args, **kwargs):
+            if "set_config('hnsw.iterative_scan'" in sql:
+                raise psycopg2.Error("unrecognized configuration parameter")
+        cur.execute.side_effect = _execute
+    vl.conn = MagicMock()
+    vl.conn.cursor.return_value = cur
+    return vl, cur
+
+
+def _executed_sql(cur):
+    return [c.args[0] for c in cur.execute.call_args_list]
+
+
+def test_similarity_search_sets_iterative_scan_and_ef_search_before_select():
+    """RAG-H5: both HNSW GUCs are set (transaction-local) before the SELECT runs."""
+    from shared.constants import HNSW_EF_SEARCH, HNSW_ITERATIVE_SCAN
+
+    vl, cur = _loader_with_mock_cursor()
+    vl.similarity_search("q", top_k=5, chunk_types=["fault_correction"], min_similarity=0.45)
+
+    sql = _executed_sql(cur)
+    i_scan = next(i for i, s in enumerate(sql) if "set_config('hnsw.iterative_scan'" in s)
+    i_ef = next(i for i, s in enumerate(sql) if "set_config('hnsw.ef_search'" in s)
+    i_select = next(i for i, s in enumerate(sql) if "FROM knowledge_chunks" in s)
+    assert i_scan < i_select and i_ef < i_select, sql
+    assert cur.execute.call_args_list[i_scan].args[1] == (HNSW_ITERATIVE_SCAN,)
+    assert cur.execute.call_args_list[i_ef].args[1] == (str(HNSW_EF_SEARCH),)
+    assert vl._hnsw_settings_supported is True
+
+
+def test_similarity_search_survives_missing_hnsw_gucs():
+    """RAG-H5: on pgvector < 0.8 the SET fails; the savepoint is rolled back, the
+    SELECT still runs, and later calls skip the probe instead of re-failing."""
+    vl, cur = _loader_with_mock_cursor(fail_on_set=True)
+    vl.similarity_search("q", top_k=5)
+
+    sql = _executed_sql(cur)
+    assert any("ROLLBACK TO SAVEPOINT hnsw_cfg" in s for s in sql), sql
+    assert any("FROM knowledge_chunks" in s for s in sql), sql
+    assert vl._hnsw_settings_supported is False
+
+    cur.execute.reset_mock()
+    vl.similarity_search("q2", top_k=5)
+    sql2 = _executed_sql(cur)
+    assert not any("set_config" in s for s in sql2), "second call must not re-probe the GUC"
+    assert any("FROM knowledge_chunks" in s for s in sql2)
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

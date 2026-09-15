@@ -11,11 +11,16 @@ Handles:
 
 import hashlib
 import logging
+import sys
+from pathlib import Path
 from typing import Any
 
 import psycopg2
 from pgvector.psycopg2 import register_vector
 from processors.chunker import Chunk
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
+from shared.constants import HNSW_EF_SEARCH, HNSW_ITERATIVE_SCAN
 
 logger = logging.getLogger(__name__)
 
@@ -30,6 +35,9 @@ class VectorLoader:
         self.conn = psycopg2.connect(settings.database_url)
         register_vector(self.conn)
         self.batch_size = settings.batch_size
+        # None = not yet probed; False = this pgvector has no hnsw.iterative_scan
+        # (pre-0.8), so skip the SET on later calls instead of erroring each time.
+        self._hnsw_settings_supported: bool | None = None
 
         # OpenAI embedding client
         from openai import OpenAI
@@ -255,6 +263,40 @@ class VectorLoader:
         )
         return response.data[0].embedding
 
+    def _apply_hnsw_query_settings(self, cursor) -> None:
+        """Set the HNSW scan knobs for the current transaction (RAG-H5).
+
+        A filtered HNSW scan collects ``hnsw.ef_search`` candidates and only then
+        applies the WHERE clause, so a selective ``chunk_type`` + ``min_similarity``
+        filter can return fewer than ``top_k`` rows — or none — while good matches
+        exist just outside the candidate set. Measured with the index forced on the
+        local corpus: 46/60 fault queries returned 0 rows; with
+        ``iterative_scan = relaxed_order`` 59/60 returned the full top_k.
+
+        ``set_config(..., is_local=true)`` is transaction-scoped, so this runs on
+        every search (the loader's connection commits between ingestion writes).
+        Wrapped in a SAVEPOINT: on pgvector < 0.8 the GUC doesn't exist and the
+        error would otherwise abort the transaction the SELECT runs in.
+        """
+        if self._hnsw_settings_supported is False:
+            return
+        try:
+            cursor.execute("SAVEPOINT hnsw_cfg")
+            cursor.execute("SELECT set_config('hnsw.iterative_scan', %s, true)", (HNSW_ITERATIVE_SCAN,))
+            cursor.execute("SELECT set_config('hnsw.ef_search', %s, true)", (str(HNSW_EF_SEARCH),))
+            cursor.execute("RELEASE SAVEPOINT hnsw_cfg")
+            self._hnsw_settings_supported = True
+        except psycopg2.Error as e:
+            self._hnsw_settings_supported = False
+            logger.warning(
+                f"hnsw.iterative_scan/ef_search unavailable ({type(e).__name__}: {e}) — "
+                "filtered ANN queries may return fewer than top_k rows; upgrade pgvector to >= 0.8"
+            )
+            try:
+                cursor.execute("ROLLBACK TO SAVEPOINT hnsw_cfg")
+            except psycopg2.Error as rb_err:
+                logger.debug(f"ROLLBACK TO SAVEPOINT hnsw_cfg failed (non-fatal): {rb_err}")
+
     def similarity_search(
         self,
         query: str,
@@ -278,6 +320,7 @@ class VectorLoader:
         """
         query_embedding = self._embed(query)
         cursor = self.conn.cursor()
+        self._apply_hnsw_query_settings(cursor)
 
         where_clauses = []
         params: list[Any] = []
