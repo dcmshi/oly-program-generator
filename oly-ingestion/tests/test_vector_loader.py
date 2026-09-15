@@ -391,6 +391,44 @@ def test_filtered_search_with_index_forced_matches_exact_counts():
         vl.close()
 
 
+# ── chunk_type soft preference (RAG-H2) ────────────────────────
+
+def test_preferred_chunk_types_boosts_without_excluding():
+    """RAG-H2, live: with a preference the search still returns top_k rows drawn
+    from ALL types, results are ordered by score, and score = similarity + boost
+    exactly for preferred types. Query vector comes from a stored embedding (no key)."""
+    from shared.constants import CHUNK_TYPE_PREFERENCE_BOOST
+
+    vl, _sl = make_loaders()
+    try:
+        cur = vl.conn.cursor()
+        cur.execute("SELECT count(*) FROM knowledge_chunks")
+        if cur.fetchone()[0] < _MIN_CORPUS_FOR_HNSW_TEST:
+            print("  SKIP: corpus too small")
+            return
+        # A fault_correction chunk's neighbourhood mixes types, so the boost has
+        # something to reorder; the query row itself (similarity 1.0) is boosted too.
+        cur.execute("SELECT embedding FROM knowledge_chunks WHERE chunk_type = 'fault_correction' ORDER BY id LIMIT 1")
+        emb = cur.fetchone()[0]
+        cur.close()
+        vl._embed = lambda _q: emb
+
+        results = vl.similarity_search("unused", top_k=10, preferred_chunk_types=["fault_correction"], min_similarity=0.3)
+        assert len(results) == 10, len(results)
+        scores = [r["score"] for r in results]
+        assert scores == sorted(scores, reverse=True), scores
+        for r in results:
+            expected = r["similarity"] + (CHUNK_TYPE_PREFERENCE_BOOST if r["chunk_type"] == "fault_correction" else 0)
+            assert abs(r["score"] - expected) < 1e-9, (r["chunk_type"], r["similarity"], r["score"])
+        boosted = sum(r["chunk_type"] == "fault_correction" for r in results)
+        assert boosted >= 1, "expected at least the query chunk itself to be boosted"
+        assert boosted < 10, "a preference must not exclude other types the way the old filter did"
+        print(f"  preferred_chunk_types: 10 rows, types={sorted({r['chunk_type'] for r in results})}, boosted={boosted} OK")
+    finally:
+        vl.conn.rollback()
+        vl.close()
+
+
 # ── Runner ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -404,6 +442,7 @@ if __name__ == "__main__":
         test_empty_content_chunks_skipped_before_embed,
         test_mixed_empty_and_valid_chunks_only_valid_embedded,
         test_filtered_search_with_index_forced_matches_exact_counts,
+        test_preferred_chunk_types_boosts_without_excluding,
     ]
     passed = failed = 0
     for test in tests:

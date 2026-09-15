@@ -39,9 +39,9 @@ Settings: `top_k=5`, `min_similarity=0.45`
 
 **Resolution**: Two-layer defence implemented:
 1. `VECTOR_SEARCH_MIN_SIMILARITY = 0.45` added to `shared/constants.py`; `min_similarity` param added to `vector_loader.similarity_search()` (SQL WHERE filter, doesn't count against top_k)
-2. Agent's session/limiter searches already filter to `programming_rationale`/`periodization` chunk_types — Soviet `concept` chunks never reach the agent regardless of threshold
+2. ~~Agent's session/limiter searches already filter to `programming_rationale`/`periodization` chunk_types — Soviet `concept` chunks never reach the agent regardless of threshold~~ **Reversed 2026-09-15 (RAG-H2):** that hard filter left session generation 15% of the corpus (`concept` is 61%; 0 of the deload chunks were reachable). `chunk_type` is now a *soft preference* (`preferred_chunk_types` → `CHUNK_TYPE_PREFERENCE_BOOST` on a similarity-ranked candidate pool), so abbreviation-noise chunks are outranked, not excluded. The RAG-H1 re-ingest also replaces the Medvedev fragment chunks that produced this noise.
 
-The Q1 abbreviation chunk (0.511, `concept` type) still appears in the unfiltered eval but is blocked in production by chunk_type filtering. Re-embedding with expanded abbreviations not worth the cost.
+The Q1 abbreviation chunk (0.511, `concept` type) still appears in the unfiltered eval; in production it now competes on score rather than being filtered out. Re-embedding with expanded abbreviations not worth the cost.
 
 ### O2 — Israelit per-muscle volume prescriptions absent (Q13) — CLOSED (content gap)
 **Symptom**: No source has specific per-muscle MEV/MAV/MRV volume tables.
@@ -50,4 +50,4 @@ The Q1 abbreviation chunk (0.511, `concept` type) still appears in the unfiltere
 
 ### O3 — Q21 negative test (barbell curl) always returns results — CLOSED (inherent limitation)
 **Symptom**: Vector search returns 5 results (sim 0.504–0.569) for out-of-domain queries.
-**Resolution**: Expected — `similarity_search` always returns top_k. The 0.45 threshold doesn't help here since all results are above it. A binary relevance gate would be needed but adds significant complexity. In practice the agent's chunk_type filters block most irrelevant content anyway.
+**Resolution**: Expected — `similarity_search` always returns top_k. The 0.45 threshold doesn't help here since all results are above it. A binary relevance gate would be needed but adds significant complexity. ~~In practice the agent's chunk_type filters block most irrelevant content anyway.~~ (2026-09-15: the chunk_type filter is gone — see O1 — so this is no longer a mitigation; production queries are fixed templates that never ask out-of-domain questions, which is the real reason this doesn't matter.)

@@ -448,3 +448,39 @@ if __name__ == "__main__":
         detail = f"  → {r[2]}" if len(r) > 2 else ""
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
+
+
+# ── RAG-H2: chunk_type is a soft preference, never a hard filter ─────────────
+
+def _all_search_calls(faults=None, limiters=None):
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", return_value=[]):
+        retrieve(_ctx(faults=faults, strength_limiters=limiters), _plan(), conn=None, vector_loader=vl)
+    return vl.similarity_search.call_args_list
+
+
+def test_no_search_uses_hard_chunk_type_filter():
+    """The hard `chunk_types` filter reached 15% of the corpus (0 of the deload
+    chunks); every production search must use `preferred_chunk_types` instead."""
+    calls = _all_search_calls(faults=["early_arm_bend"], limiters=["squat_limited"])
+    assert calls, "expected similarity_search calls"
+    for call in calls:
+        assert "chunk_types" not in call.kwargs, f"hard filter still used: {call.kwargs}"
+        assert call.kwargs.get("preferred_chunk_types"), f"no preference passed: {call.kwargs}"
+
+
+def test_session_and_limiter_searches_prefer_rationale_and_periodization():
+    calls = _all_search_calls(limiters=["squat_limited"])
+    prefs = [tuple(c.kwargs["preferred_chunk_types"]) for c in calls]
+    assert all(set(p) == {"programming_rationale", "periodization"} for p in prefs), prefs
+
+
+def test_limiter_search_no_longer_names_never_assigned_methodology():
+    calls = _all_search_calls(limiters=["squat_limited"])
+    assert all("methodology" not in c.kwargs["preferred_chunk_types"] for c in calls)
+
+
+def test_fault_search_prefers_fault_correction():
+    calls = _all_search_calls(faults=["early_arm_bend"])
+    fault_calls = [c for c in calls if "correcting" in c.kwargs["query"]]
+    assert fault_calls and all(c.kwargs["preferred_chunk_types"] == ["fault_correction"] for c in fault_calls)

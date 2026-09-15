@@ -83,6 +83,7 @@ Content is **routed before chunking** — the classifier sends each section down
 
 ### Agent pipeline
 
+- **`chunk_type` is a soft retrieval preference, never a hard filter.** It is a first-match keyword label (`pipeline._infer_chunk_type`) and `concept` is ~61% of the corpus; the old `chunk_types=[...]` filter left session generation 15% of the chunks and none of the deload content (RAG-H2). `retrieve.py` passes `preferred_chunk_types`, which `similarity_search` applies as `CHUNK_TYPE_PREFERENCE_BOOST` on a similarity-ranked candidate pool. Don't reintroduce `chunk_types=` in a production query. The eval must use the same preference to be production-parity.
 - **Prilepin zones cover 55–100%**, including the 65–70% transition band. `get_prilepin_zone()` returns `None` only below 55%; the fallback in `compute_session_rep_target` handles that deload case alone.
 - **`plan._advance_phase()`** walks `general_prep → accumulation → intensification → realization`, and realization cycles back to accumulation. Gated on adherence ≥ 70% and make rate ≥ 75%; RPE deviation > 1.5 blocks advancement. `_apply_outcome_adjustments()` nudges volume/intensity on non-deload weeks from the previous `outcome_summary`.
 - **`feedback._compute_phase_verdict()` mirrors `plan._advance_phase` + `_apply_outcome_adjustments` exactly.** Both read their thresholds from `shared/constants.py` — change one and you must change the other.

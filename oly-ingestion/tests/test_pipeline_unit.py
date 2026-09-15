@@ -366,3 +366,41 @@ def test_prepare_pdf_pages_joins_pages_and_strips_running_heads():
 
 def test_prepare_pdf_pages_empty_input_returns_empty_list():
     assert IngestionPipeline._prepare_pdf_pages(["", "   "]) == []
+
+
+# ── RAG-H2: chunk_type inference ─────────────────────────────────────────────
+
+def _section(content, title="", content_type="prose"):
+    s = MagicMock()
+    s.content = content
+    s.metadata = {"title": title}
+    s.content_type = MagicMock(value=content_type)
+    return s
+
+
+def test_infer_chunk_type_scans_title_and_content():
+    """A titled section whose title matches nothing must still be scanned by
+    content — `title or content` skipped the body whenever a title existed, and
+    after RAG-H1 nearly every section has one."""
+    s = _section("Plan the mesocycle so that volume peaks before intensity.", title="Chapter 7")
+    assert IngestionPipeline._infer_chunk_type(s) == "periodization"
+
+
+def test_infer_chunk_type_uses_word_boundaries():
+    """`miss` must not fire on `permission`/`mission`; `error` not on `terror`."""
+    assert IngestionPipeline._infer_chunk_type(_section("With the coach's permission, the mission continued.")) == "concept"
+    assert IngestionPipeline._infer_chunk_type(_section("Athletes who miss the jerk forward need this drill.")) == "fault_correction"
+
+
+def test_infer_chunk_type_periodization_before_recovery():
+    """77/97 chunks mentioning 'accumulation' were labelled recovery_adaptation
+    because 'adaptation' was tested first; periodisation vocabulary now wins."""
+    s = _section("During accumulation, training adaptation is driven by volume and recovery between sessions.")
+    assert IngestionPipeline._infer_chunk_type(s) == "periodization"
+    assert IngestionPipeline._infer_chunk_type(_section("A deload week every fourth week.")) == "periodization"
+    assert IngestionPipeline._infer_chunk_type(_section("Begin the taper two weeks out.")) == "periodization"
+
+
+def test_infer_chunk_type_recovery_still_reachable():
+    s = _section("Sleep and restoration between sessions determine how quickly fatigue clears.")
+    assert IngestionPipeline._infer_chunk_type(s) == "recovery_adaptation"

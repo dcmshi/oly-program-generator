@@ -109,6 +109,34 @@ def test_similarity_search_sets_iterative_scan_and_ef_search_before_select():
     assert vl._hnsw_settings_supported is True
 
 
+def test_preferred_chunk_types_reranks_a_candidate_pool_instead_of_filtering():
+    """RAG-H2: a preference takes a pure-similarity pool (index-friendly), adds the
+    boost to preferred types and re-ranks — no chunk_type predicate in WHERE."""
+    from shared.constants import (
+        CHUNK_TYPE_PREFERENCE_BOOST,
+        VECTOR_SEARCH_CANDIDATE_MULTIPLIER,
+        VECTOR_SEARCH_MIN_CANDIDATES,
+    )
+
+    vl, cur = _loader_with_mock_cursor()
+    vl.similarity_search("q", top_k=5, preferred_chunk_types=["periodization"], min_similarity=0.45)
+
+    select_call = next(c for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0])
+    sql, params = select_call.args
+    assert "WITH candidates AS" in sql and "AS score" in sql and "ORDER BY score DESC" in sql
+    assert "chunk_type::text = ANY(%s)" in sql.split("SELECT *,")[1], "boost must be in the re-rank, not the WHERE"
+    assert "chunk_type::text = ANY(%s)" not in sql.split("WITH candidates AS")[1].split(")")[0]
+    pool = max(5 * VECTOR_SEARCH_CANDIDATE_MULTIPLIER, VECTOR_SEARCH_MIN_CANDIDATES)
+    assert params[-4:] == [pool, ["periodization"], CHUNK_TYPE_PREFERENCE_BOOST, 5], params[-4:]
+
+
+def test_hard_chunk_types_filter_still_available():
+    vl, cur = _loader_with_mock_cursor()
+    vl.similarity_search("q", top_k=5, chunk_types=["fault_correction"])
+    sql = next(c.args[0] for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0])
+    assert "WITH candidates" not in sql and "chunk_type::text = ANY(%s)" in sql
+
+
 def test_similarity_search_survives_missing_hnsw_gucs():
     """RAG-H5: on pgvector < 0.8 the SET fails; the savepoint is rolled back, the
     SELECT still runs, and later calls skip the probe instead of re-failing."""

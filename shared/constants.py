@@ -90,3 +90,13 @@ HNSW_ITERATIVE_SCAN: str = "relaxed_order"
 # their neighbour with the heading line restored.
 CLASSIFY_SECTION_MAX_CHARS: int = 8000
 MIN_SECTION_CHARS: int = 300
+
+# ── chunk_type preference in retrieval (RAG-H2) ─────────────────
+# chunk_type is a first-match keyword label; `concept` is ~61% of the corpus
+# and the old hard filter left session generation 15% of the chunks (0 of the
+# deload chunks). It is now a soft preference: the vector search takes a
+# candidate pool by pure similarity, then adds the boost to preferred types
+# and re-ranks. Pool = max(top_k * multiplier, min candidates).
+CHUNK_TYPE_PREFERENCE_BOOST: float = 0.05
+VECTOR_SEARCH_CANDIDATE_MULTIPLIER: int = 4
+VECTOR_SEARCH_MIN_CANDIDATES: int = 20

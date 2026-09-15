@@ -127,7 +127,9 @@ def retrieve(
                         f"{faults_context}{emphasis_context}{limiters_context}"
                     ),
                     top_k=top_k,
-                    chunk_types=["programming_rationale", "periodization"],
+                    # soft preference, not a filter — the hard chunk_types filter
+                    # reached 15% of the corpus and 0 deload chunks (RAG-H2)
+                    preferred_chunk_types=["programming_rationale", "periodization"],
                     min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                 )
                 for c in chunks:
@@ -145,7 +147,7 @@ def retrieve(
                     chunks = vector_loader.similarity_search(
                         query=f"correcting {fault} in weightlifting, {level_context}",
                         top_k=top_k,
-                        chunk_types=["fault_correction"],
+                        preferred_chunk_types=["fault_correction"],
                         min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                     )
                     for c in chunks:
@@ -165,7 +167,8 @@ def retrieve(
                         f"for {level_context} weightlifter"
                     ),
                     top_k=top_k,
-                    chunk_types=["programming_rationale", "periodization", "methodology"],
+                    # `methodology` dropped: the inference never assigns it (RAG-H2)
+                    preferred_chunk_types=["programming_rationale", "periodization"],
                     min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                 )
                 for c in chunks:

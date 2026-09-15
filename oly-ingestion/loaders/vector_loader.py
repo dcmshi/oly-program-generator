@@ -20,7 +20,13 @@ from pgvector.psycopg2 import register_vector
 from processors.chunker import Chunk
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
-from shared.constants import HNSW_EF_SEARCH, HNSW_ITERATIVE_SCAN
+from shared.constants import (
+    CHUNK_TYPE_PREFERENCE_BOOST,
+    HNSW_EF_SEARCH,
+    HNSW_ITERATIVE_SCAN,
+    VECTOR_SEARCH_CANDIDATE_MULTIPLIER,
+    VECTOR_SEARCH_MIN_CANDIDATES,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -307,6 +313,7 @@ class VectorLoader:
         min_density: str | None = None,
         require_numbers: bool = False,
         min_similarity: float | None = None,
+        preferred_chunk_types: list[str] | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve similar chunks with optional pre-filtering.
 
@@ -317,6 +324,16 @@ class VectorLoader:
         min_similarity: if set, drops chunks whose cosine similarity falls
         below the threshold before applying top_k. This prevents the agent
         from receiving low-confidence chunks that waste prompt space.
+
+        preferred_chunk_types: a SOFT preference (RAG-H2). `chunk_type` is a
+        first-match keyword label and `concept` is ~61% of the corpus, so the
+        hard `chunk_types` filter left session generation 15% of the chunks.
+        With a preference, a candidate pool of
+        max(top_k * VECTOR_SEARCH_CANDIDATE_MULTIPLIER, VECTOR_SEARCH_MIN_CANDIDATES)
+        is taken by pure similarity (index-friendly), then
+        CHUNK_TYPE_PREFERENCE_BOOST is added to preferred types and the pool is
+        re-ranked; each row carries `score` (= similarity + boost) alongside the
+        raw `similarity`. `chunk_types` remains available as a hard filter.
         """
         query_embedding = self._embed(query)
         cursor = self.conn.cursor()
@@ -356,8 +373,7 @@ class VectorLoader:
 
         where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
 
-        cursor.execute(
-            f"""
+        base_select = f"""
             SELECT id, content, raw_content, chapter, section,
                    chunk_type, topics, information_density,
                    source_id,
@@ -366,9 +382,24 @@ class VectorLoader:
             WHERE {where_sql}
             ORDER BY embedding <=> %s::vector
             LIMIT %s
-            """,
-            [query_embedding, *params, query_embedding, top_k],
-        )
+        """
+
+        if preferred_chunk_types:
+            pool = max(top_k * VECTOR_SEARCH_CANDIDATE_MULTIPLIER, VECTOR_SEARCH_MIN_CANDIDATES)
+            cursor.execute(
+                f"""
+                WITH candidates AS ({base_select})
+                SELECT *,
+                       similarity + CASE WHEN chunk_type::text = ANY(%s) THEN %s ELSE 0 END AS score
+                FROM candidates
+                ORDER BY score DESC, similarity DESC
+                LIMIT %s
+                """,
+                [query_embedding, *params, query_embedding, pool,
+                 list(preferred_chunk_types), CHUNK_TYPE_PREFERENCE_BOOST, top_k],
+            )
+        else:
+            cursor.execute(base_select, [query_embedding, *params, query_embedding, top_k])
 
         columns = [desc[0] for desc in cursor.description]
         results = [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]

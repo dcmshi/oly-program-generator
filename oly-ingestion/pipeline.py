@@ -66,34 +66,48 @@ PROGRAM_TEMPLATE_COLUMN_KEYS: frozenset[str] = frozenset({
 
 CHUNK_TYPE_KEYWORDS: dict[str, list[str]] = {
     "fault_correction": [
-        "fault", "error", "correction", "miss", "common mistake",
+        "fault", "faults", "error", "errors", "correction", "corrections",
+        "miss", "misses", "missed", "missing", "common mistake", "common mistakes",
     ],
     "biomechanics": [
-        "biomech", "anatomy", "physiology", "mechanics",
+        "biomechanics", "biomechanical", "anatomy", "physiology", "mechanics",
         "receiving position", "bar path", "muscle activation",
     ],
     "competition_strategy": [
         # Require specific competition-context phrases — "competition" alone appears
         # in almost every weightlifting chapter ("the competition lifts")
         "competition preparation", "competition day", "competition strategy",
-        "meet preparation", "attempt selection", "opener", "warm-up room",
+        "meet preparation", "attempt selection", "opener", "openers", "warm-up room",
+    ],
+    "nutrition_bodyweight": [
+        "nutrition", "weight class", "body weight", "bodyweight", "diet", "making weight",
+        "hydration", "caloric",
+    ],
+    # Periodisation vocabulary is tested BEFORE recovery_adaptation: with the
+    # old order 77 of 97 chunks mentioning "accumulation" and all 32 mentioning
+    # "deload" were labelled recovery_adaptation because "adaptation"/"recovery"
+    # appears in the same passages (RAG-H2).
+    "periodization": [
+        "periodization", "periodisation", "program design", "mesocycle", "macrocycle",
+        "microcycle", "annual plan", "training block", "training cycle",
+        "accumulation", "intensification", "realization", "realisation",
+        "deload", "taper", "tapering", "peaking", "preparatory period", "competitive period",
     ],
     "recovery_adaptation": [
         "recovery", "adaptation", "sleep", "rest period", "restoration",
         "overtraining", "supercompensation",
     ],
-    "nutrition_bodyweight": [
-        "nutrition", "weight class", "body weight", "diet", "making weight",
-        "hydration", "caloric",
-    ],
-    "periodization": [
-        "periodization", "program design", "mesocycle", "macrocycle",
-        "annual plan", "training block", "training cycle",
-    ],
     "programming_rationale": [
         "rationale", "reasoning", "because", "in order to",
     ],
 }
+
+# Word-boundary matchers built once from CHUNK_TYPE_KEYWORDS: substring tests
+# fired `miss` on "permission"/"mission" and `error` on "terror" (RAG-H2).
+_CHUNK_TYPE_MATCHERS: list[tuple[str, re.Pattern]] = [
+    (chunk_type, re.compile(r"\b(?:" + "|".join(re.escape(k) for k in kws) + r")\b", re.IGNORECASE))
+    for chunk_type, kws in CHUNK_TYPE_KEYWORDS.items()
+]
 
 
 _PROGRAM_PARSE_PROMPT = """\
@@ -449,16 +463,18 @@ class IngestionPipeline:
     def _infer_chunk_type(section) -> str:
         """Map classifier ContentType + section title/content to a chunk_type enum value.
 
-        Checks section title first, then falls back to a content keyword scan using
-        CHUNK_TYPE_KEYWORDS. EPUB chapters often have empty titles, so content-based
-        inference is the common path. First match in CHUNK_TYPE_KEYWORDS wins.
+        Scans the section title AND the first 800 chars of content with
+        word-boundary matchers; first match in CHUNK_TYPE_KEYWORDS order wins.
+        (`title or content` used to skip the body whenever a title existed —
+        after RAG-H1 almost every section has one — and substring tests fired
+        on "permission"/"terror"; RAG-H2.) The label is a soft retrieval
+        preference, not a filter, so a wrong guess costs rank, not recall.
         """
-        title = (section.metadata.get("title") or "").lower()
-        # Use first 800 chars of content when title is empty
-        probe = title or section.content[:800].lower()
+        title = section.metadata.get("title") or ""
+        probe = f"{title}\n{section.content[:800]}"
 
-        for chunk_type, keywords in CHUNK_TYPE_KEYWORDS.items():
-            if any(kw in probe for kw in keywords):
+        for chunk_type, matcher in _CHUNK_TYPE_MATCHERS:
+            if matcher.search(probe):
                 return chunk_type
 
         # ContentType.MIXED means it has both prose and rules — label accordingly

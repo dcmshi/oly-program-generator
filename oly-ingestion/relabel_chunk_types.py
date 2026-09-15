@@ -1,0 +1,217 @@
+#!/usr/bin/env python3
+"""
+Relabel knowledge_chunks.chunk_type with an LLM (RAG-H2, step 3).
+
+`chunk_type` is assigned at ingest by a first-match keyword scan
+(pipeline._infer_chunk_type). On the live corpus that left `concept` at 61% and
+put most periodisation text under `recovery_adaptation`. Retrieval now treats the
+label as a soft preference (so a wrong label costs rank, not recall), but a better
+label still improves ranking. This script asks a small model to label passages in
+batches and rewrites the column where the model is confident and disagrees.
+
+No re-embedding: `content`/`embedding` are untouched. Safe to re-run.
+
+Usage (from oly-ingestion/):
+    PYTHONUTF8=1 uv run python relabel_chunk_types.py --dry-run             # distribution shift only
+    PYTHONUTF8=1 uv run python relabel_chunk_types.py --source-id 51        # one source
+    PYTHONUTF8=1 uv run python relabel_chunk_types.py --model claude-haiku-4-5-20251001
+    PYTHONUTF8=1 uv run python relabel_chunk_types.py --limit 200           # smoke test
+
+Cost: ~3.4k chunks × ~400 input tokens (1,500-char passage cap) in batches of 10;
+a Haiku-class model does the whole corpus for a few dollars.
+"""
+
+import argparse
+import logging
+import sys
+from collections import Counter
+from pathlib import Path
+
+import psycopg2
+
+sys.path.insert(0, str(Path(__file__).parent))
+from config import Settings
+
+from shared.llm import create_message_with_retries, parse_llm_json
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
+logger = logging.getLogger(__name__)
+
+# Mirrors the chunk_type enum in migration 0000 — test_relabel_chunk_types asserts it.
+CHUNK_TYPES: tuple[str, ...] = (
+    "concept", "methodology", "periodization", "programming_rationale",
+    "biomechanics", "case_study", "fault_correction",
+    "recovery_adaptation", "competition_strategy", "nutrition_bodyweight",
+)
+
+DEFAULT_BATCH_SIZE = 10
+DEFAULT_MIN_CONFIDENCE = 0.6
+PASSAGE_CHARS = 1500  # enough to decide the type; keeps the batch under ~4k input tokens
+
+RELABEL_PROMPT = """\
+You label passages from Olympic weightlifting coaching literature with exactly ONE content type.
+
+TYPES (pick the single best fit):
+- periodization: how training is organised over time — phases, blocks, cycles, accumulation/intensification/realization, deloads, tapering, peaking, annual plans
+- programming_rationale: WHY a prescription is made — exercise selection reasoning, volume/intensity trade-offs, how a coach decides what goes in a session
+- methodology: a named training method or system described as a whole (e.g. Bulgarian, Soviet, conjugate) and how it is applied
+- fault_correction: diagnosing and fixing technical errors in the lifts — missed positions, bar path faults, drills to correct them
+- biomechanics: anatomy, physics and mechanics of the lifts — positions, forces, bar path analysis, muscle involvement
+- recovery_adaptation: fatigue, supercompensation, sleep, restoration, overtraining, how the body adapts to load
+- competition_strategy: meet day — attempt selection, openers, warm-up room timing, weigh-in tactics
+- nutrition_bodyweight: diet, making weight, weight classes, hydration, body composition
+- case_study: a specific athlete's or team's training history told as an example
+- concept: general explanation or history that fits none of the above
+
+PASSAGES:
+{passages}
+
+Respond with a JSON array only, one object per passage, in order:
+[{{"index": 1, "chunk_type": "<type>", "confidence": <0.0-1.0>}}, ...]"""
+
+
+def build_prompt(batch: list[tuple[int, str]]) -> str:
+    """batch = [(index, passage_text), ...]; passages are truncated to PASSAGE_CHARS."""
+    passages = "\n\n".join(f"[{idx}] {text[:PASSAGE_CHARS]}" for idx, text in batch)
+    return RELABEL_PROMPT.format(passages=passages)
+
+
+def parse_labels(raw_text: str, expected_indexes: set[int]) -> dict[int, tuple[str, float]]:
+    """Parse the model's JSON array → {index: (chunk_type, confidence)}.
+
+    Drops entries with an unknown chunk_type, an index outside the batch, or an
+    unparseable confidence; confidence is clamped to [0, 1]. Raises on non-JSON
+    so the caller can skip the batch.
+    """
+    items = parse_llm_json(raw_text)
+    if isinstance(items, dict):
+        items = [items]
+    labels: dict[int, tuple[str, float]] = {}
+    for item in items:
+        if not isinstance(item, dict):
+            continue
+        try:
+            idx = int(item.get("index"))
+            conf = float(item.get("confidence", 0.0))
+        except (TypeError, ValueError):
+            continue
+        ctype = str(item.get("chunk_type", "")).strip()
+        if idx not in expected_indexes or ctype not in CHUNK_TYPES:
+            continue
+        labels[idx] = (ctype, min(1.0, max(0.0, conf)))
+    return labels
+
+
+def plan_updates(
+    rows: list[tuple[int, str]],
+    labels: dict[int, tuple[str, float]],
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+) -> list[tuple[int, str, str, float]]:
+    """rows = [(chunk_id, current_type), ...] in batch order (index = position + 1).
+
+    Returns (chunk_id, old_type, new_type, confidence) for every chunk whose new
+    label differs from the current one at or above min_confidence.
+    """
+    updates = []
+    for pos, (chunk_id, current) in enumerate(rows, start=1):
+        if pos not in labels:
+            continue
+        new_type, conf = labels[pos]
+        if new_type != current and conf >= min_confidence:
+            updates.append((chunk_id, current, new_type, conf))
+    return updates
+
+
+def relabel(
+    source_id: int | None,
+    dry_run: bool,
+    batch_size: int = DEFAULT_BATCH_SIZE,
+    min_confidence: float = DEFAULT_MIN_CONFIDENCE,
+    model: str | None = None,
+    limit: int = 0,
+) -> Counter:
+    """Relabel the corpus (or one source). Returns a Counter of old→new transitions."""
+    import anthropic
+
+    settings = Settings()
+    if not settings.anthropic_api_key:
+        raise SystemExit("ANTHROPIC_API_KEY is required")
+    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    model = model or settings.llm_model
+
+    conn = psycopg2.connect(settings.database_url)
+    cur = conn.cursor()
+    sql = "SELECT id, chunk_type::text, raw_content FROM knowledge_chunks"
+    params: list = []
+    if source_id:
+        sql += " WHERE source_id = %s"
+        params.append(source_id)
+    sql += " ORDER BY id"
+    if limit:
+        sql += " LIMIT %s"
+        params.append(limit)
+    cur.execute(sql, params)
+    rows = cur.fetchall()
+    logger.info(f"Loaded {len(rows)} chunks{f' for source_id={source_id}' if source_id else ''} (model={model})")
+
+    before = Counter(r[1] for r in rows)
+    transitions: Counter = Counter()
+    updated = 0
+
+    for start in range(0, len(rows), batch_size):
+        batch = rows[start:start + batch_size]
+        prompt = build_prompt([(i, text) for i, (_id, _t, text) in enumerate(batch, start=1)])
+        try:
+            message = create_message_with_retries(
+                client, model=model, max_tokens=1024,
+                messages=[{"role": "user", "content": prompt}],
+            )
+            labels = parse_labels(message.content[0].text, set(range(1, len(batch) + 1)))
+        except Exception as e:
+            logger.warning(f"Batch at offset {start} skipped: {type(e).__name__}: {e}")
+            continue
+
+        for chunk_id, old, new, _conf in plan_updates([(r[0], r[1]) for r in batch], labels, min_confidence):
+            transitions[(old, new)] += 1
+            if dry_run:
+                continue
+            cur.execute(
+                "UPDATE knowledge_chunks SET chunk_type = %s::chunk_type WHERE id = %s",
+                (new, chunk_id),
+            )
+            updated += 1
+        if not dry_run and (start // batch_size) % 10 == 9:
+            conn.commit()
+
+    if not dry_run:
+        conn.commit()
+
+    after = Counter(before)
+    for (old, new), n in transitions.items():
+        after[old] -= n
+        after[new] += n
+
+    print(f"\n{'DRY RUN — ' if dry_run else ''}chunk_type distribution ({len(rows)} chunks):")
+    for ctype in sorted(set(before) | set(after), key=lambda t: -after[t]):
+        print(f"  {ctype:24s} {before[ctype]:5d} → {after[ctype]:5d}")
+    print(f"\nTransitions ({sum(transitions.values())} chunks{'' if dry_run else f', {updated} written'}):")
+    for (old, new), n in transitions.most_common(15):
+        print(f"  {old} → {new}: {n}")
+
+    cur.close()
+    conn.close()
+    return transitions
+
+
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser(description="Relabel knowledge_chunks.chunk_type with an LLM (RAG-H2)")
+    parser.add_argument("--source-id", type=int, help="Limit to one source")
+    parser.add_argument("--dry-run", action="store_true", help="Show the distribution shift without writing")
+    parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
+    parser.add_argument("--min-confidence", type=float, default=DEFAULT_MIN_CONFIDENCE,
+                        help="Only rewrite when the model's confidence is at least this (default 0.6)")
+    parser.add_argument("--model", default=None,
+                        help="Anthropic model id (default: settings.llm_model; a Haiku-class model is plenty)")
+    parser.add_argument("--limit", type=int, default=0, help="Only process the first N chunks (smoke test)")
+    args = parser.parse_args()
+    relabel(args.source_id, args.dry_run, args.batch_size, args.min_confidence, args.model, args.limit)

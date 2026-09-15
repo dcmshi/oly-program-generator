@@ -109,7 +109,8 @@ INGESTION_TESTS := \
 	tests/test_ingest_web.py \
 	tests/test_llm_helpers.py \
 	tests/test_vector_loader_units.py \
-	tests/test_page_text.py
+	tests/test_page_text.py \
+	tests/test_relabel_chunk_types.py
 
 test: test-agent test-ingestion
 
