@@ -119,17 +119,44 @@ def test_split_page_responses_more_sections_truncated():
 # ── Fallback chain — mocked fitz / pdfplumber ────────────────────────────────
 
 def _mock_fitz(pages: list[str]):
-    """Build a mock fitz module returning the given page texts."""
+    """Build a mock fitz module returning the given page texts.
+
+    The extractor reads ``get_text("blocks")`` (RAG-H1), so each page text is
+    served as one text block; ``get_text("text")`` still returns the raw string.
+    """
     mock_fitz = MagicMock()
     mock_pages = []
     for text in pages:
         p = MagicMock()
-        p.get_text.return_value = text
+        blocks = [(0, 0, 0, 0, text, 0, 0)]
+        p.get_text.side_effect = lambda mode="text", _t=text, _b=blocks: _b if mode == "blocks" else _t
         mock_pages.append(p)
     mock_doc = MagicMock()
     mock_doc.__iter__ = lambda self: iter(mock_pages)
     mock_fitz.open.return_value = mock_doc
     return mock_fitz
+
+
+def test_pymupdf_blocks_become_paragraphs_images_skipped():
+    """RAG-H1: text blocks are joined with a blank line (the chunker's paragraph
+    separator), image blocks are dropped, and line-end hyphenation is repaired.
+    Plain-text mode never produced a blank line, so chunk = page."""
+    page = MagicMock()
+    blocks = [
+        (0, 0, 0, 0, "First para line one\nhy-\nphenated.", 0, 0),
+        (0, 0, 0, 0, "<image: x.png>", 1, 1),
+        (0, 0, 0, 0, "Second para.", 2, 0),
+    ]
+    page.get_text.side_effect = lambda mode="text": blocks if mode == "blocks" else "unused"
+    doc = MagicMock()
+    doc.__iter__ = lambda self: iter([page])
+    mock_fitz = MagicMock()
+    mock_fitz.open.return_value = doc
+
+    with patch.dict(sys.modules, {"fitz": mock_fitz}):
+        pages = PDFExtractor._extract_with_pymupdf(Path("x.pdf"))
+
+    assert pages == ["First para line one\nhyphenated.\n\nSecond para."]
 
 
 def _mock_pdfplumber(pages: list[str]):
@@ -152,7 +179,7 @@ def test_pymupdf_succeeds_no_fallback():
         result = PDFExtractor().extract(Path("test.pdf"))
 
     assert len(result) == 1
-    assert _LONG_TEXT in result[0]
+    assert _LONG_TEXT.strip() in result[0]
     mock_plumber.open.assert_not_called()
 
 
@@ -237,7 +264,7 @@ def test_pymupdf_exception_falls_through_to_pdfplumber():
     with patch.dict(sys.modules, {"fitz": mock_fitz, "pdfplumber": mock_plumber}):
         result = PDFExtractor().extract(Path("test.pdf"))
 
-    assert len(result) == 1 and _LONG_TEXT in result[0]
+    assert len(result) == 1 and _LONG_TEXT.strip() in result[0]
     mock_plumber.open.assert_called_once()
 
 

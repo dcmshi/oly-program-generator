@@ -37,6 +37,13 @@ produced 11 exercises.
 - **Catalyst (#4)** was ingested *before* the HTML paragraph fix, so it averages
   ≈1 chunk per article instead of several. A full re-ingest is pending on the
   corpus DB machine — see [DB-MACHINE-RUNBOOK.md](DB-MACHINE-RUNBOOK.md).
+- **All seven PDF sources (#2, #3, #5, #6, #7, #8, #11) were ingested *before* the
+  PDF page-join fix (RAG-H1, 2026-09-15)** and are chunked by page: 100% of the
+  PyMuPDF chunks are single-paragraph, Medvedev is 269-char fragments. Re-ingest
+  is pending on the corpus DB machine — [DB-MACHINE-RUNBOOK.md §8b](DB-MACHINE-RUNBOOK.md).
+  Expect fewer, larger chunks (Takano 229 → ~160 at mean ~590 est. tokens;
+  Zatsiorsky ~0.9 chunks/page at mean ~810) and chapter metadata on nearly every
+  chunk instead of 3%. Evidence and measurements: [RAG_RESEARCH.md §5.1](RAG_RESEARCH.md).
 
 ---
 

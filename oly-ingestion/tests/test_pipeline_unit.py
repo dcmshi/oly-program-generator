@@ -350,3 +350,19 @@ if __name__ == "__main__":
             traceback.print_exc()
             failed += 1
     print(f"\n{passed} passed, {failed} failed")
+
+
+def test_prepare_pdf_pages_joins_pages_and_strips_running_heads():
+    """RAG-H1: PDF pages become one document — running heads and folios removed,
+    a sentence split by the page break re-joined, paragraph breaks kept."""
+    pages = [
+        "Intervention\nThe lifter must keep the bar\n12",
+        "Intervention\nclose to the body. Next sentence.\n13",
+        "Intervention\nA new paragraph.\n14",
+    ]
+    out = IngestionPipeline._prepare_pdf_pages(pages)
+    assert out == ["The lifter must keep the bar close to the body. Next sentence.\n\nA new paragraph."]
+
+
+def test_prepare_pdf_pages_empty_input_returns_empty_list():
+    assert IngestionPipeline._prepare_pdf_pages(["", "   "]) == []

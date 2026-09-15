@@ -132,6 +132,44 @@ are confirmed against a live snapshot (`div.entry-content` + `h1.entry-title`).
 Watch for "kept pending" warnings; re-run until the pending count stabilizes.
 Expected: ~215 sources with `author='Andrew Charniga'` and urls set.
 
+## 8b. Re-ingest the seven PDF sources (RAG-H1)  ⚠ needs both keys (~$1–2 embeddings + principle extraction)
+
+Every PDF source was ingested page-by-page (chunk = page). The fixed pipeline
+joins pages and chunks on real paragraphs, so the old chunks must be deleted
+first — their hashes differ from the new ones, so nothing dedups.
+
+```sql
+-- old page-chunks for the PyMuPDF + vision-OCR sources
+SELECT id, title, author FROM sources WHERE id IN (51, 52, 2, 502, 506, 499, 501);   -- note title/author per row
+BEGIN;
+DELETE FROM knowledge_chunks WHERE source_id IN (51, 52, 2, 502, 506, 499, 501);      -- cascades to ingestion_chunk_log
+COMMIT;
+-- keep programming_principles (dedup on UNIQUE(source_id, principle_name)).
+-- Takano's program_templates (source_id=2) dedup on md5(program_structure); a re-parse
+-- may add near-duplicates — review `SELECT id, name FROM program_templates WHERE source_id=2` afterwards.
+```
+
+Then re-run `pipeline.py` for each file in `oly-ingestion/sources/`, passing the
+**same `--title` / `--author` as the existing `sources` row** so chunks attach to
+the existing `source_id` (a different title creates a new source). Laputin (499)
+and Medvedev (501) need `--vision`; use `--max-pages 20` first as a smoke test.
+
+```bash
+cd oly-ingestion
+PYTHONUTF8=1 uv run python pipeline.py --source "sources/<file>.pdf" --title "<title>" --author "<author>" --type book [--vision]
+```
+
+Sanity check (compare with the pre-fix numbers in `docs/RAG_RESEARCH.md` §5.1):
+
+```sql
+SELECT s.id, left(s.title, 40), count(*) AS chunks, round(avg(length(k.raw_content))) AS avg_chars,
+       round(avg(array_length(string_to_array(k.raw_content, E'\n\n'), 1)), 1) AS avg_paras,
+       count(*) FILTER (WHERE coalesce(k.chapter, '') <> '') AS with_chapter
+FROM knowledge_chunks k JOIN sources s ON s.id = k.source_id
+WHERE s.id IN (51, 52, 2, 502, 506, 499, 501) GROUP BY 1, 2 ORDER BY 3 DESC;
+-- expect avg_paras well above 1 and with_chapter ≈ chunks
+```
+
 ## 9. Post
 
 - Re-run the retrieval eval (both keys): `PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py`

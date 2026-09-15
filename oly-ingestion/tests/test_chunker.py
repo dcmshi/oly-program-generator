@@ -256,3 +256,14 @@ if __name__ == "__main__":
             print(f"  FAIL  {test.__name__}: {e}")
             failed += 1
     print(f"\n{passed} passed, {failed} failed")
+
+
+def test_program_listing_week_lines_do_not_fragment_chunks():
+    """RAG-H1: 'Week N' lines match SECTION_BREAK_PATTERNS, so each week of a
+    listing used to become its own one-line chunk (Medvedev: 617 chunks averaging
+    269 chars). Weak-heading fragments now fold together with the line kept."""
+    listing = "\n\n".join(f"Week {w}\nSnatch 5x2 @ 75%\nClean 4x2 @ 78%" for w in range(1, 7))
+    chunks = SemanticChunker().chunk(listing, source_title="T", author="A")
+    assert len(chunks) == 1, [c.raw_content[:30] for c in chunks]
+    for w in range(1, 7):
+        assert f"Week {w}" in chunks[0].raw_content

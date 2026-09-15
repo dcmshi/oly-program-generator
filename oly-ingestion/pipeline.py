@@ -307,8 +307,13 @@ class IngestionPipeline:
                 logger.info("Applied Soviet-era OCR corrections to extracted pages")
 
             # ── Step 5: Classify and route sections ───────────
-            # Process each page/chapter individually to avoid creating oversized
-            # text blobs that defeat chunking (critical for EPUB/multi-chapter sources).
+            # EPUB items are logical chapters and are classified individually.
+            # PDF pages are NOT logical units: classifying them one by one made
+            # chunk = page for every PyMuPDF source (RAG-H1), so pages are
+            # cleaned of running heads/folios and joined into one document first;
+            # the classifier then caps sections at paragraph boundaries.
+            if source.path.suffix == ".pdf":
+                pages = self._prepare_pdf_pages(pages)
             all_sections = []
             for page_text in pages:
                 if not page_text.strip():
@@ -410,6 +415,23 @@ class IngestionPipeline:
                 error_details={"traceback": traceback.format_exc()},
             )
             raise
+
+    @staticmethod
+    def _prepare_pdf_pages(pages: list[str]) -> list[str]:
+        """Turn per-page PDF text into a single document for classification (RAG-H1).
+
+        Strips running heads and page numbers, then joins pages so sentences and
+        paragraphs that cross a page break are whole again. Returns a one-element
+        list so the caller's per-item loop is unchanged.
+        """
+        from extractors.page_text import join_pages, strip_running_heads
+        cleaned = strip_running_heads(pages)
+        doc = join_pages(cleaned)
+        logger.info(
+            f"Joined {len(pages)} PDF page(s) into one document "
+            f"({len(doc):,} chars, {doc.count(chr(10) * 2) + 1} paragraphs)"
+        )
+        return [doc] if doc.strip() else []
 
     @staticmethod
     def _hash_file(path: Path) -> str | None:

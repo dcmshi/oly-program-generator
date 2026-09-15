@@ -14,6 +14,7 @@ majority of cases. The vision fallback is used for scanned Soviet-era books
 
 import base64
 import logging
+import re
 import sys
 import time
 from pathlib import Path
@@ -107,12 +108,27 @@ class PDFExtractor:
 
     @staticmethod
     def _extract_with_pymupdf(path: Path) -> list[str]:
-        """Primary extraction using PyMuPDF (fast, handles most PDFs)."""
+        """Primary extraction using PyMuPDF (fast, handles most PDFs).
+
+        Uses ``get_text("blocks")`` rather than ``"text"``: plain-text mode
+        separates blocks with a single ``\\n``, so the chunker (which splits
+        paragraphs on ``\\n\\n``) saw every page as one paragraph and chunk = page
+        for all five PyMuPDF sources (RAG-H1). Text blocks (type 0) are joined
+        with a blank line; image blocks are skipped; line-end hyphenation inside
+        a block is repaired.
+        """
         import fitz
+
+        from extractors.page_text import dehyphenate
         doc = fitz.open(str(path))
         pages = []
         for page in doc:
-            text = page.get_text("text")
+            blocks = [
+                dehyphenate(b[4].strip())
+                for b in page.get_text("blocks")
+                if len(b) > 6 and b[6] == 0 and str(b[4]).strip()
+            ]
+            text = "\n\n".join(blocks)
             if text.strip():
                 pages.append(text)
         doc.close()
@@ -122,14 +138,24 @@ class PDFExtractor:
 
     @staticmethod
     def _extract_with_pdfplumber(path: Path) -> list[str]:
-        """Fallback extraction using pdfplumber (better for complex layouts)."""
+        """Fallback extraction using pdfplumber (better for complex layouts).
+
+        ``layout=True`` keeps the vertical whitespace between paragraphs, which
+        becomes the ``\\n\\n`` the chunker needs; the horizontal padding it adds
+        is collapsed again.
+        """
         import pdfplumber
+
+        from extractors.page_text import dehyphenate
         pages = []
         with pdfplumber.open(str(path)) as pdf:
             for page in pdf.pages:
-                text = page.extract_text() or ""
+                text = page.extract_text(layout=True) or ""
+                text = re.sub(r"[ \t]{2,}", " ", text)
+                text = "\n".join(ln.strip() for ln in text.splitlines())
+                text = re.sub(r"\n{3,}", "\n\n", text)
                 if text.strip():
-                    pages.append(text)
+                    pages.append(dehyphenate(text.strip()))
         return pages
 
     # ── Stage 3: Claude vision OCR ────────────────────────────

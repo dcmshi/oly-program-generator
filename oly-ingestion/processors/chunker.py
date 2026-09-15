@@ -645,7 +645,15 @@ class SemanticChunker:
         if current_text.strip():
             sections.append({"title": current_title, "text": current_text})
 
-        return sections if sections else [{"title": "", "text": text}]
+        if not sections:
+            return [{"title": "", "text": text}]
+
+        # RAG-H1: "Week 2 …" / "1.5 Snatch" lines inside program listings match
+        # the break patterns and would each become a one-line chunk; fold such
+        # fragments back into their neighbour with the line restored.
+        from processors.sectioning import merge_small_sections
+        merged = merge_small_sections([(s["title"], s["text"], {}) for s in sections])
+        return [{"title": title, "text": body} for title, body, _meta in merged]
 
     # ── Paragraph-aware chunking with keep-together ───────────
 

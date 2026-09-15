@@ -20,6 +20,7 @@ from enum import Enum
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
+from processors.sectioning import merge_small_sections, split_oversized_sections
 from shared.llm import create_message_with_retries, parse_llm_json
 
 logger = logging.getLogger(__name__)
@@ -145,7 +146,7 @@ class ContentClassifier:
         )
 
         parts = header_pattern.split(text)
-        sections = []
+        raw: list[tuple[str, str, dict]] = []
         current_chapter = ""
         current_title = ""
 
@@ -155,12 +156,21 @@ class ContentClassifier:
                     current_chapter = part.strip()
                 current_title = part.strip()
             elif part.strip():
-                sections.append((
+                raw.append((
+                    current_title,
                     part.strip(),
                     {"chapter": current_chapter, "title": current_title},
                 ))
 
-        return sections if sections else [(text, {"chapter": "", "title": ""})]
+        if not raw:
+            return [(text, {"chapter": "", "title": ""})]
+
+        # RAG-H1: fold heading-regex fragments (table lines that matched
+        # "\d+.\d+ Title") back into their neighbour, then cap section size at
+        # paragraph boundaries so a page-joined chapter is classified in pieces
+        # rather than routed wholesale by one embedded program table.
+        sections = split_oversized_sections(merge_small_sections(raw))
+        return [(sec_text, meta) for _title, sec_text, meta in sections]
 
     def _classify_single(self, text: str) -> tuple[ContentType, float]:
         """Heuristic classification of a single section."""

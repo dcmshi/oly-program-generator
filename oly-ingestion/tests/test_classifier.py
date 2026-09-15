@@ -249,3 +249,48 @@ if __name__ == "__main__":
         print(f"\n{passed} passed, {failed} failed  (LLM tests skipped — run with --llm to include)")
     else:
         print(f"\n{passed} passed, {failed} failed")
+
+
+# ── RAG-H1: section merge + cap ───────────────────────────────────────────────
+
+def test_over_split_table_rows_merge_back_with_text_restored():
+    r"""'\d+.\d+ Title' matches table rows ("1.1 Snatch"); each row used to become
+    its own one-line section with the row text lost into the title. Fragments now
+    fold into the previous section with the row restored."""
+    clf = make_classifier()
+    body = "The preparatory period builds volume before intensity. " * 10
+    text = (
+        "Chapter 4 Loading\n\n" + body
+        + "\n\n1.1 Snatch\n70% 3x3\n\n1.2 Clean\n75% 3x2\n\n1.3 Jerk\n80% 2x2\n"
+    )
+    sections = clf._split_into_sections(text)
+    assert len(sections) == 1, [s[0][:40] for s in sections]
+    merged_text, meta = sections[0]
+    for row in ("1.1 Snatch", "70% 3x3", "1.2 Clean", "75% 3x2", "1.3 Jerk", "80% 2x2"):
+        assert row in merged_text, row
+    assert meta["chapter"] == "Chapter 4 Loading"
+
+
+def test_strong_headings_are_never_merged_even_when_short():
+    """Chapter/PART/markdown headings are reliable — a short chapter stays its own section."""
+    clf = make_classifier()
+    sections = clf._split_into_sections("Chapter 1 A\n\nShort.\n\nChapter 2 B\n\nAlso short.\n")
+    assert len(sections) == 2
+
+
+def test_oversized_section_split_at_paragraph_boundaries():
+    """A page-joined chapter is classified in <= CLASSIFY_SECTION_MAX_CHARS pieces,
+    cut only between paragraphs, each carrying the chapter's title + a part index."""
+    from shared.constants import CLASSIFY_SECTION_MAX_CHARS
+
+    clf = make_classifier()
+    para = "Volume rises through the block while intensity holds steady. " * 4
+    text = "Chapter 5 Waves\n\n" + "\n\n".join([para.strip()] * 60)  # ~15k chars
+    sections = clf._split_into_sections(text)
+
+    assert len(sections) >= 2
+    assert all(len(s[0]) <= CLASSIFY_SECTION_MAX_CHARS for s in sections)
+    assert all(s[1]["title"] == "Chapter 5 Waves" for s in sections)
+    assert [s[1]["part"] for s in sections] == list(range(1, len(sections) + 1))
+    for sec_text, _meta in sections:
+        assert all(p == para.strip() for p in sec_text.split("\n\n")), "a paragraph was cut"

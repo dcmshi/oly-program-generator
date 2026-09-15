@@ -80,3 +80,13 @@ MAKE_RATE_TREND_THRESHOLD: float = 0.07   # for make-rate (0-1) sequences
 # VectorLoader.similarity_search.
 HNSW_EF_SEARCH: int = 100
 HNSW_ITERATIVE_SCAN: str = "relaxed_order"
+
+# ── Ingestion sectioning (RAG-H1) ───────────────────────────────
+# Heading-delimited sections are capped before classification so one program
+# table inside a 60k-char chapter can't route the whole chapter to the template
+# parser; the cap equals the principle-extraction window. Fragments below the
+# minimum (heading regexes over-fire on tabular lines like "1.5 Snatch 3x3" or
+# "Week 2 …", carving a table into one-line sections) are folded back into
+# their neighbour with the heading line restored.
+CLASSIFY_SECTION_MAX_CHARS: int = 8000
+MIN_SECTION_CHARS: int = 300
