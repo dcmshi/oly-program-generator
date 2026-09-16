@@ -363,7 +363,7 @@ erDiagram
 |-------|-------|------|---------|
 | `knowledge_chunks` | `idx_chunks_embedding` | HNSW (cosine) | Vector similarity search |
 | `knowledge_chunks` | `idx_chunks_topics` | GIN | Topic filtering in retrieval |
-| `knowledge_chunks` | `idx_chunks_hash` | btree | SHA-256 dedup on re-ingestion |
+| `knowledge_chunks` | `knowledge_chunks_content_hash_key` | unique | SHA-256 dedup on re-ingestion (the duplicate `idx_chunks_hash` was dropped in migration 0013) |
 | `knowledge_chunks` | `idx_chunks_embedding_model` | btree | Restrict ranking to one embedding space (RAG-M8) |
 | `knowledge_chunks` | `idx_chunks_tsv` | GIN | Lexical leg of hybrid retrieval over the generated `tsv` column (`context_prefix` + `raw_content`; RAG-M1) |
 | `exercises` | `idx_exercises_faults` | GIN | Fault-to-exercise lookup |

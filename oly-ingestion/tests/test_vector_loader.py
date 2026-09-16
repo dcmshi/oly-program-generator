@@ -457,6 +457,21 @@ def test_hybrid_surfaces_exact_term_chunks():
         vl.conn.rollback()
         vl.close()
 
+# ── Index hygiene (RAG-L7) ─────────────────────────────────────
+
+def test_content_hash_is_indexed_once():
+    """The UNIQUE constraint's index is the only btree on content_hash."""
+    vl, _sl = make_loaders()
+    try:
+        cur = vl.conn.cursor()
+        cur.execute("SELECT indexname FROM pg_indexes WHERE tablename = 'knowledge_chunks' AND indexdef ~ 'content_hash'")
+        names = sorted(r[0] for r in cur.fetchall())
+        cur.close()
+        assert names == ["knowledge_chunks_content_hash_key"], names
+        print("  content_hash indexed once OK")
+    finally:
+        vl.close()
+
 # ── Runner ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -472,6 +487,7 @@ if __name__ == "__main__":
         test_filtered_search_with_index_forced_matches_exact_counts,
         test_preferred_chunk_types_boosts_without_excluding,
         test_hybrid_surfaces_exact_term_chunks,
+        test_content_hash_is_indexed_once,
     ]
     passed = failed = 0
     for test in tests:
