@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from shared.llm import create_message_with_retries, message_text
+from shared.llm import create_message_with_retries, message_text, thinking_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -242,6 +242,7 @@ class PDFExtractor:
             model=self._vision_model,
             max_tokens=_VISION_MAX_TOKENS,
             messages=[{"role": "user", "content": content}],
+            **thinking_kwargs(self._vision_model, "disabled"),   # transcription — no thinking
         )
 
         # A truncated response silently drops the tail pages of the batch —

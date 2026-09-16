@@ -213,6 +213,28 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
     raise last_exc
 
 
+def create_message_growing(client, *, max_tokens: int, ceiling: int | None = None,
+                           label: str = "LLM call", **kwargs):
+    """`create_message_with_retries` that re-sends with a doubled `max_tokens`
+    (up to `ceiling`, default LLM_MAX_TOKENS_CEILING) whenever the response
+    stops on `max_tokens`. A truncated JSON payload (a program template, a
+    principle list) is worthless, and on Sonnet 5 / Opus 5 adaptive thinking
+    can spend the whole budget before any text — so re-sending the same
+    request never helps; a bigger budget does. Returns the final response.
+    """
+    from shared.constants import LLM_MAX_TOKENS_CEILING
+
+    ceiling = ceiling or LLM_MAX_TOKENS_CEILING
+    budget = max_tokens
+    while True:
+        response = create_message_with_retries(client, max_tokens=budget, **kwargs)
+        if getattr(response, "stop_reason", None) != "max_tokens" or budget >= ceiling:
+            return response
+        grown = min(budget * 2, ceiling)
+        logger.warning(f"{label}: response truncated at max_tokens={budget} — retrying with {grown}")
+        budget = grown
+
+
 def create_llm_client(settings) -> Anthropic:
     """Create the Anthropic client.
 

@@ -34,12 +34,15 @@ def test_extract_window_strips_unknown_keys_before_building_principles():
     }
     message = MagicMock()
     message.content = [MagicMock(text=json.dumps([item]))]
-    extractor = PrincipleExtractor(MagicMock(llm_model="m", llm_max_tokens=100, anthropic_api_key="k"))
+    extractor = PrincipleExtractor(MagicMock(llm_model="claude-sonnet-5", llm_max_tokens=100, anthropic_api_key="k"))
     extractor._client = MagicMock()
-    with patch("processors.principle_extractor.create_message_with_retries", return_value=message):
+    with patch("processors.principle_extractor.create_message_growing", return_value=message) as call:
         out = extractor._extract_window("text", "Book")
     assert len(out) == 1
     assert out[0].condition == {"weeks_out_from_competition": {"lte": 2}}
+    # structured JSON out — never let a Sonnet 5 llm_model run adaptive thinking
+    assert call.call_args.kwargs["thinking"] == {"type": "disabled"}
+    assert call.call_args.kwargs["max_tokens"] == 100
 
 
 def test_condition_keys_match_the_agent_matcher():

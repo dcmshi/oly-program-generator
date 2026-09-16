@@ -308,3 +308,4 @@ def test_llm_classify_uses_the_light_model():
         clf._llm_classify("some ambiguous text " * 20, "Book")
     assert call.call_args.kwargs["model"] == clf.settings.light_model
     assert clf.settings.light_model != clf.settings.llm_model
+    assert "thinking" not in call.call_args.kwargs      # Haiku 4.5 has no thinking field

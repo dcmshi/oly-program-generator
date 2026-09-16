@@ -23,7 +23,13 @@ from processors.chunker import SemanticChunker, SourceProfile, validate_chunk
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
 
-from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json
+from shared.llm import (
+    create_message_growing,
+    light_model_for,
+    message_text,
+    parse_llm_json,
+    thinking_kwargs,
+)
 
 logging.basicConfig(
     level=logging.INFO,
@@ -559,11 +565,17 @@ class IngestionPipeline:
         client = self.principle_extractor._get_client()
 
         def _llm_call(prompt: str) -> dict:
-            message = create_message_with_retries(
+            # Structured JSON out: no thinking (Sonnet 5 would otherwise run
+            # adaptive by default) and a budget that grows on truncation — a
+            # 5k-char program window overran 4,096 output tokens on the
+            # 2026-09-16 re-ingest ("Expecting ',' delimiter … char 13792").
+            message = create_message_growing(
                 client,
                 model=self.settings.llm_model,
-                max_tokens=4096,
+                max_tokens=self.settings.llm_max_tokens,
                 messages=[{"role": "user", "content": prompt}],
+                label=f"Program template parse '{source.title}'",
+                **thinking_kwargs(self.settings.llm_model, "disabled"),
             )
             return parse_llm_json(message_text(message))
 
@@ -707,12 +719,19 @@ class IngestionPipeline:
 
         name_lower = name.lower()
 
-        # Infer movement family — first match in EXERCISE_FAMILY_KEYWORDS wins
+        # Infer movement family — first match in EXERCISE_FAMILY_KEYWORDS wins.
+        # No match means the heading names no movement at all ("Chapter 15",
+        # "Course Corrections"); the default family is not a movement_family
+        # enum value, so the loader would reject the row anyway (Dan John
+        # re-ingest, 2026-09-16) — drop it here instead of logging an error.
         family = EXERCISE_FAMILY_DEFAULT
         for keywords, fam in EXERCISE_FAMILY_KEYWORDS:
             if any(kw in name_lower for kw in keywords):
                 family = fam
                 break
+        if family == EXERCISE_FAMILY_DEFAULT:
+            logger.debug(f"Not cataloguing '{name}' as an exercise: no movement keyword")
+            return {}
 
         # Infer category from name modifiers and family
         if any(kw in name_lower for kw in EXERCISE_VARIATION_MODIFIERS):
@@ -742,10 +761,16 @@ class IngestionPipeline:
 _GENERIC_MOVEMENT_HEADINGS = frozenset({"pull", "squat", "press", "lift", "lifts", "the lifts"})
 
 
+_CHAPTER_HEADING_RE = re.compile(r"^(chapter|part|section|appendix|lesson|week|day)\b", re.I)
+
+
 def _is_chapter_heading_name(name: str) -> bool:
-    """True for an all-caps heading or a bare movement word — not a catalogue entry."""
-    bare = name.strip()
+    """True for an all-caps heading, a "Chapter 15"-style heading or a bare
+    movement word — none of them a catalogue entry."""
+    bare = " ".join(name.split())
     if bare.isupper() and len(bare) > 1:
+        return True
+    if _CHAPTER_HEADING_RE.match(bare):
         return True
     return bare.lower() in _GENERIC_MOVEMENT_HEADINGS
 

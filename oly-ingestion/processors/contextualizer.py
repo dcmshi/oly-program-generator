@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.chunker import Chunk
-from shared.llm import create_message_with_retries, message_text
+from shared.llm import create_message_with_retries, message_text, thinking_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -115,6 +115,7 @@ def contextualize(
                 max_tokens=MAX_CONTEXT_TOKENS,
                 system=system_block,
                 messages=[{"role": "user", "content": build_chunk_message(chunk.raw_content)}],
+                **thinking_kwargs(model, "disabled"),   # two sentences out — never think
             )
             text = message_text(message).strip()
             if text:

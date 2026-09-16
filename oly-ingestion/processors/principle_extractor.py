@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
-from shared.llm import create_message_with_retries, message_text, parse_llm_json
+from shared.llm import create_message_growing, message_text, parse_llm_json, thinking_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -157,11 +157,13 @@ class PrincipleExtractor:
         prompt = EXTRACTION_PROMPT.format(text=text, source=source_title)
         try:
             client = self._get_client()
-            message = create_message_with_retries(
+            message = create_message_growing(
                 client,
                 model=self.settings.llm_model,
                 max_tokens=self.settings.llm_max_tokens,
                 messages=[{"role": "user", "content": prompt}],
+                label=f"Principle extraction '{source_title}'",
+                **thinking_kwargs(self.settings.llm_model, "disabled"),   # JSON out, no thinking
             )
             raw = parse_llm_json(message_text(message))
         except Exception as e:

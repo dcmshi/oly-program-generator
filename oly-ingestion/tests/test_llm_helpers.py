@@ -179,6 +179,34 @@ def test_usage_tokens_tolerates_missing_and_mocked_fields():
     assert usage_tokens(mocked) == {"input": 3, "output": 4, "cache_read": 0, "cache_creation": 0}
 
 
+def test_create_message_growing_doubles_the_budget_on_truncation():
+    """A response that stops on max_tokens is re-sent with double the budget,
+    up to the ceiling; anything else is returned as-is."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from shared.llm import create_message_growing
+
+    truncated = SimpleNamespace(stop_reason="max_tokens", content=[])
+    ok = SimpleNamespace(stop_reason="end_turn", content=[])
+    client = MagicMock()
+    client.messages.create.side_effect = [truncated, truncated, ok]
+    out = create_message_growing(client, max_tokens=1000, ceiling=3000, model="m", messages=[])
+    assert out is ok
+    assert [c.kwargs["max_tokens"] for c in client.messages.create.call_args_list] == [1000, 2000, 3000]
+
+    client = MagicMock()
+    client.messages.create.side_effect = [truncated, truncated]
+    out = create_message_growing(client, max_tokens=2000, ceiling=4000, model="m", messages=[])
+    assert out is truncated and client.messages.create.call_count == 2      # stops at the ceiling
+
+    client = MagicMock()
+    client.messages.create.return_value = ok
+    create_message_growing(client, max_tokens=50, model="m", messages=[], thinking={"type": "disabled"})
+    assert client.messages.create.call_args.kwargs["thinking"] == {"type": "disabled"}
+    assert client.messages.create.call_count == 1
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

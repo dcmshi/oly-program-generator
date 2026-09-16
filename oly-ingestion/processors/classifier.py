@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.sectioning import merge_small_sections, split_oversized_sections
-from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json, thinking_kwargs
 
 logger = logging.getLogger(__name__)
 
@@ -270,11 +270,13 @@ Respond with JSON only, no other text:
 
         try:
             client = self._get_client()
+            model = light_model_for(self.settings)  # a 128-token label pick — Haiku-class is enough
             message = create_message_with_retries(
                 client,
-                model=light_model_for(self.settings),  # a 128-token label pick — Haiku-class is enough
+                model=model,
                 max_tokens=128,
                 messages=[{"role": "user", "content": prompt}],
+                **thinking_kwargs(model, "disabled"),
             )
             parsed = parse_llm_json(message_text(message))
             content_type = type_map.get(parsed["content_type"], ContentType.PROSE)

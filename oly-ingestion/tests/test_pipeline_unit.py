@@ -47,6 +47,7 @@ def _make_pipeline(mock_client) -> MagicMock:
     pipeline = MagicMock()
     pipeline.principle_extractor._get_client.return_value = mock_client
     pipeline.settings.llm_model = "claude-sonnet-4-6"
+    pipeline.settings.llm_max_tokens = 4096
     return pipeline
 
 
@@ -322,6 +323,30 @@ def test_llm_failure_returns_empty_structure():
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
+
+
+def test_template_parse_disables_thinking_and_grows_on_truncation():
+    """MODEL-1: a Sonnet 5 llm_model must not run adaptive thinking on the JSON
+    parse, and a max_tokens stop is retried with a doubled budget rather than
+    parsed as broken JSON (the 2026-09-16 re-ingest lost Takano templates to
+    "Expecting property name enclosed in double quotes")."""
+    data = {"duration_weeks": 1, "sessions_per_week": 1,
+            "weeks": [{"week_number": 1, "sessions": [{"day": "Day 1", "exercises": []}]}]}
+    truncated = _make_llm_response(data)
+    truncated.content = [MagicMock(text="[{")]
+    truncated.stop_reason = "max_tokens"
+    good = _make_llm_response(data)
+    good.stop_reason = "end_turn"
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [truncated, good]
+    pipeline = _make_pipeline(mock_client)
+    pipeline.settings.llm_model = "claude-sonnet-5"
+    result = _call(pipeline, _make_section("x" * 1000))
+    assert result["program_structure"]["weeks"][0]["week_number"] == 1
+    calls = mock_client.messages.create.call_args_list
+    assert [c.kwargs["max_tokens"] for c in calls] == [4096, 8192]
+    assert all(c.kwargs["thinking"] == {"type": "disabled"} for c in calls)
+
 
 if __name__ == "__main__":
     tests = [
