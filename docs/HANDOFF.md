@@ -19,22 +19,23 @@ Fellow Security approval; never print API keys.
 | 5 | Model baseline against athlete 1 (Sonnet 4.6 vs Sonnet 5 ± thinking) | **done 2026-09-16** — table in `TODO.md` MODEL-1, raw report `oly-agent/eval/model_baseline_20260916T140755Z.json`; truncation fix `1c0a9d6`; agent roles moved to `claude-sonnet-5` + thinking disabled (`DEFAULT_GENERATION_MODEL`). Ingestion `llm_model` stays on 4.6 until its call sites pass `thinking_kwargs` |
 | 6 | DOG-2: Catalyst re-crawl test | **done** (dry-run 428 URLs; `--limit 5` → 11 chunks) — recorded in `TODO.md` DOG-2; the full re-crawl is item 8 |
 | 7 | TODO item for other providers | **done** — `TODO.md` MODEL-2 |
-| 8 | Corpus ops: Catalyst full re-crawl (runbook §5–7), Charniga (§8), 7-PDF re-ingest (§8b), catalogue DELETE + `relabel_chunk_types.py` + `retag_chunks.py` + `eval.build_golden` + `eval.run_eval --update-baseline` (§9) | **pending — needs the user's go-ahead** (≈ $3–5 in embeddings/LLM, rewrites the local corpus copy; then the same on the corpus-DB machine) |
+| 8 | Corpus ops: Catalyst full re-crawl (runbook §5–7), Charniga (§8), 7-PDF re-ingest (§8b), catalogue DELETE + `relabel_chunk_types.py` + `retag_chunks.py` + `eval.build_golden` + `eval.run_eval --update-baseline` (§9) | **pending — user asked for a credit check first (2026-09-16).** Estimate ≈ $18–22 on the Anthropic key (Laputin + Medvedev need `--vision` OCR ≈ $8, `--contextualize` on ~2,400 chunks ≈ $4, principle extraction ≈ $2, Catalyst ≈ $3, Charniga ≈ $1.5, golden set ≈ $1–2), < $0.50 on OpenAI. Neither key can read its balance (Anthropic needs an Admin key; OpenAI needs `api.usage.read`) — confirm in the consoles |
 
-Follow-ups filed, not started: `TODO.md` DOG-1e (Previous Program block has no structure), DOG-1f
-(catalogue lacks the real block's variants), DOG-1g (weekly comp-lift rep budget miscalibrated),
-DOG-1h (prompt length > 20k on day-4 sessions), MODEL-2 (open-weight providers).
+DOG-1e–h landed 2026-09-16 (`0625e65`, `1fc2398` + migration 0014, `c25a825`, `54b5559`); the
+athlete's block was re-imported as program **11** and program **12** generated on the new defaults
+(22 exercises, 0 validation errors, $0.42). Still open: MODEL-2 (open-weight providers) and the
+MODEL-1 note about moving ingestion's `llm_model`.
 
 ## Local DB state (dev copy, 2026-09-16)
 
-- Athlete 1 (`dshi`): program 5 (old draft), **6** = imported General Strength block
+- Athlete 1 (`dshi`): program 5 (old draft), **11** = imported General Strength block
   (`completed`, `general_prep`, 11 wks × 4, logs 2026-07-01 → 09-13, outcome adherence 100% /
-  make 100% / verdict → accumulation), **7** = generated accumulation block (draft, Sonnet 4.6,
-  16 sessions), and the baseline drafts named `… [baseline: <config>]` (8 sessions each, partial
-  by design — `# Partial Program — Session Cap` rationale). Delete the baseline drafts from the
-  UI or with `eval.model_baseline … --delete` once reviewed.
-- `exercises`: the 8 chapter-heading rows (`The Pull`, `PULL`, `Squat`, …) are deleted here; the
-  corpus DB needs runbook §9's DELETE.
+  make 100% / verdict → accumulation; replaced program 6 after the 0014 catalogue seed), **12** =
+  the current generated accumulation block (draft, Sonnet 5, all DOG-1 fixes), plus stale drafts
+  7 (pre-fix generation) and 8–10 (`… [baseline: <config>]`, 8 sessions each). Delete 7–10 from
+  the UI or with `eval.model_baseline … --delete`-style SQL once reviewed.
+- `exercises`: 72 rows here (45 seed + 27 from migration 0014; the 8 chapter-heading rows are
+  deleted). The corpus DB needs `make migrate` (0014) and runbook §9's DELETE.
 - `knowledge_chunks`: 3,379 (3,368 + 11 from the DOG-2 smoke: sources 83–87 re-ingested with
   urls). `sources/catalyst_progress.json` lists 10 processed URLs — delete it before a full
   re-crawl (runbook §6).
