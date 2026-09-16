@@ -159,6 +159,7 @@ def _validation_result():
 
 _PATCHES = {
     "get_connection":               "orchestrator.get_connection",
+    "make_vector_loader":           "orchestrator._make_vector_loader",
     "fetch_all":                    "orchestrator.fetch_all",
     "execute_returning":            "orchestrator.execute_returning",
     "execute":                      "orchestrator.execute",
@@ -190,6 +191,9 @@ def _full_mock_stack(stack: ExitStack, overrides: dict = None) -> dict:
 
     defaults = {
         "get_connection": mock_conn,
+        # None = no retriever: keeps these tests off OpenAI + Postgres even when
+        # openai is installed and .env has real keys (retrieve_session_context → [])
+        "make_vector_loader": None,
         "fetch_all": [],
         "execute_returning": 42,  # program_id
         "execute": None,

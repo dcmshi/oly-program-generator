@@ -10,6 +10,11 @@ dependencies = [
     "alembic>=1.13.0,<2",
     # LLM
     "anthropic>=0.25.0,<1",
+    # Retrieval — orchestrator imports oly-ingestion's VectorLoader at runtime
+    # (OpenAI query embeddings, tiktoken for the embedding-cap truncation).
+    # Without these the worker silently generates with no knowledge context.
+    "openai>=2.0.0,<3",
+    "tiktoken>=0.14.0",
     # Validation
     "pydantic>=2.0,<3",
     # Utilities

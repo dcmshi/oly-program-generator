@@ -70,17 +70,7 @@ def run(
     """
     conn = get_connection(settings.database_url)
 
-    # ── Set up VectorLoader (optional) ────────────────────────
-    vector_loader = None
-    try:
-        ingestion_path = Path(__file__).parent.parent / "oly-ingestion"
-        if str(ingestion_path) not in sys.path:
-            sys.path.insert(0, str(ingestion_path))
-        from loaders.vector_loader import VectorLoader
-        vector_loader = VectorLoader(settings)
-        logger.info("VectorLoader initialized")
-    except Exception as e:
-        logger.warning(f"VectorLoader not available (vector search disabled): {e}")
+    vector_loader = _make_vector_loader(settings)
 
     # ── Build exercise lookup (name -> id) ────────────────────
     exercise_rows = fetch_all(conn, "SELECT id, name FROM exercises")
@@ -491,6 +481,26 @@ def run(
                 vector_loader.close()
             except Exception as e:
                 logger.debug(f"vector_loader.close() failed (non-fatal): {e}")
+
+
+def _make_vector_loader(settings: Settings):
+    """The corpus retriever, imported from oly-ingestion at runtime. Returns None
+    (and generation runs with NO knowledge context — every session prompt loses
+    its [Cn] chunks) when the import or construction fails: missing `openai` in
+    this venv, no OPENAI_API_KEY, or no DB. The agent's pyproject therefore
+    lists `openai` + `tiktoken` as core dependencies; unit tests patch this to
+    None so they never touch OpenAI or Postgres (DOG-1 finding)."""
+    try:
+        ingestion_path = Path(__file__).parent.parent / "oly-ingestion"
+        if str(ingestion_path) not in sys.path:
+            sys.path.insert(0, str(ingestion_path))
+        from loaders.vector_loader import VectorLoader
+        loader = VectorLoader(settings)
+        logger.info("VectorLoader initialized")
+        return loader
+    except Exception as e:
+        logger.warning(f"VectorLoader not available (vector search disabled): {e}")
+        return None
 
 
 # ── Snapshot / peak-week helpers ───────────────────────────────
