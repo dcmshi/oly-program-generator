@@ -109,21 +109,27 @@ def compose_session_context(
     Up to ``max_fault_chunks`` fault chunks first (only when the athlete has
     faults), round-robin across faults so one fault can't take every slot, then
     the session's own chunks by score; deduped by id; at most ``per_source_cap``
-    from any one source so a single book can't fill the context.
+    from any one source *within each group* so a single book can't fill the
+    context. The cap is per group on purpose: the fault chunks and the best
+    session chunks both tend to come from the one book that covers exercises
+    in depth, and a shared cap let two fault chunks from it leave every
+    "snatch variations" session with no session context at all (DOG-1).
     """
     chosen: list[dict] = []
     seen: set = set()
-    per_source: Counter = Counter()
 
-    def _take(c: dict) -> bool:
-        cid, sid = c.get("id"), c.get("source_id")
-        if cid in seen or per_source[sid] >= per_source_cap:
-            return False
-        seen.add(cid)
-        per_source[sid] += 1
-        chosen.append(c)
-        return True
+    def _taker(per_source: Counter):
+        def _take(c: dict) -> bool:
+            cid, sid = c.get("id"), c.get("source_id")
+            if cid in seen or per_source[sid] >= per_source_cap:
+                return False
+            seen.add(cid)
+            per_source[sid] += 1
+            chosen.append(c)
+            return True
+        return _take
 
+    _take = _taker(Counter())
     if has_faults and fault_chunks:
         by_fault: dict = {}
         for c in fault_chunks:
@@ -139,6 +145,7 @@ def compose_session_context(
                         taken += 1
                         break
 
+    _take = _taker(Counter())   # session chunks get their own per-source budget
     for c in sorted(session_chunks, key=_rank, reverse=True):
         if len(chosen) >= max_chunks:
             break

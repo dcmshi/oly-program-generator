@@ -570,6 +570,20 @@ def test_compose_caps_chunks_per_source_and_dedupes_ids():
     assert [c["id"] for c in out] == [1, 2, 4], "max 2 from source 7, duplicate id dropped"
 
 
+def test_compose_per_source_cap_is_per_group_not_shared_with_fault_chunks():
+    """DOG-1: both fault chunks and every session candidate came from the same
+    book (Everett), so a shared cap left the session with only the two fault
+    chunks. Fault and session picks each get their own per-source budget."""
+    faults = [_c(101, 507, 0.95, "fault_correction", fault="slow_turnover"),
+              _c(102, 507, 0.90, "fault_correction", fault="slow_turnover")]
+    session = [_c(1, 507, 0.9), _c(2, 507, 0.8), _c(3, 507, 0.7)]
+    out = compose_session_context(session, faults, has_faults=True)
+    assert [c["id"] for c in out] == [101, 102, 1, 2], "2 fault + 2 session chunks from the same source"
+    # the cap still holds inside each group, and ids never repeat across groups
+    out = compose_session_context([_c(101, 507, 0.9), _c(2, 507, 0.8), _c(3, 507, 0.7)], faults, has_faults=True)
+    assert [c["id"] for c in out] == [101, 102, 2, 3]
+
+
 # ── RAG-M1: every production search is hybrid ────────────────────────────────
 
 def test_all_production_searches_pass_hybrid_flag():
