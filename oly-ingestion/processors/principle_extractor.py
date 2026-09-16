@@ -81,6 +81,28 @@ SOURCE: {source}
 Respond ONLY with valid JSON array, no other text."""
 
 
+# The condition keys EXTRACTION_PROMPT defines — the only ones the agent's
+# principle_matcher can evaluate. The model occasionally invents others
+# (athlete_characteristics, exercise_type, delay_minutes, training_focus were
+# found in the corpus); those are dropped at parse time so a rule never carries
+# a condition nobody can check (RAG-L9). test_principle_schema asserts this set
+# equals oly-agent/principle_matcher.KNOWN_CONDITION_KEYS.
+CONDITION_KEYS: frozenset[str] = frozenset({
+    "phase", "weeks_out_from_competition", "athlete_level", "training_age_years",
+    "week_of_block", "movement_family", "recent_make_rate", "rpe_average_last_week",
+})
+
+
+def sanitize_condition(condition) -> dict:
+    """Keep only schema condition keys; None / non-dict → {} (unconditional)."""
+    if not isinstance(condition, dict):
+        return {}
+    dropped = sorted(set(condition) - CONDITION_KEYS)
+    if dropped:
+        logger.warning(f"Dropping unknown principle condition key(s): {dropped}")
+    return {k: v for k, v in condition.items() if k in CONDITION_KEYS}
+
+
 class PrincipleExtractor:
     def __init__(self, settings):
         self.settings = settings
@@ -149,6 +171,8 @@ class PrincipleExtractor:
         principles = []
         for item in raw:
             try:
+                if isinstance(item, dict):
+                    item = {**item, "condition": sanitize_condition(item.get("condition"))}
                 principles.append(ExtractedPrinciple(**item))
             except (TypeError, KeyError) as e:
                 logger.warning(f"Skipping malformed principle: {e}")
