@@ -571,8 +571,9 @@ You MUST:
 - Include 2-3 warmup sets (50-60%) before each competition lift or heavy pull (snatch, clean, jerk, clean & jerk). Warmup sets are 2-3 reps, ordered first in the session. Use the same exercise name as the working sets (e.g. "Snatch" warmups before "Snatch" working sets).
 
 You MUST NOT:
-- Exceed the week's intensity ceiling given under Program Plan
-- Prescribe more reps per set than Prilepin's chart allows for the intensity zone
+- Exceed the week's intensity ceiling given under Program Plan on competition lifts (snatch, clean, jerk, clean & jerk and their power/hang/block variants)
+- Prescribe more reps per set than Prilepin's chart allows for the intensity zone on competition lifts
+(Pulls, deadlifts, squats and presses are not competition lifts: they may sit above the ceiling — up to ~120% of the referenced max — and take 3-5 reps per set; reference the lift's own max when one is listed, e.g. "clean_pull".)
 - Include exercises from the avoid list
 - Include exercises the athlete cannot perform due to injuries
 {"- Prescribe any exercise requiring lifting blocks (e.g. any from-blocks variation) — athlete does not have blocks available." if not has_blocks else ""}

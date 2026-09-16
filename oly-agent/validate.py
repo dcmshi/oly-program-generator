@@ -30,7 +30,7 @@ from shared.constants import (
     WARMUP_VOLUME_EXCLUSION_PCT,
     WEEKLY_REP_BUDGET_TOLERANCE,
 )
-from shared.exercise_mapping import COMP_LIFT_REFS
+from shared.exercise_mapping import is_competition_lift
 from shared.formulas import estimate_session_minutes
 from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
@@ -182,7 +182,7 @@ def validate_session(
     comp_lift_reps: dict[str, int] = {}
 
     for ex in session_exercises:
-        if ex.get("intensity_reference") not in COMP_LIFT_REFS:
+        if not is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference")):
             continue
         pct = _numeric_pct(ex)
         if not pct:
@@ -246,12 +246,13 @@ def validate_session(
         pct = _numeric_pct(ex)
         if pct is None:
             continue
-        # The week ceiling is a competition-lift ceiling. Pulls/squats reference
-        # their own max and are routinely programmed above it (supramaximal
-        # pulls), so only comp lifts hard-error here; non-comp lifts merely warn
-        # if implausibly high (A-L4).
+        # The week ceiling is a competition-lift ceiling. Pulls/squats are
+        # routinely programmed above it (supramaximal pulls) whether they
+        # reference their own max or borrow the clean's, so only comp lifts
+        # hard-error here; non-comp lifts merely warn if implausibly high (A-L4).
+        comp_lift = is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference"))
         if pct > intensity_ceiling:
-            if ex.get("intensity_reference") in COMP_LIFT_REFS:
+            if comp_lift:
                 errors.append(
                     f"{ex.get('exercise_name')} at {pct}% exceeds week ceiling {intensity_ceiling}%"
                 )
@@ -263,15 +264,18 @@ def validate_session(
                 )
         # Below floor is only a warning for competition lifts.
         # Skip warm-up sets (≤ cutoff) — they are intentionally sub-floor.
-        if (pct < intensity_floor and pct > WARMUP_INTENSITY_CUTOFF_PCT
-                and ex.get("intensity_reference") in COMP_LIFT_REFS):
+        if pct < intensity_floor and pct > WARMUP_INTENSITY_CUTOFF_PCT and comp_lift:
             warnings.append(
                 f"{ex.get('exercise_name')} at {pct}% is below week floor {intensity_floor}% "
                 f"for competition lifts"
             )
 
     # ── Check 3: Reps-per-set compliance ─────────────────────
+    # Prilepin's table is for the classic lifts; a 3×3 @ 90% clean pull or a
+    # heavy squat triple is normal programming and must not trip it.
     for ex in session_exercises:
+        if not is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference")):
+            continue
         pct = _numeric_pct(ex) or 0
         reps = ex.get("reps") or 0
         if pct >= 90 and reps > 2:
@@ -310,7 +314,7 @@ def validate_session(
 
         if rec.get("competition_lifts_first") and session_exercises:
             first = session_exercises[0]
-            if first.get("intensity_reference") not in COMP_LIFT_REFS:
+            if not is_competition_lift(first.get("exercise_name"), first.get("intensity_reference")):
                 warnings.append(
                     f"First exercise is '{first.get('exercise_name')}', "
                     f"but principle requires competition lifts first"

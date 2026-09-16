@@ -43,6 +43,31 @@ def to_intensity_ref(name: str) -> str:
         ref = name.lower().replace(" ", "_").replace("&", "and")
     return ref
 
+# Name fragments that mark a derivative of a competition lift — pulls, deadlifts,
+# squats, presses, balances — which coaches routinely prescribe as a percentage
+# of the snatch / clean / C&J max (Clean Pull @ 90% of clean) without the row
+# being a competition lift.
+NON_COMP_LIFT_NAME_MARKERS: tuple[str, ...] = (
+    "pull", "deadlift", "extension", "squat", "press", "balance", "rdl", "row", "good morning",
+)
+
+
+def is_competition_lift(exercise_name, intensity_reference) -> bool:
+    """True for a snatch / clean / jerk / C&J and their power, hang, block,
+    pause, muscle … variants: the rows Prilepin's chart, the week's intensity
+    ceiling and the weekly comp-lift rep budget are about.
+
+    Keyed on the exercise, not only on the max it borrows: a Clean Pull whose
+    percentage refers to the clean max (`intensity_reference="clean"`) is
+    still a pull. Deciding by reference alone made the validator reject
+    3×3 @ 90% pulls and 88% pulls "above the ceiling", and the generator's
+    retries then dropped the pulls altogether (DOG-1 finding).
+    """
+    if intensity_reference not in COMP_LIFT_REFS:
+        return False
+    name = (exercise_name or "").lower()
+    return not any(marker in name for marker in NON_COMP_LIFT_NAME_MARKERS)
+
 
 def is_warmup_set(intensity_reference, intensity_pct) -> bool:
     """True if this prescription is one of the mandated warmup ramp sets.

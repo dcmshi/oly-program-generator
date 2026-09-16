@@ -823,5 +823,65 @@ def main():
         sys.exit(1)
 
 
+# ── DOG-1: pulls / squats that borrow a comp-lift max are not comp lifts ──────
+
+def test_pull_referencing_clean_max_is_not_a_competition_lift():
+    from shared.exercise_mapping import is_competition_lift
+    assert is_competition_lift("Snatch", "snatch")
+    assert is_competition_lift("Hang Power Clean (above knee)", "clean")
+    assert is_competition_lift("Jerk", "clean_and_jerk")
+    assert not is_competition_lift("Clean Pull", "clean")           # borrows the clean max
+    assert not is_competition_lift("Snatch Pull from Deficit", "snatch")
+    assert not is_competition_lift("Clean Deadlift", "clean_and_jerk")
+    assert not is_competition_lift("Snatch Balance", "snatch")
+    assert not is_competition_lift("Overhead Squat", "snatch")
+    assert not is_competition_lift("Snatch Push Press", "snatch")
+    assert not is_competition_lift("Clean Pull", "clean_pull")       # own max — never was
+    assert not is_competition_lift("Back Squat", "back_squat")
+    assert is_competition_lift(None, "snatch")                       # no name → decided by the reference
+    return True, ""
+
+
+def test_pull_at_90_pct_of_clean_takes_triples_and_sits_above_ceiling():
+    # The DOG-1 generation: "Clean Pull 4x3 @90 ref=clean_pull" errored on the
+    # reps/set cap, the retry "Clean Pull 4x2 @88 ref=clean_and_jerk" errored
+    # on the ceiling, and the third attempt dropped the pulls. Neither is an
+    # error: the reps/set table and the ceiling are competition-lift rules.
+    exercises = [
+        _ex("Clean", 3, 2, 75, ref="clean_and_jerk", order=1),
+        _ex("Clean Pull", 4, 3, 90, ref="clean_pull", order=2),
+        _ex("Clean Pull", 4, 3, 90, ref="clean", order=3),
+        _ex("Clean Pull", 4, 2, 88, ref="clean_and_jerk", order=4),
+        _ex("Back Squat", 3, 3, 90, ref="back_squat", order=5),
+    ]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert result.is_valid, result.errors
+    assert not any("ceiling" in e or "max 2 reps" in e for e in result.errors), result.errors
+    # and the pulls do not count as competition-lift volume either
+    assert sum(result.session_comp_reps.values()) == 6, result.session_comp_reps
+    return True, ""
+
+
+def test_comp_lift_variant_still_bound_by_ceiling_and_reps_cap():
+    wt = dict(WEEK_TARGET, intensity_ceiling=95)
+    exercises = [
+        _ex("Hang Power Clean (above knee)", 3, 3, 92, ref="clean", order=1),   # 3 reps > 90% → error
+        _ex("Snatch", 2, 2, 85, ref="snatch", order=2),                         # above the 80% default ceiling
+    ]
+    result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
+    assert any("exceeds week ceiling" in e for e in result.errors), result.errors
+    result = validate_session(exercises[:1], wt, PRINCIPLES, ATHLETE)
+    assert any("max 2 reps" in e for e in result.errors), result.errors
+    return True, ""
+
+
+def test_comp_lift_first_principle_sees_through_a_borrowed_max():
+    principle = {"principle_name": "comp first", "recommendation": {"competition_lifts_first": True}}
+    exercises = [_ex("Snatch Pull", 3, 3, 80, ref="snatch", order=1), _ex("Snatch", 3, 2, 75, order=2)]
+    result = validate_session(exercises, WEEK_TARGET, [principle], ATHLETE)
+    assert any("competition lifts first" in w for w in result.warnings), result.warnings
+    return True, ""
+
+
 if __name__ == "__main__":
     main()
