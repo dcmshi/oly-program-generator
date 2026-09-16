@@ -9,6 +9,7 @@ These functions bridge that gap.
 """
 
 import logging
+import re
 import sys
 from pathlib import Path
 
@@ -144,21 +145,37 @@ def apply_projected_maxes(
     return effective
 
 
+_BRACKET_RE = re.compile(r"\[([^\]]+)\]")
+_LABEL_RE = re.compile(r"\bC(\d+)\b", re.IGNORECASE)
+
+
+def cited_context_labels(text: str | None) -> list[int]:
+    """Chunk labels cited in a rationale: `[C2]`, `[C1, C3]`, `[C1][C4]` → [2], [1, 3], [1, 4]."""
+    labels: list[int] = []
+    for group in _BRACKET_RE.findall(text or ""):
+        labels.extend(int(n) for n in _LABEL_RE.findall(group))
+    return labels
+
+
 def attach_source_chunk_ids(
     session_exercises: list[dict],
     retrieval_context: dict,
 ) -> list[dict]:
-    """Attach source_chunk_ids from the retrieval context to each exercise.
+    """Attach source_chunk_ids to each exercise (RAG-M5).
 
-    The LLM doesn't know chunk IDs — it works with text content.
-    We attach chunk IDs based on which retrieval path provided context:
-    - Fault-correction exercises -> fault_correction chunk IDs
-    - All exercises -> programming_rationale chunk IDs
+    Preferred path — citations: the prompt labels its knowledge chunks
+    `[C1]…[Cn]` and asks the model to cite the ones that informed each
+    exercise in `selection_rationale`. When `retrieval_context["context_chunks"]`
+    (the labelled list, in prompt order) is present and the rationale cites
+    labels, those chunks become the exercise's `source_chunk_ids` — a real
+    per-exercise trace.
 
-    Only the most-relevant few chunks are attached (chunks arrive
-    similarity-sorted), preserving that order — attaching every chunk to every
-    exercise and scrambling the order via set() gave near-zero traceability value.
+    Fallback — heuristic: without citations (or without the labelled list) the
+    previous behaviour applies: fault chunks when the rationale mentions
+    fixing/addressing a fault, then the session's rationale chunks, deduped and
+    capped. That is a session-level trace, not an exercise-level one.
     """
+    context = [c for c in retrieval_context.get("context_chunks") or [] if "id" in c]
     rationale_ids = [
         c["id"] for c in retrieval_context.get("programming_rationale", []) if "id" in c
     ]
@@ -167,9 +184,17 @@ def attach_source_chunk_ids(
     ]
 
     for ex in session_exercises:
-        chunk_ids: list[int] = []
         # JSON-null passes validation — coerce so .lower() can't raise (AGT-M3)
-        rationale = str(ex.get("selection_rationale") or "").lower()
+        rationale_text = str(ex.get("selection_rationale") or "")
+
+        cited = [context[n - 1]["id"] for n in cited_context_labels(rationale_text) if 1 <= n <= len(context)]
+        if cited:
+            seen_c: set[int] = set()
+            ex["source_chunk_ids"] = [i for i in cited if not (i in seen_c or seen_c.add(i))][:MAX_SOURCE_CHUNKS_PER_EXERCISE]
+            continue
+
+        chunk_ids: list[int] = []
+        rationale = rationale_text.lower()
         if any(kw in rationale for kw in ("fault", "address", "correct", "fix")):
             chunk_ids.extend(fault_ids)
         chunk_ids.extend(rationale_ids)

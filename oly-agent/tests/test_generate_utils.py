@@ -1213,3 +1213,49 @@ def test_prompt_shows_template_week_for_current_week():
     prompt = _make_prompt(_make_athlete(), retrieval)  # week_number=1 in the helper
     assert "## Similar Program Templates" in prompt
     assert "Takano 4-day (week 1): Monday: Snatch 5×2@75%" in prompt
+
+
+# ── RAG-M5: generation_log records the labelled retrieval set ────────────────
+
+def test_log_generation_writes_retrieval_set_json():
+    import json as _json
+    from unittest.mock import MagicMock
+
+    from generate import _log_generation
+
+    conn = MagicMock()
+    cursor = conn.cursor.return_value.__enter__.return_value
+    rset = [{"label": "C1", "id": 7, "similarity": 0.61, "score": 0.66, "session_query": "q"}]
+    _log_generation(conn, 1, 1, 1, 1, "m", "prompt", "raw", None, 10, 5, "success", retrieval_set=rset)
+    sql, params = cursor.execute.call_args.args
+    assert "retrieval_set" in sql
+    assert _json.loads(params[-1]) == rset
+
+    cursor.execute.reset_mock()
+    _log_generation(conn, 1, 1, 1, 1, "m", "prompt", "raw", None, 10, 5, "success")
+    assert cursor.execute.call_args.args[1][-1] is None
+
+
+def test_generate_with_retries_threads_retrieval_set_into_every_log_row():
+    from unittest.mock import MagicMock, patch
+
+    from generate import generate_session_with_retries
+
+    client = MagicMock()
+    client.messages.create.return_value = MagicMock(
+        content=[MagicMock(text='[{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, "reps": 2, '
+                               '"intensity_pct": 75, "intensity_reference": "snatch", "rest_seconds": 120, '
+                               '"rpe_target": 7.5, "selection_rationale": "[C1]", "source_principle_ids": []}]')],
+        usage=MagicMock(input_tokens=10, output_tokens=5),
+    )
+    settings = MagicMock(max_generation_retries=1, max_parse_retries=1, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    rset = [{"label": "C1", "id": 7}]
+    with patch("generate._log_generation") as log, patch("generate.validate_session") as val:
+        val.return_value = MagicMock(is_valid=True, warnings=[], errors=[])
+        result = generate_session_with_retries(
+            "p", client, settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1, MagicMock(), retrieval_set=rset,
+        )
+    assert result.status == "success"
+    assert log.call_count >= 1
+    assert all(c.kwargs.get("retrieval_set") == rset for c in log.call_args_list)

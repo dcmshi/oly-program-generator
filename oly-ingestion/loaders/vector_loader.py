@@ -430,15 +430,15 @@ class VectorLoader:
                     LIMIT %s
                 ), fused AS (
                     SELECT coalesce(v.id, l.id) AS id,
-                           coalesce(1.0 / (%s + v.rnk), 0) + coalesce(1.0 / (%s + l.rnk), 0) AS rrf,
-                           v.similarity, l.lex_score
+                           (coalesce(1.0 / (%s + v.rnk), 0) + coalesce(1.0 / (%s + l.rnk), 0))::float8 AS rrf,
+                           v.similarity, l.lex_score::float8 AS lex_score
                     FROM vec v FULL OUTER JOIN lex l ON v.id = l.id
                 )
                 SELECT k.id, k.content, k.raw_content, k.chapter, k.section,
                        k.chunk_type, k.topics, k.information_density, k.source_id,
                        coalesce(f.similarity, 1 - (k.embedding <=> %s::vector)) AS similarity,
                        f.lex_score, f.rrf,
-                       f.rrf + CASE WHEN k.chunk_type::text = ANY(%s) THEN %s ELSE 0 END AS score
+                       (f.rrf + CASE WHEN k.chunk_type::text = ANY(%s) THEN %s ELSE 0 END)::float8 AS score
                 FROM fused f JOIN knowledge_chunks k ON k.id = f.id
                 ORDER BY score DESC, similarity DESC
                 LIMIT %s

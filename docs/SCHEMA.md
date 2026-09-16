@@ -315,7 +315,7 @@ erDiagram
 | `session_exercises` | Individual exercise prescriptions within a session. `source_chunk_ids` and `source_principle_ids` trace which retrieved knowledge informed each exercise. |
 | `training_logs` | Athlete's actual session record. Links to `program_sessions` for adherence tracking. |
 | `training_log_exercises` | Actual sets/reps/weight logged. `make_rate`, `rpe`, and `weight_deviation_kg` drive feedback loop in `feedback.py`. |
-| `generation_log` | LLM call audit trail. Token counts, cost, retry attempts, and validation errors per session. |
+| `generation_log` | LLM call audit trail. Token counts, cost, retry attempts, validation errors, and `retrieval_set` (JSONB, migration 0010: the labelled knowledge chunks the prompt showed — id, type, source, similarity, score, session query) per attempt. |
 
 ---
 

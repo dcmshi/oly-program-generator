@@ -604,3 +604,26 @@ def test_session_context_retrieved_per_session_with_shared_cache():
     assert all(c.kwargs["context_chunks"] == fake_chunks for c in prompt_calls)
     attach_calls = mocks["attach_source_chunk_ids"].call_args_list
     assert all(c.args[1]["programming_rationale"] == fake_chunks for c in attach_calls)
+
+
+# ── RAG-M5: orchestrator passes the labelled retrieval set + context_chunks ───
+
+def test_orchestrator_builds_labelled_retrieval_set_for_generate_and_trace():
+    chunks = [
+        {"id": 5, "chunk_type": "periodization", "source_id": 1, "similarity": 0.6, "score": 0.65,
+         "raw_content": "a", "session_query": "q"},
+        {"id": 9, "chunk_type": "fault_correction", "source_id": 2, "similarity": 0.55, "score": 0.6,
+         "raw_content": "b", "session_query": "q"},
+    ]
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        stack.enter_context(patch("orchestrator.retrieve_session_context", return_value=chunks))
+        run(1, _settings())
+
+    gen_kwargs = mocks["generate"].call_args.kwargs
+    assert gen_kwargs["retrieval_set"] == [
+        {"label": "C1", "id": 5, "chunk_type": "periodization", "source_id": 1, "similarity": 0.6, "score": 0.65, "session_query": "q"},
+        {"label": "C2", "id": 9, "chunk_type": "fault_correction", "source_id": 2, "similarity": 0.55, "score": 0.6, "session_query": "q"},
+    ]
+    attach_ctx = mocks["attach_source_chunk_ids"].call_args.args[1]
+    assert attach_ctx["context_chunks"] == chunks

@@ -163,11 +163,14 @@ def retrieve_session_context(
         except Exception as e:
             logger.warning(f"Vector search failed for session '{session_template.label}': {e}")
             cache[query] = []
-    return compose_session_context(
+    composed = compose_session_context(
         cache[query],
         retrieval_context.fault_correction_chunks,
         has_faults=bool(athlete_context.technical_faults),
     )
+    # copies, so the cached rows stay pristine; the query travels with each
+    # chunk into generation_log.retrieval_set (RAG-M5)
+    return [{**c, "session_query": query} for c in composed]
 
 
 def retrieve(

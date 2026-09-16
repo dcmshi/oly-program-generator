@@ -427,3 +427,56 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+# ── RAG-M5: [Cn] citations → source_chunk_ids; heuristic fallback ────────────
+
+def test_cited_context_labels_parses_bracket_forms():
+    from weight_resolver import cited_context_labels
+
+    assert cited_context_labels("Pause squats build the bottom position [C2].") == [2]
+    assert cited_context_labels("per [C1, C3] and [c4]") == [1, 3, 4]
+    assert cited_context_labels("[C1][C2]") == [1, 2]
+    assert cited_context_labels("[12] reps, see [Chapter 3] and [CX]") == []
+    assert cited_context_labels(None) == []
+
+
+def test_citations_map_to_labelled_chunks_in_prompt_order():
+    from weight_resolver import attach_source_chunk_ids
+
+    ctx = [{"id": 501}, {"id": 502}, {"id": 503}, {"id": 504}]
+    exercises = [
+        {"exercise_name": "Snatch", "selection_rationale": "Volume per [C3]; positions per [C1]."},
+        {"exercise_name": "Pause Squat", "selection_rationale": "Cited twice [C2] and again [C2], plus out of range [C9]."},
+    ]
+    attach_source_chunk_ids(exercises, {"context_chunks": ctx, "programming_rationale": ctx, "fault_correction_chunks": []})
+    assert exercises[0]["source_chunk_ids"] == [503, 501]
+    assert exercises[1]["source_chunk_ids"] == [502]
+
+
+def test_no_citations_falls_back_to_heuristic_session_trace():
+    from weight_resolver import attach_source_chunk_ids
+
+    ctx = [{"id": 501, "chunk_type": "fault_correction"}, {"id": 502, "chunk_type": "periodization"}]
+    exercises = [
+        {"exercise_name": "Snatch Balance", "selection_rationale": "Addresses the forward miss."},
+        {"exercise_name": "Back Squat", "selection_rationale": "Leg strength for the block."},
+    ]
+    attach_source_chunk_ids(exercises, {
+        "context_chunks": ctx,
+        "programming_rationale": ctx,
+        "fault_correction_chunks": [ctx[0]],
+    })
+    assert exercises[0]["source_chunk_ids"] == [501, 502]   # fault chunk first (keyword), then the rest
+    assert exercises[1]["source_chunk_ids"] == [501, 502]   # session-level trace, as before
+
+
+def test_citations_capped_at_max_source_chunks():
+    from weight_resolver import attach_source_chunk_ids
+
+    from shared.constants import MAX_SOURCE_CHUNKS_PER_EXERCISE
+
+    ctx = [{"id": i} for i in range(1, 8)]
+    ex = [{"exercise_name": "x", "selection_rationale": "[C1, C2, C3, C4, C5, C6]"}]
+    attach_source_chunk_ids(ex, {"context_chunks": ctx})
+    assert len(ex[0]["source_chunk_ids"]) == MAX_SOURCE_CHUNKS_PER_EXERCISE

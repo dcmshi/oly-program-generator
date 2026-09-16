@@ -667,6 +667,7 @@ def generate_session_with_retries(
     day_number: int,
     conn,
     fault_exercise_names: list[str] | None = None,
+    retrieval_set: list[dict] | None = None,
 ) -> GenerationResult:
     """Generate one session with parse + validation retries.
 
@@ -675,7 +676,15 @@ def generate_session_with_retries(
     2. Parse error: retry with "respond only with valid JSON" appended
     3. Validation error: retry with errors included in prompt
     4. Max retries exhausted: return failed GenerationResult
+
+    retrieval_set: the labelled knowledge chunks the prompt showed
+    ([{"label": "C1", "id": …, "similarity": …}, …]); written to
+    generation_log.retrieval_set on every attempt so retrieval can be audited
+    per call (RAG-M5).
     """
+    def _log(*args, **kwargs):
+        _log_generation(*args, retrieval_set=retrieval_set, **kwargs)
+
     max_attempts = settings.max_generation_retries + settings.max_parse_retries
     current_prompt = prompt
     last_raw = ""
@@ -707,7 +716,7 @@ def generate_session_with_retries(
             total_output_tokens += output_tokens
         except Exception as e:
             logger.error(f"  LLM API error (attempt {attempt}): {e}")
-            _log_generation(
+            _log(
                 conn, program_id, week_number, day_number,
                 attempt, settings.generation_model,
                 current_prompt, str(e), None,
@@ -721,7 +730,7 @@ def generate_session_with_retries(
             exercises = parse_llm_response(last_raw)
         except ValueError as e:
             logger.warning(f"  Parse error (attempt {attempt}): {e}")
-            _log_generation(
+            _log(
                 conn, program_id, week_number, day_number,
                 attempt, settings.generation_model,
                 current_prompt, last_raw, None,
@@ -739,7 +748,7 @@ def generate_session_with_retries(
         name_errors = validate_exercise_names(exercises, available_exercise_names)
         if name_errors:
             logger.warning(f"  Exercise name errors (attempt {attempt}): {name_errors}")
-            _log_generation(
+            _log(
                 conn, program_id, week_number, day_number,
                 attempt, settings.generation_model,
                 current_prompt, last_raw, exercises,
@@ -765,7 +774,7 @@ def generate_session_with_retries(
         )
         if not last_validation.is_valid:
             logger.warning(f"  Validation errors (attempt {attempt}): {last_validation.errors}")
-            _log_generation(
+            _log(
                 conn, program_id, week_number, day_number,
                 attempt, settings.generation_model,
                 current_prompt, last_raw, exercises,
@@ -784,7 +793,7 @@ def generate_session_with_retries(
         if last_validation.warnings:
             logger.info(f"  Validation warnings (non-blocking): {last_validation.warnings}")
 
-        _log_generation(
+        _log(
             conn, program_id, week_number, day_number,
             attempt, settings.generation_model,
             current_prompt, last_raw, exercises,
@@ -820,9 +829,9 @@ def _log_generation(
     conn, program_id, week_number, day_number,
     attempt, model, prompt, raw_response, parsed,
     input_tokens, output_tokens, status,
-    validation_errors=None, error_message=None,
+    validation_errors=None, error_message=None, retrieval_set=None,
 ):
-    """Insert a row into generation_log."""
+    """Insert a row into generation_log (incl. the labelled retrieval set — RAG-M5)."""
     cost = estimate_cost(input_tokens, output_tokens)
     with conn.cursor() as cursor:
         cursor.execute(
@@ -831,8 +840,8 @@ def _log_generation(
                 (program_id, week_number, day_number, attempt_number,
                  model, prompt_text, raw_response, parsed_response,
                  input_tokens, output_tokens, estimated_cost_usd, status,
-                 validation_errors, error_message)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 validation_errors, error_message, retrieval_set)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 program_id, week_number, day_number, attempt,
@@ -840,6 +849,7 @@ def _log_generation(
                 json.dumps(parsed) if parsed else None,
                 input_tokens, output_tokens, cost, status,
                 validation_errors, error_message,
+                json.dumps(retrieval_set, default=str) if retrieval_set is not None else None,
             ),
         )
         conn.commit()

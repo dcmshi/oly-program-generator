@@ -30,7 +30,7 @@ from validate import validate_session
 from weight_resolver import apply_projected_maxes, attach_source_chunk_ids, resolve_exercise_ids, resolve_weights
 
 from shared.config import Settings
-from shared.constants import MIN_SESSION_DURATION_MINUTES
+from shared.constants import MAX_CONTEXT_CHUNKS, MIN_SESSION_DURATION_MINUTES
 from shared.db import execute, execute_returning, fetch_all, get_connection
 from shared.formulas import estimate_session_minutes, round_kg
 from shared.llm import create_llm_client, estimate_cost
@@ -264,6 +264,17 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     )
                     return program_id
 
+                # What this call was shown, labelled as in the prompt — logged with
+                # every attempt so retrieval can be audited per call (RAG-M5)
+                retrieval_set = [
+                    {
+                        "label": f"C{i}", "id": c.get("id"), "chunk_type": c.get("chunk_type"),
+                        "source_id": c.get("source_id"), "similarity": c.get("similarity"),
+                        "score": c.get("score"), "session_query": c.get("session_query"),
+                    }
+                    for i, c in enumerate(session_chunks[:MAX_CONTEXT_CHUNKS], 1)
+                ]
+
                 result = generate_session_with_retries(
                     prompt=prompt,
                     llm_client=llm_client,
@@ -278,6 +289,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     day_number=day_number,
                     conn=conn,
                     fault_exercise_names=fault_exercise_names,
+                    retrieval_set=retrieval_set,
                 )
 
                 cumulative_cost += estimate_cost(result.input_tokens, result.output_tokens)
@@ -301,8 +313,10 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                         f"exercise_id (will store with NULL): {unresolved}"
                     )
                 exercises = resolve_weights(exercises, effective_maxes)
-                # Trace against what THIS session was shown, not the program-level lists
+                # Trace against what THIS session was shown: [Cn] citations in the
+                # rationale map onto the labelled list; heuristic fallback otherwise
                 exercises = attach_source_chunk_ids(exercises, {
+                    "context_chunks": session_chunks[:MAX_CONTEXT_CHUNKS],
                     "programming_rationale": session_chunks,
                     "fault_correction_chunks": [
                         c for c in session_chunks if c.get("chunk_type") == "fault_correction"
