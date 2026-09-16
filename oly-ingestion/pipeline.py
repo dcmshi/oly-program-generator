@@ -23,7 +23,7 @@ from processors.chunker import SemanticChunker, SourceProfile, validate_chunk
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
 
-from shared.llm import create_message_with_retries, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, parse_llm_json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -205,7 +205,7 @@ class IngestionPipeline:
         # RAG-M3: LLM-written retrieval context per chunk (opt-in — one short
         # call per chunk; run it on the re-ingest so chunks are embedded once)
         self.contextualize = contextualize
-        self.context_model = context_model or settings.llm_model
+        self.context_model = light_model_for(settings, context_model)
         # Build Anthropic client for vision OCR fallback (opt-in via --vision flag)
         _anthropic_client = None
         if use_vision and settings.anthropic_api_key:
@@ -751,7 +751,7 @@ if __name__ == "__main__":
                         help="Write an LLM retrieval-context prefix into each chunk before embedding (RAG-M3; "
                              "one short call per chunk)")
     parser.add_argument("--context-model", default=None,
-                        help="Model for --contextualize (default: settings.llm_model; a Haiku-class model is enough)")
+                        help="Model for --contextualize (default: settings.light_model)")
     args = parser.parse_args()
 
     settings = Settings()

@@ -25,6 +25,12 @@ for _candidate in [
 # Known placeholder values shipped in .env.example — never valid signing keys
 _PLACEHOLDER_SECRET_KEYS = frozenset({"change_me_to_a_random_64_char_hex_string"})
 
+# Default model per role. Sonnet-class for anything that reasons over long text;
+# Haiku-class for label/summary tasks (classifier fallback, chunk context,
+# relabelling, eval grading) where the extra capability buys nothing.
+DEFAULT_LLM_MODEL = "claude-sonnet-4-6"
+DEFAULT_LIGHT_MODEL = "claude-haiku-4-5-20251001"
+
 
 @dataclass
 class Settings:
@@ -37,15 +43,25 @@ class Settings:
     embedding_model: str = "text-embedding-3-small"
     embedding_dim: int = 1536
 
-    # ── LLM (ingestion: principle extraction, classification) ──
-    llm_model: str = "claude-sonnet-4-6"
+    # ── Model roles ───────────────────────────────────────────
+    # Blank defaults resolve in __post_init__ (explicit arg > env > default) so a
+    # model can be switched per run without a code edit — LLM_MODEL,
+    # GENERATION_MODEL, EXPLANATION_MODEL, LIGHT_MODEL.
+    #   llm_model         ingestion heavy lifting: principle extraction, program-template
+    #                     parsing, vision OCR (needs a Sonnet-class model)
+    #   light_model       cheap label/summary tasks: classifier fallback, --contextualize,
+    #                     relabel_chunk_types.py, golden-set grading (a Haiku-class model)
+    #   generation_model  the agent's per-session generation call
+    #   explanation_model the agent's program rationale call
+    llm_model: str = ""
     llm_max_tokens: int = 4096
+    light_model: str = ""
 
     # ── Agent LLM settings ────────────────────────────────────
-    generation_model: str = "claude-sonnet-4-6"
+    generation_model: str = ""
     generation_max_tokens: int = 4096
     generation_temperature: float = 0.3
-    explanation_model: str = "claude-sonnet-4-6"
+    explanation_model: str = ""
     explanation_temperature: float = 0.7
 
     # ── Retry / error handling ───────────────────────────────
@@ -112,6 +128,12 @@ class Settings:
             _log.warning("ANTHROPIC_API_KEY is not set — LLM calls will fail")
 
         self.redis_url = self.redis_url or os.getenv("REDIS_URL", "")
+
+        # Model roles: explicit arg > env > default (see the field comments)
+        self.llm_model = self.llm_model or os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL)
+        self.light_model = self.light_model or os.getenv("LIGHT_MODEL", DEFAULT_LIGHT_MODEL)
+        self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", DEFAULT_LLM_MODEL)
+        self.explanation_model = self.explanation_model or os.getenv("EXPLANATION_MODEL", DEFAULT_LLM_MODEL)
 
         self.https_only = self.https_only or os.getenv("HTTPS_ONLY", "").lower() in ("1", "true", "yes")
 

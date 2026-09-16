@@ -294,3 +294,17 @@ def test_oversized_section_split_at_paragraph_boundaries():
     assert [s[1]["part"] for s in sections] == list(range(1, len(sections) + 1))
     for sec_text, _meta in sections:
         assert all(p == para.strip() for p in sec_text.split("\n\n")), "a paragraph was cut"
+
+
+def test_llm_classify_uses_the_light_model():
+    """The 128-token label pick goes to settings.light_model, not the Sonnet-class llm_model."""
+    from unittest.mock import MagicMock, patch
+
+    clf = make_classifier()
+    clf._client = MagicMock()
+    reply = MagicMock()
+    reply.content = [MagicMock(text='{"content_type": "prose", "confidence": 0.8, "reason": "r"}')]
+    with patch("processors.classifier.create_message_with_retries", return_value=reply) as call:
+        clf._llm_classify("some ambiguous text " * 20, "Book")
+    assert call.call_args.kwargs["model"] == clf.settings.light_model
+    assert clf.settings.light_model != clf.settings.llm_model

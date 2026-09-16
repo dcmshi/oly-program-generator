@@ -32,7 +32,7 @@ import psycopg2
 sys.path.insert(0, str(Path(__file__).parent))
 from config import Settings
 
-from shared.llm import create_message_with_retries, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, parse_llm_json
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -137,7 +137,7 @@ def relabel(
     if not settings.anthropic_api_key:
         raise SystemExit("ANTHROPIC_API_KEY is required")
     client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    model = model or settings.llm_model
+    model = light_model_for(settings, model)
 
     conn = psycopg2.connect(settings.database_url)
     cur = conn.cursor()
@@ -211,7 +211,7 @@ if __name__ == "__main__":
     parser.add_argument("--min-confidence", type=float, default=DEFAULT_MIN_CONFIDENCE,
                         help="Only rewrite when the model's confidence is at least this (default 0.6)")
     parser.add_argument("--model", default=None,
-                        help="Anthropic model id (default: settings.llm_model; a Haiku-class model is plenty)")
+                        help="Anthropic model id (default: settings.light_model)")
     parser.add_argument("--limit", type=int, default=0, help="Only process the first N chunks (smoke test)")
     args = parser.parse_args()
     relabel(args.source_id, args.dry_run, args.batch_size, args.min_confidence, args.model, args.limit)

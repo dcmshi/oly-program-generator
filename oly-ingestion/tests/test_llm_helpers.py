@@ -86,3 +86,20 @@ if __name__ == "__main__":
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
+
+
+# ── light_model_for (model roles) ─────────────────────────────────────────────
+
+def test_light_model_for_precedence():
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from shared.llm import light_model_for
+
+    full = SimpleNamespace(llm_model="sonnet", light_model="haiku")
+    assert light_model_for(full) == "haiku"
+    assert light_model_for(full, "explicit") == "explicit"
+    assert light_model_for(SimpleNamespace(llm_model="sonnet", light_model="")) == "sonnet"
+    assert light_model_for(SimpleNamespace(llm_model="sonnet")) == "sonnet"
+    mocked = MagicMock(llm_model="sonnet")           # a partial mock exposes a non-str light_model
+    assert light_model_for(mocked) == "sonnet"

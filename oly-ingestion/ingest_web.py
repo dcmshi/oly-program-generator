@@ -46,6 +46,8 @@ from processors.chunker import SemanticChunker
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
 
+from shared.llm import light_model_for
+
 logging.basicConfig(
     level=logging.INFO,
     format="%(asctime)s [%(levelname)s] %(name)s: %(message)s",
@@ -528,7 +530,7 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
                         chunks = contextualize(
                             chunks, section.content, title,
                             principle_extractor._get_client(),
-                            pipeline_components.get("context_model") or settings.llm_model,
+                            light_model_for(settings, pipeline_components.get("context_model")),
                         )
                     loaded = vl.load_chunks(
                         chunks, source_id,
@@ -617,7 +619,7 @@ def main():
     parser.add_argument("--contextualize", action="store_true",
                         help="Write an LLM retrieval-context prefix into each chunk before embedding (RAG-M3)")
     parser.add_argument("--context-model", default=None,
-                        help="Model for --contextualize (default: settings.llm_model)")
+                        help="Model for --contextualize (default: settings.light_model)")
     args = parser.parse_args()
 
     # ── Collect URLs (per-site) ──
@@ -678,7 +680,7 @@ def main():
         "classifier": ContentClassifier(settings),
         "principle_extractor": PrincipleExtractor(settings),
         "contextualize": args.contextualize,
-        "context_model": args.context_model or settings.llm_model,
+        "context_model": light_model_for(settings, args.context_model),
     }
 
     run_stats = {"articles_ingested": 0, "chunks_total": 0, "principles_total": 0}

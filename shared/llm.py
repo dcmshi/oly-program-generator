@@ -84,3 +84,13 @@ def estimate_cost(input_tokens: int, output_tokens: int) -> float:
         input_tokens * COST_PER_INPUT_TOKEN
         + output_tokens * COST_PER_OUTPUT_TOKEN
     )
+
+
+def light_model_for(settings, explicit: str | None = None) -> str:
+    """The model for a cheap label/summary task: an explicit CLI/API choice wins,
+    then ``settings.light_model``, then ``settings.llm_model`` (for callers built
+    with a partial settings object)."""
+    if explicit:
+        return explicit
+    light = getattr(settings, "light_model", None)
+    return light if isinstance(light, str) and light else settings.llm_model

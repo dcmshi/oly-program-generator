@@ -42,6 +42,7 @@ make lint      # ruff (pinned version)
 - Running `uv run` directly on Windows: prefix with `PYTHONUTF8=1` or you get cp1252 encoding errors.
 - `docker exec` on Windows: drop `-it`, there is no TTY. `docker exec oly-postgres psql …`
 - Ports: **5432 = PgBouncer** (all app + ingestion traffic), **5433 = Postgres direct** (psql, Alembic DDL), 6379 = Redis.
+- **Model roles** (`shared/config.py`, each overridable by env — `LLM_MODEL`, `LIGHT_MODEL`, `GENERATION_MODEL`, `EXPLANATION_MODEL`): `llm_model` (Sonnet-class) for principle extraction, program-template parsing and vision OCR; `light_model` (Haiku-class) for the classifier fallback, `--contextualize`, `relabel_chunk_types.py` and golden-set grading — always pick it through `shared.llm.light_model_for(settings, explicit)`; `generation_model` / `explanation_model` for the agent. Don't hardcode a model id in a call site.
 - API keys live in `oly-ingestion/.env` (gitignored; template in `.env.example`). `OPENAI_API_KEY` → embeddings, `ANTHROPIC_API_KEY` → LLM, plus `SECRET_KEY`, `POSTGRES_PASSWORD`, `DATABASE_URL`. `shared/config.py` loads the file for both subsystems.
 - The Makefile's `AGENT_TESTS` / `INGESTION_TESTS` lists are the source of truth for which suites need no DB or keys. Don't keep test names or counts in prose — they drift.
 

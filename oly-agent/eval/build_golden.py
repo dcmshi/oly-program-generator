@@ -31,7 +31,7 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
         sys.path.insert(0, p)
 
 from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
-from shared.llm import create_message_with_retries, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, parse_llm_json
 
 CANDIDATES_PER_RETRIEVER = 15
 SNIPPET_CHARS = 1200
@@ -108,7 +108,7 @@ def main(argv=None) -> int:
     parser.add_argument("--out", type=Path, default=_HERE / "golden.json")
     parser.add_argument("--dry-run", action="store_true", help="print queries + pool sizes; no LLM calls")
     parser.add_argument("--limit", type=int, default=0, help="only the first N queries (smoke test)")
-    parser.add_argument("--model", default=None, help="grading model (default: settings.llm_model)")
+    parser.add_argument("--model", default=None, help="grading model (default: settings.light_model)")
     args = parser.parse_args(argv)
 
     from eval.queries import all_queries
@@ -125,7 +125,7 @@ def main(argv=None) -> int:
     if not args.dry_run:
         import anthropic
         client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
-    model = args.model or settings.llm_model
+    model = light_model_for(settings, args.model)
 
     graded = []
     try:

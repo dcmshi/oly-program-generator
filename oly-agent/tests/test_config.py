@@ -131,6 +131,34 @@ def test_compose_pins_pgvector_image_version():
     assert m, "pgvector image is not pinned to a semver tag"
     assert (int(m.group(1)), int(m.group(2))) >= (0, 8), "pgvector >= 0.8 required for hnsw.iterative_scan"
 
+def test_model_roles_resolve_arg_env_default():
+    """Model roles resolve explicit arg > env > default; light_model defaults to a
+    Haiku-class model so classifier/context/relabel/grading stop defaulting to Sonnet."""
+    import os
+
+    from shared.config import DEFAULT_LIGHT_MODEL, DEFAULT_LLM_MODEL
+
+    saved = {k: os.environ.pop(k, None) for k in ("LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
+    try:
+        s = Settings()
+        assert s.llm_model == DEFAULT_LLM_MODEL == "claude-sonnet-4-6"
+        assert s.light_model == DEFAULT_LIGHT_MODEL == "claude-haiku-4-5-20251001"
+        assert s.generation_model == DEFAULT_LLM_MODEL and s.explanation_model == DEFAULT_LLM_MODEL
+
+        os.environ["LIGHT_MODEL"] = "light-from-env"
+        os.environ["GENERATION_MODEL"] = "gen-from-env"
+        s = Settings()
+        assert s.light_model == "light-from-env" and s.generation_model == "gen-from-env"
+        assert s.explanation_model == DEFAULT_LLM_MODEL  # untouched role keeps its default
+
+        s = Settings(light_model="explicit", generation_model="explicit-gen")
+        assert s.light_model == "explicit" and s.generation_model == "explicit-gen"
+    finally:
+        for k, v in saved.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)
