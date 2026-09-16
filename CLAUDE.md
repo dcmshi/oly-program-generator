@@ -21,6 +21,7 @@ Read these rather than re-deriving them; update them when the underlying thing c
 | `docs/CONTRIBUTING.md` | Security audit, scaling checklist, coverage |
 | `docs/DB-MACHINE-RUNBOOK.md` | Pending ops that must run on the corpus DB machine |
 | `TODO.md` | Current audit findings and their status |
+| `docs/HANDOFF.md` | Mid-stream handoff for the model-bump + dogfooding work (state, designs, next commands) — delete when done |
 | `docs/design/` | Historical build docs — read-only reference |
 
 ---
