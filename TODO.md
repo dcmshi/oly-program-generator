@@ -435,7 +435,7 @@ on numbers.**
 
 ### Low
 
-- [ ] **RAG-L1 — Fault tokens embedded with underscores (= #18a)** — `retrieve.py:143` embeds `correcting early_arm_bend …`; limiters/emphasis already `.replace("_", " ")`. One line + test.
+- [x] **RAG-L1 — Fault tokens embedded with underscores (= #18a)** ✅ `build_fault_query` humanises the fault id (`early_arm_bend` → `early arm bend`); the eval's production-shaped fault queries follow automatically. Test `test_fault_query_humanises_underscored_fault_ids`. — `retrieve.py:143` embeds `correcting early_arm_bend …`; limiters/emphasis already `.replace("_", " ")`. One line + test.
 - [ ] **RAG-L2 — No query-embedding cache** — retrieval strings are fixed templates; an LRU or `query_embeddings(text_hash, model, embedding)` table removes 5–12 OpenAI calls per program and makes the eval deterministic offline.
 - [ ] **RAG-L3 — Prompt order defeats caching** — static blocks (Available Exercises ~2.3k chars, Principles, Context, Templates) sit *after* the per-session blocks in `build_session_prompt`, so the cacheable prefix across the 16 calls is a few hundred tokens. Reorder static-first + `cache_control` on the last static block. (#17.6 judged caching not worth it at 2.6k tokens; the reorder plus RAG-H4's wider context changes that.)
 - [ ] **RAG-L4 — Retrieved text is injected with no untrusted-data frame** — "## Programming Context" pastes web/Wayback-scraped text verbatim; delimit it and state once that it is reference material, not instructions. Catalogue check + Checks 0–9 bound the blast radius.

@@ -74,8 +74,12 @@ def build_session_query(
 
 
 def build_fault_query(fault: str, level: str) -> str:
-    """The retrieval query for one technical fault (shared with the eval harness)."""
-    return f"correcting {fault} in weightlifting, {level} athlete"
+    """The retrieval query for one technical fault (shared with the eval harness).
+
+    Fault ids are snake_case UI values (`early_arm_bend`); they are humanised
+    like every other token so the embedding sees words, not identifiers (RAG-L1).
+    """
+    return f"correcting {_humanize(fault)} in weightlifting, {level} athlete"
 
 
 def build_limiter_query(limiter: str, level: str) -> str:

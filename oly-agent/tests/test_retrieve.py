@@ -224,7 +224,8 @@ def test_all_faults_searched_not_just_first_two():
         f"Expected 4 fault searches (one per fault), got {len(fault_queries)}"
     )
     for fault in faults:
-        assert any(fault in q for q in fault_queries), f"Fault '{fault}' not searched"
+        # fault ids are humanised in the query (RAG-L1): early_arm_bend → "early arm bend"
+        assert any(fault.replace("_", " ") in q for q in fault_queries), f"Fault '{fault}' not searched"
 
 
 def test_two_faults_still_searched():
@@ -583,3 +584,18 @@ def test_all_production_searches_pass_hybrid_flag():
     calls = vl.similarity_search.call_args_list
     assert len(calls) >= 3  # fault + limiter + session
     assert all(c.kwargs.get("hybrid") is HYBRID_SEARCH_ENABLED for c in calls), [c.kwargs for c in calls]
+
+
+# ── RAG-L1: fault query embeds words, not identifiers ─────────────────────────
+
+def test_fault_query_humanises_underscored_fault_ids():
+    from retrieve import build_fault_query
+
+    q = build_fault_query("early_arm_bend", "intermediate")
+    assert "early arm bend" in q and "_" not in q and "intermediate athlete" in q
+
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", return_value=[]):
+        retrieve(_ctx(faults=["jumping_forward"]), _plan(), conn=None, vector_loader=vl)
+    fault_calls = [c.kwargs["query"] for c in vl.similarity_search.call_args_list if "correcting" in c.kwargs["query"]]
+    assert fault_calls == ["correcting jumping forward in weightlifting, intermediate athlete"]
