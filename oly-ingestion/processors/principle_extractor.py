@@ -13,7 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
-from shared.llm import create_message_with_retries, parse_llm_json
+from shared.llm import create_message_with_retries, message_text, parse_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -163,7 +163,7 @@ class PrincipleExtractor:
                 max_tokens=self.settings.llm_max_tokens,
                 messages=[{"role": "user", "content": prompt}],
             )
-            raw = parse_llm_json(message.content[0].text)
+            raw = parse_llm_json(message_text(message))
         except Exception as e:
             logger.warning(f"Principle extraction failed for '{source_title}': {e}")
             return []

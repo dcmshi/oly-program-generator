@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.sectioning import merge_small_sections, split_oversized_sections
-from shared.llm import create_message_with_retries, light_model_for, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json
 
 logger = logging.getLogger(__name__)
 
@@ -276,7 +276,7 @@ Respond with JSON only, no other text:
                 max_tokens=128,
                 messages=[{"role": "user", "content": prompt}],
             )
-            parsed = parse_llm_json(message.content[0].text)
+            parsed = parse_llm_json(message_text(message))
             content_type = type_map.get(parsed["content_type"], ContentType.PROSE)
             confidence = float(parsed.get("confidence", 0.65))
             logger.debug(

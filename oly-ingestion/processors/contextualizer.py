@@ -27,7 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.chunker import Chunk
-from shared.llm import create_message_with_retries
+from shared.llm import create_message_with_retries, message_text
 
 logger = logging.getLogger(__name__)
 
@@ -116,7 +116,7 @@ def contextualize(
                 system=system_block,
                 messages=[{"role": "user", "content": build_chunk_message(chunk.raw_content)}],
             )
-            text = "".join(getattr(b, "text", "") for b in message.content).strip()
+            text = message_text(message).strip()
             if text:
                 apply_context(chunk, text)
                 done += 1

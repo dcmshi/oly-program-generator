@@ -23,7 +23,7 @@ from processors.chunker import SemanticChunker, SourceProfile, validate_chunk
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
 
-from shared.llm import create_message_with_retries, light_model_for, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json
 
 logging.basicConfig(
     level=logging.INFO,
@@ -565,7 +565,7 @@ class IngestionPipeline:
                 max_tokens=4096,
                 messages=[{"role": "user", "content": prompt}],
             )
-            return parse_llm_json(message.content[0].text)
+            return parse_llm_json(message_text(message))
 
         # --- First chunk: full parse for metadata + initial weeks ---
         parsed = {}

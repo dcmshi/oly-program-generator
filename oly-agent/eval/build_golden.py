@@ -31,7 +31,7 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
         sys.path.insert(0, p)
 
 from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
-from shared.llm import create_message_with_retries, light_model_for, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json
 
 CANDIDATES_PER_RETRIEVER = 15
 SNIPPET_CHARS = 1200
@@ -99,7 +99,7 @@ def grade_candidates(client, model: str, query: str, candidates: list[dict]) -> 
             client, model=model, max_tokens=512,
             messages=[{"role": "user", "content": build_grading_prompt(query, batch)}],
         )
-        grades.update(parse_grades(message.content[0].text, {c["id"] for c in batch}))
+        grades.update(parse_grades(message_text(message), {c["id"] for c in batch}))
     return grades
 
 

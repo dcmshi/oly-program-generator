@@ -292,7 +292,11 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     retrieval_set=retrieval_set,
                 )
 
-                cumulative_cost += estimate_cost(result.input_tokens, result.output_tokens)
+                cumulative_cost += estimate_cost(
+                    result.input_tokens, result.output_tokens, settings.generation_model,
+                    cache_read_tokens=getattr(result, "cache_read_tokens", 0) or 0,
+                    cache_creation_tokens=getattr(result, "cache_creation_tokens", 0) or 0,
+                )
 
                 if result.exercises is None:
                     failed_sessions.append(f"W{week_number}D{day_number}")
@@ -419,7 +423,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                 settings=settings,
             )
             # The explain call is paid too — count it (AGT-L7)
-            cumulative_cost += estimate_cost(explain_in_tokens, explain_out_tokens)
+            cumulative_cost += estimate_cost(explain_in_tokens, explain_out_tokens, settings.explanation_model)
 
         if failed_sessions:
             rationale = (

@@ -159,6 +159,31 @@ def test_model_roles_resolve_arg_env_default():
             if v is not None:
                 os.environ[k] = v
 
+def test_thinking_and_effort_settings_resolve_arg_env_default():
+    import os
+    keys = ("GENERATION_THINKING", "GENERATION_EFFORT", "EXPLANATION_THINKING", "EXPLANATION_EFFORT")
+    saved = {k: os.environ.pop(k, None) for k in keys}
+    try:
+        s = Settings()
+        assert (s.generation_thinking, s.generation_effort) == ("", "")
+        assert (s.explanation_thinking, s.explanation_effort) == ("", "")
+        assert s.explanation_max_tokens == 1024
+
+        os.environ["GENERATION_THINKING"] = "disabled"
+        os.environ["GENERATION_EFFORT"] = "low"
+        s = Settings()
+        assert (s.generation_thinking, s.generation_effort) == ("disabled", "low")
+        assert s.explanation_thinking == ""            # untouched role keeps its default
+
+        s = Settings(generation_thinking="adaptive")
+        assert s.generation_thinking == "adaptive"      # explicit arg beats env
+    finally:
+        for k, v in saved.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

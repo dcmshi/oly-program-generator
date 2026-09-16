@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from shared.llm import create_message_with_retries
+from shared.llm import create_message_with_retries, message_text
 
 logger = logging.getLogger(__name__)
 
@@ -254,7 +254,7 @@ class PDFExtractor:
                 f"smaller _VISION_BATCH_SIZE (currently {_VISION_BATCH_SIZE})."
             )
 
-        raw = response.content[0].text
+        raw = message_text(response)
         return self._split_page_responses(raw, page_indices)
 
     @staticmethod

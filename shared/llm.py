@@ -26,9 +26,159 @@ def parse_llm_json(raw_text: str):
     text = re.sub(r"\n?```\s*$", "", text)
     return json.loads(text.strip())
 
-# Token cost estimates (Claude Sonnet 4, as of 2025)
-COST_PER_INPUT_TOKEN = 3.0 / 1_000_000    # $3.00 per 1M input tokens
-COST_PER_OUTPUT_TOKEN = 15.0 / 1_000_000  # $15.00 per 1M output tokens
+# ── Model capabilities & pricing ──────────────────────────────────────────
+# USD per million tokens (input, output), list price as of 2026-09. Keys are
+# id prefixes so dated snapshots (claude-haiku-4-5-20251001) resolve by
+# longest-prefix match. Unknown ids fall back to DEFAULT_PRICING_PER_MTOK with
+# a single warning — cost tracking must never crash a run.
+MODEL_PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
+    "claude-haiku-4-5": (1.0, 5.0),
+    "claude-sonnet-4-5": (3.0, 15.0),
+    "claude-sonnet-4-6": (3.0, 15.0),
+    "claude-sonnet-5": (2.0, 10.0),
+    "claude-opus-4-5": (5.0, 25.0),
+    "claude-opus-4-6": (5.0, 25.0),
+    "claude-opus-4-7": (5.0, 25.0),
+    "claude-opus-4-8": (5.0, 25.0),
+    "claude-opus-5": (5.0, 25.0),
+    "claude-fable-5": (10.0, 50.0),
+    "claude-fable-5-1": (10.0, 50.0),
+}
+DEFAULT_PRICING_PER_MTOK = MODEL_PRICING_PER_MTOK["claude-sonnet-4-6"]
+# Prompt-cache multipliers on the input rate (5-minute ephemeral cache).
+CACHE_READ_MULTIPLIER = 0.1
+CACHE_WRITE_MULTIPLIER = 1.25
+
+# Families that reject non-default `temperature` / `top_p` / `top_k` with a 400:
+# Opus 4.7+, Opus 5, Sonnet 5 and the Fable/Mythos tier. Sonnet 4.6, Opus 4.6
+# and Haiku 4.5 still accept one of them.
+_NO_SAMPLING_PARAMS_PREFIXES = (
+    "claude-sonnet-5", "claude-opus-4-7", "claude-opus-4-8", "claude-opus-5",
+    "claude-fable-", "claude-mythos-",
+)
+# Families where omitting `thinking` runs adaptive thinking (default-on) …
+_THINKING_DEFAULT_ON_PREFIXES = ("claude-sonnet-5", "claude-opus-5", "claude-fable-", "claude-mythos-")
+_THINKING_ALWAYS_ON_PREFIXES = ("claude-fable-", "claude-mythos-")
+# … and the wider set that understands `thinking={"type": "adaptive"}` and
+# `output_config={"effort": …}` at all (4.6 and later; Haiku 4.5 takes neither).
+_ADAPTIVE_THINKING_PREFIXES = _THINKING_DEFAULT_ON_PREFIXES + (
+    "claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8",
+)
+THINKING_MODES = ("", "adaptive", "disabled")
+EFFORT_LEVELS = ("", "low", "medium", "high", "xhigh", "max")
+_NON_TEXT_BLOCK_TYPES = frozenset({
+    "thinking", "redacted_thinking", "tool_use", "server_tool_use", "fallback",
+    "web_search_tool_result", "web_fetch_tool_result",
+})
+_warned_unknown_pricing: set[str] = set()
+
+
+def _has_prefix(model: str | None, prefixes: tuple[str, ...]) -> bool:
+    return bool(model) and model.startswith(prefixes)
+
+
+def pricing_for(model: str | None) -> tuple[float, float]:
+    """(input, output) USD per million tokens for a model id (longest-prefix match)."""
+    if model:
+        key = max((k for k in MODEL_PRICING_PER_MTOK if model.startswith(k)), key=len, default=None)
+        if key:
+            return MODEL_PRICING_PER_MTOK[key]
+        if model not in _warned_unknown_pricing:
+            _warned_unknown_pricing.add(model)
+            logger.warning(f"No pricing entry for model {model!r}; estimating at Sonnet 4.6 rates")
+    return DEFAULT_PRICING_PER_MTOK
+
+
+def accepts_sampling_params(model: str | None) -> bool:
+    """False for models that 400 on a non-default temperature/top_p/top_k."""
+    return not _has_prefix(model, _NO_SAMPLING_PARAMS_PREFIXES)
+
+
+def sampling_kwargs(model: str | None, temperature: float | None) -> dict:
+    """`{"temperature": t}` where the model accepts it, `{}` otherwise.
+
+    Sonnet 5 / Opus 4.7+ / Opus 5 / Fable reject the parameter outright, so a
+    Sonnet-4.6-tuned setting must be dropped, not clamped, when the model id is
+    switched by env. Steer those models by prompt instead.
+    """
+    if temperature is None or not accepts_sampling_params(model):
+        return {}
+    return {"temperature": temperature}
+
+
+def thinking_kwargs(model: str | None, mode: str = "", effort: str = "") -> dict:
+    """Thinking / effort request kwargs for a model, from two settings strings.
+
+    mode:   ""         → model default (off on 4.x, adaptive on Sonnet 5 / Opus 5 / Fable)
+            "adaptive" → `thinking={"type": "adaptive"}` on 4.6+; ignored on older models
+                         (they need the retired budget_tokens form)
+            "disabled" → `thinking={"type": "disabled"}` on default-on models only; 4.x
+                         is already off when the field is omitted, and Fable can't be
+                         turned off — both are silently no-ops
+    effort: "" | low | medium | high | xhigh | max → `output_config={"effort": …}` on 4.6+
+    Raises ValueError on an unknown value, or on disabled + xhigh/max (a 400 on Opus 5).
+    """
+    mode = (mode or "").strip().lower()
+    effort = (effort or "").strip().lower()
+    if mode not in THINKING_MODES:
+        raise ValueError(f"thinking mode must be one of {THINKING_MODES}, got {mode!r}")
+    if effort not in EFFORT_LEVELS:
+        raise ValueError(f"effort must be one of {EFFORT_LEVELS}, got {effort!r}")
+    if mode == "disabled" and effort in ("xhigh", "max"):
+        raise ValueError("thinking 'disabled' cannot be combined with effort 'xhigh'/'max'")
+    kwargs: dict = {}
+    if not _has_prefix(model, _ADAPTIVE_THINKING_PREFIXES):
+        return kwargs
+    if mode == "adaptive":
+        kwargs["thinking"] = {"type": "adaptive"}
+    elif (mode == "disabled" and _has_prefix(model, _THINKING_DEFAULT_ON_PREFIXES)
+            and not _has_prefix(model, _THINKING_ALWAYS_ON_PREFIXES)):
+        kwargs["thinking"] = {"type": "disabled"}
+    if effort:
+        kwargs["output_config"] = {"effort": effort}
+    return kwargs
+
+
+class LLMRefusal(RuntimeError):
+    """The model's safety classifiers declined the request (stop_reason='refusal')."""
+
+
+def message_text(response) -> str:
+    """Concatenate the text blocks of a Messages response.
+
+    Claude 5 models run adaptive thinking by default, so `content[0]` can be a
+    thinking block rather than the answer; indexing it broke every caller that
+    read `response.content[0].text`. Skips thinking / tool blocks, and raises
+    LLMRefusal when the response is an empty refusal so callers surface it
+    instead of trying to parse "".
+    """
+    parts = []
+    for block in getattr(response, "content", None) or []:
+        if getattr(block, "type", "text") in _NON_TEXT_BLOCK_TYPES:
+            continue
+        text = getattr(block, "text", None)
+        if isinstance(text, str):
+            parts.append(text)
+    text = "".join(parts)
+    if not text and getattr(response, "stop_reason", None) == "refusal":
+        raise LLMRefusal("model declined the request (stop_reason='refusal')")
+    return text
+
+
+def usage_tokens(usage) -> dict[str, int]:
+    """input / output / cache_read / cache_creation token counts from a usage object.
+
+    Missing or non-int fields (older SDKs, mocks) read as 0. With prompt caching,
+    `input_tokens` counts only the *uncached* prefix — the cached part is billed
+    separately, which is why cost needs all four numbers.
+    """
+    out = {}
+    for key, attr in (("input", "input_tokens"), ("output", "output_tokens"),
+                      ("cache_read", "cache_read_input_tokens"),
+                      ("cache_creation", "cache_creation_input_tokens")):
+        value = getattr(usage, attr, 0)
+        out[key] = value if isinstance(value, int) and not isinstance(value, bool) else 0
+    return out
 
 # HTTP statuses worth retrying: rate limit, server errors, Anthropic overloaded
 RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 529})
@@ -78,12 +228,27 @@ def create_llm_client(settings) -> Anthropic:
     return Anthropic(api_key=settings.anthropic_api_key)
 
 
-def estimate_cost(input_tokens: int, output_tokens: int) -> float:
-    """Estimate USD cost for a single LLM call."""
+def estimate_cost(
+    input_tokens: int,
+    output_tokens: int,
+    model: str | None = None,
+    *,
+    cache_read_tokens: int = 0,
+    cache_creation_tokens: int = 0,
+) -> float:
+    """Estimate USD cost for a single LLM call at the model's list price.
+
+    `model=None` prices at Sonnet 4.6 rates (the pre-2026-09 behaviour, when the
+    rate was a module constant). Pass the cache token counts too when the call
+    used prompt caching — `input_tokens` alone excludes the cached prefix.
+    """
+    in_rate, out_rate = pricing_for(model)
     return (
-        input_tokens * COST_PER_INPUT_TOKEN
-        + output_tokens * COST_PER_OUTPUT_TOKEN
-    )
+        input_tokens * in_rate
+        + cache_read_tokens * in_rate * CACHE_READ_MULTIPLIER
+        + cache_creation_tokens * in_rate * CACHE_WRITE_MULTIPLIER
+        + output_tokens * out_rate
+    ) / 1_000_000
 
 
 def light_model_for(settings, explicit: str | None = None) -> str:

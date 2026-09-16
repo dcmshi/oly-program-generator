@@ -172,6 +172,59 @@ def test_explain_returns_error_string_on_llm_failure():
 
 # ── Runner ───────────────────────────────────────────────────────────────────
 
+# ── Claude 5 request shape ───────────────────────────────────────────────────
+
+def test_explain_drops_temperature_and_reads_text_blocks_on_opus_5():
+    from types import SimpleNamespace
+
+    class _V5Settings(_FakeSettings):
+        explanation_model = "claude-opus-5"
+        explanation_thinking = "adaptive"
+        explanation_effort = "medium"
+        explanation_max_tokens = 2048
+
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.content = [SimpleNamespace(type="thinking", thinking="…"),
+                             SimpleNamespace(type="text", text="Rationale from v5.")]
+    mock_response.usage = MagicMock(input_tokens=10, output_tokens=5)
+    mock_response.stop_reason = "end_turn"
+    mock_client.messages.create.return_value = mock_response
+
+    rationale, _, _ = explain(_ctx(), _plan(), _sessions(), mock_client, _V5Settings())
+    assert rationale == "Rationale from v5."
+    kwargs = mock_client.messages.create.call_args[1]
+    assert "temperature" not in kwargs
+    assert kwargs["thinking"] == {"type": "adaptive"}
+    assert kwargs["output_config"] == {"effort": "medium"}
+    assert kwargs["max_tokens"] == 2048
+
+
+def test_explain_keeps_temperature_on_sonnet_4_6():
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.content = [MagicMock(text="Rationale.")]
+    mock_response.usage = MagicMock(input_tokens=50, output_tokens=30)
+    mock_client.messages.create.return_value = mock_response
+
+    explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    kwargs = mock_client.messages.create.call_args[1]
+    assert kwargs["temperature"] == 0.7 and kwargs["max_tokens"] == 1024
+    assert "thinking" not in kwargs and "output_config" not in kwargs
+
+
+def test_explain_surfaces_a_refusal_as_the_error_string():
+    mock_client = MagicMock()
+    mock_response = MagicMock()
+    mock_response.content = []
+    mock_response.stop_reason = "refusal"
+    mock_client.messages.create.return_value = mock_response
+
+    rationale, in_tok, out_tok = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    assert rationale.startswith("[Rationale generation failed:") and "refusal" in rationale
+    assert (in_tok, out_tok) == (0, 0)
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

@@ -43,7 +43,14 @@ from shared.constants import (
     PROMPT_STATIC_DYNAMIC_MARKER,
     SNIPPET_MAX_CHARS,
 )
-from shared.llm import create_message_with_retries, estimate_cost
+from shared.llm import (
+    create_message_with_retries,
+    estimate_cost,
+    message_text,
+    sampling_kwargs,
+    thinking_kwargs,
+    usage_tokens,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -739,6 +746,19 @@ def generate_session_with_retries(
     # max_attempts× (A-M2).
     total_input_tokens = 0
     total_output_tokens = 0
+    total_cache_read = 0
+    total_cache_creation = 0
+    # Request shape per model family: Sonnet 5 / Opus 5 reject `temperature`
+    # and run adaptive thinking unless told otherwise; 4.x accept the
+    # temperature and ignore thinking when omitted. Resolved once per session.
+    request_kwargs = {
+        **sampling_kwargs(settings.generation_model, settings.generation_temperature),
+        **thinking_kwargs(
+            settings.generation_model,
+            _setting_str(settings, "generation_thinking"),
+            _setting_str(settings, "generation_effort"),
+        ),
+    }
 
     for attempt in range(1, max_attempts + 1):
         logger.info(f"  Generating W{week_number}D{day_number} (attempt {attempt}/{max_attempts})")
@@ -750,14 +770,17 @@ def generate_session_with_retries(
                 base_delay=settings.retry_delay_seconds,
                 model=settings.generation_model,
                 max_tokens=settings.generation_max_tokens,
-                temperature=settings.generation_temperature,
                 messages=[{"role": "user", "content": prompt_content_blocks(current_prompt)}],
+                **request_kwargs,
             )
-            last_raw = response.content[0].text
-            input_tokens = response.usage.input_tokens
-            output_tokens = response.usage.output_tokens
+            last_raw = message_text(response)  # text blocks only — v5 may lead with thinking
+            usage = usage_tokens(response.usage)
+            input_tokens = usage["input"]
+            output_tokens = usage["output"]
             total_input_tokens += input_tokens
             total_output_tokens += output_tokens
+            total_cache_read += usage["cache_read"]
+            total_cache_creation += usage["cache_creation"]
         except Exception as e:
             logger.error(f"  LLM API error (attempt {attempt}): {e}")
             _log(
@@ -851,6 +874,8 @@ def generate_session_with_retries(
             status="success",
             error_message=None,
             attempt_number=attempt,
+            cache_read_tokens=total_cache_read,
+            cache_creation_tokens=total_cache_creation,
         )
 
     # All retries exhausted
@@ -866,7 +891,15 @@ def generate_session_with_retries(
         status="failed",
         error_message=f"Exhausted retries. Last errors: {last_errors}",
         attempt_number=max_attempts,
+        cache_read_tokens=total_cache_read,
+        cache_creation_tokens=total_cache_creation,
     )
+
+
+def _setting_str(settings, name: str) -> str:
+    """A str-valued optional setting, tolerant of partial/mocked settings objects."""
+    value = getattr(settings, name, "")
+    return value if isinstance(value, str) else ""
 
 
 def _log_generation(
@@ -876,7 +909,7 @@ def _log_generation(
     validation_errors=None, error_message=None, retrieval_set=None,
 ):
     """Insert a row into generation_log (incl. the labelled retrieval set — RAG-M5)."""
-    cost = estimate_cost(input_tokens, output_tokens)
+    cost = estimate_cost(input_tokens, output_tokens, model)
     with conn.cursor() as cursor:
         cursor.execute(
             """

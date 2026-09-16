@@ -1070,6 +1070,61 @@ def main():
             print(f"  - {f}")
         sys.exit(1)
 
+# ── Claude 5 request shape (generate_session_with_retries) ───────────────────
+
+def test_generate_drops_temperature_and_reads_text_blocks_on_sonnet_5():
+    """Sonnet 5 rejects `temperature` (400) and may lead with a thinking block;
+    the call must omit the parameter and parse only the text blocks."""
+    from types import SimpleNamespace
+
+    llm = MagicMock()
+    response = MagicMock()
+    response.content = [
+        SimpleNamespace(type="thinking", thinking="…"),
+        SimpleNamespace(type="text", text=json.dumps(_VALID_SESSION)),
+    ]
+    response.usage = SimpleNamespace(input_tokens=100, output_tokens=50,
+                                     cache_read_input_tokens=900, cache_creation_input_tokens=0)
+    response.stop_reason = "end_turn"
+    llm.messages.create.return_value = response
+    settings = _make_settings()
+    settings.generation_model = "claude-sonnet-5"
+    settings.generation_thinking = "disabled"
+    settings.generation_effort = "low"
+
+    result = _call_generate(llm, settings)
+    assert result.status == "success", result.error_message
+    kwargs = llm.messages.create.call_args.kwargs
+    assert "temperature" not in kwargs
+    assert kwargs["thinking"] == {"type": "disabled"}
+    assert kwargs["output_config"] == {"effort": "low"}
+    assert result.cache_read_tokens == 900 and result.input_tokens == 100
+    return True, ""
+
+
+def test_generate_keeps_temperature_and_omits_thinking_on_sonnet_4_6():
+    llm = MagicMock()
+    llm.messages.create.return_value = _make_llm_response(json.dumps(_VALID_SESSION))
+    settings = _make_settings()          # claude-sonnet-4-6, temperature 0.7, no thinking fields
+    result = _call_generate(llm, settings)
+    assert result.status == "success"
+    kwargs = llm.messages.create.call_args.kwargs
+    assert kwargs["temperature"] == 0.7
+    assert "thinking" not in kwargs and "output_config" not in kwargs
+    assert result.cache_read_tokens == 0   # MagicMock usage has no int cache fields
+    return True, ""
+
+
+def test_generation_log_prices_at_the_logged_model():
+    from generate import _log_generation
+
+    conn = MagicMock()
+    cursor = conn.cursor.return_value.__enter__.return_value
+    _log_generation(conn, 1, 1, 1, 1, "claude-sonnet-5", "p", "r", None, 1_000_000, 0, "success")
+    params = cursor.execute.call_args.args[1]
+    assert abs(params[10] - 2.0) < 1e-9        # $2/MTok input on Sonnet 5 (was $3 flat)
+    return True, ""
+
 
 if __name__ == "__main__":
     main()

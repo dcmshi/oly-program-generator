@@ -14,7 +14,13 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan
 
-from shared.llm import create_message_with_retries, estimate_cost
+from shared.llm import (
+    create_message_with_retries,
+    estimate_cost,
+    message_text,
+    sampling_kwargs,
+    thinking_kwargs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -48,12 +54,20 @@ def explain(
             max_attempts=settings.max_generation_retries + 1,
             base_delay=settings.retry_delay_seconds,
             model=settings.explanation_model,
-            max_tokens=1024,
-            temperature=settings.explanation_temperature,
+            max_tokens=_explanation_max_tokens(settings),
             messages=[{"role": "user", "content": prompt}],
+            # Sonnet 5 / Opus 5 reject `temperature`; 4.x ignore an omitted `thinking`
+            **sampling_kwargs(settings.explanation_model, settings.explanation_temperature),
+            **thinking_kwargs(
+                settings.explanation_model,
+                _setting_str(settings, "explanation_thinking"),
+                _setting_str(settings, "explanation_effort"),
+            ),
         )
-        rationale = response.content[0].text.strip()
-        cost = estimate_cost(response.usage.input_tokens, response.usage.output_tokens)
+        rationale = message_text(response).strip()
+        cost = estimate_cost(
+            response.usage.input_tokens, response.usage.output_tokens, settings.explanation_model,
+        )
         logger.info(
             f"Generated rationale ({len(rationale)} chars, "
             f"{response.usage.input_tokens} in / {response.usage.output_tokens} out, "
@@ -63,6 +77,16 @@ def explain(
     except Exception as e:
         logger.error(f"Explain step failed after retries: {e}")
         return f"[Rationale generation failed: {e}]", 0, 0
+
+
+def _setting_str(settings, name: str) -> str:
+    value = getattr(settings, name, "")
+    return value if isinstance(value, str) else ""
+
+
+def _explanation_max_tokens(settings) -> int:
+    value = getattr(settings, "explanation_max_tokens", 1024)
+    return value if isinstance(value, int) and not isinstance(value, bool) else 1024
 
 
 def _build_explain_prompt(

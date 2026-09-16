@@ -60,9 +60,18 @@ class Settings:
     # ── Agent LLM settings ────────────────────────────────────
     generation_model: str = ""
     generation_max_tokens: int = 4096
-    generation_temperature: float = 0.3
+    generation_temperature: float = 0.3   # dropped automatically on models that reject it (Sonnet 5+)
     explanation_model: str = ""
+    explanation_max_tokens: int = 1024
     explanation_temperature: float = 0.7
+    # Thinking mode ("" = model default, "adaptive", "disabled") and effort
+    # ("" = model default, low … max) per role — env GENERATION_THINKING /
+    # GENERATION_EFFORT / EXPLANATION_THINKING / EXPLANATION_EFFORT. Resolved by
+    # shared.llm.thinking_kwargs(), which no-ops on models that lack the field.
+    generation_thinking: str = ""
+    generation_effort: str = ""
+    explanation_thinking: str = ""
+    explanation_effort: str = ""
 
     # ── Retry / error handling ───────────────────────────────
     max_generation_retries: int = 2
@@ -134,6 +143,10 @@ class Settings:
         self.light_model = self.light_model or os.getenv("LIGHT_MODEL", DEFAULT_LIGHT_MODEL)
         self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", DEFAULT_LLM_MODEL)
         self.explanation_model = self.explanation_model or os.getenv("EXPLANATION_MODEL", DEFAULT_LLM_MODEL)
+        self.generation_thinking = self.generation_thinking or os.getenv("GENERATION_THINKING", "")
+        self.generation_effort = self.generation_effort or os.getenv("GENERATION_EFFORT", "")
+        self.explanation_thinking = self.explanation_thinking or os.getenv("EXPLANATION_THINKING", "")
+        self.explanation_effort = self.explanation_effort or os.getenv("EXPLANATION_EFFORT", "")
 
         self.https_only = self.https_only or os.getenv("HTTPS_ONLY", "").lower() in ("1", "true", "yes")
 

@@ -95,6 +95,10 @@ class GenerationResult:
     status: str                         # success / parse_error / validation_error / failed
     error_message: str | None
     attempt_number: int
+    # Prompt-cache tokens across all attempts (billed at 0.1x / 1.25x the input
+    # rate); `input_tokens` alone excludes the cached prefix.
+    cache_read_tokens: int = 0
+    cache_creation_tokens: int = 0
 
 
 @dataclass

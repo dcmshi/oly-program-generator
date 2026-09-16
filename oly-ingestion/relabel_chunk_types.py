@@ -32,7 +32,7 @@ import psycopg2
 sys.path.insert(0, str(Path(__file__).parent))
 from config import Settings
 
-from shared.llm import create_message_with_retries, light_model_for, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -166,7 +166,7 @@ def relabel(
                 client, model=model, max_tokens=1024,
                 messages=[{"role": "user", "content": prompt}],
             )
-            labels = parse_labels(message.content[0].text, set(range(1, len(batch) + 1)))
+            labels = parse_labels(message_text(message), set(range(1, len(batch) + 1)))
         except Exception as e:
             logger.warning(f"Batch at offset {start} skipped: {type(e).__name__}: {e}")
             continue
