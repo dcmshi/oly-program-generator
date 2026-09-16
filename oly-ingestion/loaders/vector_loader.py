@@ -165,12 +165,12 @@ class VectorLoader:
                 INSERT INTO knowledge_chunks
                     (content, raw_content, content_hash, embedding,
                      source_id, chapter, section,
-                     chunk_type, topics, athlete_level_relevance,
+                     chunk_type, topics,
                      information_density, contains_specific_numbers,
                      embedding_model, context_prefix)
                 VALUES (%s, %s, %s, %s,
                         %s, %s, %s,
-                        %s, %s, %s,
+                        %s, %s,
                         %s, %s,
                         %s, %s)
                 RETURNING id
@@ -185,7 +185,6 @@ class VectorLoader:
                     chunk.metadata.get("section_title", ""),
                     chunk.metadata.get("chunk_type", "concept"),
                     chunk.topics or [],
-                    chunk.metadata.get("athlete_level_relevance"),
                     chunk.information_density,
                     chunk.contains_specific_numbers,
                     self.settings.embedding_model,  # which vector space this row lives in (RAG-M8)
@@ -332,7 +331,6 @@ class VectorLoader:
         top_k: int = 5,
         chunk_types: list[str] | None = None,
         topics: list[str] | None = None,
-        athlete_level: str | None = None,
         min_density: str | None = None,
         require_numbers: bool = False,
         min_similarity: float | None = None,
@@ -385,12 +383,8 @@ class VectorLoader:
             where_clauses.append("topics && %s")  # array overlap operator
             params.append(topics)
 
-        if athlete_level:
-            where_clauses.append(
-                "(athlete_level_relevance IS NULL "
-                "OR athlete_level_relevance IN ('all', %s))"
-            )
-            params.append(athlete_level)
+        # (the `athlete_level` filter was removed in RAG-M7: athlete_level_relevance
+        # was NULL on every row, so the predicate was always true)
 
         if min_density:
             density_order = {"low": 0, "medium": 1, "high": 2}

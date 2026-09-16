@@ -382,12 +382,22 @@ CHUNK_TYPE_DEFAULT_TOPICS: dict[str, list[str]] = {
 }
 
 
+# Word-boundary matchers, built once. Substring tests fired `rir` on "requiring",
+# `miss` on "mission"/"permission", `peak` on "speaking", `mev` on "somever" —
+# tagging chunks with topics they never discuss (RAG-M7). Multi-word keywords
+# keep their internal spacing; a trailing `-` (e.g. "pre-competition") is fine
+# because `\b` sits between a word char and a non-word char.
+_KEYWORD_MATCHERS: list[tuple[re.Pattern, list[str]]] = [
+    (re.compile(r"\b" + re.escape(keyword) + r"\b", re.IGNORECASE), topic_list)
+    for keyword, topic_list in KEYWORD_TO_TOPIC.items()
+]
+
+
 def keyword_tag(content: str) -> set[str]:
-    """Fast keyword-based topic tagging (Pass 1)."""
-    content_lower = content.lower()
+    """Fast keyword-based topic tagging (Pass 1) — whole words only."""
     topics: set[str] = set()
-    for keyword, topic_list in KEYWORD_TO_TOPIC.items():
-        if keyword in content_lower:
+    for matcher, topic_list in _KEYWORD_MATCHERS:
+        if matcher.search(content):
             topics.update(topic_list)
     return topics
 

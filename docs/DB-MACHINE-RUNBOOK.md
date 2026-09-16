@@ -183,7 +183,7 @@ WHERE s.id IN (51, 52, 2, 502, 506, 499, 501) GROUP BY 1, 2 ORDER BY 3 DESC;
 - Re-run the legacy print report (both keys): `cd oly-ingestion && PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py`
 - Update the tables in `docs/RETRIEVAL_EVAL.md`.
 - Update `docs/CORPUS.md` (source list + chunk counts) and the corpus table in `README.md`.
-- `retag_chunks.py` only if `KEYWORD_TO_TOPIC` changed.
+- `PYTHONUTF8=1 uv run python retag_chunks.py` (free, no API): topic tagging switched to whole-word matching on 2026-09-15 (RAG-M7), so every chunk that was NOT re-ingested still carries substring-era tags. Run once after the re-ingests; again whenever `KEYWORD_TO_TOPIC` changes.
 
 ## Not rehearsable from the dev machine (verify here)
 

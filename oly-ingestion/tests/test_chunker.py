@@ -267,3 +267,15 @@ def test_program_listing_week_lines_do_not_fragment_chunks():
     assert len(chunks) == 1, [c.raw_content[:30] for c in chunks]
     for w in range(1, 7):
         assert f"Week {w}" in chunks[0].raw_content
+
+
+def test_keyword_tag_matches_whole_words_only():
+    """RAG-M7: substring matching tagged 'requiring' as RPE/RIR content,
+    'speaking' as peaking, 'permission' as fault correction."""
+    assert "intensity_prescription" not in keyword_tag("The coach kept requiring more effort.")
+    assert "competition_peaking" not in keyword_tag("Speaking of programming, ...")
+    assert "fault_correction" not in keyword_tag("With the coach's permission the mission continued.")
+    assert "intensity_prescription" in keyword_tag("Leave 2 RIR on every set.")
+    assert "competition_peaking" in keyword_tag("The peak comes two weeks out.")
+    assert "squat_programming" in keyword_tag("Front squat after the snatch.")     # multi-word keyword
+    assert "competition_peaking" in keyword_tag("A pre-competition taper.")        # hyphenated keyword
