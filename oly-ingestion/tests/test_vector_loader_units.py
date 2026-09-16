@@ -280,6 +280,22 @@ def test_new_chunk_records_its_own_provenance_row():
     prov = [c for c in cur.executemany.call_args_list if "chunk_sources" in c.args[0]]
     assert prov and prov[-1].args[1] == [(999, 5)]
 
+# ── Column widths (RAG-L8) ───────────────────────────────────────────────────
+
+def test_chapter_and_section_titles_truncated_to_column_width():
+    from shared.constants import CHUNK_TITLE_MAX_CHARS
+
+    vl, cur, Chunk = _loading_loader([])
+    long_title = "Week 1 " + "x" * 400
+    chunk = Chunk(content="[Source: A]" + chr(10) * 2 + "body", raw_content="body",
+                  metadata={"chapter": "Chapter " + "y" * 400, "section_title": long_title})
+    vl.load_chunks([chunk], source_id=1)
+    insert = next(c for c in cur.execute.call_args_list if "INSERT INTO knowledge_chunks" in c.args[0])
+    params = insert.args[1]
+    chapter, section = params[5], params[6]
+    assert len(chapter) == CHUNK_TITLE_MAX_CHARS and len(section) == CHUNK_TITLE_MAX_CHARS
+    assert section.startswith("Week 1 ")
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

@@ -24,6 +24,7 @@ from processors.tokens import truncate_to_tokens
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.constants import (
+    CHUNK_TITLE_MAX_CHARS,
     CHUNK_TYPE_PREFERENCE_BOOST,
     CHUNK_TYPE_PREFERENCE_BOOST_RRF,
     EMBED_MAX_TOKENS,
@@ -199,8 +200,11 @@ class VectorLoader:
                     content_hash,
                     embedding,
                     source_id,
-                    chunk.metadata.get("chapter", ""),
-                    chunk.metadata.get("section_title", ""),
+                    # VARCHAR(300): a long heading line that matched a section-break
+                    # regex raised StringDataRightTruncation and lost the whole
+                    # section to the section-level handler (RAG-L8)
+                    (chunk.metadata.get("chapter") or "")[:CHUNK_TITLE_MAX_CHARS],
+                    (chunk.metadata.get("section_title") or "")[:CHUNK_TITLE_MAX_CHARS],
                     chunk.metadata.get("chunk_type", "concept"),
                     chunk.topics or [],
                     chunk.information_density,
@@ -217,7 +221,7 @@ class VectorLoader:
                 pending_log.append((
                     chunk_id,
                     chunk.metadata.get("page_number"),
-                    chunk.metadata.get("section_title"),
+                    (chunk.metadata.get("section_title") or "")[:CHUNK_TITLE_MAX_CHARS] or None,
                     chunk.metadata.get("chunk_type"),
                 ))
 

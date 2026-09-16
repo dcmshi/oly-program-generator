@@ -152,3 +152,9 @@ MAX_TEMPLATES_IN_PROMPT: int = 2
 # (Anthropic's minimum is ~1,024 tokens ≈ 4,000 chars).
 PROMPT_STATIC_DYNAMIC_MARKER: str = "\n## Program Plan\n"
 PROMPT_CACHE_MIN_CHARS: int = 4000
+
+# ── DB column widths (ingestion) ────────────────────────────────
+# knowledge_chunks.chapter / .section and ingestion_chunk_log.section_title are
+# VARCHAR(300); a longer heading line raised StringDataRightTruncation and
+# dropped the whole section (RAG-L8). Mirror of migration 0000.
+CHUNK_TITLE_MAX_CHARS: int = 300
