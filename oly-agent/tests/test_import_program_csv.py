@@ -145,21 +145,28 @@ def test_intensity_reference_for(name, ref):
 
 
 @pytest.mark.parametrize("name, target", [
-    ("Snatch", "Snatch"), ("Snatch from Deficit", "Snatch"), ("Block Snatch (above knee)", "Snatch"),
+    ("Snatch", "Snatch"), ("Snatch from Deficit", "Snatch from Deficit"),
+    ("Block Snatch", "Block Snatch (knee)"), ("Block Snatch (above knee)", "Block Snatch (above knee)"),
     ("Snatch - Heavy Single", "Snatch"), ("Snatch + OH SQ", "Snatch"), ("Snatch Extension + Snatch", "Snatch"),
     ("Hang Snatch", "Hang Snatch (above knee)"), ("No Foot Snatch", "No Feet Snatch"),
-    ("Power Snatch (pause at knee)", "Power Snatch"), ("Block Power Snatch + OH SQ", "Power Snatch from Blocks (knee)"),
+    ("Power Snatch (pause at knee)", "Power Snatch"), ("Power Snatch from Deficit", "Power Snatch from Deficit"),
+    ("Block Power Snatch + OH SQ", "Power Snatch from Blocks (knee)"),
     ("Muscle Snatch (% of MSN 1rm)", "Muscle Snatch"), ("SN Balance", "Snatch Balance"),
-    ("Snatch Extension", "Snatch Pull"), ("SN Pull to Hip + SN Extension", "Snatch Pull"),
+    ("Snatch Extension", "Snatch Extension"), ("SN Pull to Hip + SN Extension", "Snatch Pull to Hip"),
     ("Snatch Extension from Deficit", "Snatch Pull from Deficit"), ("Snatch Grip Deadlift", "Snatch Deadlift"),
-    ("Clean from Deficit", "Clean"), ("Block Clean (at knee)", "Clean"), ("Power Clean from Deficit", "Power Clean"),
+    ("SN Grip RDL", "Snatch Grip Romanian Deadlift"),
+    ("Clean from Deficit", "Clean from Deficit"), ("Block Clean (at knee)", "Block Clean (knee)"),
+    ("Block Clean (above knee)", "Block Clean (above knee)"), ("Power Clean from Deficit", "Power Clean from Deficit"),
     ("Clean + Jerk - Heavy Single", "Clean & Jerk"), ("Clean & Jerk", "Clean & Jerk"),
     ("Power Clean + FSQ + Jerk", "Clean & Jerk"), ("Clean Deadlift + Clean + Jerk", "Clean & Jerk"),
-    ("Block Power Clean + Push Press", "Power Clean"), ("Clean Pull to Hip + Clean Ext", "Clean Pull"),
-    ("CL Extension (pause at power pos)", "Clean Pull"), ("Clean Deadlift 6\" Block", "Clean Deadlift"),
-    ("Mid Grip Deadlift", "Deadlift"), ("Jerk from Rack", "Jerk"), ("Power Jerk", "Power Jerk"),
-    ("BTN Push Press", "Push Press"), ("Partial Back Squat (1/4 squat)", "Back Squat"),
-    ("1+1/4 Front Squat", "Front Squat"), ("Box Jumps", None), ("Core", None), ("SN Grip RDL", None),
+    ("Block Power Clean + Push Press", "Power Clean"), ("Clean Pull to Hip + Clean Ext", "Clean Pull to Hip"),
+    ("CL Extension (pause at power pos)", "Clean Extension"), ("Clean Deadlift 6\" Block", "Clean Deadlift"),
+    ("Mid Grip Deadlift", "Deadlift"), ("Stiff Leg Deadlift (% of CL)", "Stiff-Leg Deadlift"),
+    ("Jerk from Rack", "Jerk"), ("Power Jerk", "Power Jerk"), ("Jerk Dips", "Jerk Dip"),
+    ("BTN Push Press", "Push Press Behind the Neck"), ("Partial Back Squat (1/4 squat)", "Quarter Squat"),
+    ("Close Stance Back Squat", "Close-Stance Back Squat"), ("1+1/4 Front Squat", "1¼ Front Squat"),
+    ("Box Jumps", "Box Jump"), ("Vertical Jumps", "Vertical Jump"), ("BB Rows", "Barbell Row"),
+    ("Bulgarian Split Squats", "Bulgarian Split Squat"), ("Core", None),
 ])
 def test_catalogue_name_for(name, target):
     assert catalogue_name_for(name) == target
@@ -226,11 +233,12 @@ def test_parse_program_requires_week_headers():
 
 def test_resolve_catalogue_ids_and_focus_area():
     prog = _parse()
-    lookup = {"muscle snatch": 7, "back squat": 39, "snatch": 1, "clean & jerk": 44, "clean deadlift": 31}
+    lookup = {"muscle snatch": 7, "back squat": 39, "snatch": 1, "clean & jerk": 44, "clean deadlift": 31,
+              "box jump": 90}
     unmapped = resolve_catalogue_ids(prog, lookup)
-    assert unmapped == ["Box Jumps", "BB Rows", "Core"]
+    assert unmapped == ["BB Rows", "Core"]          # Barbell Row is not in this test lookup
     w1d1, w1d3, w2d1 = (d for _, d in prog.sessions)
-    assert [p.exercise_id for p in w1d1.exercises] == [7, 7, 39, 39, 39, 39, None]
+    assert [p.exercise_id for p in w1d1.exercises] == [7, 7, 39, 39, 39, 39, 90]
     assert {p.exercise_id for p in w1d3.exercises} == {1, 44, None}
     assert w2d1.exercises[0].exercise_id == 31
     assert focus_area(w1d1) == "snatch" and focus_area(w1d3) == "snatch" and focus_area(w2d1) == "clean"

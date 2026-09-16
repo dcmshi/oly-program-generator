@@ -159,7 +159,7 @@ erDiagram
 |-------|------|-------------|
 | `sources` | 436 | Source books and articles. Seed: 6 canonical texts. |
 | `prilepin_chart` | 4 | Prilepin's intensity zones (55–65, 70–80, 80–90, 90–100%; seed data). The runtime source of truth is `shared/prilepin.py`'s in-memory table, which additionally covers the 65–70 transition band — nothing reads this table at runtime. |
-| `exercises` | 50+ | Full exercise taxonomy: competition lifts, variants, pulls, strength, accessory. Self-referencing hierarchy via `parent_exercise_id`. |
+| `exercises` | 70+ | Full exercise taxonomy: competition lifts, variants, pulls, strength, accessory, plyometrics. Self-referencing hierarchy via `parent_exercise_id`. 45 rows from the 0000 seed; 27 coach-block variants (deficit / block / extension / pull-to-hip lifts, jumps, rows, split squats …) from migration 0014 (DOG-1f). Rows the structured loader adds from books are filtered by `pipeline._parse_exercise` (no all-caps or bare-movement chapter headings). |
 | `exercise_substitutions` | 10+ | Injury/equipment/fatigue substitution pairs with context. |
 | `exercise_complexes` | 6 | Named multi-exercise complexes with ordered JSONB structure. |
 | `percentage_schemes` | varies | Extracted percentage programs from source books (week/day/sets/reps/intensity). |
