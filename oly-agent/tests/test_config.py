@@ -120,6 +120,17 @@ def test_makefile_runs_all_no_key_suites():
     assert "up -d --wait" in mk, "make reset must wait for container health (INF-M6)"
 
 
+def test_compose_pins_pgvector_image_version():
+    """RAG-L6: the pgvector image must carry an explicit extension version (the
+    floating :pg16 tag silently changes the minor; >= 0.8 is needed for
+    hnsw.iterative_scan, which RAG-H5 relies on)."""
+    import re
+
+    compose = (Path(__file__).parent.parent.parent / "oly-ingestion" / "docker-compose.yml").read_text(encoding="utf-8")
+    m = re.search(r"image:\s*pgvector/pgvector:(\d+)\.(\d+)\.(\d+)-pg16", compose)
+    assert m, "pgvector image is not pinned to a semver tag"
+    assert (int(m.group(1)), int(m.group(2))) >= (0, 8), "pgvector >= 0.8 required for hnsw.iterative_scan"
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

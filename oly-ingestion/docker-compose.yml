@@ -11,7 +11,9 @@
 
 services:
   db:
-    image: pgvector/pgvector:pg16
+    # pinned (RAG-L6): the floating pg16 tag moved the pgvector minor under us;
+    # >= 0.8 is required for hnsw.iterative_scan (RAG-H5). Bump deliberately.
+    image: pgvector/pgvector:0.8.2-pg16
     container_name: oly-postgres
     restart: unless-stopped   # an OOM-killed service must come back (INF-L6)
     environment:
