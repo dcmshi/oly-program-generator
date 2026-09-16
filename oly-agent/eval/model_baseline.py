@@ -11,7 +11,9 @@ model configs and compare reliability, cost and latency side by side.
         [--cost-limit 3.0] [--delete]
 
 Each ``--config`` is ``model[:thinking[:effort]]`` (thinking: adaptive | disabled;
-effort: low | medium | high | xhigh | max; blank = model default) and becomes a
+effort: low | medium | high | xhigh | max; blank = the production default from
+``Settings`` — thinking disabled — so a bare model spec measures what production
+would run; pass ``:adaptive`` for the model's own default) and becomes a
 ``Settings`` whose ``generation_*`` and ``explanation_*`` roles both point at that
 model. For every config the tool calls ``orchestrator.run(..., max_sessions=N)`` —
 the full ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN pipeline, capped

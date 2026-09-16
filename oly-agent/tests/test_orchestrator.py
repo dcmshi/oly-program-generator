@@ -572,7 +572,7 @@ def test_max_sessions_caps_generation_and_labels_the_partial_draft():
     params = mocks["execute_returning"].call_args_list[0].args[2]
     generation_params = json.loads(params[-1])
     assert generation_params["max_sessions"] == 2
-    assert generation_params["thinking"] is None and generation_params["effort"] is None
+    assert generation_params["thinking"] == "disabled" and generation_params["effort"] is None   # production default
 
 
 def test_generation_params_record_thinking_and_effort():

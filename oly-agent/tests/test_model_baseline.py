@@ -61,6 +61,11 @@ def test_config_settings_point_both_roles_at_the_model():
     assert (s.explanation_thinking, s.explanation_effort) == ("disabled", "low")
     assert s.database_url == "postgresql://x" and s.cost_limit_per_program == 2.5
     assert parse_config("claude-sonnet-4-6").settings(base, cost_limit_per_program=9.0).cost_limit_per_program == 9.0
+    # a bare model spec inherits the production thinking default (disabled), so
+    # `--config claude-sonnet-5` measures what production would run; use
+    # `claude-sonnet-5:adaptive` to measure the model's own default
+    assert parse_config("claude-sonnet-5").settings(base).generation_thinking == "disabled"
+    assert parse_config("claude-sonnet-5:adaptive").settings(base).generation_thinking == "adaptive"
 
 
 # ── recorder ─────────────────────────────────────────────────────────────────

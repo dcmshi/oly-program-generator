@@ -28,8 +28,17 @@ _PLACEHOLDER_SECRET_KEYS = frozenset({"change_me_to_a_random_64_char_hex_string"
 # Default model per role. Sonnet-class for anything that reasons over long text;
 # Haiku-class for label/summary tasks (classifier fallback, chunk context,
 # relabelling, eval grading) where the extra capability buys nothing.
+#
+# The agent's generation / explanation roles run on Sonnet 5 with thinking
+# disabled: the 2026-09-16 baseline (eval/model_baseline, athlete 1, 8 sessions)
+# had it 8/8 first-try like Sonnet 4.6 at 16% lower cost and 27% lower latency,
+# while adaptive thinking at a 4,096 output budget produced no text at all
+# (TODO MODEL-1). Ingestion stays on Sonnet 4.6 until its call sites pass
+# thinking_kwargs — on Sonnet 5 an omitted `thinking` means adaptive.
 DEFAULT_LLM_MODEL = "claude-sonnet-4-6"
 DEFAULT_LIGHT_MODEL = "claude-haiku-4-5-20251001"
+DEFAULT_GENERATION_MODEL = "claude-sonnet-5"
+DEFAULT_GENERATION_THINKING = "disabled"
 
 
 @dataclass
@@ -62,11 +71,13 @@ class Settings:
     generation_max_tokens: int = 4096
     generation_temperature: float = 0.3   # dropped automatically on models that reject it (Sonnet 5+)
     explanation_model: str = ""
-    explanation_max_tokens: int = 1024
+    explanation_max_tokens: int = 2048   # Sonnet 5 rationales overran 1024 (baseline: stop_reason=max_tokens)
     explanation_temperature: float = 0.7
-    # Thinking mode ("" = model default, "adaptive", "disabled") and effort
-    # ("" = model default, low … max) per role — env GENERATION_THINKING /
-    # GENERATION_EFFORT / EXPLANATION_THINKING / EXPLANATION_EFFORT. Resolved by
+    # Thinking mode ("adaptive" / "disabled"; blank resolves to
+    # DEFAULT_GENERATION_THINKING — set "adaptive" explicitly for the model's own
+    # default, and raise generation_max_tokens with it) and effort ("" = model
+    # default, low … max) per role — env GENERATION_THINKING / GENERATION_EFFORT /
+    # EXPLANATION_THINKING / EXPLANATION_EFFORT. Resolved by
     # shared.llm.thinking_kwargs(), which no-ops on models that lack the field.
     generation_thinking: str = ""
     generation_effort: str = ""
@@ -141,11 +152,13 @@ class Settings:
         # Model roles: explicit arg > env > default (see the field comments)
         self.llm_model = self.llm_model or os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL)
         self.light_model = self.light_model or os.getenv("LIGHT_MODEL", DEFAULT_LIGHT_MODEL)
-        self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", DEFAULT_LLM_MODEL)
-        self.explanation_model = self.explanation_model or os.getenv("EXPLANATION_MODEL", DEFAULT_LLM_MODEL)
-        self.generation_thinking = self.generation_thinking or os.getenv("GENERATION_THINKING", "")
+        self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", DEFAULT_GENERATION_MODEL)
+        self.explanation_model = self.explanation_model or os.getenv("EXPLANATION_MODEL", DEFAULT_GENERATION_MODEL)
+        self.generation_thinking = (self.generation_thinking
+                                    or os.getenv("GENERATION_THINKING", DEFAULT_GENERATION_THINKING))
         self.generation_effort = self.generation_effort or os.getenv("GENERATION_EFFORT", "")
-        self.explanation_thinking = self.explanation_thinking or os.getenv("EXPLANATION_THINKING", "")
+        self.explanation_thinking = (self.explanation_thinking
+                                     or os.getenv("EXPLANATION_THINKING", DEFAULT_GENERATION_THINKING))
         self.explanation_effort = self.explanation_effort or os.getenv("EXPLANATION_EFFORT", "")
 
         self.https_only = self.https_only or os.getenv("HTTPS_ONLY", "").lower() in ("1", "true", "yes")

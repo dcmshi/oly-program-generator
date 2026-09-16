@@ -136,20 +136,22 @@ def test_model_roles_resolve_arg_env_default():
     Haiku-class model so classifier/context/relabel/grading stop defaulting to Sonnet."""
     import os
 
-    from shared.config import DEFAULT_LIGHT_MODEL, DEFAULT_LLM_MODEL
+    from shared.config import DEFAULT_GENERATION_MODEL, DEFAULT_LIGHT_MODEL, DEFAULT_LLM_MODEL
 
     saved = {k: os.environ.pop(k, None) for k in ("LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
     try:
         s = Settings()
         assert s.llm_model == DEFAULT_LLM_MODEL == "claude-sonnet-4-6"
         assert s.light_model == DEFAULT_LIGHT_MODEL == "claude-haiku-4-5-20251001"
-        assert s.generation_model == DEFAULT_LLM_MODEL and s.explanation_model == DEFAULT_LLM_MODEL
+        # MODEL-1 (2026-09-16 baseline): the agent roles moved to Sonnet 5
+        assert s.generation_model == DEFAULT_GENERATION_MODEL == "claude-sonnet-5"
+        assert s.explanation_model == DEFAULT_GENERATION_MODEL
 
         os.environ["LIGHT_MODEL"] = "light-from-env"
         os.environ["GENERATION_MODEL"] = "gen-from-env"
         s = Settings()
         assert s.light_model == "light-from-env" and s.generation_model == "gen-from-env"
-        assert s.explanation_model == DEFAULT_LLM_MODEL  # untouched role keeps its default
+        assert s.explanation_model == DEFAULT_GENERATION_MODEL  # untouched role keeps its default
 
         s = Settings(light_model="explicit", generation_model="explicit-gen")
         assert s.light_model == "explicit" and s.generation_model == "explicit-gen"
@@ -165,15 +167,17 @@ def test_thinking_and_effort_settings_resolve_arg_env_default():
     saved = {k: os.environ.pop(k, None) for k in keys}
     try:
         s = Settings()
-        assert (s.generation_thinking, s.generation_effort) == ("", "")
-        assert (s.explanation_thinking, s.explanation_effort) == ("", "")
-        assert s.explanation_max_tokens == 1024
+        # thinking defaults to disabled on both agent roles (MODEL-1): adaptive
+        # thinking on Sonnet 5 spent the whole 4,096 budget before any text
+        assert (s.generation_thinking, s.generation_effort) == ("disabled", "")
+        assert (s.explanation_thinking, s.explanation_effort) == ("disabled", "")
+        assert s.explanation_max_tokens == 2048
 
         os.environ["GENERATION_THINKING"] = "disabled"
         os.environ["GENERATION_EFFORT"] = "low"
         s = Settings()
         assert (s.generation_thinking, s.generation_effort) == ("disabled", "low")
-        assert s.explanation_thinking == ""            # untouched role keeps its default
+        assert s.explanation_thinking == "disabled"    # untouched role keeps its default
 
         s = Settings(generation_thinking="adaptive")
         assert s.generation_thinking == "adaptive"      # explicit arg beats env
