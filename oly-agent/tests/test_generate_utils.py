@@ -1143,3 +1143,73 @@ def test_snippet_width_shows_more_than_the_first_600_chars():
 def test_prompt_asks_for_chunk_citations_by_label():
     prompt = _make_prompt(_make_athlete(), _make_retrieval(), context_chunks=[_chunk(1, "periodization", "x")])
     assert "e.g. [C2]" in prompt
+
+
+# ── RAG-M4: program templates render their matching week ─────────────────────
+
+def _template(name="Takano 4-day", weeks=None, notes="", structure=None):
+    if structure is None:
+        structure = {"weeks": weeks or []}
+    return {"name": name, "notes": notes, "program_structure": structure}
+
+
+_WEEKS = [
+    {"week_number": 1, "sessions": [
+        {"day": "Monday", "exercises": [
+            {"name": "Snatch", "sets": 5, "reps": 2, "intensity_pct": 75},
+            {"name": "Back Squat", "sets": 4, "reps": 4, "intensity_pct": 78, "notes": "belt"}]},
+        {"day": "Tuesday", "exercises": [{"name": "Clean & Jerk", "sets": 4, "reps": "1-2", "intensity_pct": 80}]},
+    ]},
+    {"week_number": 2, "sessions": [
+        {"day": "Monday", "exercises": [{"name": "Snatch", "sets": 5, "reps": 2, "intensity_pct": 80}]},
+    ]},
+]
+
+
+def test_template_renders_matching_week_structure():
+    from generate import render_template_reference
+
+    line = render_template_reference(_template(weeks=_WEEKS), week_number=1)
+    assert line.startswith("Takano 4-day (week 1): ")
+    assert "Monday: Snatch 5×2@75%, Back Squat 4×4@78%" in line
+    assert "Tuesday: Clean & Jerk 4×1-2@80%" in line
+
+
+def test_template_week_falls_back_to_latest_earlier_then_first():
+    from generate import render_template_reference
+
+    assert "(week 2)" in render_template_reference(_template(weeks=_WEEKS), week_number=6)   # past the template's end
+    assert "(week 1)" in render_template_reference(_template(weeks=_WEEKS[1:]), week_number=1) or \
+        "(week 2)" in render_template_reference(_template(weeks=_WEEKS[1:]), week_number=1)  # no earlier week → first
+
+
+def test_template_without_usable_structure_renders_name_and_notes():
+    from generate import render_template_reference
+
+    assert render_template_reference(_template(structure=None, notes="4-day classic"), 1) == "Takano 4-day — 4-day classic"
+    assert render_template_reference(_template(structure={"weeks": None}), 1) == "Takano 4-day"
+    assert render_template_reference(_template(structure="not json"), 1) == "Takano 4-day"
+    assert render_template_reference(_template(weeks=[{"week_number": 1, "sessions": [{"day": "Mon", "exercises": ["junk"]}]}]), 1) == "Takano 4-day"
+
+
+def test_template_structure_as_json_string_is_parsed_and_line_is_capped():
+    import json as _json
+
+    from generate import render_template_reference
+
+    from shared.constants import MAX_TEMPLATE_CHARS_IN_PROMPT
+
+    big_week = {"week_number": 1, "sessions": [
+        {"day": f"Day {d}", "exercises": [{"name": f"Exercise {d}-{i}", "sets": 4, "reps": 3, "intensity_pct": 70} for i in range(8)]}
+        for d in range(6)
+    ]}
+    line = render_template_reference(_template(structure=_json.dumps({"weeks": [big_week]})), 1)
+    assert line.startswith("Takano 4-day (week 1): Day 0: Exercise 0-0 4×3@70%")
+    assert len(line) <= MAX_TEMPLATE_CHARS_IN_PROMPT and line.endswith("…")
+
+
+def test_prompt_shows_template_week_for_current_week():
+    retrieval = _make_retrieval(template_references=[_template(weeks=_WEEKS)])
+    prompt = _make_prompt(_make_athlete(), retrieval)  # week_number=1 in the helper
+    assert "## Similar Program Templates" in prompt
+    assert "Takano 4-day (week 1): Monday: Snatch 5×2@75%" in prompt

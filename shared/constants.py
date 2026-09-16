@@ -137,3 +137,10 @@ CHUNK_TYPE_PREFERENCE_BOOST_RRF: float = 0.004  # ≈ moving up ~15 ranks in one
 # tokens vs 5). The word estimate remains the offline fallback.
 EMBED_MAX_TOKENS: int = 8191          # text-embedding-3-* input limit
 TOKENS_PER_WORD_FALLBACK: float = 1.3  # used only when tiktoken is unavailable
+
+# ── Program template rendering (RAG-M4) ─────────────────────────
+# program_templates.program_structure (LLM-parsed weeks/sessions/exercises)
+# reached the prompt as name + notes only; the matching week is now rendered
+# compactly, capped per template.
+MAX_TEMPLATE_CHARS_IN_PROMPT: int = 700
+MAX_TEMPLATES_IN_PROMPT: int = 2

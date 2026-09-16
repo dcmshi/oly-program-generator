@@ -36,6 +36,8 @@ from shared.constants import (
     MAX_FAULT_CHUNKS_IN_CONTEXT,
     MAX_PRINCIPLES_IN_PROMPT,
     MAX_RECENT_LOGS_IN_PROMPT,
+    MAX_TEMPLATE_CHARS_IN_PROMPT,
+    MAX_TEMPLATES_IN_PROMPT,
     PROMPT_LENGTH_WARN_CHARS,
     SNIPPET_MAX_CHARS,
 )
@@ -189,6 +191,68 @@ def validate_exercise_names(
             else:
                 errors.append(f"Unknown exercise '{name}'. Not in available exercises list.")
     return errors
+
+
+# ── Program template rendering (RAG-M4) ─────────────────────────
+
+def _pick_template_week(weeks: list, week_number: int) -> dict | None:
+    """The template week matching this program week, else the latest earlier
+    week (a 4-week template consulted in week 6 shows its week 4), else week 1."""
+    numbered = [w for w in weeks if isinstance(w, dict)]
+    if not numbered:
+        return None
+    exact = [w for w in numbered if w.get("week_number") == week_number]
+    if exact:
+        return exact[0]
+    earlier = [w for w in numbered if isinstance(w.get("week_number"), int | float) and w["week_number"] < week_number]
+    if earlier:
+        return max(earlier, key=lambda w: w["week_number"])
+    return numbered[0]
+
+
+def render_template_reference(template: dict, week_number: int,
+                              max_chars: int = MAX_TEMPLATE_CHARS_IN_PROMPT) -> str:
+    """One compact line per template: `Name (week N): Day: Ex sets×reps@pct, …; Day: …`.
+
+    Falls back to `Name — notes` when the structure is missing or malformed.
+    Truncated to ``max_chars`` so two templates stay a small part of the prompt.
+    """
+    name = template.get("name") or "Unnamed"
+    notes = template.get("notes") or ""
+    structure = template.get("program_structure")
+    if isinstance(structure, str):
+        try:
+            structure = json.loads(structure)
+        except (TypeError, ValueError):
+            structure = None
+    weeks = structure.get("weeks") if isinstance(structure, dict) else None
+    week = _pick_template_week(weeks, week_number) if isinstance(weeks, list) else None
+    if not week:
+        return f"{name} — {notes}" if notes else name
+
+    day_parts = []
+    for s in week.get("sessions") or []:
+        if not isinstance(s, dict):
+            continue
+        ex_parts = []
+        for e in s.get("exercises") or []:
+            if not isinstance(e, dict) or not e.get("name"):
+                continue
+            piece = str(e["name"])
+            if e.get("sets") is not None and e.get("reps") is not None:
+                piece += f" {e['sets']}×{e['reps']}"
+            if e.get("intensity_pct") not in (None, ""):
+                piece += f"@{e['intensity_pct']}%"
+            ex_parts.append(piece)
+        if ex_parts:
+            day_parts.append(f"{s.get('day') or 'Day'}: {', '.join(ex_parts)}")
+    if not day_parts:
+        return f"{name} — {notes}" if notes else name
+
+    line = f"{name} (week {week.get('week_number', '?')}): " + "; ".join(day_parts)
+    if len(line) > max_chars:
+        line = line[: max_chars - 1].rstrip() + "…"
+    return line
 
 
 # ── Prompt builder ─────────────────────────────────────────────
@@ -463,12 +527,13 @@ def build_session_prompt(
     )
 
     # ── Program template references ───────────────────────────
-    tmpl_lines = []
-    for t in retrieval_context.template_references[:2]:
-        line = f"  {t.get('name', 'Unnamed')}"
-        if t.get("notes"):
-            line += f" — {t['notes']}"
-        tmpl_lines.append(line)
+    # The parsed program_structure (weeks → sessions → exercises) is rendered
+    # for the week that matches this one — name + notes alone gave the model
+    # nothing it could pattern on (RAG-M4).
+    tmpl_lines = [
+        f"  {render_template_reference(t, week_number)}"
+        for t in retrieval_context.template_references[:MAX_TEMPLATES_IN_PROMPT]
+    ]
     templates_block = (
         "\n".join(tmpl_lines) if tmpl_lines
         else "  (none matched for this phase/level/frequency)"
