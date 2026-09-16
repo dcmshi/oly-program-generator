@@ -399,7 +399,7 @@ palette contrast, dead-asset checks).
 - `prefillExercise` uses `data-*` attributes, not JS-string interpolation.
 - HTMX auth expiry returns `HX-Redirect`, so mid-interaction expiry redirects cleanly.
 
-## 11. Audit 8 — 2026-09-15 RAG / ingestion / vector-DB best-practice pass (inline, no subagents) — OPEN
+## 11. Audit 8 — 2026-09-15 RAG / ingestion / vector-DB best-practice pass (inline, no subagents) — ALL 23 CODE ITEMS CLOSED (same day, one commit each); DB-machine ops + DOG-1/DOG-2 open
 
 Scope: the retrieval-quality path the seven bug audits never covered — extractors →
 classifier → chunker → embeddings → `knowledge_chunks` / pgvector → `retrieve.py`
@@ -411,8 +411,13 @@ not inferred: two probes over the local PDFs (real chunker + classifier splitter
 no keys) and SQL against the local corpus copy (3,368 chunks · 161 principles ·
 pgvector 0.8.2). Both no-key suites green at audit time (agent + ingestion, 2
 skips). Roadmap items #17–#23 (`TODO-audit-2026-07-03.md`) are cross-referenced,
-not re-filed. Work order: **H5 same day → H1 (one re-ingest) → H4 → M6 → the rest
-on numbers.**
+not re-filed. Work order was H5 → H1 → H2 → H3 → H4 → M8 → M1 → M2 → M3 → M4 → M5 → M6 → M7 → L1…L11,
+each fixed red-first with tests; migrations 0008–0013 applied to the local corpus copy.
+**Still to run on the corpus DB (needs keys, runbook §8b/§9):** the 7-PDF re-ingest with
+`--contextualize`, `relabel_chunk_types.py`, `retag_chunks.py`, `reembed.py` if the model
+changes, then `eval.build_golden` + `eval.run_eval --update-baseline` (and `--dense-only`
+to settle RAG-M1). CI note: the push of `8d1385e` was red because a broken L11 draft was
+swept into that docs commit; `7922b78` repaired it and is green.
 
 ### High
 
