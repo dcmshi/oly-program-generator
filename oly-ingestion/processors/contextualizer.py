@@ -27,7 +27,6 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.chunker import Chunk
-
 from shared.llm import create_message_with_retries
 
 logger = logging.getLogger(__name__)

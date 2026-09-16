@@ -40,7 +40,7 @@ def test_insert_records_embedding_model():
     vl.load_chunks([chunk], source_id=1)
     insert = next(c for c in cur.execute.call_args_list if "INSERT INTO knowledge_chunks" in c.args[0])
     assert "embedding_model" in insert.args[0]
-    assert insert.args[1][-1] == "text-embedding-3-large"
+    assert insert.args[1][-2] == "text-embedding-3-large"  # context_prefix (RAG-M3) is the last param
 
 
 def test_similarity_search_filters_on_embedding_model():
