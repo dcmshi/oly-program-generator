@@ -8,6 +8,7 @@ No live DB, LLM, or API keys required.
 Run: python tests/test_orchestrator.py
 """
 
+import json
 import os
 import sys
 from contextlib import ExitStack
@@ -528,6 +529,58 @@ def test_max_test_day_normal_and_empty_cases():
     templates = [SimpleNamespace(day_number=d) for d in (1, 2, 3, 4)]
     assert compute_max_test_day(templates, sessions_per_week=4) == 5
     assert compute_max_test_day([], sessions_per_week=4) == 5
+
+# ── max_sessions: the model-baseline slice of the real pipeline ──────────────
+
+def test_max_sessions_caps_generation_and_labels_the_partial_draft():
+    """`eval.model_baseline` runs a slice of a program: generation stops at
+    the cap, the max-test session is skipped, EXPLAIN still runs, and the
+    stored rationale says the program is partial."""
+    plan = ProgramPlan(
+        phase="realization",          # includes_max_test — must be skipped when capped
+        duration_weeks=1,
+        sessions_per_week=4,
+        deload_week=None,
+        weekly_targets=[_week_target(1)],
+        session_templates=[_session_template(d) for d in (1, 2, 3, 4)],
+        active_principles=[],
+        supporting_chunks=[],
+    )
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={"plan": plan})
+        program_id = run(1, _settings(), max_sessions=2)
+
+    assert program_id == 42
+    assert mocks["generate"].call_count == 2
+    assert mocks["explain"].call_count == 1
+    # program row + 2 sessions, no max-test session
+    assert mocks["execute_returning"].call_count == 3
+    rationale_writes = [
+        c for c in mocks["execute"].call_args_list
+        if len(c.args) >= 3 and "rationale" in c.args[1]
+    ]
+    assert rationale_writes, "rationale never written"
+    stored = rationale_writes[-1].args[2][0]
+    assert stored.startswith("# Partial Program — Session Cap")
+    assert "2 of 4 planned sessions" in stored
+    assert "Test rationale text." in stored     # EXPLAIN output kept below the banner
+
+    params = mocks["execute_returning"].call_args_list[0].args[2]
+    generation_params = json.loads(params[-1])
+    assert generation_params["max_sessions"] == 2
+    assert generation_params["thinking"] is None and generation_params["effort"] is None
+
+
+def test_generation_params_record_thinking_and_effort():
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        run(1, Settings(cost_limit_per_program=1.0, generation_model="claude-sonnet-5",
+                        generation_thinking="disabled", generation_effort="low"))
+    params = mocks["execute_returning"].call_args_list[0].args[2]
+    generation_params = json.loads(params[-1])
+    assert generation_params["model"] == "claude-sonnet-5"
+    assert (generation_params["thinking"], generation_params["effort"]) == ("disabled", "low")
+    assert "max_sessions" not in generation_params
 
 
 if __name__ == "__main__":

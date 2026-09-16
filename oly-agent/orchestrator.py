@@ -42,7 +42,13 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: float | None = None) -> int | None:
+def run(
+    athlete_id: int,
+    settings: Settings,
+    dry_run: bool = False,
+    deadline: float | None = None,
+    max_sessions: int | None = None,
+) -> int | None:
     """Generate a complete training program for the given athlete.
 
     Args:
@@ -53,6 +59,11 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
             when exceeded, generation stops cleanly (draft marked with a
             rationale) instead of letting the job's cancellation leave a zombie
             thread burning LLM spend past the timeout (WEB-M8).
+        max_sessions: Optional cap on generated sessions. Used by
+            ``eval.model_baseline`` to run the real pipeline on a slice of a
+            program: generation stops once this many sessions exist, the
+            max-test session is skipped, EXPLAIN still runs (it is part of the
+            per-program cost) and the draft's rationale says it is partial.
 
     Returns:
         program_id of the created program, or None on failure / dry-run.
@@ -133,6 +144,9 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     "model": settings.generation_model,
                     "temperature": settings.generation_temperature,
                     "top_k": settings.vector_search_top_k,
+                    "thinking": settings.generation_thinking or None,
+                    "effort": settings.generation_effort or None,
+                    **({"max_sessions": max_sessions} if max_sessions is not None else {}),
                 }),
             ),
         )
@@ -165,6 +179,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
         if cost_limit is None:
             cost_limit = settings.cost_limit_per_program
 
+        capped = False  # max_sessions reached
         for week_target in program_plan.weekly_targets:
             week_number = week_target.week_number
             week_cumulative_reps: dict[str, int] = {}
@@ -172,6 +187,10 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
 
             for session_template in program_plan.session_templates:
                 day_number = session_template.day_number
+                if max_sessions is not None and len(all_sessions_data) >= max_sessions:
+                    capped = True
+                    logger.info(f"  Session cap reached ({max_sessions}); stopping before W{week_number}D{day_number}")
+                    break
                 logger.info(
                     f"  Generating W{week_number}D{day_number}: {session_template.label}"
                 )
@@ -355,10 +374,13 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     "session_id": session_id,
                     "exercises": exercises,
                 })
+            if capped:
+                break
 
         # ── Max test session (realization / intensification) ──
         peak_week = compute_peak_week(program_plan.weekly_targets)
-        if PHASE_PROFILES.get(program_plan.phase, {}).get("includes_max_test") and peak_week is not None:
+        if (not capped and PHASE_PROFILES.get(program_plan.phase, {}).get("includes_max_test")
+                and peak_week is not None):
             max_test_day = compute_max_test_day(
                 program_plan.session_templates, program_plan.sessions_per_week
             )
@@ -424,6 +446,15 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
             )
             # The explain call is paid too — count it (AGT-L7)
             cumulative_cost += estimate_cost(explain_in_tokens, explain_out_tokens, settings.explanation_model)
+
+        if capped:
+            total_planned = len(program_plan.weekly_targets) * len(program_plan.session_templates)
+            rationale = (
+                f"# Partial Program — Session Cap\n"
+                f"Generation was capped at {max_sessions} session(s) for a model baseline run; "
+                f"{len(all_sessions_data)} of {total_planned} planned sessions exist. "
+                f"Do not activate this program.\n\n" + rationale
+            )
 
         if failed_sessions:
             rationale = (
