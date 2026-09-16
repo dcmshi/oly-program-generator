@@ -13,6 +13,7 @@ import hashlib
 import logging
 import re
 import sys
+from collections import OrderedDict
 from pathlib import Path
 from typing import Any
 
@@ -282,14 +283,35 @@ class VectorLoader:
             return {"dimensions": int(dim)}
         return {}
 
+    _QUERY_CACHE_MAX = 512  # distinct query strings kept per loader instance
+
     def _embed(self, text: str) -> list[float]:
-        """Embed a single text. Used for query-time similarity search."""
+        """Embed a single text for query-time search, with an in-process LRU.
+
+        Production queries are fixed templates (`build_session_query`,
+        `build_fault_query`, `build_limiter_query`), so the same strings recur
+        across sessions, programs and eval runs in the long-lived worker; caching
+        by (model, dimensions, text) removes those repeat API calls and makes
+        repeated evals deterministic (RAG-L2). Keyed on the model so a settings
+        change can never serve a vector from another embedding space.
+        """
+        cache = getattr(self, "_query_cache", None)
+        if cache is None:
+            cache = self._query_cache = OrderedDict()
+        key = (self.settings.embedding_model, self._embed_kwargs().get("dimensions"), text)
+        if key in cache:
+            cache.move_to_end(key)
+            return cache[key]
         response = self.embed_client.embeddings.create(
             model=self.settings.embedding_model,
             input=text,
             **self._embed_kwargs(),
         )
-        return response.data[0].embedding
+        vector = response.data[0].embedding
+        cache[key] = vector
+        if len(cache) > self._QUERY_CACHE_MAX:
+            cache.popitem(last=False)
+        return vector
 
     def _apply_hnsw_query_settings(self, cursor) -> None:
         """Set the HNSW scan knobs for the current transaction (RAG-H5).

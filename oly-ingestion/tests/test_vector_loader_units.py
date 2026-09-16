@@ -206,6 +206,39 @@ def test_hybrid_off_by_default_keeps_dense_sql():
     sql = next(c.args[0] for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0])
     assert "tsv" not in sql and "WITH candidates AS" in sql
 
+# ── Query-embedding LRU (RAG-L2) ─────────────────────────────────────────────
+
+def _embedding_loader(model="text-embedding-3-small"):
+    from unittest.mock import MagicMock
+
+    vl = VectorLoader.__new__(VectorLoader)
+    vl.settings = MagicMock(embedding_model=model, embedding_dim=1536)
+    vl.embed_client = MagicMock()
+    vl.embed_client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.1, 0.2])])
+    return vl
+
+
+def test_query_embedding_is_cached_per_text_and_model():
+    vl = _embedding_loader()
+    assert vl._embed("correcting early arm bend") == [0.1, 0.2]
+    assert vl._embed("correcting early arm bend") == [0.1, 0.2]
+    assert vl.embed_client.embeddings.create.call_count == 1, "second identical query must hit the cache"
+    vl._embed("a different query")
+    assert vl.embed_client.embeddings.create.call_count == 2
+    vl.settings.embedding_model = "text-embedding-3-large"      # model change → different key space
+    vl._embed("correcting early arm bend")
+    assert vl.embed_client.embeddings.create.call_count == 3
+
+
+def test_query_embedding_cache_is_bounded(monkeypatch):
+    vl = _embedding_loader()
+    monkeypatch.setattr(VectorLoader, "_QUERY_CACHE_MAX", 2)
+    for q in ("q1", "q2", "q3"):
+        vl._embed(q)
+    assert len(vl._query_cache) == 2
+    vl._embed("q1")   # evicted (oldest) → refetched
+    assert vl.embed_client.embeddings.create.call_count == 4
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)
