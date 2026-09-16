@@ -26,6 +26,11 @@ SNIPPET_MAX_CHARS: int = 1500        # max chars of a knowledge chunk shown in p
 MAX_PRINCIPLES_IN_PROMPT: int = 8   # max active principles sent to LLM
 MAX_RECENT_LOGS_IN_PROMPT: int = 10  # recent training entries shown in prompt
 PROMPT_LENGTH_WARN_CHARS: int = 20_000  # log warning if prompt exceeds this (~5k tokens)
+# When a call stops on `max_tokens`, the next attempt doubles its budget up to
+# this ceiling. On Sonnet 5 / Opus 5 adaptive thinking counts against
+# max_tokens, so a 4,096 budget can be spent before any text is emitted;
+# retrying the same request just fails the same way (MODEL-1).
+LLM_MAX_TOKENS_CEILING: int = 16_384
 
 # ── Traceability ─────────────────────────────────────────────────
 MAX_SOURCE_CHUNKS_PER_EXERCISE: int = 3  # most-relevant chunk ids attached per exercise

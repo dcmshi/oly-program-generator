@@ -32,6 +32,7 @@ from validate import validate_session
 
 from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
+    LLM_MAX_TOKENS_CEILING,
     MAX_CONTEXT_CHUNKS,
     MAX_FAULT_CHUNKS_IN_CONTEXT,
     MAX_PRINCIPLES_IN_PROMPT,
@@ -781,6 +782,7 @@ def generate_session_with_retries(
     total_output_tokens = 0
     total_cache_read = 0
     total_cache_creation = 0
+    max_tokens = settings.generation_max_tokens   # grows on truncation, see below
     # Request shape per model family: Sonnet 5 / Opus 5 reject `temperature`
     # and run adaptive thinking unless told otherwise; 4.x accept the
     # temperature and ignore thinking when omitted. Resolved once per session.
@@ -802,7 +804,7 @@ def generate_session_with_retries(
                 llm_client,
                 base_delay=settings.retry_delay_seconds,
                 model=settings.generation_model,
-                max_tokens=settings.generation_max_tokens,
+                max_tokens=max_tokens,
                 messages=[{"role": "user", "content": prompt_content_blocks(current_prompt)}],
                 **request_kwargs,
             )
@@ -823,6 +825,32 @@ def generate_session_with_retries(
                 0, 0, "failed", error_message=str(e),
             )
             time.sleep(settings.retry_delay_seconds * attempt)
+            continue
+
+        # ── Truncation ───────────────────────────────────────
+        # stop_reason == max_tokens means the output budget ran out — on
+        # Sonnet 5 / Opus 5 with adaptive thinking, usually before a single
+        # text block was written. Re-sending the same request cannot
+        # succeed; grow the budget for the next attempt instead (MODEL-1).
+        if getattr(response, "stop_reason", None) == "max_tokens":
+            grown = min(max_tokens * 2, LLM_MAX_TOKENS_CEILING)
+            error_message = (
+                f"Response truncated at max_tokens={max_tokens} (stop_reason=max_tokens, "
+                f"{output_tokens} output tokens, {len(last_raw)} chars of text)"
+                + (f" — retrying with max_tokens={grown}" if grown > max_tokens else
+                   f" — already at the {LLM_MAX_TOKENS_CEILING} ceiling; set GENERATION_THINKING=disabled "
+                   f"or a lower GENERATION_EFFORT for {settings.generation_model}")
+            )
+            logger.warning(f"  {error_message} (attempt {attempt})")
+            _log(
+                conn, program_id, week_number, day_number,
+                attempt, settings.generation_model,
+                current_prompt, last_raw, None,
+                input_tokens, output_tokens, "parse_error",
+                error_message=error_message,
+            )
+            max_tokens = grown
+            time.sleep(settings.retry_delay_seconds)
             continue
 
         # ── Parse ─────────────────────────────────────────────

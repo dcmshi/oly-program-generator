@@ -225,6 +225,43 @@ def test_explain_surfaces_a_refusal_as_the_error_string():
     assert (in_tok, out_tok) == (0, 0)
 
 
+# ── MODEL-1: a rationale truncated at max_tokens is retried with a bigger budget
+
+def test_explain_retries_with_a_bigger_budget_when_truncated():
+    from types import SimpleNamespace
+
+    truncated = MagicMock()
+    truncated.content = []
+    truncated.usage = MagicMock(input_tokens=10, output_tokens=1024)
+    truncated.stop_reason = "max_tokens"
+    ok = MagicMock()
+    ok.content = [SimpleNamespace(type="text", text="Full rationale.")]
+    ok.usage = MagicMock(input_tokens=10, output_tokens=400)
+    ok.stop_reason = "end_turn"
+
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [truncated, ok]
+    rationale, in_tok, out_tok = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    assert rationale == "Full rationale." and out_tok == 400
+    assert [c.kwargs["max_tokens"] for c in mock_client.messages.create.call_args_list] == [1024, 2048]
+
+
+def test_explain_gives_up_growing_at_the_ceiling():
+    from shared.constants import LLM_MAX_TOKENS_CEILING
+
+    class _BigSettings(_FakeSettings):
+        explanation_max_tokens = LLM_MAX_TOKENS_CEILING
+
+    truncated = MagicMock()
+    truncated.content = [MagicMock(text="partial…")]
+    truncated.usage = MagicMock(input_tokens=10, output_tokens=LLM_MAX_TOKENS_CEILING)
+    truncated.stop_reason = "max_tokens"
+    mock_client = MagicMock()
+    mock_client.messages.create.return_value = truncated
+    rationale, _, _ = explain(_ctx(), _plan(), _sessions(), mock_client, _BigSettings())
+    assert rationale == "partial…" and mock_client.messages.create.call_count == 1
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

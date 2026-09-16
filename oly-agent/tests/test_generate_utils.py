@@ -1169,6 +1169,64 @@ def test_recent_logs_prompt_block_uses_the_summary():
     return True, ""
 
 
+# ── MODEL-1: stop_reason == max_tokens grows the budget instead of re-sending ─
+
+def test_generate_grows_max_tokens_when_output_is_truncated():
+    """Sonnet 5 with adaptive thinking spent all 4,096 output tokens on thinking
+    and returned no text (the baseline run: 32 of 32 attempts). The retry must
+    carry a bigger budget, and the attempt is logged as a truncation."""
+    from types import SimpleNamespace
+
+    truncated = MagicMock()
+    truncated.content = []
+    truncated.usage = SimpleNamespace(input_tokens=3000, output_tokens=4096)
+    truncated.stop_reason = "max_tokens"
+    ok = _make_llm_response(json.dumps(_VALID_SESSION))
+    ok.stop_reason = "end_turn"
+
+    llm = MagicMock()
+    llm.messages.create.side_effect = [truncated, ok]
+    settings = _make_settings()
+    settings.generation_max_tokens = 4096
+    conn = MagicMock()
+    result = generate_session_with_retries(
+        prompt="test prompt", llm_client=llm, settings=settings,
+        available_exercise_names=_AVAILABLE_NAMES, week_target=_SIMPLE_WEEK_TARGET,
+        athlete=_SIMPLE_ATHLETE, active_principles=[], week_cumulative_reps={},
+        program_id=1, week_number=1, day_number=1, conn=conn,
+    )
+    assert result.status == "success", result.error_message
+    budgets = [c.kwargs["max_tokens"] for c in llm.messages.create.call_args_list]
+    assert budgets == [4096, 8192]
+    assert result.output_tokens == 4096 + 50          # both attempts are paid
+    logged = conn.cursor.return_value.__enter__.return_value.execute.call_args_list[0].args[1]
+    assert logged[11] == "parse_error" and "truncated at max_tokens=4096" in logged[13]
+    return True, ""
+
+
+def test_generate_max_tokens_growth_stops_at_the_ceiling():
+    from types import SimpleNamespace
+
+    from shared.constants import LLM_MAX_TOKENS_CEILING
+
+    def _truncated():
+        r = MagicMock()
+        r.content = [SimpleNamespace(type="text", text="[")]
+        r.usage = SimpleNamespace(input_tokens=10, output_tokens=99)
+        r.stop_reason = "max_tokens"
+        return r
+
+    llm = MagicMock()
+    llm.messages.create.side_effect = [_truncated() for _ in range(4)]
+    settings = _make_settings(retries=2, parse_retries=2)
+    settings.generation_max_tokens = LLM_MAX_TOKENS_CEILING // 2
+    result = _call_generate(llm, settings)
+    assert result.status == "failed"
+    budgets = [c.kwargs["max_tokens"] for c in llm.messages.create.call_args_list]
+    assert budgets == [LLM_MAX_TOKENS_CEILING // 2] + [LLM_MAX_TOKENS_CEILING] * 3
+    return True, ""
+
+
 if __name__ == "__main__":
     main()
 

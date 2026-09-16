@@ -14,6 +14,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan
 
+from shared.constants import LLM_MAX_TOKENS_CEILING
 from shared.llm import (
     create_message_with_retries,
     estimate_cost,
@@ -47,23 +48,39 @@ def explain(
         excluded the explain call's spend entirely (AGT-L7).
     """
     prompt = _build_explain_prompt(athlete_context, plan, program_sessions)
+    request_kwargs = {
+        # Sonnet 5 / Opus 5 reject `temperature`; 4.x ignore an omitted `thinking`
+        **sampling_kwargs(settings.explanation_model, settings.explanation_temperature),
+        **thinking_kwargs(
+            settings.explanation_model,
+            _setting_str(settings, "explanation_thinking"),
+            _setting_str(settings, "explanation_effort"),
+        ),
+    }
 
     try:
-        response = create_message_with_retries(
-            llm_client,
-            max_attempts=settings.max_generation_retries + 1,
-            base_delay=settings.retry_delay_seconds,
-            model=settings.explanation_model,
-            max_tokens=_explanation_max_tokens(settings),
-            messages=[{"role": "user", "content": prompt}],
-            # Sonnet 5 / Opus 5 reject `temperature`; 4.x ignore an omitted `thinking`
-            **sampling_kwargs(settings.explanation_model, settings.explanation_temperature),
-            **thinking_kwargs(
-                settings.explanation_model,
-                _setting_str(settings, "explanation_thinking"),
-                _setting_str(settings, "explanation_effort"),
-            ),
-        )
+        max_tokens = _explanation_max_tokens(settings)
+        while True:
+            response = create_message_with_retries(
+                llm_client,
+                max_attempts=settings.max_generation_retries + 1,
+                base_delay=settings.retry_delay_seconds,
+                model=settings.explanation_model,
+                max_tokens=max_tokens,
+                messages=[{"role": "user", "content": prompt}],
+                **request_kwargs,
+            )
+            # Adaptive thinking (Sonnet 5 / Opus 5) counts against max_tokens and can
+            # spend a 1,024 budget before the rationale starts; grow and retry once
+            # per doubling up to the ceiling rather than storing a truncated text.
+            if getattr(response, "stop_reason", None) != "max_tokens" or max_tokens >= LLM_MAX_TOKENS_CEILING:
+                break
+            grown = min(max_tokens * 2, LLM_MAX_TOKENS_CEILING)
+            logger.warning(
+                f"Rationale truncated at max_tokens={max_tokens} (stop_reason=max_tokens) — "
+                f"retrying with max_tokens={grown}"
+            )
+            max_tokens = grown
         rationale = message_text(response).strip()
         cost = estimate_cost(
             response.usage.input_tokens, response.usage.output_tokens, settings.explanation_model,
