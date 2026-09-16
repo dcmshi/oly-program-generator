@@ -118,3 +118,14 @@ MAX_CONTEXT_CHUNKS: int = 4
 MAX_FAULT_CHUNKS_IN_CONTEXT: int = 2
 MAX_CHUNKS_PER_SOURCE_IN_CONTEXT: int = 2
 INTENSITY_BAND_WIDTH_PCT: int = 5  # session queries share a cache entry within this band
+
+# ── Hybrid retrieval (RAG-M1) ───────────────────────────────────
+# Dense-only search matched exercise names, "Prilepin", %/reps notation and
+# Soviet abbreviations only through the embedding. The lexical leg is a
+# Postgres tsvector (migration 0009) fused with the vector leg by reciprocal
+# rank: score = Σ 1/(RRF_K + rank). The chunk_type preference is re-scaled to
+# the RRF range (a rank-1 hit in one leg is worth 1/61 ≈ 0.0164).
+HYBRID_SEARCH_ENABLED: bool = True
+RRF_K: int = 60
+HYBRID_CANDIDATES_PER_LEG: int = 20
+CHUNK_TYPE_PREFERENCE_BOOST_RRF: float = 0.004  # ≈ moving up ~15 ranks in one leg

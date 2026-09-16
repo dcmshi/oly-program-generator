@@ -429,6 +429,34 @@ def test_preferred_chunk_types_boosts_without_excluding():
         vl.close()
 
 
+# ── Hybrid search, live (RAG-M1) — needs the corpus + OPENAI_API_KEY ──────────
+
+def test_hybrid_surfaces_exact_term_chunks():
+    """A query naming a rare exact term must surface chunks containing it under
+    hybrid fusion; dense-only ranking may or may not. Also checks the row shape."""
+    vl, _sl = make_loaders()
+    try:
+        cur = vl.conn.cursor()
+        cur.execute("SELECT count(*) FROM knowledge_chunks WHERE tsv @@ to_tsquery('english', 'prilepin')")
+        lexical_hits = cur.fetchone()[0]
+        cur.close()
+        if lexical_hits == 0:
+            print("  SKIP: no chunk mentions Prilepin in this DB")
+            return
+        results = vl.similarity_search("Prilepin table optimal reps per set", top_k=5, hybrid=True, min_similarity=0.3)
+        assert results, "hybrid search returned nothing"
+        assert all({"similarity", "lex_score", "rrf", "score"} <= set(r) for r in results)
+        scores = [r["score"] for r in results]
+        assert scores == sorted(scores, reverse=True)
+        assert any("prilepin" in r["raw_content"].lower() for r in results), \
+            [r["raw_content"][:60] for r in results]
+        dense = vl.similarity_search("Prilepin table optimal reps per set", top_k=5, min_similarity=0.3)
+        print(f"  hybrid: {sum('prilepin' in r['raw_content'].lower() for r in results)}/5 mention Prilepin "
+              f"(dense-only: {sum('prilepin' in r['raw_content'].lower() for r in dense)}/5) OK")
+    finally:
+        vl.conn.rollback()
+        vl.close()
+
 # ── Runner ─────────────────────────────────────────────────────
 
 if __name__ == "__main__":
@@ -443,6 +471,7 @@ if __name__ == "__main__":
         test_mixed_empty_and_valid_chunks_only_valid_embedded,
         test_filtered_search_with_index_forced_matches_exact_counts,
         test_preferred_chunk_types_boosts_without_excluding,
+        test_hybrid_surfaces_exact_term_chunks,
     ]
     passed = failed = 0
     for test in tests:

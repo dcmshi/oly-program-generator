@@ -21,6 +21,7 @@ from collections import Counter
 from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
 
 from shared.constants import (
+    HYBRID_SEARCH_ENABLED,
     INTENSITY_BAND_WIDTH_PCT,
     MAX_CHUNKS_PER_SOURCE_IN_CONTEXT,
     MAX_CONTEXT_CHUNKS,
@@ -157,6 +158,7 @@ def retrieve_session_context(
                 top_k=top_k * 2,  # headroom for the per-source cap + fault dedupe
                 preferred_chunk_types=["programming_rationale", "periodization"],
                 min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
+                hybrid=HYBRID_SEARCH_ENABLED,
             )
         except Exception as e:
             logger.warning(f"Vector search failed for session '{session_template.label}': {e}")
@@ -262,6 +264,7 @@ def retrieve(
                         top_k=top_k,
                         preferred_chunk_types=["fault_correction"],
                         min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
+                        hybrid=HYBRID_SEARCH_ENABLED,
                     )
                     for c in chunks:
                         if c.get("id") not in fault_seen:
@@ -285,6 +288,7 @@ def retrieve(
                     # `methodology` dropped: the inference never assigns it (RAG-H2)
                     preferred_chunk_types=["programming_rationale", "periodization"],
                     min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
+                    hybrid=HYBRID_SEARCH_ENABLED,
                 )
                 for c in chunks:
                     if c.get("id") not in seen_chunk_ids:

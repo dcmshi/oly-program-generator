@@ -567,3 +567,19 @@ def test_compose_caps_chunks_per_source_and_dedupes_ids():
     session = [_c(1, 7, 0.9), _c(2, 7, 0.8), _c(3, 7, 0.7), _c(4, 8, 0.6), _c(1, 7, 0.9)]
     out = compose_session_context(session, [], has_faults=False)
     assert [c["id"] for c in out] == [1, 2, 4], "max 2 from source 7, duplicate id dropped"
+
+
+# ── RAG-M1: every production search is hybrid ────────────────────────────────
+
+def test_all_production_searches_pass_hybrid_flag():
+    from shared.constants import HYBRID_SEARCH_ENABLED
+
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", return_value=[]):
+        rc = retrieve(_ctx(faults=["early_arm_bend"], strength_limiters=["squat_limited"]), _plan(),
+                      conn=None, vector_loader=vl)
+    plan = _plan()
+    retrieve_session_context(vl, _ctx(), plan, plan.session_templates[0], plan.weekly_targets[0], rc, cache={})
+    calls = vl.similarity_search.call_args_list
+    assert len(calls) >= 3  # fault + limiter + session
+    assert all(c.kwargs.get("hybrid") is HYBRID_SEARCH_ENABLED for c in calls), [c.kwargs for c in calls]

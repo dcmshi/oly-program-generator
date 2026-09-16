@@ -155,6 +155,57 @@ def test_similarity_search_survives_missing_hnsw_gucs():
     assert any("FROM knowledge_chunks" in s for s in sql2)
 
 
+# ── Hybrid lexical + vector search (RAG-M1) ──────────────────────────────────
+
+def test_lexical_tsquery_ors_deduped_alphanumeric_terms():
+    q = "exercise selection for a snatch session with squat support at 70-80% intensity, snatch technique"
+    ts = VectorLoader._lexical_tsquery(q)
+    assert ts is not None
+    terms = ts.split(" | ")
+    assert "snatch" in terms and terms.count("snatch") == 1
+    assert "squat" in terms and "technique" in terms
+    # domain boilerplate present in every production query is dropped (no IDF in ts_rank_cd)
+    assert not {"exercise", "selection", "session", "intensity", "support"} & set(terms), terms
+    assert all(t.isalnum() and len(t) >= 3 for t in terms), terms
+    assert VectorLoader._lexical_tsquery("70-80% @ 5x3") is None
+    assert VectorLoader._lexical_tsquery("exercise selection for the session") is None
+
+
+def test_hybrid_search_fuses_two_legs_with_rrf():
+    """RAG-M1: with hybrid=True the SQL has a vector leg, a tsvector leg joined by
+    FULL OUTER JOIN, reciprocal-rank fusion, the similarity floor on the vector
+    leg only, and the chunk_type boost on the RRF scale."""
+    from shared.constants import CHUNK_TYPE_PREFERENCE_BOOST_RRF, HYBRID_CANDIDATES_PER_LEG, RRF_K
+
+    vl, cur = _loader_with_mock_cursor()
+    vl.similarity_search("snatch pull prilepin", top_k=5, min_similarity=0.45,
+                         preferred_chunk_types=["periodization"], hybrid=True)
+    call = next(c for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0])
+    sql, params = call.args
+    assert "WITH vec AS" in sql and "lex AS" in sql and "FULL OUTER JOIN" in sql
+    assert "to_tsquery('english', %s)" in sql and "tsv @@ q" in sql
+    vec_leg = sql.split("lex AS")[0]
+    lex_leg = sql.split("lex AS")[1].split("fused AS")[0]
+    assert ">= %s" in vec_leg and ">= %s" not in lex_leg, "min_similarity must apply to the vector leg only"
+    assert "embedding_model = %s" in lex_leg, "metadata filters apply to both legs"
+    assert params.count(HYBRID_CANDIDATES_PER_LEG) == 2 and params.count(RRF_K) == 2
+    assert "snatch | pull | prilepin" in params
+    assert params[-3:] == [["periodization"], CHUNK_TYPE_PREFERENCE_BOOST_RRF, 5]
+
+
+def test_hybrid_falls_back_to_dense_when_query_has_no_terms():
+    vl, cur = _loader_with_mock_cursor()
+    vl.similarity_search("70% 5x3", top_k=5, hybrid=True)
+    sql = next(c.args[0] for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0])
+    assert "lex AS" not in sql
+
+
+def test_hybrid_off_by_default_keeps_dense_sql():
+    vl, cur = _loader_with_mock_cursor()
+    vl.similarity_search("snatch", top_k=5, preferred_chunk_types=["periodization"])
+    sql = next(c.args[0] for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0])
+    assert "tsv" not in sql and "WITH candidates AS" in sql
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

@@ -11,6 +11,7 @@ Handles:
 
 import hashlib
 import logging
+import re
 import sys
 from pathlib import Path
 from typing import Any
@@ -22,8 +23,11 @@ from processors.chunker import Chunk
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.constants import (
     CHUNK_TYPE_PREFERENCE_BOOST,
+    CHUNK_TYPE_PREFERENCE_BOOST_RRF,
     HNSW_EF_SEARCH,
     HNSW_ITERATIVE_SCAN,
+    HYBRID_CANDIDATES_PER_LEG,
+    RRF_K,
     VECTOR_SEARCH_CANDIDATE_MULTIPLIER,
     VECTOR_SEARCH_MIN_CANDIDATES,
 )
@@ -333,8 +337,17 @@ class VectorLoader:
         require_numbers: bool = False,
         min_similarity: float | None = None,
         preferred_chunk_types: list[str] | None = None,
+        hybrid: bool = False,
     ) -> list[dict[str, Any]]:
         """Retrieve similar chunks with optional pre-filtering.
+
+        hybrid: fuse the vector leg with a lexical leg over the `tsv` column
+        (migration 0009) by reciprocal rank — score = Σ 1/(RRF_K + rank) over
+        the top HYBRID_CANDIDATES_PER_LEG of each leg, plus
+        CHUNK_TYPE_PREFERENCE_BOOST_RRF for preferred types; `min_similarity`
+        applies to the vector leg only (RAG-M1). Rows carry `similarity`,
+        `lex_score`, `rrf` and `score`. Production (`retrieve.py`) passes
+        HYBRID_SEARCH_ENABLED; the eval and tests default to dense-only.
 
         Used downstream by the programming agent. Supports filtered
         similarity search: filter by metadata first, then rank by
@@ -389,11 +402,58 @@ class VectorLoader:
         if require_numbers:
             where_clauses.append("contains_specific_numbers = TRUE")
 
+        # Metadata filters apply to both legs; the similarity floor only to the
+        # vector leg (a lexical-only hit is allowed to sit below it — RAG-M1).
+        filter_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+        vec_where, vec_params = filter_sql, list(params)
         if min_similarity is not None:
-            where_clauses.append("1 - (embedding <=> %s::vector) >= %s")
-            params.extend([query_embedding, min_similarity])
+            vec_where += " AND 1 - (embedding <=> %s::vector) >= %s"
+            vec_params += [query_embedding, min_similarity]
 
-        where_sql = " AND ".join(where_clauses) if where_clauses else "TRUE"
+        lex_query = self._lexical_tsquery(query) if hybrid else None
+        if lex_query:
+            cursor.execute(
+                f"""
+                WITH vec AS (
+                    SELECT id, 1 - (embedding <=> %s::vector) AS similarity,
+                           row_number() OVER (ORDER BY embedding <=> %s::vector) AS rnk
+                    FROM knowledge_chunks
+                    WHERE {vec_where}
+                    ORDER BY embedding <=> %s::vector
+                    LIMIT %s
+                ), lex AS (
+                    SELECT id, ts_rank_cd(tsv, q) AS lex_score,
+                           row_number() OVER (ORDER BY ts_rank_cd(tsv, q) DESC) AS rnk
+                    FROM knowledge_chunks, to_tsquery('english', %s) q
+                    WHERE tsv @@ q AND {filter_sql}
+                    ORDER BY lex_score DESC
+                    LIMIT %s
+                ), fused AS (
+                    SELECT coalesce(v.id, l.id) AS id,
+                           coalesce(1.0 / (%s + v.rnk), 0) + coalesce(1.0 / (%s + l.rnk), 0) AS rrf,
+                           v.similarity, l.lex_score
+                    FROM vec v FULL OUTER JOIN lex l ON v.id = l.id
+                )
+                SELECT k.id, k.content, k.raw_content, k.chapter, k.section,
+                       k.chunk_type, k.topics, k.information_density, k.source_id,
+                       coalesce(f.similarity, 1 - (k.embedding <=> %s::vector)) AS similarity,
+                       f.lex_score, f.rrf,
+                       f.rrf + CASE WHEN k.chunk_type::text = ANY(%s) THEN %s ELSE 0 END AS score
+                FROM fused f JOIN knowledge_chunks k ON k.id = f.id
+                ORDER BY score DESC, similarity DESC
+                LIMIT %s
+                """,
+                [
+                    query_embedding, query_embedding, *vec_params, query_embedding, HYBRID_CANDIDATES_PER_LEG,
+                    lex_query, *params, HYBRID_CANDIDATES_PER_LEG,
+                    RRF_K, RRF_K,
+                    query_embedding, list(preferred_chunk_types or []), CHUNK_TYPE_PREFERENCE_BOOST_RRF, top_k,
+                ],
+            )
+            columns = [desc[0] for desc in cursor.description]
+            results = [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
+            cursor.close()
+            return results
 
         base_select = f"""
             SELECT id, content, raw_content, chapter, section,
@@ -401,7 +461,7 @@ class VectorLoader:
                    source_id,
                    1 - (embedding <=> %s::vector) AS similarity
             FROM knowledge_chunks
-            WHERE {where_sql}
+            WHERE {vec_where}
             ORDER BY embedding <=> %s::vector
             LIMIT %s
         """
@@ -417,16 +477,48 @@ class VectorLoader:
                 ORDER BY score DESC, similarity DESC
                 LIMIT %s
                 """,
-                [query_embedding, *params, query_embedding, pool,
+                [query_embedding, *vec_params, query_embedding, pool,
                  list(preferred_chunk_types), CHUNK_TYPE_PREFERENCE_BOOST, top_k],
             )
         else:
-            cursor.execute(base_select, [query_embedding, *params, query_embedding, top_k])
+            cursor.execute(base_select, [query_embedding, *vec_params, query_embedding, top_k])
 
         columns = [desc[0] for desc in cursor.description]
         results = [dict(zip(columns, row, strict=True)) for row in cursor.fetchall()]
         cursor.close()
         return results
+
+    _LEX_TOKEN_RE = re.compile(r"[A-Za-z][A-Za-z0-9]{2,}")
+    # Domain boilerplate that appears in most chunks AND in every production
+    # query template. ts_rank_cd has no IDF, so with an OR query these terms
+    # would let "reps"/"sets"/"training" chunks crowd out the one that mentions
+    # "Prilepin" (measured: 1/5 vs 2/5 dense-only before the stoplist).
+    _LEXICAL_STOPLIST = frozenset({
+        "exercise", "exercises", "selection", "session", "sessions", "support", "during",
+        "phase", "intensity", "athlete", "athletes", "lifter", "lifters", "weightlifter",
+        "weightlifting", "training", "program", "programming", "workout", "week", "weeks",
+        "reps", "rep", "sets", "set", "per", "with", "for", "and", "the", "optimal",
+        "development", "strength", "addressing", "focus", "level", "beginner",
+        "intermediate", "advanced", "elite", "correcting", "work",
+    })
+
+    @classmethod
+    def _lexical_tsquery(cls, query: str) -> str | None:
+        """OR-of-terms tsquery text for a natural-language query.
+
+        Production queries are sentences ("exercise selection for a snatch
+        session … at 70-80% intensity, intermediate athlete"); `plainto_` /
+        `websearch_to_tsquery` AND every term and would match nothing. Terms are
+        alphanumeric tokens of 3+ chars minus the domain stoplist, deduped, joined
+        with `|`; the 'english' config drops its own stopwords and stems at query
+        time. Returns None when nothing distinctive is left (the caller then runs
+        the vector-only path).
+        """
+        seen: list[str] = []
+        for tok in cls._LEX_TOKEN_RE.findall(query.lower()):
+            if tok not in seen and tok not in cls._LEXICAL_STOPLIST:
+                seen.append(tok)
+        return " | ".join(seen) if seen else None
 
     def close(self):
         self.conn.close()
