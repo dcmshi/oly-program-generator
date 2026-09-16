@@ -495,6 +495,13 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
                         source_title=title,
                         author=author,
                     )
+                    if pipeline_components.get("contextualize") and chunks:
+                        from processors.contextualizer import contextualize
+                        chunks = contextualize(
+                            chunks, section.content, title,
+                            principle_extractor._get_client(),
+                            pipeline_components.get("context_model") or settings.llm_model,
+                        )
                     loaded = vl.load_chunks(
                         chunks, source_id,
                         run_id=run_id,
@@ -579,6 +586,10 @@ def main():
                         help="Collect URLs only, print count, don't ingest")
     parser.add_argument("--delay", type=float, default=1.0,
                         help="Seconds between article requests (default: 1.0)")
+    parser.add_argument("--contextualize", action="store_true",
+                        help="Write an LLM retrieval-context prefix into each chunk before embedding (RAG-M3)")
+    parser.add_argument("--context-model", default=None,
+                        help="Model for --contextualize (default: settings.llm_model)")
     args = parser.parse_args()
 
     # ── Collect URLs (per-site) ──
@@ -638,6 +649,8 @@ def main():
         "vector_loader": VectorLoader(settings),
         "classifier": ContentClassifier(settings),
         "principle_extractor": PrincipleExtractor(settings),
+        "contextualize": args.contextualize,
+        "context_model": args.context_model or settings.llm_model,
     }
 
     run_stats = {"articles_ingested": 0, "chunks_total": 0, "principles_total": 0}

@@ -198,9 +198,14 @@ class SourceDocument:
 
 
 class IngestionPipeline:
-    def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0):
+    def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0,
+                 contextualize: bool = False, context_model: str | None = None):
         self.settings = settings
         self.max_pages = max_pages
+        # RAG-M3: LLM-written retrieval context per chunk (opt-in — one short
+        # call per chunk; run it on the re-ingest so chunks are embedded once)
+        self.contextualize = contextualize
+        self.context_model = context_model or settings.llm_model
         # Build Anthropic client for vision OCR fallback (opt-in via --vision flag)
         _anthropic_client = None
         if use_vision and settings.anthropic_api_key:
@@ -507,6 +512,13 @@ class IngestionPipeline:
             author=source.author,
         )
 
+        if self.contextualize and chunks:
+            from processors.contextualizer import contextualize
+            chunks = contextualize(
+                chunks, section.content, source.title,
+                self.principle_extractor._get_client(), self.context_model,
+            )
+
         valid_chunks = []
         for chunk in chunks:
             if self.settings.validate_chunks:
@@ -735,11 +747,17 @@ if __name__ == "__main__":
                         help="Enable Claude vision API as OCR fallback for image-only PDFs")
     parser.add_argument("--max-pages", type=int, default=0, metavar="N",
                         help="Only process the first N pages (useful for test runs)")
+    parser.add_argument("--contextualize", action="store_true",
+                        help="Write an LLM retrieval-context prefix into each chunk before embedding (RAG-M3; "
+                             "one short call per chunk)")
+    parser.add_argument("--context-model", default=None,
+                        help="Model for --contextualize (default: settings.llm_model; a Haiku-class model is enough)")
     args = parser.parse_args()
 
     settings = Settings()
     settings.ensure_working_dirs()
-    pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages)
+    pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages,
+                                 contextualize=args.contextualize, context_model=args.context_model)
 
     doc = SourceDocument(
         path=Path(args.source),

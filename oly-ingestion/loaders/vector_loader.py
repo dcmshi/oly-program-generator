@@ -167,12 +167,12 @@ class VectorLoader:
                      source_id, chapter, section,
                      chunk_type, topics, athlete_level_relevance,
                      information_density, contains_specific_numbers,
-                     embedding_model)
+                     embedding_model, context_prefix)
                 VALUES (%s, %s, %s, %s,
                         %s, %s, %s,
                         %s, %s, %s,
                         %s, %s,
-                        %s)
+                        %s, %s)
                 RETURNING id
                 """,
                 (
@@ -189,6 +189,7 @@ class VectorLoader:
                     chunk.information_density,
                     chunk.contains_specific_numbers,
                     self.settings.embedding_model,  # which vector space this row lives in (RAG-M8)
+                    chunk.metadata.get("context_prefix"),  # LLM-written retrieval context (RAG-M3)
                 ),
             )
             chunk_id = cursor.fetchone()[0]

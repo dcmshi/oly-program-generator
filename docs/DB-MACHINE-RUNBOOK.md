@@ -156,8 +156,13 @@ and Medvedev (501) need `--vision`; use `--max-pages 20` first as a smoke test.
 
 ```bash
 cd oly-ingestion
-PYTHONUTF8=1 uv run python pipeline.py --source "sources/<file>.pdf" --title "<title>" --author "<author>" --type book [--vision]
+PYTHONUTF8=1 uv run python pipeline.py --source "sources/<file>.pdf" --title "<title>" --author "<author>" --type book [--vision] \
+    --contextualize --context-model claude-haiku-4-5-20251001
 ```
+
+`--contextualize` (RAG-M3) adds the LLM-written retrieval context to every chunk
+before embedding — one short Haiku call per chunk with the section cached, a few
+dollars for the seven sources. Do it in this pass so the corpus is embedded once.
 
 Sanity check (compare with the pre-fix numbers in `docs/RAG_RESEARCH.md` §5.1):
 
