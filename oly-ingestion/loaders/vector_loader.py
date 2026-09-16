@@ -63,6 +63,14 @@ class VectorLoader:
         self.last_skipped_count = 0  # dedup-skip count from the most recent load_chunks call
 
     @staticmethod
+    def _record_chunk_sources(cursor, pairs: list[tuple[int, int]]) -> None:
+        """Insert (chunk_id, source_id) provenance rows; duplicates are no-ops (RAG-L5)."""
+        cursor.executemany(
+            "INSERT INTO chunk_sources (chunk_id, source_id) VALUES (%s, %s) ON CONFLICT DO NOTHING",
+            pairs,
+        )
+
+    @staticmethod
     def _partition_new_chunks(chunks, hashes, existing):
         """Split (chunk, hash) pairs into (new_chunks, skipped_count).
 
@@ -116,15 +124,24 @@ class VectorLoader:
         # DB check and then collide on the UNIQUE(content_hash) INSERT after
         # embeddings were already paid for (I-M9).
         hashes = [hashlib.sha256(c.raw_content.encode()).hexdigest() for c in chunks]
-        existing: set[str] = set()
+        existing_ids: dict[str, int] = {}
         if hashes:
             cursor.execute(
-                "SELECT content_hash FROM knowledge_chunks WHERE content_hash = ANY(%s)",
+                "SELECT content_hash, id FROM knowledge_chunks WHERE content_hash = ANY(%s)",
                 (hashes,),
             )
-            existing = {row[0] for row in cursor.fetchall()}
+            existing_ids = {row[0]: row[1] for row in cursor.fetchall()}
+        existing = set(existing_ids)
 
         new_chunks, skipped = self._partition_new_chunks(chunks, hashes, existing)
+
+        # Provenance for duplicates (RAG-L5): the text already lives in another
+        # source's chunk — record that THIS source contains it too, otherwise the
+        # second source silently loses every shared passage.
+        dup_pairs = {(existing_ids[h], source_id) for h in hashes if h in existing_ids}
+        if dup_pairs:
+            self._record_chunk_sources(cursor, sorted(dup_pairs))
+            self.conn.commit()
 
         # Set for ALL return paths (was only set on the success path, so a
         # fully-deduped section reported 0 skipped — I-M5).
@@ -193,6 +210,7 @@ class VectorLoader:
                 ),
             )
             chunk_id = cursor.fetchone()[0]
+            self._record_chunk_sources(cursor, [(chunk_id, source_id)])
             loaded += 1
 
             if run_id is not None and structured_loader is not None:

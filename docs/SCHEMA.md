@@ -168,6 +168,7 @@ erDiagram
 | `knowledge_chunks` | see `docs/CORPUS.md` | Prose chunks with `vector(1536)` embeddings. `embedding_model` + `embedded_at` (migration 0008) record which model produced each row; `similarity_search` only ranks rows in the query's model space and `reembed.py` migrates rows between models. HNSW index for cosine similarity search. SHA-256 dedup via `content_hash`. |
 | `ingestion_runs` | per run | Pipeline execution record per source. Tracks progress, timing, and error state. |
 | `ingestion_chunk_log` | per chunk | Links chunks to the ingestion run that created them. Enables rollback. |
+| `chunk_sources` | per (chunk, source) | Every source a chunk's text appeared in (migration 0012). Dedup is global by content hash, so `knowledge_chunks.source_id` is only "first seen in"; this table keeps provenance for the other sources. |
 
 ---
 

@@ -239,6 +239,47 @@ def test_query_embedding_cache_is_bounded(monkeypatch):
     vl._embed("q1")   # evicted (oldest) → refetched
     assert vl.embed_client.embeddings.create.call_count == 4
 
+# ── Dedup provenance (RAG-L5) ────────────────────────────────────────────────
+
+def _loading_loader(existing_rows):
+    """A loader whose hash lookup returns `existing_rows` ([(hash, id), …])."""
+    from unittest.mock import MagicMock
+
+    from processors.chunker import Chunk
+
+    vl = VectorLoader.__new__(VectorLoader)
+    vl.settings = MagicMock(embedding_model="text-embedding-3-small", embedding_dim=1536)
+    vl.batch_size = 50
+    vl.last_skipped_count = 0
+    vl._embed_batch = lambda texts: [[0.0, 0.0] for _ in texts]
+    cur = MagicMock()
+    cur.fetchall.return_value = existing_rows
+    cur.fetchone.return_value = (999,)          # id of a newly inserted chunk
+    vl.conn = MagicMock()
+    vl.conn.cursor.return_value = cur
+    return vl, cur, Chunk
+
+
+def test_duplicate_chunk_records_provenance_for_the_second_source():
+    import hashlib
+
+    vl, cur, Chunk = _loading_loader([])
+    dup = Chunk(content="[Source: A]" + chr(10) * 2 + "shared passage", raw_content="shared passage")
+    h = hashlib.sha256(b"shared passage").hexdigest()
+    cur.fetchall.return_value = [(h, 4242)]     # already embedded under another source
+    loaded = vl.load_chunks([dup], source_id=77)
+    assert loaded == 0 and vl.last_skipped_count == 1
+    prov = [c for c in cur.executemany.call_args_list if "chunk_sources" in c.args[0]]
+    assert prov and prov[0].args[1] == [(4242, 77)]
+    assert not any("INSERT INTO knowledge_chunks" in c.args[0] for c in cur.execute.call_args_list)
+
+
+def test_new_chunk_records_its_own_provenance_row():
+    vl, cur, Chunk = _loading_loader([])
+    vl.load_chunks([Chunk(content="[Source: A]" + chr(10) * 2 + "fresh text", raw_content="fresh text")], source_id=5)
+    prov = [c for c in cur.executemany.call_args_list if "chunk_sources" in c.args[0]]
+    assert prov and prov[-1].args[1] == [(999, 5)]
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)
