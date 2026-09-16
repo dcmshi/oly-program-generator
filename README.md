@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/dcmshi/oly-program-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/dcmshi/oly-program-generator/actions/workflows/ci.yml)
 
-Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on 3,796 chunks of coaching literature across 11 sources. A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and 275 unit tests.
+Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on ~3,800 chunks of coaching literature across 11 sources (current counts: [docs/CORPUS.md](docs/CORPUS.md)). A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and a no-key test suite for both subsystems (`make test`).
 
 **Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · Claude (`claude-sonnet-4-6`) · OpenAI embeddings · Alembic · uv · Docker
 
@@ -39,7 +39,7 @@ flowchart TB
 
     subgraph DB["🗄  Postgres 16 + pgvector"]
         KC[("knowledge_chunks<br/>3,796 chunks · embeddings")]
-        PP[("programming_principles<br/>167 extracted rules")]
+        PP[("programming_principles<br/>extracted if/then rules")]
         EX[("exercises · 50+<br/>substitutions · complexes")]
         PC[("prilepin_chart<br/>4 intensity zones")]
         AP[("athletes · maxes<br/>goals · logs")]
@@ -114,8 +114,8 @@ Each program generation runs 6 steps in sequence:
 |------|--------|-------------|
 | 1 · ASSESS | `assess.py` | Load athlete profile, maxes, active goal, recent training history, technical faults |
 | 2 · PLAN | `plan.py` | Select phase (accumulation / intensification / realization / general prep) and duration; build per-week intensity and volume targets using Prilepin's chart |
-| 3 · RETRIEVE | `retrieve.py` | Fetch fault-targeted exercises via structured lookup; retrieve relevant knowledge chunks via pgvector cosine similarity (min 0.45) |
-| 4 · GENERATE | `generate.py` | One LLM call per session with full context; retries on JSON parse or validation failures |
+| 3 · RETRIEVE | `retrieve.py` | Fetch fault-targeted exercises via structured lookup; per-session knowledge retrieval — hybrid pgvector + tsvector search fused by reciprocal rank, chunk_type as a soft preference, cosine floor 0.45 |
+| 4 · GENERATE | `generate.py` | One LLM call per session with a static-first, prefix-cached prompt (labelled `[Cn]` context chunks, per-session principles, the matching template week); retries on JSON parse or validation failures |
 | 5 · VALIDATE | `validate.py` | Enforce Prilepin rep ranges, intensity envelope, reps-per-set limits, avoid-list, and principle adherence |
 | 6 · EXPLAIN | `explain.py` | One LLM call producing a structured rationale with per-section headings |
 
@@ -212,7 +212,7 @@ make worker                            # ARQ worker (separate terminal)
 Full setup guide, ingestion instructions, CLI usage, and backup/restore: **[docs/SETUP.md](docs/SETUP.md)**
 
 ```bash
-make test     # 275 unit tests — no DB or API keys needed
+make test     # no-key test suites for both subsystems (the Makefile lists are the source of truth)
 make coverage # coverage report
 ```
 

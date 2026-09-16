@@ -196,6 +196,36 @@ def collect_category_urls(section_id: int, section_name: str) -> list[str]:
     return list(dict.fromkeys(urls))  # global dedupe
 
 
+# ── Article header boilerplate (RAG-L11) ───────────────────────
+
+_DATE_LINE_RE = re.compile(
+    r"^(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}"
+    r"|\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})$"
+)
+_HEADER_NOISE = {"see related articles", "related articles", "share this article", "print this article"}
+
+
+def strip_article_header(text: str, title: str = "", author: str = "") -> str:
+    """Drop the page chrome that precedes an article body: the title and author
+    lines (already captured as metadata), a date line, and "See Related
+    Articles". Without this every Catalyst article's first chunk embedded
+    `Podcasts with Greg Everett | Greg Everett | January 23, 2015 | See Related
+    Articles | …` (RAG-L11). Only LEADING lines are considered; the first real
+    paragraph ends the scan."""
+    known = {t.strip().lower() for t in (title, author) if t and t.strip()}
+    lines = text.split("
+")
+    i = 0
+    while i < len(lines):
+        ln = lines[i].strip()
+        if not ln or ln.lower() in known or ln.lower() in _HEADER_NOISE or _DATE_LINE_RE.match(ln):
+            i += 1
+            continue
+        break
+    return "
+".join(lines[i:]).strip()
+
+
 # ── Article fetching & extraction ──────────────────────────────
 
 def fetch_article(url: str) -> tuple[dict | None, bool]:
@@ -261,7 +291,7 @@ def fetch_article(url: str) -> tuple[dict | None, bool]:
 
     # block_text inserts \n\n paragraph markers so the chunker can split within
     # long articles (mutates `main` — must run after the title/author reads above)
-    text = block_text(main)
+    text = strip_article_header(block_text(main), title, author)
 
     if len(text) < 200:
         logger.warning(f"Very short article ({len(text)} chars) at {url} — skipping")
@@ -419,7 +449,7 @@ def fetch_charniga_snapshot(original_url: str, timestamp: str) -> tuple[dict | N
 
     # block_text inserts \n\n paragraph markers so the chunker can split within
     # long articles (mutates `main` — must run after the title read above).
-    text = block_text(main)
+    text = strip_article_header(block_text(main), title)
     if len(text) < 200:
         # Could be a stub page, but could equally be a selector/theme mismatch
         # or a parking page — keep it pending rather than discarding forever.

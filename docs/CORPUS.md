@@ -3,7 +3,11 @@
 State of the ingested source material backing retrieval. Update this file after
 any ingest, re-ingest, or bulk delete.
 
-**Totals:** 3,796 chunks · 151 principles · 439 sources
+**Totals:** 3,796 chunks · 151 principles · 439 sources (corpus DB machine, 2026-03-18).
+A dev copy measured on 2026-09-15 held 3,368 chunks · 161 principles · 439 sources ·
+17 templates — the two diverged after the Catalyst delete / later principle runs.
+Reconcile against whichever DB the pending re-ingests run on (runbook §5–8b) and
+update this line, `README.md`, and `docs/SCHEMA.md` together.
 
 ---
 

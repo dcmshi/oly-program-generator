@@ -163,7 +163,7 @@ erDiagram
 | `exercise_substitutions` | 10+ | Injury/equipment/fatigue substitution pairs with context. |
 | `exercise_complexes` | 6 | Named multi-exercise complexes with ordered JSONB structure. |
 | `percentage_schemes` | varies | Extracted percentage programs from source books (week/day/sets/reps/intensity). |
-| `programming_principles` | 82 | LLM-extracted if/then rules from prose. JSONB `condition` + `recommendation` fields. |
+| `programming_principles` | see `docs/CORPUS.md` | LLM-extracted if/then rules from prose. JSONB `condition` (8 schema keys, evaluated per session by `principle_matcher`) + `recommendation` fields. |
 | `program_templates` | varies | LLM-parsed program structures from books. |
 | `knowledge_chunks` | see `docs/CORPUS.md` | Prose chunks with `vector(1536)` embeddings. `embedding_model` + `embedded_at` (migration 0008) record which model produced each row; `similarity_search` only ranks rows in the query's model space and `reembed.py` migrates rows between models. HNSW index for cosine similarity search. SHA-256 dedup via `content_hash`. |
 | `ingestion_runs` | per run | Pipeline execution record per source. Tracks progress, timing, and error state. |

@@ -395,3 +395,54 @@ if __name__ == "__main__":
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
+
+
+# ── RAG-L11: article header boilerplate is stripped ──────────────────────────
+
+def test_strip_article_header_removes_title_author_date_and_related_line():
+    from ingest_web import strip_article_header
+
+    body = ("Podcasts with Greg Everett
+
+Greg Everett
+
+January 23, 2015
+
+See Related Articles
+
+"
+            "I thought I'd try to collect some of the podcast interviews.
+
+Second paragraph.")
+    out = strip_article_header(body, "Podcasts with Greg Everett", "Greg Everett")
+    assert out.startswith("I thought I'd try")
+    assert "See Related Articles" not in out and "January 23, 2015" not in out
+    assert out.endswith("Second paragraph.")
+
+
+def test_strip_article_header_only_touches_leading_lines():
+    from ingest_web import strip_article_header
+
+    body = "Real first paragraph.
+
+Greg Everett
+
+See Related Articles
+
+More text."
+    assert strip_article_header(body, "Some Title", "Greg Everett") == body
+    assert strip_article_header("", "T", "A") == ""
+
+
+def test_fetch_article_output_starts_with_the_body(monkeypatch):
+    import ingest_web as w
+
+    html = ("<html><body><div class='sub_page_main_area_half_container_left'>"
+            "<h1>Podcasts with Greg Everett</h1><p>Greg Everett</p><p>January 23, 2015</p><p>See Related Articles</p>"
+            "<p>" + "Body sentence about snatch technique. " * 20 + "</p></div></body></html>")
+    resp = MagicMock(text=html, status_code=200)
+    monkeypatch.setattr(w, "_get_with_retry", lambda url, timeout=15, **k: (resp, False))
+    art, permanent = w.fetch_article("https://www.catalystathletics.com/article/1/x/")
+    assert art is not None and not permanent
+    assert art["title"] == "Podcasts with Greg Everett" and art["author"] == "Greg Everett"
+    assert art["text"].startswith("Body sentence about snatch technique.")
