@@ -309,6 +309,42 @@ def summarize_recent_logs(entries, limit: int = MAX_RECENT_LOGS_IN_PROMPT) -> li
     return lines
 
 
+def _range(low, high, suffix: str = "") -> str | None:
+    """``3``/``5`` → ``"3-5"``; ``85.00``/``110.00`` → ``"85-110"``; None → None."""
+    def fmt(v):
+        if v is None:
+            return None
+        try:
+            f = float(v)
+        except (TypeError, ValueError):
+            return str(v)
+        return f"{int(f)}" if f == int(f) else f"{f:g}"
+    lo, hi = fmt(low), fmt(high)
+    if lo is None and hi is None:
+        return None
+    if lo == hi or hi is None:
+        return f"{lo}{suffix}"
+    if lo is None:
+        return f"{hi}{suffix}"
+    return f"{lo}-{hi}{suffix}"
+
+
+def _exercise_line(e: dict, athlete_faults: set) -> str:
+    """``  Snatch Pull [snatch, c1] 3-5x2-5 @85-110% | for: early_arm_bend``."""
+    line = f"  {e['name']} [{e['movement_family']}, c{e.get('complexity_level', '?')}]"
+    sets = _range(e.get("typical_sets_low"), e.get("typical_sets_high"))
+    reps = _range(e.get("typical_reps_low"), e.get("typical_reps_high"))
+    pct = _range(e.get("typical_intensity_low"), e.get("typical_intensity_high"), "%")
+    if sets and reps:
+        line += f" {sets}x{reps}"
+    if pct:
+        line += f" @{pct}"
+    relevant = [f for f in (e.get("faults_addressed") or []) if f in athlete_faults]
+    if relevant:
+        line += f" | for: {', '.join(relevant)}"
+    return line
+
+
 def build_session_prompt(
     athlete_context: AthleteContext,
     week_target: WeekTarget,
@@ -377,24 +413,17 @@ def build_session_prompt(
     )
 
     # ── Available exercises ───────────────────────────────────
-    # Group by movement family, show typical prescription.
-    # NOTE: This is the largest variable section in the prompt (~78 chars/exercise).
-    # At the current DB size (~50 exercises) it stays well under the 20k-char warning
-    # threshold. If the exercise catalogue grows large (100+), add a cap here:
-    #   retrieval_context.available_exercises[:MAX_EXERCISES_IN_PROMPT]
-    # and add MAX_EXERCISES_IN_PROMPT to shared/constants.py.
-    ex_lines = []
-    for e in retrieval_context.available_exercises:
-        line = (
-            f"  {e['name']} [{e['movement_family']}] "
-            f"(complexity {e['complexity_level']}) — "
-            f"typical: {e.get('typical_sets_low', '?')}-{e.get('typical_sets_high', '?')} sets x "
-            f"{e.get('typical_reps_low', '?')}-{e.get('typical_reps_high', '?')} reps @ "
-            f"{e.get('typical_intensity_low', '?')}-{e.get('typical_intensity_high', '?')}%"
-        )
-        if e.get("faults_addressed"):
-            line += f" | addresses: {', '.join(e['faults_addressed'])}"
-        ex_lines.append(line)
+    # One compact line per exercise (~60 chars — DOG-1h): the old prose form
+    # ("(complexity 1) — typical: 3-5 sets x 2-5 reps @ 85.00-110.00% | addresses:
+    # every fault") ran ~135 chars and put the day-4 prompts over the 20k warning
+    # on a 53-row catalogue. If the catalogue passes ~150 rows, cap it here with
+    # MAX_EXERCISES_IN_PROMPT from shared/constants.py.
+    athlete_faults = set(athlete_context.technical_faults or [])
+    ex_lines = [
+        "  name [family, cN=complexity] sets x reps @ % of the reference max; "
+        "'for:' = this athlete's faults the exercise addresses"
+    ]
+    ex_lines += [_exercise_line(e, athlete_faults) for e in retrieval_context.available_exercises]
     exercises_block = "\n".join(ex_lines)
 
     # ── Fault emphasis (fault → exercise cross-reference) ─────

@@ -1417,6 +1417,42 @@ def test_generate_with_retries_threads_retrieval_set_into_every_log_row():
     assert all(c.kwargs.get("retrieval_set") == rset for c in log.call_args_list)
 
 
+# ── DOG-1h: compact exercise lines ───────────────────────────────────────────
+
+def test_exercise_line_is_compact_and_lists_only_the_athletes_faults():
+    from decimal import Decimal
+
+    from generate import _exercise_line
+
+    e = {"name": "Snatch Pull", "movement_family": "snatch", "complexity_level": 1,
+         "typical_sets_low": 3, "typical_sets_high": 5, "typical_reps_low": 2, "typical_reps_high": 5,
+         "typical_intensity_low": Decimal("85.00"), "typical_intensity_high": Decimal("110.00"),
+         "faults_addressed": ["hips_rising_fast", "early_arm_bend", "lost_back_tightness"]}
+    assert _exercise_line(e, {"early_arm_bend"}) == "  Snatch Pull [snatch, c1] 3-5x2-5 @85-110% | for: early_arm_bend"
+    assert _exercise_line(e, set()) == "  Snatch Pull [snatch, c1] 3-5x2-5 @85-110%"
+    bare = {"name": "Deadlift", "movement_family": "pull", "complexity_level": 1, "faults_addressed": []}
+    assert _exercise_line(bare, {"x"}) == "  Deadlift [pull, c1]"
+    single = {"name": "Box Jump", "movement_family": "plyometric", "complexity_level": 1,
+              "typical_sets_low": 3, "typical_sets_high": 3, "typical_reps_low": 5, "typical_reps_high": 5,
+              "typical_intensity_low": None, "typical_intensity_high": None, "faults_addressed": None}
+    assert _exercise_line(single, set()) == "  Box Jump [plyometric, c1] 3x5"
+    return True, ""
+
+
+def test_available_exercises_block_uses_the_compact_lines():
+    retrieval = _make_retrieval()
+    retrieval.available_exercises = [
+        {"name": "Snatch", "movement_family": "snatch", "complexity_level": 1,
+         "typical_sets_low": 4, "typical_sets_high": 6, "typical_reps_low": 1, "typical_reps_high": 3,
+         "typical_intensity_low": 70, "typical_intensity_high": 100, "faults_addressed": ["slow_turnover"]},
+    ]
+    prompt = _make_prompt(_make_athlete(faults=["slow_turnover"]), retrieval)
+    block = prompt.split("## Available Exercises")[1].split("## ")[0]
+    assert "  Snatch [snatch, c1] 4-6x1-3 @70-100% | for: slow_turnover" in block
+    assert "typical:" not in block and "(complexity" not in block
+    return True, ""
+
+
 # ── RAG-L3: static-first prompt + cached prefix ──────────────────────────────
 
 def test_prompt_is_static_first_and_splits_at_program_plan():
