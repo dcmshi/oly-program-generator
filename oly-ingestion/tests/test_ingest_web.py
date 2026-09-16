@@ -402,18 +402,8 @@ if __name__ == "__main__":
 def test_strip_article_header_removes_title_author_date_and_related_line():
     from ingest_web import strip_article_header
 
-    body = ("Podcasts with Greg Everett
-
-Greg Everett
-
-January 23, 2015
-
-See Related Articles
-
-"
-            "I thought I'd try to collect some of the podcast interviews.
-
-Second paragraph.")
+    body = ("Podcasts with Greg Everett\n\nGreg Everett\n\nJanuary 23, 2015\n\nSee Related Articles\n\n"
+            "I thought I'd try to collect some of the podcast interviews.\n\nSecond paragraph.")
     out = strip_article_header(body, "Podcasts with Greg Everett", "Greg Everett")
     assert out.startswith("I thought I'd try")
     assert "See Related Articles" not in out and "January 23, 2015" not in out
@@ -423,13 +413,7 @@ Second paragraph.")
 def test_strip_article_header_only_touches_leading_lines():
     from ingest_web import strip_article_header
 
-    body = "Real first paragraph.
-
-Greg Everett
-
-See Related Articles
-
-More text."
+    body = "Real first paragraph.\n\nGreg Everett\n\nSee Related Articles\n\nMore text."
     assert strip_article_header(body, "Some Title", "Greg Everett") == body
     assert strip_article_header("", "T", "A") == ""
 

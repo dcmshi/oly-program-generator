@@ -213,8 +213,7 @@ def strip_article_header(text: str, title: str = "", author: str = "") -> str:
     Articles | …` (RAG-L11). Only LEADING lines are considered; the first real
     paragraph ends the scan."""
     known = {t.strip().lower() for t in (title, author) if t and t.strip()}
-    lines = text.split("
-")
+    lines = text.splitlines()
     i = 0
     while i < len(lines):
         ln = lines[i].strip()
@@ -222,8 +221,7 @@ def strip_article_header(text: str, title: str = "", author: str = "") -> str:
             i += 1
             continue
         break
-    return "
-".join(lines[i:]).strip()
+    return chr(10).join(lines[i:]).strip()
 
 
 # ── Article fetching & extraction ──────────────────────────────
