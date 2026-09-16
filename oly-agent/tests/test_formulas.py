@@ -87,7 +87,7 @@ def test_plan_weekly_budget_scales_with_frequency():
     from unittest.mock import patch
 
     from plan import plan
-    from tests.test_plan import _FakeSettings, _ctx
+    from tests.test_plan import _ctx, _FakeSettings
 
     with patch("plan.fetch_all", return_value=[]):
         four = plan(_ctx(previous_program={"phase": "x"}, sessions_per_week=4), None, _FakeSettings())
