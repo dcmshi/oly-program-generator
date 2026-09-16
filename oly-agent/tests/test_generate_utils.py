@@ -1226,6 +1226,35 @@ def test_generate_max_tokens_growth_stops_at_the_ceiling():
     assert budgets == [LLM_MAX_TOKENS_CEILING // 2] + [LLM_MAX_TOKENS_CEILING] * 3
     return True, ""
 
+# ── DOG-1e: Previous Program block shows the block's structure ───────────────
+
+def test_previous_program_block_renders_structure():
+    from generate import previous_program_structure_lines
+
+    structure = {
+        "cycles": [{"label": "Deficit Cycle", "weeks": (1, 3)}, {"label": "Velocity Cycle", "weeks": (4, 7)},
+                   {"label": "General Cycle", "weeks": (8, 11)}],
+        "most_used": [{"exercise_name": "Back Squat", "sessions": 15}, {"exercise_name": "Snatch", "sessions": 10}],
+        "last_week_top_sets": [
+            {"exercise_name": "Snatch - Heavy Single", "intensity_pct": 100.0, "absolute_weight_kg": 70.0},
+            {"exercise_name": "Front Squat", "intensity_pct": 90.0, "absolute_weight_kg": None},
+        ],
+    }
+    assert previous_program_structure_lines(structure) == [
+        "  Structure: Deficit Cycle (wk 1-3) → Velocity Cycle (wk 4-7) → General Cycle (wk 8-11)",
+        "  Most used: Back Squat (15 sessions), Snatch (10 sessions)",
+        "  Last week top sets: Snatch - Heavy Single 100% (70kg), Front Squat 90%",
+    ]
+    assert previous_program_structure_lines(None) == [] and previous_program_structure_lines({}) == []
+
+    prev = {"phase": "general_prep", "duration_weeks": 11, "structure": structure,
+            "outcome_summary": {"adherence_pct": 100.0, "avg_make_rate": 1.0}}
+    prompt = _make_prompt(_make_athlete(previous_program=prev))
+    block = prompt.split("## Previous Program")[1].split("## ")[0]
+    assert "Phase: general_prep (11 weeks)" in block and "Structure: Deficit Cycle" in block
+    assert block.index("Structure:") < block.index("Adherence:")
+    return True, ""
+
 
 if __name__ == "__main__":
     main()

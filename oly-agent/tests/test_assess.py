@@ -259,6 +259,45 @@ def test_save_outcome_stamps_end_date():
 
 # ── Runner ───────────────────────────────────────────────────────────────────
 
+# ── DOG-1e: the previous program's structure travels with it ────────────────
+
+def test_assess_attaches_previous_program_structure():
+    """When a completed program exists, assess summarises what it contained
+    (cycles, most-used exercises, last-week top sets) from session_exercises."""
+    prev = {"id": 6, "phase": "general_prep", "duration_weeks": 11, "outcome_summary": {}, "end_date": None}
+    cycles = [{"label": "Deficit Cycle", "first_week": 1, "last_week": 3},
+              {"label": "General Cycle", "first_week": 8, "last_week": 11}]
+    most_used = [{"exercise_name": "Back Squat", "sessions": 15}, {"exercise_name": "Snatch", "sessions": 10}]
+    top = [{"exercise_name": "Snatch - Heavy Single", "intensity_reference": "snatch",
+            "intensity_pct": 100.0, "absolute_weight_kg": 70.0}]
+    calls = []
+
+    def fake_fetch_all(conn, sql, params=None):
+        calls.append((sql, params))
+        if "session_label" in sql:
+            return cycles
+        if "count(DISTINCT ps.id)" in sql:
+            return most_used
+        if "max(se.intensity_pct)" in sql:
+            return top
+        return []                                        # maxes, recent logs
+
+    with patch("assess.fetch_one", side_effect=[_athlete(), None, prev]):
+        with patch("assess.fetch_all", side_effect=fake_fetch_all):
+            ctx = assess(1, None)
+    structure = ctx.previous_program["structure"]
+    assert structure["cycles"] == [{"label": "Deficit Cycle", "weeks": (1, 3)}, {"label": "General Cycle", "weeks": (8, 11)}]
+    assert structure["most_used"] == most_used and structure["last_week_top_sets"] == top
+    assert all(p[0] == 6 for sql, p in calls if "program_id = %s" in sql), "structure queries scoped to program 6"
+
+
+def test_assess_without_previous_program_makes_no_structure_queries():
+    with patch("assess.fetch_one", side_effect=[_athlete(), None, None]):
+        with patch("assess.fetch_all", side_effect=[[], []]) as fa:
+            ctx = assess(1, None)
+    assert ctx.previous_program is None and fa.call_count == 2
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

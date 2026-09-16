@@ -261,6 +261,25 @@ def test_explain_gives_up_growing_at_the_ceiling():
     rationale, _, _ = explain(_ctx(), _plan(), _sessions(), mock_client, _BigSettings())
     assert rationale == "partial…" and mock_client.messages.create.call_count == 1
 
+# ── DOG-1e: the rationale prompt names the previous block ────────────────────
+
+def test_explain_prompt_mentions_the_previous_block():
+    from explain import _build_explain_prompt, _previous_block_summary
+
+    assert _previous_block_summary(None) == "none — first program"
+    prev = {"phase": "general_prep", "duration_weeks": 11,
+            "structure": {"cycles": [{"label": "Deficit Cycle", "weeks": (1, 3)}, {"label": "General Cycle", "weeks": (8, 11)}],
+                          "most_used": [{"exercise_name": "Back Squat", "sessions": 15}, {"exercise_name": "Snatch", "sessions": 10}]},
+            "outcome_summary": {"adherence_pct": 100.0}}
+    line = _previous_block_summary(prev)
+    assert line == "general_prep phase, 11 weeks; Deficit Cycle → General Cycle; built around Back Squat, Snatch; adherence 100.0%"
+
+    ctx = _ctx()
+    ctx.previous_program = prev
+    prompt = _build_explain_prompt(ctx, _plan(), _sessions())
+    assert f"Previous program: {line}" in prompt
+    assert "Previous program: none — first program" in _build_explain_prompt(_ctx(), _plan(), _sessions())
+
 
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:

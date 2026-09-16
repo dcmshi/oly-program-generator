@@ -25,6 +25,10 @@ SNIPPET_MAX_CHARS: int = 1500        # max chars of a knowledge chunk shown in p
 # the prescription sits in the tail (RAG-H4). Retrieval unit ≈ display unit now.
 MAX_PRINCIPLES_IN_PROMPT: int = 8   # max active principles sent to LLM
 MAX_RECENT_LOGS_IN_PROMPT: int = 10  # recent training entries shown in prompt
+# Previous Program block (DOG-1e): most-used exercises and last-week top sets
+# summarised from the completed program's session_exercises rows.
+MAX_PREVIOUS_PROGRAM_EXERCISES: int = 8
+MAX_PREVIOUS_PROGRAM_TOP_SETS: int = 5
 PROMPT_LENGTH_WARN_CHARS: int = 20_000  # log warning if prompt exceeds this (~5k tokens)
 # When a call stops on `max_tokens`, the next attempt doubles its budget up to
 # this ceiling. On Sonnet 5 / Opus 5 adaptive thinking counts against

@@ -267,6 +267,40 @@ def render_template_reference(template: dict, week_number: int,
 
 # ── Prompt builder ─────────────────────────────────────────────
 
+def previous_program_structure_lines(structure: dict | None) -> list[str]:
+    """Prompt lines describing what the previous block contained (DOG-1e):
+    its cycles in week order, the most-prescribed exercises, and the last
+    week's heaviest competition-lift / squat sets. Empty when unknown."""
+    if not structure:
+        return []
+    lines = []
+    cycles = structure.get("cycles") or []
+    if cycles:
+        parts = []
+        for c in cycles:
+            weeks = c.get("weeks") or ()
+            span = (f"wk {weeks[0]}" if len(weeks) == 2 and weeks[0] == weeks[1]
+                    else f"wk {weeks[0]}-{weeks[1]}" if len(weeks) == 2 else "")
+            parts.append(f"{c.get('label')} ({span})" if span else str(c.get("label")))
+        lines.append(f"  Structure: {' → '.join(parts)}")
+    most_used = structure.get("most_used") or []
+    if most_used:
+        lines.append("  Most used: " + ", ".join(
+            f"{m.get('exercise_name')} ({m.get('sessions')} sessions)" for m in most_used))
+    top_sets = structure.get("last_week_top_sets") or []
+    if top_sets:
+        parts = []
+        for t in top_sets:
+            pct = t.get("intensity_pct")
+            kg = t.get("absolute_weight_kg")
+            desc = f"{float(pct):g}%" if pct is not None else "?"
+            if kg is not None:
+                desc += f" ({float(kg):g}kg)"
+            parts.append(f"{t.get('exercise_name')} {desc}")
+        lines.append(f"  Last week top sets: {', '.join(parts)}")
+    return lines
+
+
 def summarize_recent_logs(entries, limit: int = MAX_RECENT_LOGS_IN_PROMPT) -> list[str]:
     """Prompt lines for the Recent Training block: one per (date, exercise)
     with the heaviest weight logged, the set count and, when present, RPE and
@@ -575,6 +609,7 @@ def build_session_prompt(
             outcome = OutcomeSummary()
         prev_lines = [
             f"  Phase: {prev_prog.get('phase', 'unknown')} ({prev_prog.get('duration_weeks', '?')} weeks)",
+            *previous_program_structure_lines(prev_prog.get("structure")),
             f"  Adherence: {outcome.adherence_pct}%",
             f"  Avg make rate on competition lifts: {outcome.avg_make_rate}",
         ]

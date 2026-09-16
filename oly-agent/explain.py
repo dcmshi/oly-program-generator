@@ -106,6 +106,25 @@ def _explanation_max_tokens(settings) -> int:
     return value if isinstance(value, int) and not isinstance(value, bool) else 1024
 
 
+def _previous_block_summary(prev: dict | None) -> str:
+    """One line on the block this program follows, so the rationale can say
+    what changes and why instead of treating the athlete as history-less (DOG-1e)."""
+    if not prev:
+        return "none — first program"
+    parts = [f"{prev.get('phase', 'unknown')} phase, {prev.get('duration_weeks', '?')} weeks"]
+    structure = prev.get("structure") or {}
+    cycles = [c.get("label") for c in structure.get("cycles") or [] if c.get("label")]
+    if cycles:
+        parts.append(" → ".join(str(c) for c in cycles))
+    most_used = [m.get("exercise_name") for m in (structure.get("most_used") or [])[:5]]
+    if most_used:
+        parts.append("built around " + ", ".join(str(m) for m in most_used))
+    outcome = prev.get("outcome_summary") or {}
+    if isinstance(outcome, dict) and outcome.get("adherence_pct") is not None:
+        parts.append(f"adherence {outcome['adherence_pct']}%")
+    return "; ".join(parts)
+
+
 def _build_explain_prompt(
     athlete_context: AthleteContext,
     plan: ProgramPlan,
@@ -138,6 +157,7 @@ def _build_explain_prompt(
 
     # weeks_to_comp == 0 (meet within a week) is the most time-critical case, so
     # it must NOT be treated as "no date" — only None means unset (A-M8).
+    previous_block = _previous_block_summary(athlete_context.previous_program)
     if weeks_to_comp is None:
         comp_context = "no competition date set"
     elif weeks_to_comp == 0:
@@ -154,6 +174,7 @@ Level: {athlete_context.level}
 Goal: {goal} ({comp_context})
 Technical faults: {faults}
 Sessions per week: {plan.sessions_per_week}
+Previous program: {previous_block}
 
 ## Program Structure
 Phase: {plan.phase}

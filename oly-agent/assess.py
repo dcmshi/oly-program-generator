@@ -17,6 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from models import AthleteContext
 from weight_resolver import build_maxes_dict
 
+from shared.constants import MAX_PREVIOUS_PROGRAM_EXERCISES, MAX_PREVIOUS_PROGRAM_TOP_SETS
 from shared.db import fetch_all, fetch_one
 from shared.formulas import round_kg
 
@@ -101,13 +102,18 @@ def assess(athlete_id: int, conn) -> AthleteContext:
     previous_program = fetch_one(
         conn,
         """
-        SELECT phase, duration_weeks, outcome_summary, end_date
+        SELECT id, phase, duration_weeks, outcome_summary, end_date
         FROM generated_programs
         WHERE athlete_id = %s AND status = 'completed'
         ORDER BY updated_at DESC LIMIT 1
         """,
         (athlete_id,),
     )
+    if previous_program and previous_program.get("id") is not None:
+        # What the block contained, not only how it went (DOG-1e): the prompt
+        # used to show outcome metrics alone, so the next block could not
+        # continue from — or deliberately move away from — what was trained.
+        previous_program["structure"] = summarize_program_structure(conn, previous_program["id"])
 
     # ── Recent training logs (last 14 days) ────────────────────
     cutoff = date.today() - timedelta(days=14)
@@ -160,6 +166,68 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         weeks_to_competition=weeks_to_competition,
         recorded_maxes=recorded_maxes,
     )
+
+
+def summarize_program_structure(conn, program_id: int) -> dict:
+    """Movement mix of a completed program for the Previous Program prompt block.
+
+    Returns ``{"cycles": [{"label", "weeks"}], "most_used": [{"exercise_name",
+    "sessions"}], "last_week_top_sets": [{"exercise_name", "intensity_pct",
+    "absolute_weight_kg", "intensity_reference"}]}`` — the session labels in
+    week order (an imported coach sheet carries its cycle names, a generated
+    program its template names), the most-prescribed exercises by session
+    count, and the heaviest competition-lift / squat sets of the final week.
+    """
+    cycles = fetch_all(
+        conn,
+        """
+        SELECT split_part(session_label, ' · ', 1) AS label,
+               min(week_number) AS first_week, max(week_number) AS last_week
+        FROM program_sessions
+        WHERE program_id = %s AND session_label IS NOT NULL
+        GROUP BY split_part(session_label, ' · ', 1)
+        ORDER BY min(week_number), min(day_number)
+        """,
+        (program_id,),
+    )
+    most_used = fetch_all(
+        conn,
+        """
+        SELECT se.exercise_name, count(DISTINCT ps.id) AS sessions
+        FROM session_exercises se
+        JOIN program_sessions ps ON ps.id = se.session_id
+        WHERE ps.program_id = %s
+        GROUP BY se.exercise_name
+        ORDER BY sessions DESC, count(*) DESC, se.exercise_name
+        LIMIT %s
+        """,
+        (program_id, MAX_PREVIOUS_PROGRAM_EXERCISES),
+    )
+    top_sets = fetch_all(
+        conn,
+        """
+        SELECT se.exercise_name, se.intensity_reference,
+               max(se.intensity_pct) AS intensity_pct,
+               max(se.absolute_weight_kg) AS absolute_weight_kg
+        FROM session_exercises se
+        JOIN program_sessions ps ON ps.id = se.session_id
+        WHERE ps.program_id = %s
+          AND ps.week_number = (SELECT max(week_number) FROM program_sessions WHERE program_id = %s)
+          AND se.intensity_pct IS NOT NULL
+          AND se.intensity_reference IN ('snatch', 'clean', 'clean_and_jerk', 'back_squat', 'front_squat')
+        GROUP BY se.exercise_name, se.intensity_reference
+        ORDER BY max(se.intensity_pct) DESC, se.exercise_name
+        LIMIT %s
+        """,
+        (program_id, program_id, MAX_PREVIOUS_PROGRAM_TOP_SETS),
+    )
+    return {
+        "cycles": [
+            {"label": r["label"], "weeks": (r["first_week"], r["last_week"])} for r in cycles
+        ],
+        "most_used": [dict(r) for r in most_used],
+        "last_week_top_sets": [dict(r) for r in top_sets],
+    }
 
 
 def estimate_missing_maxes(known_maxes: dict[str, float]) -> dict[str, float]:
