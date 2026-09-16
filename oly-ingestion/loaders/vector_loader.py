@@ -163,11 +163,13 @@ class VectorLoader:
                     (content, raw_content, content_hash, embedding,
                      source_id, chapter, section,
                      chunk_type, topics, athlete_level_relevance,
-                     information_density, contains_specific_numbers)
+                     information_density, contains_specific_numbers,
+                     embedding_model)
                 VALUES (%s, %s, %s, %s,
                         %s, %s, %s,
                         %s, %s, %s,
-                        %s, %s)
+                        %s, %s,
+                        %s)
                 RETURNING id
                 """,
                 (
@@ -183,6 +185,7 @@ class VectorLoader:
                     chunk.metadata.get("athlete_level_relevance"),
                     chunk.information_density,
                     chunk.contains_specific_numbers,
+                    self.settings.embedding_model,  # which vector space this row lives in (RAG-M8)
                 ),
             )
             chunk_id = cursor.fetchone()[0]
@@ -247,6 +250,7 @@ class VectorLoader:
                     response = self.embed_client.embeddings.create(
                         model=self.settings.embedding_model,
                         input=batch,
+                        **self._embed_kwargs(),
                     )
                     batch_embeddings = [item.embedding for item in response.data]
                     all_embeddings.extend(batch_embeddings)
@@ -261,11 +265,26 @@ class VectorLoader:
 
         return all_embeddings
 
+    def _embed_kwargs(self) -> dict:
+        """Extra embedding-API arguments derived from settings.
+
+        `text-embedding-3-*` models accept `dimensions` (Matryoshka truncation),
+        which is how `text-embedding-3-large` fits the existing vector(1536)
+        column without a schema change (roadmap #22). Older models reject the
+        argument, so it is only sent for the models that support it.
+        """
+        model = self.settings.embedding_model or ""
+        dim = getattr(self.settings, "embedding_dim", None)
+        if model.startswith("text-embedding-3") and dim:
+            return {"dimensions": int(dim)}
+        return {}
+
     def _embed(self, text: str) -> list[float]:
         """Embed a single text. Used for query-time similarity search."""
         response = self.embed_client.embeddings.create(
             model=self.settings.embedding_model,
             input=text,
+            **self._embed_kwargs(),
         )
         return response.data[0].embedding
 
@@ -339,8 +358,11 @@ class VectorLoader:
         cursor = self.conn.cursor()
         self._apply_hnsw_query_settings(cursor)
 
-        where_clauses = []
-        params: list[Any] = []
+        # Only rows in the query's embedding space: a cosine distance between
+        # vectors from two models is meaningless, so a half-finished re-embed
+        # (reembed.py) must never mix into one ranking (RAG-M8).
+        where_clauses = ["embedding_model = %s"]
+        params: list[Any] = [self.settings.embedding_model]
 
         if chunk_types:
             where_clauses.append("chunk_type::text = ANY(%s)")

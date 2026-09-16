@@ -165,7 +165,7 @@ erDiagram
 | `percentage_schemes` | varies | Extracted percentage programs from source books (week/day/sets/reps/intensity). |
 | `programming_principles` | 82 | LLM-extracted if/then rules from prose. JSONB `condition` + `recommendation` fields. |
 | `program_templates` | varies | LLM-parsed program structures from books. |
-| `knowledge_chunks` | 2,576 | Prose chunks with `vector(1536)` embeddings (text-embedding-3-small). HNSW index for cosine similarity search. SHA-256 dedup via `content_hash`. |
+| `knowledge_chunks` | see `docs/CORPUS.md` | Prose chunks with `vector(1536)` embeddings. `embedding_model` + `embedded_at` (migration 0008) record which model produced each row; `similarity_search` only ranks rows in the query's model space and `reembed.py` migrates rows between models. HNSW index for cosine similarity search. SHA-256 dedup via `content_hash`. |
 | `ingestion_runs` | per run | Pipeline execution record per source. Tracks progress, timing, and error state. |
 | `ingestion_chunk_log` | per chunk | Links chunks to the ingestion run that created them. Enables rollback. |
 
@@ -363,6 +363,7 @@ erDiagram
 | `knowledge_chunks` | `idx_chunks_embedding` | HNSW (cosine) | Vector similarity search |
 | `knowledge_chunks` | `idx_chunks_topics` | GIN | Topic filtering in retrieval |
 | `knowledge_chunks` | `idx_chunks_hash` | btree | SHA-256 dedup on re-ingestion |
+| `knowledge_chunks` | `idx_chunks_embedding_model` | btree | Restrict ranking to one embedding space (RAG-M8) |
 | `exercises` | `idx_exercises_faults` | GIN | Fault-to-exercise lookup |
 | `programming_principles` | `idx_principles_condition` | GIN | JSONB condition filtering |
 | `program_templates` | `idx_templates_tags` | GIN | Tag-based template search |
