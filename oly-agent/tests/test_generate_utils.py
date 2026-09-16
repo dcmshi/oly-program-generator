@@ -1126,6 +1126,49 @@ def test_generation_log_prices_at_the_logged_model():
     return True, ""
 
 
+# ── DOG-1: recent logs are summarised per (date, exercise), not shown raw ─────
+
+def test_recent_logs_collapse_a_warmup_ramp_to_its_top_set():
+    """Seven logged rows of one lift on one day (the 42→70 kg ramp of a heavy
+    single) become one line with the top weight and set count, so the cap
+    no longer spends every slot on the latest day's warm-ups."""
+    from generate import summarize_recent_logs
+    ramp = [
+        {"log_date": date(2026, 9, 13), "exercise_name": "Snatch - Heavy Single",
+         "weight_kg": kg, "sets_completed": 1, "rpe": None, "make_rate": 1.0}
+        for kg in (42.0, 49.0, 52.5, 56.0, 59.5, 63.0, 70.0)
+    ]
+    cj = [{"log_date": date(2026, 9, 13), "exercise_name": "Clean + Jerk - Heavy Single",
+           "weight_kg": 92.0, "sets_completed": 1, "rpe": 9.0, "make_rate": 0.5},
+          {"log_date": date(2026, 9, 13), "exercise_name": "Clean + Jerk - Heavy Single",
+           "weight_kg": 83.0, "sets_completed": 1, "rpe": 8.0, "make_rate": 1.0}]
+    older = [{"log_date": date(2026, 9, 11), "exercise_name": "Box Jumps",
+              "weight_kg": 0, "sets_completed": 5, "rpe": None, "make_rate": None}]
+    lines = summarize_recent_logs(ramp + cj + older)
+    assert lines == [
+        "  2026-09-13: Snatch - Heavy Single top 70.0kg × 7 sets | make 100%",
+        "  2026-09-13: Clean + Jerk - Heavy Single top 92.0kg × 2 sets | RPE 9.0 | make 75%",
+        "  2026-09-11: Box Jumps unloaded × 5 sets",
+    ]
+    assert summarize_recent_logs([]) == []
+    assert len(summarize_recent_logs(ramp + cj + older, limit=2)) == 2
+    return True, ""
+
+
+def test_recent_logs_prompt_block_uses_the_summary():
+    logs = [
+        {"log_date": date(2026, 3, 15), "exercise_name": "Snatch",
+         "weight_kg": 60.0, "sets_completed": 2, "rpe": 6.0, "make_rate": 1.0},
+        {"log_date": date(2026, 3, 15), "exercise_name": "Snatch",
+         "weight_kg": 88.0, "sets_completed": 5, "rpe": 8.0, "make_rate": 0.9},
+    ]
+    prompt = _make_prompt(_make_athlete(recent_logs=logs))
+    block = prompt.split("## Recent Training (last 14 days)")[1].split("## ")[0]
+    assert block.count("Snatch") == 1 and "top 88.0kg × 7 sets" in block and "RPE 8.0" in block
+    assert "make 95%" in block
+    return True, ""
+
+
 if __name__ == "__main__":
     main()
 

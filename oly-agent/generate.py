@@ -266,6 +266,48 @@ def render_template_reference(template: dict, week_number: int,
 
 # ── Prompt builder ─────────────────────────────────────────────
 
+def summarize_recent_logs(entries, limit: int = MAX_RECENT_LOGS_IN_PROMPT) -> list[str]:
+    """Prompt lines for the Recent Training block: one per (date, exercise)
+    with the heaviest weight logged, the set count and, when present, RPE and
+    make rate.
+
+    Log rows are one per prescription row, so a lift's warm-up ramp is six or
+    seven rows of the same exercise; showing the first `limit` raw rows put
+    nothing but the latest day's warm-up singles in the prompt (DOG-1
+    finding). Entries arrive newest-first from ASSESS; grouping keeps that
+    order and the cap applies to groups.
+    """
+    groups: dict[tuple[str, str], dict] = {}
+    for entry in entries or []:
+        key = (str(entry.get("log_date", "?")), str(entry.get("exercise_name", "?")))
+        g = groups.setdefault(key, {"top_kg": None, "sets": 0, "rpe": [], "make": []})
+        try:
+            kg = float(entry.get("weight_kg"))
+        except (TypeError, ValueError):
+            kg = None
+        if kg is not None and kg > 0 and (g["top_kg"] is None or kg > g["top_kg"]):
+            g["top_kg"] = kg
+        try:
+            g["sets"] += int(entry.get("sets_completed") or 0)
+        except (TypeError, ValueError):
+            pass
+        if entry.get("rpe") is not None:
+            g["rpe"].append(float(entry["rpe"]))
+        if entry.get("make_rate") is not None:
+            g["make"].append(float(entry["make_rate"]))
+
+    lines = []
+    for (log_date, name), g in list(groups.items())[:limit]:
+        load = f"top {g['top_kg']:.1f}kg" if g["top_kg"] is not None else "unloaded"
+        parts = [f"  {log_date}: {name} {load} × {g['sets']} sets"]
+        if g["rpe"]:
+            parts.append(f"RPE {max(g['rpe']):.1f}")
+        if g["make"]:
+            parts.append(f"make {sum(g['make']) / len(g['make']):.0%}")
+        lines.append(" | ".join(parts))
+    return lines
+
+
 def build_session_prompt(
     athlete_context: AthleteContext,
     week_target: WeekTarget,
@@ -530,17 +572,7 @@ def build_session_prompt(
         prev_program_block = "  None — this is the athlete's first program."
 
     # ── Recent training logs ──────────────────────────────────
-    recent_log_lines = []
-    for entry in (athlete_context.recent_logs or [])[:MAX_RECENT_LOGS_IN_PROMPT]:
-        parts = [
-            f"  {entry.get('log_date', '?')}: {entry.get('exercise_name', '?')} "
-            f"{entry.get('weight_kg', '?')}kg × {entry.get('sets_completed', '?')} sets"
-        ]
-        if entry.get("rpe") is not None:
-            parts.append(f"RPE {entry['rpe']:.1f}")
-        if entry.get("make_rate") is not None:
-            parts.append(f"make {entry['make_rate']:.0%}")
-        recent_log_lines.append(" | ".join(parts))
+    recent_log_lines = summarize_recent_logs(athlete_context.recent_logs)
     recent_logs_block = (
         "\n".join(recent_log_lines) if recent_log_lines
         else "  No recent sessions logged."
