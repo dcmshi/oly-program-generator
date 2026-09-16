@@ -32,6 +32,8 @@ from validate import validate_session
 
 from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
+    MAX_CONTEXT_CHUNKS,
+    MAX_FAULT_CHUNKS_IN_CONTEXT,
     MAX_PRINCIPLES_IN_PROMPT,
     MAX_RECENT_LOGS_IN_PROMPT,
     PROMPT_LENGTH_WARN_CHARS,
@@ -205,6 +207,7 @@ def build_session_prompt(
     phase: str = "unspecified",
     sessions_per_week: int | None = None,
     active_principles: list[dict] | None = None,
+    context_chunks: list[dict] | None = None,
 ) -> str:
     """Assemble the full prompt for one session generation call.
 
@@ -345,26 +348,35 @@ def build_session_prompt(
     principles_block = "\n".join(principle_lines) if principle_lines else "  None"
 
     # ── Programming context (retrieved chunks) ─────────────────
-    # When athlete has faults, lead with fault-correction chunks (up to 2),
-    # then fill remaining slots with programming-rationale chunks. Cap at 4 total.
+    # Per-session context (RAG-H4): the orchestrator passes the chunks composed
+    # for THIS session (retrieve.retrieve_session_context — its own query, fault
+    # chunks round-robined, per-source cap). Without it, fall back to the old
+    # program-level composition: ≤2 fault chunks, then rationale, cap 4.
     all_context_chunks: list[dict] = []
-    seen_ctx_ids: set[int] = set()
-    if athlete_context.technical_faults:
-        for c in retrieval_context.fault_correction_chunks[:2]:
+    if context_chunks is not None:
+        all_context_chunks = list(context_chunks)[:MAX_CONTEXT_CHUNKS]
+    else:
+        seen_ctx_ids: set[int] = set()
+        if athlete_context.technical_faults:
+            for c in retrieval_context.fault_correction_chunks[:MAX_FAULT_CHUNKS_IN_CONTEXT]:
+                if c.get("id") not in seen_ctx_ids:
+                    seen_ctx_ids.add(c["id"])
+                    all_context_chunks.append(c)
+        for c in retrieval_context.programming_rationale:
             if c.get("id") not in seen_ctx_ids:
                 seen_ctx_ids.add(c["id"])
                 all_context_chunks.append(c)
-    for c in retrieval_context.programming_rationale:
-        if c.get("id") not in seen_ctx_ids:
-            seen_ctx_ids.add(c["id"])
-            all_context_chunks.append(c)
-        if len(all_context_chunks) >= 4:
-            break
+            if len(all_context_chunks) >= MAX_CONTEXT_CHUNKS:
+                break
 
+    # Labelled [C1]…[Cn] so the model can cite what it used; SNIPPET_MAX_CHARS
+    # now shows the bulk of a chunk rather than its first 600 chars.
     chunk_lines = []
-    for c in all_context_chunks:
-        excerpt = c.get("raw_content", c.get("content", ""))[:SNIPPET_MAX_CHARS]
-        chunk_lines.append(f"  [{c.get('chunk_type', '?')}] {excerpt}...")
+    for i, c in enumerate(all_context_chunks, 1):
+        text = c.get("raw_content", c.get("content", ""))
+        excerpt = text[:SNIPPET_MAX_CHARS]
+        ellipsis = "..." if len(text) > SNIPPET_MAX_CHARS else ""
+        chunk_lines.append(f"  [C{i}|{c.get('chunk_type', '?')}] {excerpt}{ellipsis}")
     context_block = "\n".join(chunk_lines) if chunk_lines else "  (none retrieved)"
 
     # ── Already prescribed this week ─────────────────────────
@@ -558,7 +570,7 @@ Generate this session as a JSON array. Each object must include:
 - intensity_reference (which max to use: "snatch", "clean_and_jerk", "back_squat", "front_squat", etc.)
 - rest_seconds (integer)
 - rpe_target (float 6.0–10.0)
-- selection_rationale (1-2 sentences explaining why this exercise and prescription)
+- selection_rationale (1-2 sentences explaining why this exercise and prescription; cite the Programming Context chunks that informed it by label, e.g. [C2])
 - source_principle_ids (array of principle IDs from Active Principles, or empty array)
 
 Respond ONLY with a valid JSON array. No markdown, no preamble, no explanation outside the JSON."""

@@ -21,7 +21,6 @@ from principle_matcher import (
     select_principles,
 )
 
-
 # ── compare ───────────────────────────────────────────────────────────────────
 
 def test_compare_operators():

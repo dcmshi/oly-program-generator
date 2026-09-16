@@ -1101,3 +1101,45 @@ def test_prompt_falls_back_to_retrieval_principles_when_not_given():
     ]
     prompt = _make_prompt(_make_athlete(), retrieval)
     assert "[7] Program-level rule" in prompt
+
+
+# ── RAG-H4: per-session context chunks, labels, snippet width ────────────────
+
+def test_context_chunks_param_is_used_in_order_with_labels():
+    """The orchestrator's composed per-session list is shown as given, labelled
+    [C1]…[Cn]; the program-level lists on the retrieval context are ignored."""
+    retrieval = _make_retrieval(programming_rationale=[_chunk(9, "periodization", "PROGRAM_LEVEL_TEXT")])
+    session_chunks = [_chunk(1, "fault_correction", "FIRST_SESSION_TEXT"), _chunk(2, "periodization", "SECOND_SESSION_TEXT")]
+    prompt = _make_prompt(_make_athlete(), retrieval, context_chunks=session_chunks)
+    assert "[C1|fault_correction] FIRST_SESSION_TEXT" in prompt
+    assert "[C2|periodization] SECOND_SESSION_TEXT" in prompt
+    assert "PROGRAM_LEVEL_TEXT" not in prompt
+    assert prompt.index("FIRST_SESSION_TEXT") < prompt.index("SECOND_SESSION_TEXT")
+
+
+def test_context_chunks_param_capped_and_empty_list_means_none_retrieved():
+    from shared.constants import MAX_CONTEXT_CHUNKS
+
+    many = [_chunk(i, "periodization", f"CTX_{i}_") for i in range(MAX_CONTEXT_CHUNKS + 3)]
+    prompt = _make_prompt(_make_athlete(), _make_retrieval(), context_chunks=many)
+    assert f"[C{MAX_CONTEXT_CHUNKS}|" in prompt and f"[C{MAX_CONTEXT_CHUNKS + 1}|" not in prompt
+    empty = _make_prompt(_make_athlete(), _make_retrieval(programming_rationale=[_chunk(9, "periodization", "X")]),
+                         context_chunks=[])
+    assert "(none retrieved)" in empty
+
+
+def test_snippet_width_shows_more_than_the_first_600_chars():
+    """600 chars showed the preamble + topic sentence of a 2-5k-char chunk; the
+    prescription in the tail never reached the model (RAG-H4)."""
+    from shared.constants import SNIPPET_MAX_CHARS
+
+    assert SNIPPET_MAX_CHARS >= 1500
+    long_text = ("lead-in sentence. " * 40) + "TAIL_PRESCRIPTION 5x3 @ 80%"   # tail lands past 600 chars
+    assert len(long_text) - 30 > 600
+    prompt = _make_prompt(_make_athlete(), _make_retrieval(), context_chunks=[_chunk(1, "periodization", long_text)])
+    assert "TAIL_PRESCRIPTION" in prompt
+
+
+def test_prompt_asks_for_chunk_citations_by_label():
+    prompt = _make_prompt(_make_athlete(), _make_retrieval(), context_chunks=[_chunk(1, "periodization", "x")])
+    assert "e.g. [C2]" in prompt

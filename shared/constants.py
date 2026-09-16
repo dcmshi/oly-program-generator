@@ -20,7 +20,9 @@ VECTOR_SEARCH_DEFAULT_TOP_K: int = 5
 VECTOR_SEARCH_MIN_SIMILARITY: float = 0.45  # drop chunks below this cosine similarity
 
 # ── Prompt construction ──────────────────────────────────────────
-SNIPPET_MAX_CHARS: int = 600         # max chars of a knowledge chunk shown in prompt
+SNIPPET_MAX_CHARS: int = 1500        # max chars of a knowledge chunk shown in prompt
+# 600 showed ~15% of a 2-5k-char chunk — the preamble and topic sentence, while
+# the prescription sits in the tail (RAG-H4). Retrieval unit ≈ display unit now.
 MAX_PRINCIPLES_IN_PROMPT: int = 8   # max active principles sent to LLM
 MAX_RECENT_LOGS_IN_PROMPT: int = 10  # recent training entries shown in prompt
 PROMPT_LENGTH_WARN_CHARS: int = 20_000  # log warning if prompt exceeds this (~5k tokens)
@@ -106,3 +108,13 @@ VECTOR_SEARCH_MIN_CANDIDATES: int = 20
 # per-session match in principle_matcher applies every condition field, so the
 # SQL cap only needs to leave enough candidates for that second pass.
 MAX_PRINCIPLE_CANDIDATES: int = 50
+
+# ── Session context assembly (RAG-H4) ───────────────────────────
+# Retrieval runs per session (query keyed by template + phase + intensity
+# band, cached per program); the composed context shows whole-ish chunks,
+# not 600-char heads, with at most this many chunks / fault chunks / chunks
+# from one source.
+MAX_CONTEXT_CHUNKS: int = 4
+MAX_FAULT_CHUNKS_IN_CONTEXT: int = 2
+MAX_CHUNKS_PER_SOURCE_IN_CONTEXT: int = 2
+INTENSITY_BAND_WIDTH_PCT: int = 5  # session queries share a cache entry within this band

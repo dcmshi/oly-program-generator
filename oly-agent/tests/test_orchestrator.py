@@ -574,3 +574,33 @@ def test_principles_selected_per_session_by_movement_family():
     assert [p["id"] for p in val_calls[1].kwargs["active_principles"]] == [2]
     prompt_calls = mocks["build_session_prompt"].call_args_list
     assert [p["id"] for p in prompt_calls[1].kwargs["active_principles"]] == [2]
+
+
+# ── RAG-H4: knowledge context is retrieved per session ───────────────────────
+
+def test_session_context_retrieved_per_session_with_shared_cache():
+    """retrieve_session_context runs once per session with the program-level
+    cache, and the composed chunks reach build_session_prompt as context_chunks."""
+    clean_day = SessionTemplate(day_number=2, label="C&J", primary_movement="clean",
+                                secondary_movements=["jerk"], session_volume_share=0.5, notes="")
+    two_day_plan = ProgramPlan(
+        phase="accumulation", duration_weeks=1, sessions_per_week=2, deload_week=None,
+        weekly_targets=[_week_target(1)], session_templates=[_session_template(1), clean_day],
+        active_principles=[], supporting_chunks=[],
+    )
+    fake_chunks = [{"id": 5, "chunk_type": "periodization", "raw_content": "ctx", "source_id": 1}]
+
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={"plan": two_day_plan})
+        rsc = stack.enter_context(patch("orchestrator.retrieve_session_context", return_value=fake_chunks))
+        run(1, _settings())
+
+    assert rsc.call_count == 2
+    caches = {id(c.kwargs["cache"]) for c in rsc.call_args_list}
+    assert len(caches) == 1, "all sessions must share one query cache"
+    templates = [c.args[3] for c in rsc.call_args_list]
+    assert [t.primary_movement for t in templates] == ["snatch", "clean"]
+    prompt_calls = mocks["build_session_prompt"].call_args_list
+    assert all(c.kwargs["context_chunks"] == fake_chunks for c in prompt_calls)
+    attach_calls = mocks["attach_source_chunk_ids"].call_args_list
+    assert all(c.args[1]["programming_rationale"] == fake_chunks for c in attach_calls)

@@ -25,7 +25,7 @@ from models import AthleteContext, ProgramPlan, SessionTemplate
 from phase_profiles import PHASE_PROFILES
 from plan import plan
 from principle_matcher import build_session_state, select_principles
-from retrieve import retrieve
+from retrieve import retrieve, retrieve_session_context
 from validate import validate_session
 from weight_resolver import apply_projected_maxes, attach_source_chunk_ids, resolve_exercise_ids, resolve_weights
 
@@ -157,6 +157,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
         cumulative_cost = 0.0
         all_sessions_data: list[dict] = []
         failed_sessions: list[str] = []
+        session_context_cache: dict[str, list[dict]] = {}  # query → chunks, per program (RAG-H4)
 
         # Athlete-specific limit takes precedence over the global setting.
         # `is not None`, not `or`, so an explicit 0 ("no spend") is honored (A-L8).
@@ -195,6 +196,15 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     retrieval_context.active_principles, session_state
                 )
 
+                # Per-session knowledge context (RAG-H4): this template's own
+                # query (cached per template + phase + intensity band), fault
+                # chunks round-robined, per-source cap — not the same four
+                # snippets for all sixteen sessions.
+                session_chunks = retrieve_session_context(
+                    vector_loader, athlete_context, program_plan, session_template, week_target,
+                    retrieval_context, top_k=settings.vector_search_top_k, cache=session_context_cache,
+                )
+
                 prompt = build_session_prompt(
                     athlete_context=athlete_context,
                     week_target=week_target,
@@ -209,6 +219,7 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                     phase=program_plan.phase,
                     sessions_per_week=program_plan.sessions_per_week,
                     active_principles=session_principles,
+                    context_chunks=session_chunks,
                 )
 
                 # Deadline guard — the ARQ job timeout can only cancel the
@@ -290,9 +301,12 @@ def run(athlete_id: int, settings: Settings, dry_run: bool = False, deadline: fl
                         f"exercise_id (will store with NULL): {unresolved}"
                     )
                 exercises = resolve_weights(exercises, effective_maxes)
+                # Trace against what THIS session was shown, not the program-level lists
                 exercises = attach_source_chunk_ids(exercises, {
-                    "programming_rationale": retrieval_context.programming_rationale,
-                    "fault_correction_chunks": retrieval_context.fault_correction_chunks,
+                    "programming_rationale": session_chunks,
+                    "fault_correction_chunks": [
+                        c for c in session_chunks if c.get("chunk_type") == "fault_correction"
+                    ],
                 })
 
                 # Accumulate volume for next session's context

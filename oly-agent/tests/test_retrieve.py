@@ -17,7 +17,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan, SessionTemplate, WeekTarget
 from phase_profiles import build_weekly_targets
-from retrieve import retrieve
+from retrieve import build_session_query, compose_session_context, retrieve, retrieve_session_context
 from session_templates import get_session_templates
 
 from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
@@ -245,17 +245,14 @@ def test_two_faults_still_searched():
 # ── Vector search: lift_emphasis in queries ───────────────────────────────────
 
 def test_snatch_biased_emphasis_in_session_query():
-    """lift_emphasis=snatch_biased is included in session template query strings."""
-    vl = _mock_vector_loader()
-    with patch("retrieve.fetch_all", side_effect=[[], []]):
-        retrieve(_ctx(lift_emphasis="snatch_biased"), _plan(), conn=None, vector_loader=vl)
-
+    """lift_emphasis=snatch_biased is included in every session query string
+    (session queries are built per session by build_session_query — RAG-H4)."""
+    plan = _plan()
     session_queries = [
-        call.kwargs.get("query") or call.args[0]
-        for call in vl.similarity_search.call_args_list
-        if "exercise selection" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+        build_session_query(_ctx(lift_emphasis="snatch_biased"), plan, tmpl, plan.weekly_targets[0])
+        for tmpl in plan.session_templates
     ]
-    assert len(session_queries) > 0
+    assert len(session_queries) == 4
     assert all("snatch biased lift focus" in q for q in session_queries), (
         f"Expected 'snatch biased lift focus' in session queries: {session_queries}"
     )
@@ -263,14 +260,10 @@ def test_snatch_biased_emphasis_in_session_query():
 
 def test_balanced_emphasis_not_added_to_query():
     """lift_emphasis=balanced adds nothing to the query (it's the default)."""
-    vl = _mock_vector_loader()
-    with patch("retrieve.fetch_all", side_effect=[[], []]):
-        retrieve(_ctx(lift_emphasis="balanced"), _plan(), conn=None, vector_loader=vl)
-
+    plan = _plan()
     session_queries = [
-        call.kwargs.get("query") or call.args[0]
-        for call in vl.similarity_search.call_args_list
-        if "exercise selection" in (call.kwargs.get("query") or (call.args[0] if call.args else ""))
+        build_session_query(_ctx(lift_emphasis="balanced"), plan, tmpl, plan.weekly_targets[0])
+        for tmpl in plan.session_templates
     ]
     assert all("focus" not in q for q in session_queries), (
         f"'balanced' should not add focus context: {session_queries}"
@@ -360,19 +353,24 @@ def _get_call_query(call):
 
 
 def test_session_template_search_passes_min_similarity():
-    """similarity_search for session templates passes min_similarity=0.45."""
+    """similarity_search for a session passes min_similarity=0.45 and the soft
+    type preference. Session searches moved out of retrieve() into
+    retrieve_session_context (RAG-H4) — retrieve() must not run them any more."""
     vl = _mock_vector_loader()
     with patch("retrieve.fetch_all", side_effect=[[], []]):
-        retrieve(_ctx(), _plan(), conn=None, vector_loader=vl)
+        ctx_out = retrieve(_ctx(), _plan(), conn=None, vector_loader=vl)
+    assert not [c for c in vl.similarity_search.call_args_list if "exercise selection" in _get_call_query(c)], \
+        "retrieve() must not issue program-level session queries"
 
+    plan = _plan()
+    retrieve_session_context(vl, _ctx(), plan, plan.session_templates[0], plan.weekly_targets[0], ctx_out, cache={})
     session_calls = [c for c in vl.similarity_search.call_args_list
                      if "exercise selection" in _get_call_query(c)]
-    assert len(session_calls) > 0
-    for call in session_calls:
-        assert call.kwargs.get("min_similarity") == VECTOR_SEARCH_MIN_SIMILARITY, (
-            f"Expected min_similarity={VECTOR_SEARCH_MIN_SIMILARITY}, "
-            f"got {call.kwargs.get('min_similarity')}"
-        )
+    assert len(session_calls) == 1
+    call = session_calls[0]
+    assert call.kwargs.get("min_similarity") == VECTOR_SEARCH_MIN_SIMILARITY
+    assert call.kwargs.get("preferred_chunk_types") == ["programming_rationale", "periodization"]
+    assert "chunk_types" not in call.kwargs
 
 
 def test_fault_search_passes_min_similarity():
@@ -408,12 +406,16 @@ def test_limiter_search_passes_min_similarity():
 
 
 def test_session_template_search_exception_caught():
-    """similarity_search raising for session template is caught — not re-raised."""
+    """similarity_search raising for a session is caught — the session gets an
+    empty context (and the failure is cached so it isn't retried 16 times)."""
     vl = _mock_vector_loader()
     vl.similarity_search.side_effect = RuntimeError("DB connection lost")
     with patch("retrieve.fetch_all", side_effect=[[], []]):
         result = retrieve(_ctx(), _plan(), conn=None, vector_loader=vl)
     assert result.programming_rationale == []
+    plan, cache = _plan(), {}
+    chunks = retrieve_session_context(vl, _ctx(), plan, plan.session_templates[0], plan.weekly_targets[0], result, cache=cache)
+    assert chunks == [] and len(cache) == 1
 
 
 def test_fault_search_exception_caught():
@@ -484,3 +486,84 @@ def test_fault_search_prefers_fault_correction():
     calls = _all_search_calls(faults=["early_arm_bend"])
     fault_calls = [c for c in calls if "correcting" in c.kwargs["query"]]
     assert fault_calls and all(c.kwargs["preferred_chunk_types"] == ["fault_correction"] for c in fault_calls)
+
+
+# ── RAG-H4: per-session retrieval + context composition ──────────────────────
+
+def _c(id_, source_id, score, chunk_type="periodization", fault=None):
+    d = {"id": id_, "source_id": source_id, "similarity": score, "score": score,
+         "chunk_type": chunk_type, "raw_content": f"chunk {id_}"}
+    if fault:
+        d["fault"] = fault
+    return d
+
+
+def test_build_session_query_names_movement_phase_band_and_humanizes_tokens():
+    plan = _plan(phase="accumulation")
+    wt = plan.weekly_targets[0]
+    q = build_session_query(_ctx(faults=["early_arm_bend"], lift_emphasis="snatch_biased",
+                                 strength_limiters=["squat_limited"]), plan, plan.session_templates[1], wt)
+    assert "clean session" in q and "jerk, pull support" in q
+    assert "accumulation phase" in q
+    lo = int(wt.intensity_floor // 5 * 5)
+    assert f"at {lo}-" in q and "% intensity" in q
+    assert "early arm bend" in q and "early_arm_bend" not in q
+    assert "snatch biased lift focus" in q and "squat limited" in q
+    assert "deload" not in q
+    deload_wt = next(t for t in plan.weekly_targets if t.is_deload)
+    assert "deload week" in build_session_query(_ctx(), plan, plan.session_templates[0], deload_wt)
+
+
+def test_session_queries_differ_per_template_and_are_cached_per_band():
+    """Every template gets its own query (the old code queried [:2]); two weeks
+    in the same intensity band share one search via the cache."""
+    vl = _mock_vector_loader()
+    plan = _plan()
+    rc = MagicMock(fault_correction_chunks=[])
+    cache = {}
+    for tmpl in plan.session_templates:
+        retrieve_session_context(vl, _ctx(), plan, tmpl, plan.weekly_targets[0], rc, cache=cache)
+    assert vl.similarity_search.call_count == 4
+    queries = [c.kwargs["query"] for c in vl.similarity_search.call_args_list]
+    assert len(set(queries)) == 4
+
+    same_band = WeekTarget(week_number=2, volume_modifier=1.0,
+                           intensity_floor=plan.weekly_targets[0].intensity_floor,
+                           intensity_ceiling=plan.weekly_targets[0].intensity_ceiling,
+                           total_competition_lift_reps=20, reps_per_set_range=[2, 4], is_deload=False)
+    retrieve_session_context(vl, _ctx(), plan, plan.session_templates[0], same_band, rc, cache=cache)
+    assert vl.similarity_search.call_count == 4, "same template + band must hit the cache"
+
+
+def test_retrieve_session_context_without_vector_loader_is_empty():
+    plan = _plan()
+    assert retrieve_session_context(None, _ctx(), plan, plan.session_templates[0], plan.weekly_targets[0],
+                                    MagicMock(fault_correction_chunks=[]), cache={}) == []
+
+
+def test_compose_orders_by_score_and_caps_total():
+    session = [_c(1, 10, 0.50), _c(2, 11, 0.70), _c(3, 12, 0.60), _c(4, 13, 0.65), _c(5, 14, 0.90)]
+    out = compose_session_context(session, [], has_faults=False)
+    assert [c["id"] for c in out] == [5, 2, 4, 3]
+
+
+def test_compose_round_robins_fault_chunks_across_faults_first():
+    faults = [
+        _c(101, 20, 0.95, "fault_correction", fault="early_arm_bend"),
+        _c(102, 21, 0.94, "fault_correction", fault="early_arm_bend"),
+        _c(201, 22, 0.80, "fault_correction", fault="jumping_forward"),
+    ]
+    session = [_c(1, 30, 0.9), _c(2, 31, 0.8)]
+    out = compose_session_context(session, faults, has_faults=True)
+    assert [c["id"] for c in out] == [101, 201, 1, 2], "one chunk per fault, best first, then session chunks"
+
+
+def test_compose_ignores_fault_chunks_when_athlete_has_no_faults():
+    out = compose_session_context([_c(1, 30, 0.9)], [_c(101, 20, 0.99, "fault_correction", fault="x")], has_faults=False)
+    assert [c["id"] for c in out] == [1]
+
+
+def test_compose_caps_chunks_per_source_and_dedupes_ids():
+    session = [_c(1, 7, 0.9), _c(2, 7, 0.8), _c(3, 7, 0.7), _c(4, 8, 0.6), _c(1, 7, 0.9)]
+    out = compose_session_context(session, [], has_faults=False)
+    assert [c["id"] for c in out] == [1, 2, 4], "max 2 from source 7, duplicate id dropped"

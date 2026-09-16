@@ -16,13 +16,156 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-from models import AthleteContext, ProgramPlan, RetrievalContext
+from collections import Counter
 
-from shared.constants import VECTOR_SEARCH_DEFAULT_TOP_K, VECTOR_SEARCH_MIN_SIMILARITY
+from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
+
+from shared.constants import (
+    INTENSITY_BAND_WIDTH_PCT,
+    MAX_CHUNKS_PER_SOURCE_IN_CONTEXT,
+    MAX_CONTEXT_CHUNKS,
+    MAX_FAULT_CHUNKS_IN_CONTEXT,
+    VECTOR_SEARCH_DEFAULT_TOP_K,
+    VECTOR_SEARCH_MIN_SIMILARITY,
+)
 from shared.db import fetch_all
 from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
 logger = logging.getLogger(__name__)
+
+
+# ── Per-session retrieval (RAG-H4) ────────────────────────────────
+
+def _humanize(token: str) -> str:
+    """`early_arm_bend` → `early arm bend` — underscores embed as noise."""
+    return str(token).replace("_", " ").strip()
+
+
+def build_session_query(
+    athlete_context: AthleteContext,
+    plan: ProgramPlan,
+    session_template: SessionTemplate,
+    week_target: WeekTarget,
+) -> str:
+    """The retrieval query for ONE session: movement, supporting work, phase,
+    intensity band (rounded to INTENSITY_BAND_WIDTH_PCT so weeks in the same band
+    share a cache entry), level, deload flag, faults, emphasis and limiters."""
+    lo = int(week_target.intensity_floor // INTENSITY_BAND_WIDTH_PCT * INTENSITY_BAND_WIDTH_PCT)
+    hi = int(-(-week_target.intensity_ceiling // INTENSITY_BAND_WIDTH_PCT) * INTENSITY_BAND_WIDTH_PCT)
+    secondary = ", ".join(_humanize(m) for m in session_template.secondary_movements) or "no supporting work"
+    parts = [
+        f"exercise selection for a {_humanize(session_template.primary_movement)} session "
+        f"with {secondary} support",
+        f"during the {_humanize(plan.phase)} phase at {lo}-{hi}% intensity",
+        f"{athlete_context.level} athlete",
+    ]
+    if week_target.is_deload:
+        parts.append("deload week")
+    if athlete_context.technical_faults:
+        parts.append("addressing faults: " + ", ".join(_humanize(f) for f in athlete_context.technical_faults))
+    lift_emphasis = athlete_context.athlete.get("lift_emphasis") or "balanced"
+    if lift_emphasis != "balanced":
+        parts.append(f"{_humanize(lift_emphasis)} lift focus")
+    limiters = athlete_context.athlete.get("strength_limiters") or []
+    if limiters:
+        parts.append("addressing strength limiters: " + ", ".join(_humanize(s) for s in limiters))
+    return ", ".join(parts)
+
+
+def _rank(chunk: dict) -> float:
+    return float(chunk.get("score") or chunk.get("similarity") or 0.0)
+
+
+def compose_session_context(
+    session_chunks: list[dict],
+    fault_chunks: list[dict],
+    has_faults: bool,
+    max_chunks: int = MAX_CONTEXT_CHUNKS,
+    max_fault_chunks: int = MAX_FAULT_CHUNKS_IN_CONTEXT,
+    per_source_cap: int = MAX_CHUNKS_PER_SOURCE_IN_CONTEXT,
+) -> list[dict]:
+    """Pick the chunks one session prompt will show.
+
+    Up to ``max_fault_chunks`` fault chunks first (only when the athlete has
+    faults), round-robin across faults so one fault can't take every slot, then
+    the session's own chunks by score; deduped by id; at most ``per_source_cap``
+    from any one source so a single book can't fill the context.
+    """
+    chosen: list[dict] = []
+    seen: set = set()
+    per_source: Counter = Counter()
+
+    def _take(c: dict) -> bool:
+        cid, sid = c.get("id"), c.get("source_id")
+        if cid in seen or per_source[sid] >= per_source_cap:
+            return False
+        seen.add(cid)
+        per_source[sid] += 1
+        chosen.append(c)
+        return True
+
+    if has_faults and fault_chunks:
+        by_fault: dict = {}
+        for c in fault_chunks:
+            by_fault.setdefault(c.get("fault", "_"), []).append(c)
+        queues = [sorted(v, key=_rank, reverse=True) for v in by_fault.values()]
+        taken = 0
+        while taken < max_fault_chunks and any(queues):
+            for q in queues:
+                if taken >= max_fault_chunks:
+                    break
+                while q:
+                    if _take(q.pop(0)):
+                        taken += 1
+                        break
+
+    for c in sorted(session_chunks, key=_rank, reverse=True):
+        if len(chosen) >= max_chunks:
+            break
+        _take(c)
+
+    return chosen[:max_chunks]
+
+
+def retrieve_session_context(
+    vector_loader,
+    athlete_context: AthleteContext,
+    plan: ProgramPlan,
+    session_template: SessionTemplate,
+    week_target: WeekTarget,
+    retrieval_context: RetrievalContext,
+    top_k: int | None = None,
+    cache: dict | None = None,
+) -> list[dict]:
+    """Retrieve + compose the knowledge context for ONE session (RAG-H4).
+
+    The query is cached per program (``cache`` keyed by query string), so a
+    4-week × 4-day program issues one search per distinct
+    (template, phase, intensity band) rather than sixteen. Returns [] when no
+    vector_loader is available or the search fails — generation continues
+    without knowledge context, as before.
+    """
+    if vector_loader is None:
+        return []
+    cache = cache if cache is not None else {}
+    top_k = top_k or VECTOR_SEARCH_DEFAULT_TOP_K
+    query = build_session_query(athlete_context, plan, session_template, week_target)
+    if query not in cache:
+        try:
+            cache[query] = vector_loader.similarity_search(
+                query=query,
+                top_k=top_k * 2,  # headroom for the per-source cap + fault dedupe
+                preferred_chunk_types=["programming_rationale", "periodization"],
+                min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
+            )
+        except Exception as e:
+            logger.warning(f"Vector search failed for session '{session_template.label}': {e}")
+            cache[query] = []
+    return compose_session_context(
+        cache[query],
+        retrieval_context.fault_correction_chunks,
+        has_faults=bool(athlete_context.technical_faults),
+    )
 
 
 def retrieve(
@@ -100,44 +243,14 @@ def retrieve(
 
         # Build reusable context strings for richer query construction
         level_context = f"{athlete_context.level} athlete"
-        lift_emphasis = athlete_context.athlete.get("lift_emphasis") or "balanced"
         strength_limiters = athlete_context.athlete.get("strength_limiters") or []
 
-        faults_context = (
-            f", addressing faults: {', '.join(athlete_context.technical_faults)}"
-            if athlete_context.technical_faults else ""
-        )
-        emphasis_context = (
-            f", {lift_emphasis.replace('_', ' ')} lift focus"
-            if lift_emphasis != "balanced" else ""
-        )
-        limiters_context = (
-            f", addressing strength limiters: "
-            f"{', '.join(s.replace('_', ' ') for s in strength_limiters)}"
-            if strength_limiters else ""
-        )
-
-        # Session template queries — enriched with lift emphasis + strength limiters
-        for session_tmpl in plan.session_templates[:2]:
-            try:
-                chunks = vector_loader.similarity_search(
-                    query=(
-                        f"exercise selection for {session_tmpl.primary_movement} "
-                        f"during {plan.phase} phase, {level_context}"
-                        f"{faults_context}{emphasis_context}{limiters_context}"
-                    ),
-                    top_k=top_k,
-                    # soft preference, not a filter — the hard chunk_types filter
-                    # reached 15% of the corpus and 0 deload chunks (RAG-H2)
-                    preferred_chunk_types=["programming_rationale", "periodization"],
-                    min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
-                )
-                for c in chunks:
-                    if c.get("id") not in seen_chunk_ids:
-                        seen_chunk_ids.add(c["id"])
-                        programming_rationale.append(c)
-            except Exception as e:
-                logger.warning(f"Vector search failed for session template: {e}")
+        # Session-template queries no longer run here: retrieval for the
+        # session prompt is per session (retrieve_session_context), keyed by
+        # template + phase + intensity band. The old program-level pass queried
+        # only session_templates[:2] and every prompt reused the same four
+        # snippets (RAG-H4). `programming_rationale` now carries the
+        # limiter-driven chunks only.
 
         # Fault correction — search ALL faults, not just the first two
         if athlete_context.technical_faults:
@@ -153,7 +266,9 @@ def retrieve(
                     for c in chunks:
                         if c.get("id") not in fault_seen:
                             fault_seen.add(c["id"])
-                            fault_correction_chunks.append(c)
+                            # remember which fault surfaced it so the session
+                            # context can round-robin across faults (RAG-H4)
+                            fault_correction_chunks.append({**c, "fault": fault})
                 except Exception as e:
                     logger.warning(f"Vector search failed for fault '{fault}': {e}")
 
