@@ -134,6 +134,13 @@ Expected: ~215 sources with `author='Andrew Charniga'` and urls set.
 
 ## 8b. Re-ingest the seven PDF sources (RAG-H1)  ⚠ needs both keys (~$1–2 embeddings + principle extraction)
 
+> **Dev-copy status 2026-09-16:** sources 2, 51, 502, 506 done with `--contextualize` (587 chunks,
+> 8.7–22.6 paragraphs/chunk, chapter set on 574 of them; ≈ $6 of Anthropic spend — principle
+> extraction on Sonnet dominates, not embeddings). Source 52 (Drechsler) had its page-chunks
+> deleted and its run (`ingestion_runs` #527) stopped before any LLM spend when the credit
+> balance ran low — re-run the same command; the run resumes from section 0. Sources 499 and
+> 501 (`--vision`) not started. Budget ≈ $8–9 for Drechsler, ≈ $8 for the two scanned books.
+
 Every PDF source was ingested page-by-page (chunk = page). The fixed pipeline
 joins pages and chunks on real paragraphs, so the old chunks must be deleted
 first — their hashes differ from the new ones, so nothing dedups.

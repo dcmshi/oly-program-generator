@@ -416,7 +416,16 @@ each fixed red-first with tests; migrations 0008–0013 applied to the local cor
 **Still to run on the corpus DB (needs keys, runbook §8b/§9):** the 7-PDF re-ingest with
 `--contextualize`, `relabel_chunk_types.py`, `retag_chunks.py`, `reembed.py` if the model
 changes, then `eval.build_golden` + `eval.run_eval --update-baseline` (and `--dense-only`
-to settle RAG-M1). CI note: the push of `8d1385e` was red because a broken L11 draft was
+to settle RAG-M1). **Dev-copy progress 2026-09-16:** Takano, Zatsiorsky, Everett *for Sports*
+and Dan John re-ingested (587 chunks with context prefixes, 587 principles, 18 templates; ≈ $6);
+Drechsler deleted-and-pending, Laputin/Medvedev (`--vision`), Catalyst, Charniga and the golden
+set wait for an Anthropic top-up (≈ $20). Found on the way and fixed in `1f7ba37`: template
+windows truncated at 4,096 output tokens (now `create_message_growing`), ingestion calls that
+would run adaptive thinking on a Sonnet 5 `llm_model`, and `Chapter 15` headings reaching the
+exercise loader. Open follow-ups from the run: (a) principle count 161 → 748 — the joined
+sections reach the extractor whole; add a cross-source near-duplicate pass (`principle_name`
+similarity + same `condition`) before the prompt cap makes the selection arbitrary; (b) Takano's
+16 generic March templates coexist with 18 chapter-titled ones — dedupe after the Drechsler run. CI note: the push of `8d1385e` was red because a broken L11 draft was
 swept into that docs commit; `7922b78` repaired it and is green.
 
 ### High

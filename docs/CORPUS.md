@@ -6,8 +6,12 @@ any ingest, re-ingest, or bulk delete.
 **Totals:** 3,796 chunks · 151 principles · 439 sources (corpus DB machine, 2026-03-18).
 A dev copy measured on 2026-09-15 held 3,368 chunks · 161 principles · 439 sources ·
 17 templates — the two diverged after the Catalyst delete / later principle runs.
-Reconcile against whichever DB the pending re-ingests run on (runbook §5–8b) and
-update this line, `README.md`, and `docs/SCHEMA.md` together.
+**Dev copy, 2026-09-16, mid re-ingest:** 2,266 chunks · 748 principles · 37 templates —
+Takano, Zatsiorsky, Everett *for Sports* and Dan John are re-chunked on joined pages with
+`--contextualize` (rows 2, 6, 8, 11 below); Drechsler's 603 page-chunks are **deleted and
+not yet replaced** (run stopped before spend, resumes after the credit top-up); Laputin and
+Medvedev still carry page-chunks pending the `--vision` re-run. Reconcile all three counters
+(`README.md`, `docs/SCHEMA.md`) once the batch finishes.
 
 ---
 
@@ -20,19 +24,24 @@ size.
 | # | Source | Format | `source_id` | Profile | Chunks | Principles |
 |---|--------|--------|------------:|---------|-------:|-----------:|
 | 1 | Everett — *Olympic Weightlifting* | EPUB | 507 | programming | 587 | 76 |
-| 2 | Zatsiorsky — *Science and Practice of Strength Training* | PDF | 51 | theory_heavy | 430 | 7 |
-| 3 | Drechsler — *Weightlifting Encyclopedia* | PDF | 52 | theory_heavy | 603 | 6 |
+| 2 | Zatsiorsky — *Science and Practice of Strength Training* | PDF | 51 | theory_heavy | 333 (was 430 page-chunks; 22.6 paras/chunk) | 347 |
+| 3 | Drechsler — *Weightlifting Encyclopedia* | PDF | 52 | theory_heavy | 0 on the dev copy (603 page-chunks deleted 2026-09-16, re-ingest pending) | 6 |
 | 4 | Catalyst Athletics articles | Web | — (418 rows) | web (dynamic) | 446 | 22 |
 | 5 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 499 | soviet | 110 | 3 |
-| 6 | Takano — *Weightlifting Programming* | PDF | 2 | programming | 218 | 0 |
+| 6 | Takano — *Weightlifting Programming* | PDF | 2 | programming | 106 (was 218; 8.7 paras/chunk) | 141 |
 | 7 | Medvedev — *Multi-Year Training in Weightlifting* | PDF (vision OCR) | 501 | soviet | 617 | 0 |
-| 8 | Everett — *Olympic Weightlifting for Sports* | PDF | 502 | programming | 172 | 0 |
+| 8 | Everett — *Olympic Weightlifting for Sports* | PDF | 502 | programming | 25 (was 172; 10.5 paras/chunk) | 40 |
 | 9 | Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 504 | programming | 206 | 21 |
 | 10 | Starrett — *Becoming a Supple Leopard* | EPUB | 505 | theory_heavy | 137 | 16 |
-| 11 | Dan John — *Intervention* | PDF | 506 | programming | 266 | 0 |
+| 11 | Dan John — *Intervention* | PDF | 506 | programming | 123 (was 266; 17.0 paras/chunk) | 66 |
 
-Takano (#6) also produced 16 program templates; Everett *for Sports* (#8)
-produced 11 exercises.
+Takano (#6) produced 16 generic program templates in March and 18 chapter-titled ones on the
+2026-09-16 re-ingest (both sets kept for now — several windows were truncated at 4,096 output
+tokens; `create_message_growing` fixes that for the next run; review and dedupe per runbook §8b).
+Everett *for Sports* (#8) produced 11 exercises in March; the 2026-09-16 run upserted 6 existing
+names and created none. The principle counts jumped (161 → 748) because the joined-page
+sections reach the extractor whole — Zatsiorsky alone yields 347; cross-source near-duplicates
+are expected and worth a dedupe pass (see TODO §11).
 
 ### Notes
 
