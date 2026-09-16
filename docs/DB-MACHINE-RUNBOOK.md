@@ -183,6 +183,8 @@ WHERE s.id IN (51, 52, 2, 502, 506, 499, 501) GROUP BY 1, 2 ORDER BY 3 DESC;
 - Re-run the legacy print report (both keys): `cd oly-ingestion && PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py`
 - Update the tables in `docs/RETRIEVAL_EVAL.md`.
 - Update `docs/CORPUS.md` (source list + chunk counts) and the corpus table in `README.md`.
+- Drop the chapter-heading rows the structured loader once catalogued as exercises (DOG-1, 2026-09-16; `pipeline._parse_exercise` now refuses them, so a re-ingest won't recreate them). Inspect first, then:
+  `DELETE FROM exercises WHERE name IN ('The Pull','Pull','PULL','The Squat','Squat','The Snatch','The Clean','The Jerk') AND NOT EXISTS (SELECT 1 FROM session_exercises se WHERE se.exercise_id = exercises.id);` (8 rows on the dev copy).
 - `PYTHONUTF8=1 uv run python retag_chunks.py` (free, no API): topic tagging switched to whole-word matching on 2026-09-15 (RAG-M7), so every chunk that was NOT re-ingested still carries substring-era tags. Run once after the re-ingests; again whenever `KEYWORD_TO_TOPIC` changes.
 
 ## Not rehearsable from the dev machine (verify here)

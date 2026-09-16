@@ -700,8 +700,9 @@ class IngestionPipeline:
                 re.MULTILINE | re.IGNORECASE,
             )
             name = match.group(0).strip() if match else ""
+            name = re.sub(r"^The\s+", "", name, flags=re.IGNORECASE).strip()
 
-        if not name:
+        if not name or _is_chapter_heading_name(name):
             return {}
 
         name_lower = name.lower()
@@ -733,6 +734,20 @@ class IngestionPipeline:
             "faults_addressed": [],
             "source_id": source_id,
         }
+
+
+# Section titles that name a whole movement, not an exercise: a book's "The
+# Pull" / "PULL" / "Squat" chapters were catalogued as exercises and then shown
+# to the generator as "The Pull [pull] — typical: None-None sets" (DOG-1).
+_GENERIC_MOVEMENT_HEADINGS = frozenset({"pull", "squat", "press", "lift", "lifts", "the lifts"})
+
+
+def _is_chapter_heading_name(name: str) -> bool:
+    """True for an all-caps heading or a bare movement word — not a catalogue entry."""
+    bare = name.strip()
+    if bare.isupper() and len(bare) > 1:
+        return True
+    return bare.lower() in _GENERIC_MOVEMENT_HEADINGS
 
 
 if __name__ == "__main__":

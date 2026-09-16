@@ -154,6 +154,16 @@ def test_faults_addressed_default_empty():
     result = pipeline._parse_exercise(section, source_id=1)
     assert result["faults_addressed"] == [], result
 
+def test_chapter_headings_are_not_exercises():
+    # DOG-1: "The Pull" / "PULL" / "Squat" chapter titles reached the catalogue
+    for title in ("The Pull", "Pull", "PULL", "The Squat", "Squat", "SNATCH"):
+        section = _section(title, "This chapter covers the movement in general terms. It has several parts.")
+        assert pipeline._parse_exercise(section, source_id=1) == {}, title
+    # a real lift named in a heading still parses, with the article stripped either way
+    assert pipeline._parse_exercise(_section("The Snatch", "The snatch is the first lift."), 1)["name"] == "Snatch"
+    assert pipeline._parse_exercise(_section("", "The Clean\n\nThe clean is the first half of the second lift."), 1)["name"] == "Clean"
+    assert pipeline._parse_exercise(_section("Deadlift", "The deadlift builds the pull."), 1)["name"] == "Deadlift"
+
 
 if __name__ == "__main__":
     for fn_name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
