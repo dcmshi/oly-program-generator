@@ -663,7 +663,11 @@ class SemanticChunker:
         Respects keep-together patterns: if a chunk boundary would split
         a matched pattern, the chunk is extended to include the full match.
         """
-        paragraphs = [p.strip() for p in text.split("\n\n") if p.strip()]
+        paragraphs = [
+            piece
+            for p in text.split("\n\n") if p.strip()
+            for piece in self._split_long_paragraph(p.strip())
+        ]
 
         chunks: list[str] = []
         current_chunk = ""
@@ -749,6 +753,53 @@ class SemanticChunker:
 
     @staticmethod
     def _estimate_tokens(text: str) -> int:
-        """Rough token estimate. ~1.3 tokens per word for English.
-        For production, replace with tiktoken or your model's tokenizer."""
-        return int(len(text.split()) * 1.3)
+        """Token count under the embedding model's tokenizer (RAG-M2).
+
+        Delegates to processors.tokens.count_tokens — tiktoken cl100k_base when
+        available, words × 1.3 otherwise. The word estimate under-counted
+        numeric notation by ~5×.
+        """
+        from processors.tokens import count_tokens
+        return count_tokens(text)
+
+    # ── Oversized paragraphs ──────────────────────────────────
+
+    def _split_long_paragraph(self, para: str) -> list[str]:
+        """Split a paragraph longer than chunk_size into sentence groups that fit.
+
+        `_chunk_section` never split a paragraph, so one long paragraph became one
+        oversized chunk that the embedding call then truncated (RAG-M2). Before
+        RAG-H1 every PDF "paragraph" was a page, which masked it. Sentences are
+        grouped up to chunk_size; a single sentence over the limit (a table with
+        no punctuation) is split on whitespace by token budget.
+        """
+        if self._estimate_tokens(para) <= self.chunk_size:
+            return [para]
+
+        def _fit_words(sentence: str) -> list[str]:
+            words, pieces, buf = sentence.split(), [], []
+            for w in words:
+                buf.append(w)
+                if self._estimate_tokens(" ".join(buf)) > self.chunk_size and len(buf) > 1:
+                    buf.pop()
+                    pieces.append(" ".join(buf))
+                    buf = [w]
+            if buf:
+                pieces.append(" ".join(buf))
+            return pieces
+
+        pieces: list[str] = []
+        buf: list[str] = []
+        for sent in re.split(r"(?<=[.!?])\s+", para):
+            if not sent.strip():
+                continue
+            for unit in (_fit_words(sent) if self._estimate_tokens(sent) > self.chunk_size else [sent]):
+                candidate = " ".join([*buf, unit])
+                if buf and self._estimate_tokens(candidate) > self.chunk_size:
+                    pieces.append(" ".join(buf))
+                    buf = [unit]
+                else:
+                    buf.append(unit)
+        if buf:
+            pieces.append(" ".join(buf))
+        return pieces

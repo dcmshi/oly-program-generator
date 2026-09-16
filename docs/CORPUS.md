@@ -120,6 +120,11 @@ silently stall the gap it was meant to fill.
 | `soviet` | Laputin, Medvedev (data-dense, OCR'd) | 700 tokens | 150 |
 | web article | Catalyst, Charniga | 500–1100 (dynamic) | 100–250 |
 
+Sizes are counted with tiktoken `cl100k_base` since 2026-09-15 (RAG-M2). Every
+source above was ingested under the earlier words × 1.3 estimate, which
+under-counted numeric notation ~5×, so re-ingested sources will report different
+chunk counts even before the RAG-H1 page-join effect.
+
 **Always add a new source title to `SOURCE_PROFILE_MAP` in
 `oly-ingestion/processors/chunker.py` before ingesting it.** Matching is by
 substring against the source title; an unrecognised title silently falls back to

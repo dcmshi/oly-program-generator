@@ -19,11 +19,13 @@ from typing import Any
 import psycopg2
 from pgvector.psycopg2 import register_vector
 from processors.chunker import Chunk
+from processors.tokens import truncate_to_tokens
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.constants import (
     CHUNK_TYPE_PREFERENCE_BOOST,
     CHUNK_TYPE_PREFERENCE_BOOST_RRF,
+    EMBED_MAX_TOKENS,
     HNSW_EF_SEARCH,
     HNSW_ITERATIVE_SCAN,
     HYBRID_CANDIDATES_PER_LEG,
@@ -144,16 +146,13 @@ class VectorLoader:
             return 0
 
         # Step 2: Batch embed all new chunks.
-        # Truncate texts that exceed OpenAI's 8192-token limit (~32000 chars at ~4 chars/token).
-        # Oversized chunks lose their tail content but still get embedded — better than dropping them.
-        EMBED_CHAR_LIMIT = 30000
-        texts = [
-            chunk.content[:EMBED_CHAR_LIMIT] if len(chunk.content) > EMBED_CHAR_LIMIT else chunk.content
-            for chunk, _ in new_chunks
-        ]
-        if any(len(chunk.content) > EMBED_CHAR_LIMIT for chunk, _ in new_chunks):
-            over = sum(1 for chunk, _ in new_chunks if len(chunk.content) > EMBED_CHAR_LIMIT)
-            logger.warning(f"  Truncated {over} oversized chunk(s) to {EMBED_CHAR_LIMIT} chars for embedding")
+        # Cap each text at the model's input limit by TOKENS (RAG-M2) — the old
+        # 30k-char cap assumed ~4 chars/token, which numeric notation breaks.
+        # Oversized chunks lose their tail but still get embedded — better than dropping them.
+        texts = [truncate_to_tokens(chunk.content, EMBED_MAX_TOKENS) for chunk, _ in new_chunks]
+        over = sum(1 for (chunk, _), t in zip(new_chunks, texts, strict=True) if t != chunk.content)
+        if over:
+            logger.warning(f"  Truncated {over} oversized chunk(s) to {EMBED_MAX_TOKENS} tokens for embedding")
         all_embeddings = self._embed_batch(texts)
 
         # Step 3: Insert chunks with their embeddings.

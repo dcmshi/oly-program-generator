@@ -129,3 +129,11 @@ HYBRID_SEARCH_ENABLED: bool = True
 RRF_K: int = 60
 HYBRID_CANDIDATES_PER_LEG: int = 20
 CHUNK_TYPE_PREFERENCE_BOOST_RRF: float = 0.004  # ≈ moving up ~15 ranks in one leg
+
+# ── Token accounting (RAG-M2) ───────────────────────────────────
+# Chunk sizes and the embedding cap are counted with the embedding model's own
+# tokenizer (cl100k_base for text-embedding-3-*). The words×1.3 estimate
+# under-counted notation like "(85%/4)4 20:108:280" by ~5× (measured: 24
+# tokens vs 5). The word estimate remains the offline fallback.
+EMBED_MAX_TOKENS: int = 8191          # text-embedding-3-* input limit
+TOKENS_PER_WORD_FALLBACK: float = 1.3  # used only when tiktoken is unavailable
