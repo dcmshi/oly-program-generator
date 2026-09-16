@@ -16,7 +16,7 @@ Read these rather than re-deriving them; update them when the underlying thing c
 | `ARCHITECTURE.md` | Service diagrams, generation sequence, deployment, production env vars |
 | `docs/SCHEMA.md` | ER diagrams + table reference (20 tables) |
 | `docs/CORPUS.md` | Ingested sources, chunk-size profiles, `SOURCE_PROFILE_MAP`, and the planned-additions table (what to ingest next, how to obtain each, and the substitute if that route fails) |
-| `docs/RETRIEVAL_EVAL.md` | Retrieval-quality baseline — re-run and update after any corpus or retrieval change |
+| `docs/RETRIEVAL_EVAL.md` | Retrieval-quality baseline — the graded, gated harness is `oly-agent/eval/` (`build_golden` → `golden.json`, `run_eval` vs `baseline.json`); rebuild the golden set after any corpus change and re-run after any retrieval change |
 | `docs/RAG_RESEARCH.md` | RAG / ingestion / vector-DB review against current practice (2026-09-15): gap matrix, probe evidence, and the ordered remediation plan behind the RAG-* items in `TODO.md` |
 | `docs/CONTRIBUTING.md` | Security audit, scaling checklist, coverage |
 | `docs/DB-MACHINE-RUNBOOK.md` | Pending ops that must run on the corpus DB machine |

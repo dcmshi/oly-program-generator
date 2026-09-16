@@ -1,6 +1,36 @@
 # Retrieval Quality Tracker
 
-Run: `cd oly-ingestion && PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py`
+## Golden-set harness (2026-09-15, RAG-M6) — the gate
+
+`oly-agent/eval/` scores the live retriever under **production settings**
+(hybrid fusion, chunk_type preference, `min_similarity`, `top_k`) against a
+graded relevance set, and fails on regression:
+
+```bash
+cd oly-agent
+PYTHONUTF8=1 uv run python -m eval.build_golden --dry-run      # 57 queries: 35 production-shaped + 22 legacy
+PYTHONUTF8=1 uv run python -m eval.build_golden                # LLM grades dense ∪ hybrid candidates 0/1/2 → eval/golden.json (~$1, Haiku-class)
+PYTHONUTF8=1 uv run python -m eval.run_eval --update-baseline  # freeze eval/baseline.json
+PYTHONUTF8=1 uv run python -m eval.run_eval                    # recall@5 / MRR / nDCG@5 / source share; exit 1 on regression
+PYTHONUTF8=1 uv run python -m eval.run_eval --dense-only       # ablation
+INTEGRATION_TESTS=1 uv run pytest tests/test_eval_harness.py   # the same gate as a test
+```
+
+Production-shaped queries are built with `retrieve.py`'s own query builders
+(`build_session_query` per phase × session template, `build_fault_query` per
+`FAULT_OPTIONS` value, `build_limiter_query` per limiter), so the eval measures
+exactly what generation receives. **Status:** harness landed; `golden.json` and
+`baseline.json` are not built yet — build them on the corpus DB machine *after*
+the RAG-H1 re-ingest (grades are tied to chunk ids, so they must be rebuilt after
+any corpus change). Until then the section below is the only baseline.
+
+## Legacy 22-query report (print-only)
+
+Run: `cd oly-ingestion && PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py [--dense-only]`
+
+Since 2026-09-15 this report also searches under production settings (hybrid +
+session preference); the 2026-03-18 numbers below were taken unfiltered and
+dense-only.
 
 ## Baseline — 2026-03-18
 

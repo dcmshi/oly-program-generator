@@ -73,6 +73,21 @@ def build_session_query(
     return ", ".join(parts)
 
 
+def build_fault_query(fault: str, level: str) -> str:
+    """The retrieval query for one technical fault (shared with the eval harness)."""
+    return f"correcting {fault} in weightlifting, {level} athlete"
+
+
+def build_limiter_query(limiter: str, level: str) -> str:
+    """The retrieval query for one strength limiter (`squat_limited` → `squat`)."""
+    term = limiter.replace("_limited", "").replace("_", " ").strip()
+    return f"{term} strength development for {level} athlete weightlifter"
+
+
+SESSION_PREFERRED_TYPES = ["programming_rationale", "periodization"]
+FAULT_PREFERRED_TYPES = ["fault_correction"]
+
+
 def _rank(chunk: dict) -> float:
     return float(chunk.get("score") or chunk.get("similarity") or 0.0)
 
@@ -156,7 +171,7 @@ def retrieve_session_context(
             cache[query] = vector_loader.similarity_search(
                 query=query,
                 top_k=top_k * 2,  # headroom for the per-source cap + fault dedupe
-                preferred_chunk_types=["programming_rationale", "periodization"],
+                preferred_chunk_types=SESSION_PREFERRED_TYPES,
                 min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                 hybrid=HYBRID_SEARCH_ENABLED,
             )
@@ -246,8 +261,6 @@ def retrieve(
     if vector_loader is not None:
         seen_chunk_ids: set[int] = set()
 
-        # Build reusable context strings for richer query construction
-        level_context = f"{athlete_context.level} athlete"
         strength_limiters = athlete_context.athlete.get("strength_limiters") or []
 
         # Session-template queries no longer run here: retrieval for the
@@ -263,9 +276,9 @@ def retrieve(
             for fault in athlete_context.technical_faults:
                 try:
                     chunks = vector_loader.similarity_search(
-                        query=f"correcting {fault} in weightlifting, {level_context}",
+                        query=build_fault_query(fault, athlete_context.level),
                         top_k=top_k,
-                        preferred_chunk_types=["fault_correction"],
+                        preferred_chunk_types=FAULT_PREFERRED_TYPES,
                         min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                         hybrid=HYBRID_SEARCH_ENABLED,
                     )
@@ -280,16 +293,12 @@ def retrieve(
 
         # Strength limiter searches — pull targeted programming content per limiter
         for limiter in strength_limiters:
-            limiter_term = limiter.replace("_limited", "").replace("_", " ").strip()
             try:
                 chunks = vector_loader.similarity_search(
-                    query=(
-                        f"{limiter_term} strength development "
-                        f"for {level_context} weightlifter"
-                    ),
+                    query=build_limiter_query(limiter, athlete_context.level),
                     top_k=top_k,
                     # `methodology` dropped: the inference never assigns it (RAG-H2)
-                    preferred_chunk_types=["programming_rationale", "periodization"],
+                    preferred_chunk_types=SESSION_PREFERRED_TYPES,
                     min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                     hybrid=HYBRID_SEARCH_ENABLED,
                 )

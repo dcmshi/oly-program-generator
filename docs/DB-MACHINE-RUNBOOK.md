@@ -177,8 +177,11 @@ WHERE s.id IN (51, 52, 2, 502, 506, 499, 501) GROUP BY 1, 2 ORDER BY 3 DESC;
 
 ## 9. Post
 
-- Re-run the retrieval eval (both keys): `PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py`
-- Update the baseline table in `docs/RETRIEVAL_EVAL.md`.
+- Build the graded golden set and freeze the baseline (both keys; grades are tied to chunk ids, so this must follow every re-ingest):
+  `cd oly-agent && PYTHONUTF8=1 uv run python -m eval.build_golden && PYTHONUTF8=1 uv run python -m eval.run_eval --update-baseline`
+  then `uv run python -m eval.run_eval --dense-only` to record the hybrid-vs-dense ablation in `docs/RETRIEVAL_EVAL.md` (RAG-M1's acceptance).
+- Re-run the legacy print report (both keys): `cd oly-ingestion && PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py`
+- Update the tables in `docs/RETRIEVAL_EVAL.md`.
 - Update `docs/CORPUS.md` (source list + chunk counts) and the corpus table in `README.md`.
 - `retag_chunks.py` only if `KEYWORD_TO_TOPIC` changed.
 

@@ -14,150 +14,19 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent / "shared"))
 
-MIN_SIMILARITY = 0.45  # mirrors VECTOR_SEARCH_MIN_SIMILARITY in shared/constants.py
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
+from shared.constants import HYBRID_SEARCH_ENABLED, VECTOR_SEARCH_MIN_SIMILARITY  # noqa: E402
+
+MIN_SIMILARITY = VECTOR_SEARCH_MIN_SIMILARITY
+# Production-parity (RAG-M6): the agent searches with the chunk_type PREFERENCE and
+# hybrid fusion; this report used to search unfiltered, so its recall never matched
+# what generation received. The graded, gated harness is oly-agent/eval/.
+SESSION_PREFERRED_TYPES = ["programming_rationale", "periodization"]
 
 # ── Evaluation query set ──────────────────────────────────────
 # From the design doc — used to measure retrieval quality after ingestion.
 
-RETRIEVAL_EVAL_QUERIES = [
-    {
-        "query": "How should I structure volume during a 4-week accumulation block?",
-        "expected_topics": ["accumulation_phase", "volume_management"],
-        "expected_chunk_type": ["periodization", "programming_rationale"],
-        "should_contain_numbers": True,
-    },
-    {
-        "query": "What exercises help fix an athlete who consistently misses snatches forward?",
-        "expected_topics": ["fault_correction", "snatch_technique", "exercise_selection_rationale"],
-        "expected_chunk_type": ["fault_correction", "methodology"],
-    },
-    {
-        "query": "How many weeks out should I start reducing volume before a competition?",
-        "expected_topics": ["competition_peaking", "volume_management"],
-        "expected_chunk_type": ["periodization", "programming_rationale", "concept"],
-        "should_contain_numbers": True,
-        "note": "Explanatory peaking content is correctly classified as 'concept'; eval accepts concept type.",
-    },
-    {
-        "query": "When should a beginner transition from learning technique to structured programming?",
-        "expected_topics": ["beginner_development", "periodization_models"],
-        "expected_chunk_type": ["methodology", "concept"],
-    },
-    {
-        "query": "What is the relationship between squat strength and clean & jerk performance?",
-        "expected_topics": ["squat_programming", "clean_programming"],
-        "expected_chunk_type": ["concept", "biomechanics"],
-    },
-    # Jerk faults
-    {
-        "query": "What causes an athlete to press out on the jerk and how do I fix it?",
-        "expected_topics": ["fault_correction", "jerk_technique"],
-        "expected_chunk_type": ["fault_correction", "methodology"],
-    },
-    # Clean technique
-    {
-        "query": "How should I coach the catch position in the clean for an athlete with poor thoracic mobility?",
-        "expected_topics": ["clean_technique", "fault_correction"],
-        "expected_chunk_type": ["fault_correction", "methodology", "concept"],
-    },
-    # Recovery / fatigue management
-    {
-        "query": "How much recovery time is needed between heavy sessions and how do I manage fatigue across a training week?",
-        "expected_topics": ["fatigue_management", "recovery_protocols"],
-        "expected_chunk_type": ["periodization", "concept", "recovery_adaptation"],
-        "note": "Fatigue/recovery content is correctly classified as 'concept' or 'recovery_adaptation'; eval accepts both.",
-    },
-    # Competition attempt selection
-    {
-        "query": "How should an athlete select opening attempts and second attempts at a competition?",
-        "expected_topics": ["competition_strategy"],
-        "expected_chunk_type": ["methodology", "concept"],
-    },
-    # Long-term athlete development (Medvedev's specialty)
-    {
-        "query": "How should multi-year training be structured from beginner to elite weightlifter?",
-        "expected_topics": ["beginner_development", "periodization_models", "annual_planning"],
-        "expected_chunk_type": ["periodization", "methodology", "concept"],
-        "note": "Long-term development content is predominantly classified 'concept'; eval accepts it.",
-    },
-    # Training frequency / session structure
-    {
-        "query": "How many training sessions per week should an intermediate weightlifter do?",
-        "expected_topics": ["periodization_models", "intermediate_development"],
-        "expected_chunk_type": ["periodization", "methodology", "concept"],
-    },
-    # Prilepin / intensity zones
-    {
-        "query": "What does Prilepin's chart say about optimal sets and reps at 80 to 90 percent intensity?",
-        "expected_topics": ["intensity_prescription", "volume_management"],
-        "expected_chunk_type": ["periodization", "concept"],
-        "should_contain_numbers": True,
-    },
-    # Accessory / hypertrophy (Israetel)
-    {
-        "query": "How much weekly volume should I do for upper back hypertrophy as a weightlifter?",
-        "expected_topics": ["exercise_selection_rationale"],
-        "expected_chunk_type": ["concept", "methodology"],
-        "note": (
-            "Israetel covers MEV/MAV/MRV as a framework but has no per-muscle-group volume tables. "
-            "Expect framework-level content (concept type); do not require numbers."
-        ),
-    },
-    {
-        "query": "How do I periodise accessory hypertrophy work alongside competition lift training?",
-        "expected_topics": ["exercise_selection_rationale", "periodization_models"],
-        "expected_chunk_type": ["periodization", "concept", "methodology"],
-        "note": "Should surface Israetel on integrating hypertrophy blocks with strength phases.",
-    },
-    # Mobility (Starrett)
-    {
-        "query": "How do I improve hip mobility and squat depth for the receiving position in the clean?",
-        "expected_topics": ["clean_technique"],
-        "expected_chunk_type": ["fault_correction", "methodology", "concept"],
-        "note": "Should surface Starrett content on hip mobility and squat mechanics.",
-    },
-    {
-        "query": "What mobility work helps an athlete achieve a better overhead position in the snatch?",
-        "expected_topics": ["snatch_technique"],
-        "expected_chunk_type": ["fault_correction", "methodology", "concept"],
-        "note": "Should surface Starrett shoulder/thoracic mobility content.",
-    },
-    {
-        "query": "How should I address limited ankle mobility that causes an athlete to fold forward in the squat?",
-        "expected_topics": ["squat_programming"],
-        "expected_chunk_type": ["fault_correction", "methodology", "concept"],
-        "note": "Should surface Starrett ankle mobility content. Explanatory chunks correctly classified as 'concept'.",
-    },
-    # GPP / conditioning (Dan John)
-    {
-        "query": "What general physical preparation work should a weightlifter do in the off-season?",
-        "expected_topics": ["exercise_selection_rationale", "periodization_models"],
-        "expected_chunk_type": ["methodology", "concept"],
-        "note": "Should surface Dan John GPP and big rocks content.",
-    },
-    {
-        "query": "How should I use loaded carries and conditioning work alongside weightlifting training?",
-        "expected_topics": ["exercise_selection_rationale"],
-        "expected_chunk_type": ["methodology", "concept"],
-        "note": "Should surface Dan John carry and conditioning content.",
-    },
-    # RPE / autoregulation (cross-source)
-    {
-        "query": "How do I use RPE to autoregulate training intensity from session to session?",
-        "expected_topics": ["load_progression", "intensity_prescription"],
-        "expected_chunk_type": ["methodology", "concept"],
-    },
-    # Negative / edge cases
-    {
-        "query": "How to do a barbell curl",
-        "expected_topics": [],
-        "note": "Should return few or no results — curls are not in the knowledge base.",
-    },
-    {
-        "query": "What percentage should I use for back squats?",
-        "note": "Ambiguous query — results should span multiple contexts.",
-    },
-]
+from eval_queries import RETRIEVAL_EVAL_QUERIES  # noqa: E402  (moved for the golden-set harness, RAG-M6)
 
 
 def _search_principles(conn, keywords: list[str], limit: int = 3) -> list[dict]:
@@ -184,8 +53,8 @@ def _search_principles(conn, keywords: list[str], limit: int = 3) -> list[dict]:
     return [{"name": r[0], "category": r[1], "priority": r[2], "recommendation": r[3]} for r in rows]
 
 
-def run_eval(top_k: int = 5, min_similarity: float = MIN_SIMILARITY):
-    """Run all evaluation queries and print a report."""
+def run_eval(top_k: int = 5, min_similarity: float = MIN_SIMILARITY, hybrid: bool = HYBRID_SEARCH_ENABLED):
+    """Run all evaluation queries under production settings and print a report."""
     import psycopg2
     from config import Settings
     from loaders.vector_loader import VectorLoader
@@ -195,7 +64,8 @@ def run_eval(top_k: int = 5, min_similarity: float = MIN_SIMILARITY):
     db_conn = psycopg2.connect(settings.database_url)
 
     print(f"\n{'='*60}")
-    print(f"RETRIEVAL EVAL — top_k={top_k}, min_similarity={min_similarity}")
+    print(f"RETRIEVAL EVAL — top_k={top_k}, min_similarity={min_similarity}, hybrid={hybrid}, "
+          f"preferred_chunk_types={SESSION_PREFERRED_TYPES}")
     print(f"{'='*60}\n")
 
     for i, eval_case in enumerate(RETRIEVAL_EVAL_QUERIES, 1):
@@ -212,9 +82,14 @@ def run_eval(top_k: int = 5, min_similarity: float = MIN_SIMILARITY):
         results = loader.similarity_search(
             query=query,
             top_k=top_k,
-            require_numbers=require_numbers if require_numbers else None,
+            # require_numbers is a legacy display hint, not a production filter — keep the
+            # report honest by searching exactly as retrieve.py does
             min_similarity=min_similarity,
+            preferred_chunk_types=SESSION_PREFERRED_TYPES,
+            hybrid=hybrid,
         )
+        if require_numbers:
+            print(f"     ({sum(1 for r in results if r.get('information_density') == 'high')} of {len(results)} high-density)")
 
         if not results:
             print("     → No results returned")
@@ -266,5 +141,6 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument("--top-k", type=int, default=5)
     parser.add_argument("--min-similarity", type=float, default=MIN_SIMILARITY)
+    parser.add_argument("--dense-only", action="store_true", help="ablation: disable the lexical leg")
     args = parser.parse_args()
-    run_eval(top_k=args.top_k, min_similarity=args.min_similarity)
+    run_eval(top_k=args.top_k, min_similarity=args.min_similarity, hybrid=not args.dense_only)

@@ -95,7 +95,8 @@ AGENT_TESTS := \
 	tests/test_formulas.py \
 	tests/test_phase_progression.py \
 	tests/test_log.py \
-	tests/test_principle_matcher.py
+	tests/test_principle_matcher.py \
+	tests/test_eval_harness.py
 
 INGESTION_TESTS := \
 	tests/test_chunker.py \
