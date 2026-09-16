@@ -38,7 +38,9 @@ from shared.constants import (
     MAX_RECENT_LOGS_IN_PROMPT,
     MAX_TEMPLATE_CHARS_IN_PROMPT,
     MAX_TEMPLATES_IN_PROMPT,
+    PROMPT_CACHE_MIN_CHARS,
     PROMPT_LENGTH_WARN_CHARS,
+    PROMPT_STATIC_DYNAMIC_MARKER,
     SNIPPET_MAX_CHARS,
 )
 from shared.llm import create_message_with_retries, estimate_cost
@@ -551,12 +553,11 @@ You MUST:
 - Include 2-3 warmup sets (50-60%) before each competition lift or heavy pull (snatch, clean, jerk, clean & jerk). Warmup sets are 2-3 reps, ordered first in the session. Use the same exercise name as the working sets (e.g. "Snatch" warmups before "Snatch" working sets).
 
 You MUST NOT:
-- Exceed the intensity ceiling of {week_target.intensity_ceiling}%
+- Exceed the week's intensity ceiling given under Program Plan
 - Prescribe more reps per set than Prilepin's chart allows for the intensity zone
 - Include exercises from the avoid list
 - Include exercises the athlete cannot perform due to injuries
 {"- Prescribe any exercise requiring lifting blocks (e.g. any from-blocks variation) — athlete does not have blocks available." if not has_blocks else ""}
-{"- Exceed 3 sets or 3 reps per set on any competition lift — this is a DELOAD week. Prioritize movement quality over load." if week_target.is_deload else ""}
 
 ## Athlete Profile
 Name: {athlete_context.athlete['name']}
@@ -582,12 +583,24 @@ Injuries: {injuries_str}
 ## Recent Training (last 14 days)
 {recent_logs_block}
 
-## Program Plan
+## Available Exercises
+{exercises_block}
+
+## Fault Correction Exercises (prescribe ≥1 per session when faults are listed)
+{fault_block}
+
+## Exercises to Avoid
+{avoid_str}
+
+## Injury Substitutions
+{substitutions_block}
+{PROMPT_STATIC_DYNAMIC_MARKER.strip(chr(10))}
 Phase: {phase} — Week {week_number} of {duration_weeks}
 Intensity range: {week_target.intensity_floor}% – {week_target.intensity_ceiling}%
+Intensity ceiling (hard limit for competition lifts): {week_target.intensity_ceiling}%
 Volume modifier: {week_target.volume_modifier:.2f} (1.0 = baseline)
 Reps per set (comp lifts): {week_target.reps_per_set_range[0]}–{week_target.reps_per_set_range[1]}
-Deload week: {'YES — reduce all loads' if week_target.is_deload else 'No'}
+Deload week: {'YES — reduce all loads; do NOT exceed 3 sets or 3 reps per set on any competition lift; prioritize movement quality over load' if week_target.is_deload else 'No'}
 
 ## Session Template
 Day {session_template.day_number}: {session_template.label}
@@ -603,18 +616,6 @@ Target competition lift reps this session: {session_rep_target}
 {already_block}
 Cumulative competition lift reps so far (this week): {cumulative_comp_reps}
 Remaining weekly rep budget: {remaining_weekly_reps} (of {week_target.total_competition_lift_reps} for the week)
-
-## Available Exercises
-{exercises_block}
-
-## Fault Correction Exercises (prescribe ≥1 per session when faults are listed)
-{fault_block}
-
-## Exercises to Avoid
-{avoid_str}
-
-## Injury Substitutions
-{substitutions_block}
 
 ## Active Principles
 {principles_block}
@@ -649,6 +650,38 @@ Respond ONLY with a valid JSON array. No markdown, no preamble, no explanation o
         )
 
     return prompt
+
+
+# ── Prompt caching (RAG-L3) ───────────────────────────────────────
+
+def split_prompt_for_caching(prompt: str) -> tuple[str, str]:
+    """Split a session prompt into (static prefix, dynamic tail) at the
+    PROMPT_STATIC_DYNAMIC_MARKER — everything before `## Program Plan` is the
+    same for all sessions of a program (rules, athlete, maxes, history,
+    exercise catalogue, avoid list, substitutions); everything from there on is
+    per week / per session. Returns ("", prompt) when the marker is absent."""
+    idx = prompt.find(PROMPT_STATIC_DYNAMIC_MARKER)
+    if idx < 0:
+        return "", prompt
+    return prompt[:idx], prompt[idx:]
+
+
+def prompt_content_blocks(prompt: str):
+    """Message content for one generation call.
+
+    When the static prefix is long enough to be cacheable it is sent as its own
+    text block with `cache_control`, so the 16 near-identical calls of a program
+    (and every validation retry, which only appends to the dynamic tail) read the
+    prefix from cache instead of paying for it. Short prompts go as a plain
+    string — the cache minimum would not be met and the extra block is noise.
+    """
+    static, dynamic = split_prompt_for_caching(prompt)
+    if len(static) < PROMPT_CACHE_MIN_CHARS:
+        return prompt
+    return [
+        {"type": "text", "text": static, "cache_control": {"type": "ephemeral"}},
+        {"type": "text", "text": dynamic},
+    ]
 
 
 # ── Session generation with retries ───────────────────────────
@@ -707,7 +740,7 @@ def generate_session_with_retries(
                 model=settings.generation_model,
                 max_tokens=settings.generation_max_tokens,
                 temperature=settings.generation_temperature,
-                messages=[{"role": "user", "content": current_prompt}],
+                messages=[{"role": "user", "content": prompt_content_blocks(current_prompt)}],
             )
             last_raw = response.content[0].text
             input_tokens = response.usage.input_tokens

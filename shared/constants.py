@@ -144,3 +144,11 @@ TOKENS_PER_WORD_FALLBACK: float = 1.3  # used only when tiktoken is unavailable
 # compactly, capped per template.
 MAX_TEMPLATE_CHARS_IN_PROMPT: int = 700
 MAX_TEMPLATES_IN_PROMPT: int = 2
+
+# ── Prompt caching (RAG-L3) ─────────────────────────────────────
+# The session prompt is ordered static-first (athlete, maxes, catalogue, …)
+# and split at PROMPT_STATIC_DYNAMIC_MARKER; the static part is sent as a
+# cache_control block when it is long enough to be cacheable at all
+# (Anthropic's minimum is ~1,024 tokens ≈ 4,000 chars).
+PROMPT_STATIC_DYNAMIC_MARKER: str = "\n## Program Plan\n"
+PROMPT_CACHE_MIN_CHARS: int = 4000

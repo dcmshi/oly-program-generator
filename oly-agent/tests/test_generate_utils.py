@@ -1259,3 +1259,80 @@ def test_generate_with_retries_threads_retrieval_set_into_every_log_row():
     assert result.status == "success"
     assert log.call_count >= 1
     assert all(c.kwargs.get("retrieval_set") == rset for c in log.call_args_list)
+
+
+# ── RAG-L3: static-first prompt + cached prefix ──────────────────────────────
+
+def test_prompt_is_static_first_and_splits_at_program_plan():
+    from generate import split_prompt_for_caching
+
+    prompt = _make_prompt()
+    static, dynamic = split_prompt_for_caching(prompt)
+    assert static + dynamic == prompt
+    for section in ("## Athlete Profile", "## Available Exercises", "## Exercises to Avoid", "## Injury Substitutions"):
+        assert section in static and section not in dynamic, section
+    for section in ("## Program Plan", "## Session Template", "## Already Prescribed This Week",
+                    "## Active Principles", "## Programming Context", "## Instructions"):
+        assert section in dynamic and section not in static, section
+    # the week-dependent rules moved out of the static rules block
+    assert "Exceed the intensity ceiling of" not in static
+    assert "Intensity ceiling (hard limit for competition lifts): 82.0%" in dynamic
+
+
+def test_deload_rule_lives_in_the_dynamic_part():
+    retrieval = _make_retrieval()
+    deload = WeekTarget(4, 0.6, 60.0, 70.0, 10, [1, 3], True)
+    prompt = build_session_prompt(
+        _make_athlete(), deload, SessionTemplate(1, "Snatch + Squat", "snatch", ["squat"], 0.30), retrieval,
+        week_number=4, duration_weeks=4, already_prescribed=[], session_rep_target=4, cumulative_comp_reps=0,
+        phase="accumulation",
+    )
+    from generate import split_prompt_for_caching
+
+    static, dynamic = split_prompt_for_caching(prompt)
+    assert "do NOT exceed 3 sets or 3 reps per set" in dynamic and "DELOAD" not in static
+
+
+def test_prompt_content_blocks_cache_the_static_prefix_when_long_enough():
+    from generate import prompt_content_blocks
+
+    from shared.constants import PROMPT_CACHE_MIN_CHARS, PROMPT_STATIC_DYNAMIC_MARKER
+
+    long_static = "x" * (PROMPT_CACHE_MIN_CHARS + 10)
+    prompt = long_static + PROMPT_STATIC_DYNAMIC_MARKER + "Phase: accumulation\n\n## Instructions\n..."
+    blocks = prompt_content_blocks(prompt)
+    assert isinstance(blocks, list) and len(blocks) == 2
+    assert blocks[0]["text"] == long_static and blocks[0]["cache_control"] == {"type": "ephemeral"}
+    assert blocks[1]["text"].startswith(PROMPT_STATIC_DYNAMIC_MARKER) and "cache_control" not in blocks[1]
+    # a retry appends to the dynamic tail only — the cached prefix is byte-identical
+    retry = prompt + "\n\nIMPORTANT: fix these issues"
+    assert prompt_content_blocks(retry)[0]["text"] == long_static
+
+    short = "tiny" + PROMPT_STATIC_DYNAMIC_MARKER + "Phase: x"
+    assert prompt_content_blocks(short) == short
+    assert prompt_content_blocks("no marker at all") == "no marker at all"
+
+
+def test_generate_sends_cached_blocks_for_a_real_prompt():
+    from unittest.mock import MagicMock, patch
+
+    from generate import generate_session_with_retries
+
+    prompt = _make_prompt()
+    client = MagicMock()
+    client.messages.create.return_value = MagicMock(
+        content=[MagicMock(text='[{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, "reps": 2, '
+                               '"intensity_pct": 75, "intensity_reference": "snatch", "rest_seconds": 120, '
+                               '"rpe_target": 7.5, "selection_rationale": "x", "source_principle_ids": []}]')],
+        usage=MagicMock(input_tokens=10, output_tokens=5),
+    )
+    settings = MagicMock(max_generation_retries=1, max_parse_retries=1, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    with patch("generate._log_generation"), patch("generate.validate_session") as val:
+        val.return_value = MagicMock(is_valid=True, warnings=[], errors=[])
+        generate_session_with_retries(prompt, client, settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1, MagicMock())
+    content = client.messages.create.call_args.kwargs["messages"][0]["content"]
+    if len(prompt.split("\n## Program Plan\n")[0]) >= 4000:
+        assert isinstance(content, list) and content[0]["cache_control"] == {"type": "ephemeral"}
+    else:
+        assert content == prompt
