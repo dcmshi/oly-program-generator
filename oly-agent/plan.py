@@ -113,6 +113,7 @@ def plan(athlete_context: AthleteContext, conn, settings) -> ProgramPlan:
                 intensity_ceiling=t["intensity_ceiling"],
                 session_volume_share=s.session_volume_share,
                 volume_modifier=t["volume_modifier"],
+                sessions_per_week=len(session_templates),
             )
             for s in session_templates
         )

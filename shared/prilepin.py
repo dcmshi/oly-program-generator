@@ -68,27 +68,38 @@ def compute_session_rep_target(
     intensity_ceiling: float,
     session_volume_share: float,
     volume_modifier: float = 1.0,
+    sessions_per_week: int = 1,
 ) -> int:
-    """Compute a target rep count for competition lifts in a single session.
+    """Target competition-lift reps for one session.
 
-    Uses the midpoint of the intensity range to find the Prilepin zone,
-    then scales the optimal total by session share and volume modifier.
+    Prilepin's optimal total is a *per-session* number (18 reps in the 70-80%
+    zone), so the week's budget is one optimal per session, redistributed
+    across the sessions by ``session_volume_share`` (the shares of a
+    template set sum to 1.0) and scaled by the week's ``volume_modifier``:
 
-    Example:
-        intensity 70-80%, session_volume_share=0.30, volume_modifier=1.0
-        -> zone "70-80", optimal=18, target = 18 x 0.30 x 1.0 = 5 reps
+        target = optimal(zone at the intensity midpoint)
+                 x session_volume_share x sessions_per_week x volume_modifier
+
+    Example: 70-80%, share 0.30, 4 sessions, modifier 1.0 -> 18 x 0.30 x 4 = 22
+    reps, and the four shares (0.30/0.30/0.20/0.20) sum to 72 for the week.
+
+    Until DOG-1g (2026-09-16) the ``sessions_per_week`` factor was missing, so
+    one session's optimal was spread over the whole week: a 4-day accumulation
+    week carried a 16-18 rep budget while the athlete's real block and the
+    generator both did 60-95 working comp-lift reps, and the weekly budget
+    warning fired on every day-4 session.
     """
     midpoint = (intensity_floor + intensity_ceiling) / 2
     zone_key = get_prilepin_zone(midpoint)
+    scale = session_volume_share * max(1, sessions_per_week) * volume_modifier
     if not zone_key:
         # Below 55%: use the lightest zone (55-65) as proxy so deload rep targets
         # stay proportional.
         fallback_optimal = PRILEPIN_ZONES[0]["optimal"]
-        return max(MIN_SESSION_REPS, round(fallback_optimal * session_volume_share * volume_modifier))
+        return max(MIN_SESSION_REPS, round(fallback_optimal * scale))
 
     zone_data = get_prilepin_data(zone_key)
     if not zone_data:
         return MIN_SESSION_REPS
 
-    raw_target = zone_data["optimal_total_reps"] * session_volume_share * volume_modifier
-    return max(MIN_SESSION_REPS, round(raw_target))  # minimum to be a meaningful set
+    return max(MIN_SESSION_REPS, round(zone_data["optimal_total_reps"] * scale))

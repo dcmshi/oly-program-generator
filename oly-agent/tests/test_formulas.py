@@ -67,6 +67,38 @@ def test_estimate_session_minutes_empty():
     assert estimate_session_minutes([]) == 0
 
 
+# ── DOG-1g: the weekly comp-lift budget is one Prilepin optimal per session ──
+
+def test_session_rep_target_is_one_prilepin_optimal_per_session():
+    from shared.prilepin import compute_session_rep_target
+
+    shares = (0.30, 0.30, 0.20, 0.20)                      # a 4-day template set
+    targets = [compute_session_rep_target(70, 80, s, 1.0, sessions_per_week=4) for s in shares]
+    assert targets == [22, 22, 14, 14]                     # 18 optimal x share x 4
+    assert sum(targets) == 72                              # the real block did 87-96, the generator 63-94
+    deload = [compute_session_rep_target(65, 73, s, 0.6, sessions_per_week=4) for s in shares]
+    assert sum(deload) < sum(targets) and all(t >= 3 for t in deload)
+    # the old single-session semantics remain the default for lone callers
+    assert compute_session_rep_target(70, 80, 0.30, 1.0) == 5
+    return True, ""
+
+
+def test_plan_weekly_budget_scales_with_frequency():
+    from unittest.mock import patch
+
+    from plan import plan
+    from tests.test_plan import _FakeSettings, _ctx
+
+    with patch("plan.fetch_all", return_value=[]):
+        four = plan(_ctx(previous_program={"phase": "x"}, sessions_per_week=4), None, _FakeSettings())
+        three = plan(_ctx(previous_program={"phase": "x"}, sessions_per_week=3), None, _FakeSettings())
+    w4 = next(w for w in four.weekly_targets if not w.is_deload)
+    w3 = next(w for w in three.weekly_targets if not w.is_deload)
+    assert 50 <= w4.total_competition_lift_reps <= 100, w4
+    assert w3.total_competition_lift_reps < w4.total_competition_lift_reps
+    return True, ""
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

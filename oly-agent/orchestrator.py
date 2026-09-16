@@ -192,6 +192,7 @@ def run(
                     intensity_ceiling=week_target.intensity_ceiling,
                     session_volume_share=session_template.session_volume_share,
                     volume_modifier=week_target.volume_modifier,
+                    sessions_per_week=len(program_plan.session_templates),
                 )
                 cumulative_comp_reps = sum(week_cumulative_reps.values())
 
