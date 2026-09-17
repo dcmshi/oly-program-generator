@@ -19,10 +19,38 @@ INTEGRATION_TESTS=1 uv run pytest tests/test_eval_harness.py   # the same gate a
 Production-shaped queries are built with `retrieve.py`'s own query builders
 (`build_session_query` per phase × session template, `build_fault_query` per
 `FAULT_OPTIONS` value, `build_limiter_query` per limiter), so the eval measures
-exactly what generation receives. **Status:** harness landed; `golden.json` and
-`baseline.json` are not built yet — build them on the corpus DB machine *after*
-the RAG-H1 re-ingest (grades are tied to chunk ids, so they must be rebuilt after
-any corpus change). Until then the section below is the only baseline.
+exactly what generation receives. **Status:** `golden.json` (57 queries, Haiku 4.5
+grades over dense ∪ hybrid candidate pools) and `baseline.json` were built on the dev
+copy on 2026-09-16 after the full re-ingest — see the section below. Grades are tied to
+chunk ids, so rebuild both after any corpus change, and on the corpus DB machine once
+the runbook has been applied there (its ids differ).
+
+## Golden-set baseline — 2026-09-16 (dev copy, post re-ingest)
+
+Corpus: 5,077 chunks · 2,135 principles · 612 sources · 49 templates (all seven PDF sources
+re-chunked on joined pages with `--contextualize`; Catalyst 428 articles → 1,055 chunks;
+Charniga 168 articles → 1,001 chunks). Settings: `top_k=5`, `min_similarity=0.45`, hybrid
+RRF on, session chunk-type preference on. `k=5`, 57 queries.
+
+| Query family | n | recall@5 | MRR | nDCG@5 | max source share |
+|---|---:|---:|---:|---:|---:|
+| **all (baseline.json)** | 57 | **0.255** | **0.904** | **0.574** | 0.614 |
+| fault | 13 | 0.300 | 0.962 | 0.669 | 0.708 |
+| limiter | 6 | 0.256 | 1.000 | 0.760 | 0.567 |
+| session | 16 | 0.210 | 0.906 | 0.534 | 0.625 |
+| legacy (22 free-form) | 22 | 0.260 | 0.841 | 0.497 | 0.564 |
+
+Dense-only ablation (`--dense-only`, same golden set): all 0.269 / 0.915 / 0.594; fault
+0.317 / 1.000 / 0.715; limiter 0.210 / 1.000 / 0.612; session 0.189 / 0.875 / 0.515; legacy
+0.315 / 0.871 / 0.575. **Reading (RAG-M1 acceptance):** hybrid fusion helps the two
+production-shaped families that carry structured vocabulary — session queries (+0.02
+recall, +0.02 nDCG) and limiter queries (+0.05 recall, +0.15 nDCG) — and costs the
+free-form legacy questions (−0.05 recall, −0.08 nDCG), whose wording the lexical leg
+matches on incidental terms. The production retriever stays hybrid; the legacy numbers are
+the case for a per-family fusion weight (RRF_K or lexical share by query kind) rather than
+for switching it off. recall@5 is low everywhere because the grader marks 4–11 chunks
+relevant per query and `top_k` is 5 — hit@5 is 0.98 and MRR 0.90, i.e. the first result
+is almost always relevant; recall grows with `top_k`, not with ranking changes.
 
 ## Legacy 22-query report (print-only)
 

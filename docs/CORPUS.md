@@ -6,12 +6,13 @@ any ingest, re-ingest, or bulk delete.
 **Totals:** 3,796 chunks · 151 principles · 439 sources (corpus DB machine, 2026-03-18).
 A dev copy measured on 2026-09-15 held 3,368 chunks · 161 principles · 439 sources ·
 17 templates — the two diverged after the Catalyst delete / later principle runs.
-**Dev copy, 2026-09-16, mid re-ingest:** 2,266 chunks · 748 principles · 37 templates —
-Takano, Zatsiorsky, Everett *for Sports* and Dan John are re-chunked on joined pages with
-`--contextualize` (rows 2, 6, 8, 11 below); Drechsler's 603 page-chunks are **deleted and
-not yet replaced** (run stopped before spend, resumes after the credit top-up); Laputin and
-Medvedev still carry page-chunks pending the `--vision` re-run. Reconcile all three counters
-(`README.md`, `docs/SCHEMA.md`) once the batch finishes.
+**Dev copy after the full re-ingest, 2026-09-16:** 5,077 chunks · 2,135 principles · 612
+sources · 49 templates. All seven PDF sources re-chunked on joined pages with
+`--contextualize` (runbook §8b), Catalyst re-crawled (428 articles → 1,055 chunks, 2.5 per
+article, was ≈ 1), Charniga ingested from the Wayback Machine (168 of 209 articles → 1,001
+chunks; 41 snapshots are 51-char stubs and stay pending). Every chunk written that day carries
+a `context_prefix`. The corpus DB machine still holds the 2026-03-18 state until the runbook is
+applied there; reconcile `README.md` and `docs/SCHEMA.md` when it is.
 
 ---
 
@@ -25,15 +26,16 @@ size.
 |---|--------|--------|------------:|---------|-------:|-----------:|
 | 1 | Everett — *Olympic Weightlifting* | EPUB | 507 | programming | 587 | 76 |
 | 2 | Zatsiorsky — *Science and Practice of Strength Training* | PDF | 51 | theory_heavy | 333 (was 430 page-chunks; 22.6 paras/chunk) | 347 |
-| 3 | Drechsler — *Weightlifting Encyclopedia* | PDF | 52 | theory_heavy | 0 on the dev copy (603 page-chunks deleted 2026-09-16, re-ingest pending) | 6 |
-| 4 | Catalyst Athletics articles | Web | — (418 rows) | web (dynamic) | 446 | 22 |
-| 5 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 499 | soviet | 110 | 3 |
+| 3 | Drechsler — *Weightlifting Encyclopedia* | PDF | 52 | theory_heavy | 790 (was 603 page-chunks; 14.6 paras/chunk) | 459 |
+| 4 | Catalyst Athletics articles | Web | — (415 rows with chunks) | web (dynamic) | 1,055 (was 446) | 495 |
+| 5 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 499 | soviet | 101 (was 110; 8.9 paras/chunk) | 125 |
 | 6 | Takano — *Weightlifting Programming* | PDF | 2 | programming | 106 (was 218; 8.7 paras/chunk) | 141 |
-| 7 | Medvedev — *Multi-Year Training in Weightlifting* | PDF (vision OCR) | 501 | soviet | 617 | 0 |
+| 7 | Medvedev — *Multi-Year Training in Weightlifting* | PDF (vision OCR) | 501 | soviet | 613 (was 617; still 2.3 paras / 324 chars — see note) | 89 |
 | 8 | Everett — *Olympic Weightlifting for Sports* | PDF | 502 | programming | 25 (was 172; 10.5 paras/chunk) | 40 |
 | 9 | Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 504 | programming | 206 | 21 |
 | 10 | Starrett — *Becoming a Supple Leopard* | EPUB | 505 | theory_heavy | 137 | 16 |
 | 11 | Dan John — *Intervention* | PDF | 506 | programming | 123 (was 266; 17.0 paras/chunk) | 66 |
+| 12 | Charniga — sportivnypress.com (Wayback) | Web | — (166 rows with chunks) | web (dynamic) | 1,001 | 260 |
 
 Takano (#6) produced 16 generic program templates in March and 18 chapter-titled ones on the
 2026-09-16 re-ingest (both sets kept for now — several windows were truncated at 4,096 output
@@ -42,6 +44,13 @@ Everett *for Sports* (#8) produced 11 exercises in March; the 2026-09-16 run ups
 names and created none. The principle counts jumped (161 → 748) because the joined-page
 sections reach the extractor whole — Zatsiorsky alone yields 347; cross-source near-duplicates
 are expected and worth a dedupe pass (see TODO §11).
+
+Medvedev (#7) did not get bigger chunks from the page-joining fix: the book is a catalogue of
+day-by-day sessions (`1. P. Cl.: 70 x 5, 80 x 2 x 2 …`), each session a paragraph group the
+sectioner keeps separate, so 639 sections → 613 chunks of ~324 chars. That is program data,
+not prose — 16 sections did route to the template parser (12 templates) — and the right fix is
+to merge consecutive session blocks into week-sized chunks in the `soviet` profile, not to
+raise the profile size (TODO §11).
 
 ### Notes
 

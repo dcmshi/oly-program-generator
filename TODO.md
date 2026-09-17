@@ -416,10 +416,18 @@ each fixed red-first with tests; migrations 0008–0013 applied to the local cor
 **Still to run on the corpus DB (needs keys, runbook §8b/§9):** the 7-PDF re-ingest with
 `--contextualize`, `relabel_chunk_types.py`, `retag_chunks.py`, `reembed.py` if the model
 changes, then `eval.build_golden` + `eval.run_eval --update-baseline` (and `--dense-only`
-to settle RAG-M1). **Dev-copy progress 2026-09-16:** Takano, Zatsiorsky, Everett *for Sports*
-and Dan John re-ingested (587 chunks with context prefixes, 587 principles, 18 templates; ≈ $6);
-Drechsler deleted-and-pending, Laputin/Medvedev (`--vision`), Catalyst, Charniga and the golden
-set wait for an Anthropic top-up (≈ $20). Found on the way and fixed in `1f7ba37`: template
+to settle RAG-M1). **Dev copy 2026-09-16: everything above is done except `relabel_chunk_types.py`** — seven
+PDFs re-ingested with `--contextualize`, Catalyst re-crawled (428 → 1,055 chunks), Charniga
+ingested (168 → 1,001 chunks), `retag_chunks.py` run, golden set + baseline frozen
+(`docs/RETRIEVAL_EVAL.md`: recall@5 0.255 / MRR 0.904 / nDCG@5 0.574; dense-only ablation
+recorded — hybrid wins on session + limiter queries, loses on free-form legacy ones). Corpus:
+5,077 chunks · 2,135 principles · 612 sources · 49 templates; ≈ $28 of Anthropic spend. The
+corpus DB machine still needs the same runbook pass. Open from the run: (c) Medvedev is 613
+session-block chunks of ~324 chars — merge consecutive session blocks into week-sized chunks in
+the `soviet` profile; (d) `relabel_chunk_types.py` before the next golden rebuild; (e) one
+Charniga principle dropped on `principle_category: "intensification"` (not an enum value — map
+it to `periodization` in the extractor's category synonyms); (f) 41 Charniga URLs are 51-char
+Wayback stubs kept pending — probably empty snapshots, verify one by hand before retrying. Found on the way and fixed in `1f7ba37`: template
 windows truncated at 4,096 output tokens (now `create_message_growing`), ingestion calls that
 would run adaptive thinking on a Sonnet 5 `llm_model`, and `Chapter 15` headings reaching the
 exercise loader. Open follow-ups from the run: (a) principle count 161 → 748 — the joined

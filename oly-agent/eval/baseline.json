@@ -1,0 +1,73 @@
+{
+  "n_queries": 57,
+  "recall_at_k": 0.2547,
+  "recall_at_k_n": 57,
+  "hit_at_k": 0.9825,
+  "hit_at_k_n": 57,
+  "mrr": 0.9035,
+  "mrr_n": 57,
+  "ndcg_at_k": 0.5743,
+  "ndcg_at_k_n": 57,
+  "max_source_share": 0.614,
+  "max_source_share_n": 57,
+  "by_kind": {
+    "fault": {
+      "n_queries": 13,
+      "recall_at_k": 0.3004,
+      "recall_at_k_n": 13,
+      "hit_at_k": 1.0,
+      "hit_at_k_n": 13,
+      "mrr": 0.9615,
+      "mrr_n": 13,
+      "ndcg_at_k": 0.6691,
+      "ndcg_at_k_n": 13,
+      "max_source_share": 0.7077,
+      "max_source_share_n": 13
+    },
+    "legacy": {
+      "n_queries": 22,
+      "recall_at_k": 0.26,
+      "recall_at_k_n": 22,
+      "hit_at_k": 0.9545,
+      "hit_at_k_n": 22,
+      "mrr": 0.8409,
+      "mrr_n": 22,
+      "ndcg_at_k": 0.4972,
+      "ndcg_at_k_n": 22,
+      "max_source_share": 0.5636,
+      "max_source_share_n": 22
+    },
+    "limiter": {
+      "n_queries": 6,
+      "recall_at_k": 0.2562,
+      "recall_at_k_n": 6,
+      "hit_at_k": 1.0,
+      "hit_at_k_n": 6,
+      "mrr": 1.0,
+      "mrr_n": 6,
+      "ndcg_at_k": 0.7598,
+      "ndcg_at_k_n": 6,
+      "max_source_share": 0.5667,
+      "max_source_share_n": 6
+    },
+    "session": {
+      "n_queries": 16,
+      "recall_at_k": 0.2099,
+      "recall_at_k_n": 16,
+      "hit_at_k": 1.0,
+      "hit_at_k_n": 16,
+      "mrr": 0.9062,
+      "mrr_n": 16,
+      "ndcg_at_k": 0.5337,
+      "ndcg_at_k_n": 16,
+      "max_source_share": 0.625,
+      "max_source_share_n": 16
+    }
+  },
+  "golden_meta": {
+    "built_at": "2026-09-17T00:10:11+00:00",
+    "model": "claude-haiku-4-5-20251001",
+    "candidates_per_retriever": 15,
+    "n_queries": 57
+  }
+}

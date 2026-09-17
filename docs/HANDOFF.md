@@ -19,7 +19,7 @@ Fellow Security approval; never print API keys.
 | 5 | Model baseline against athlete 1 (Sonnet 4.6 vs Sonnet 5 ± thinking) | **done 2026-09-16** — table in `TODO.md` MODEL-1, raw report `oly-agent/eval/model_baseline_20260916T140755Z.json`; truncation fix `1c0a9d6`; agent roles moved to `claude-sonnet-5` + thinking disabled (`DEFAULT_GENERATION_MODEL`). Ingestion `llm_model` stays on 4.6 until its call sites pass `thinking_kwargs` |
 | 6 | DOG-2: Catalyst re-crawl test | **done** (dry-run 428 URLs; `--limit 5` → 11 chunks) — recorded in `TODO.md` DOG-2; the full re-crawl is item 8 |
 | 7 | TODO item for other providers | **done** — `TODO.md` MODEL-2 |
-| 8 | Corpus ops: Catalyst full re-crawl (runbook §5–7), Charniga (§8), 7-PDF re-ingest (§8b), catalogue DELETE + `relabel_chunk_types.py` + `retag_chunks.py` + `eval.build_golden` + `eval.run_eval --update-baseline` (§9) | **in progress (option 1, 2026-09-16):** text PDFs 2, 51, 502, 506 done (≈ $6 actual); Drechsler stopped before spend (run #527 failed → re-run resumes), vision PDFs / Catalyst / Charniga / golden set wait for a ≈ $20 top-up. Original estimate ≈ $18–22 on the Anthropic key (Laputin + Medvedev need `--vision` OCR ≈ $8, `--contextualize` on ~2,400 chunks ≈ $4, principle extraction ≈ $2, Catalyst ≈ $3, Charniga ≈ $1.5, golden set ≈ $1–2), < $0.50 on OpenAI. Neither key can read its balance (Anthropic needs an Admin key; OpenAI needs `api.usage.read`) — confirm in the consoles |
+| 8 | Corpus ops: Catalyst full re-crawl (runbook §5–7), Charniga (§8), 7-PDF re-ingest (§8b), catalogue DELETE + `relabel_chunk_types.py` + `retag_chunks.py` + `eval.build_golden` + `eval.run_eval --update-baseline` (§9) | **done on the dev copy 2026-09-16** (≈ $28 actual across both batches): seven PDFs, Catalyst, Charniga, retag, golden set + baseline (`docs/RETRIEVAL_EVAL.md`). Not run: `relabel_chunk_types.py` (≈ $3–4). The corpus DB machine still needs the runbook applied. Original estimate ≈ $18–22 on the Anthropic key (Laputin + Medvedev need `--vision` OCR ≈ $8, `--contextualize` on ~2,400 chunks ≈ $4, principle extraction ≈ $2, Catalyst ≈ $3, Charniga ≈ $1.5, golden set ≈ $1–2), < $0.50 on OpenAI. Neither key can read its balance (Anthropic needs an Admin key; OpenAI needs `api.usage.read`) — confirm in the consoles |
 
 DOG-1e–h landed 2026-09-16 (`0625e65`, `1fc2398` + migration 0014, `c25a825`, `54b5559`); the
 athlete's block was re-imported as program **11** and program **12** generated on the new defaults
@@ -36,9 +36,9 @@ MODEL-1 note about moving ingestion's `llm_model`.
   the UI or with `eval.model_baseline … --delete`-style SQL once reviewed.
 - `exercises`: 72 rows here (45 seed + 27 from migration 0014; the 8 chapter-heading rows are
   deleted). The corpus DB needs `make migrate` (0014) and runbook §9's DELETE.
-- `knowledge_chunks`: 3,379 (3,368 + 11 from the DOG-2 smoke: sources 83–87 re-ingested with
-  urls). `sources/catalyst_progress.json` lists 10 processed URLs — delete it before a full
-  re-crawl (runbook §6).
+- `knowledge_chunks`: 5,077 after the 2026-09-16 re-ingest (2,135 principles, 612 sources, 49
+  templates); backup of the pre-run state in `backups/pre_pdf_reingest_20260916.dump`.
+  `eval/golden.json` + `eval/baseline.json` are committed and match this copy's chunk ids.
 
 ## What the model-bump groundwork looks like (for whoever flips the default)
 
