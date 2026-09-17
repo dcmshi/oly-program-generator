@@ -105,6 +105,28 @@ def test_parse_grades_and_prompt():
     assert "[id 1]" in prompt and "[id 2]" in prompt and "x" * 1201 not in prompt
     raw = '```json\n[{"id": 1, "grade": 2}, {"id": 2, "grade": 3}, {"id": 9, "grade": 1}, "junk"]\n```'
     assert parse_grades(raw, {1, 2}) == {1: 2}
+    # "Extra data" replies (prose or a second array after the JSON) are salvaged, not raised
+    messy = 'Here are the grades:\n[{"id": 1, "grade": 2},\n {"id": 2, "grade": 0}]\nNote: id 9 was off-topic.\n[{"id": 9, "grade": 0}]'
+    assert parse_grades(messy, {1, 2, 9}) == {1: 2, 2: 0, 9: 0}
+    assert parse_grades("no json here", {1}) == {}
+
+
+def test_grade_candidates_skips_a_bad_batch_and_keeps_the_rest():
+    from unittest.mock import MagicMock
+
+    from eval.build_golden import GRADE_BATCH, grade_candidates
+
+    good = MagicMock()
+    good.content = [MagicMock(text='[{"id": 1, "grade": 2}]')]
+    bad = MagicMock()
+    bad.content = [MagicMock(text="I cannot grade these.")]
+    client = MagicMock()
+    # batch 1: two unusable replies → skipped; batch 2: graded first time
+    client.messages.create.side_effect = [bad, bad, good]
+    pool = [{"id": 100 + k, "raw_content": "c"} for k in range(GRADE_BATCH)] + [{"id": 1, "raw_content": "c"}]
+    out = grade_candidates(client, "claude-haiku-4-5-20251001", "q", pool)
+    assert out == {1: 2} and client.messages.create.call_count == 3
+    assert "ONLY the JSON array" in client.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
 
 
 # ── live gate (needs corpus DB + OPENAI_API_KEY + golden.json) ───────────────

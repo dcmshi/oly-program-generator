@@ -19,6 +19,8 @@ snippet) before accepting it as the baseline. Rebuild after any corpus change.
 
 import argparse
 import json
+import logging
+import re
 import sys
 from datetime import UTC, datetime
 from pathlib import Path
@@ -31,7 +33,9 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
         sys.path.insert(0, p)
 
 from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
-from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json
+from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json, thinking_kwargs
+
+logger = logging.getLogger(__name__)
 
 CANDIDATES_PER_RETRIEVER = 15
 SNIPPET_CHARS = 1200
@@ -74,10 +78,22 @@ def build_grading_prompt(query: str, candidates: list[dict]) -> str:
     return GRADING_PROMPT.format(query=query, passages=passages)
 
 
+_GRADE_ITEM_RE = re.compile(r'\{\s*"id"\s*:\s*(\d+)\s*,\s*"grade"\s*:\s*(\d)\s*\}')
+
+
 def parse_grades(raw_text: str, allowed_ids: set[int]) -> dict[int, int]:
-    items = parse_llm_json(raw_text)
+    """``[{"id": 4684, "grade": 2}, …]`` → ``{4684: 2}`` for allowed ids and
+    grades 0–2. A reply with prose around the array, two arrays, or "Extra
+    data" after the JSON is salvaged item by item instead of raising — one
+    such reply aborted a 45-query build on 2026-09-16."""
+    try:
+        items = parse_llm_json(raw_text)
+    except (ValueError, TypeError):
+        items = [{"id": int(i), "grade": int(g)} for i, g in _GRADE_ITEM_RE.findall(raw_text)]
     if isinstance(items, dict):
         items = [items]
+    if not isinstance(items, list):
+        items = []
     grades: dict[int, int] = {}
     for item in items:
         if not isinstance(item, dict):
@@ -92,14 +108,31 @@ def parse_grades(raw_text: str, allowed_ids: set[int]) -> dict[int, int]:
 
 
 def grade_candidates(client, model: str, query: str, candidates: list[dict]) -> dict[int, int]:
+    """Grade a query's candidate pool in batches. A batch whose reply can't be
+    graded is retried once with a stricter instruction and then skipped with a
+    warning — the query keeps the grades of its other batches."""
     grades: dict[int, int] = {}
     for i in range(0, len(candidates), GRADE_BATCH):
         batch = candidates[i:i + GRADE_BATCH]
-        message = create_message_with_retries(
-            client, model=model, max_tokens=512,
-            messages=[{"role": "user", "content": build_grading_prompt(query, batch)}],
-        )
-        grades.update(parse_grades(message_text(message), {c["id"] for c in batch}))
+        ids = {c["id"] for c in batch}
+        prompt = build_grading_prompt(query, batch)
+        for attempt in (1, 2):
+            try:
+                message = create_message_with_retries(
+                    client, model=model, max_tokens=512,
+                    messages=[{"role": "user", "content": prompt}],
+                    **thinking_kwargs(model, "disabled"),
+                )
+                got = parse_grades(message_text(message), ids)
+            except Exception as e:                       # API error, refusal, unparseable reply
+                got = {}
+                logger.warning(f"grading failed for {query[:50]!r} batch {i // GRADE_BATCH} (attempt {attempt}): {e}")
+            if got:
+                grades.update(got)
+                break
+            prompt = build_grading_prompt(query, batch) + "\n\nReply with ONLY the JSON array — no prose, no code fences."
+        else:
+            logger.warning(f"no grades for {query[:50]!r} batch {i // GRADE_BATCH} after 2 attempts — skipped")
     return grades
 
 
