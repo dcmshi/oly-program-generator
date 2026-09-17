@@ -1,7 +1,8 @@
 # Handoff — model bump (Sonnet 4.6 → Claude 5 family) + dogfooding
 
 Written 2026-09-15, updated 2026-09-16 so the next session can resume without the transcript.
-Delete this file when the table below is all done. Standing constraints from the user:
+**The open-item list now lives in `TODO.md` §12 (status ledger)** — this file keeps the local DB
+state and tooling pitfalls. Delete it when TODO §12's CORPUS-DB and RELABEL items are done. Standing constraints from the user:
 **no subagents**; one commit per fix/feature with tests, gated on the pytest exit code (never on
 a pipe); run the Makefile's `AGENT_TESTS` / `INGESTION_TESTS` lists with `PYTHONUTF8=1 uv run
 pytest …` from the subsystem dir (`make` is not on PATH in Git Bash); lint with

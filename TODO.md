@@ -522,6 +522,43 @@ a LangChain / LlamaIndex rewrite, or any new third-party processing vendor — e
 item above stays with the two API vendors already in use plus Postgres-native and
 local libraries.
 
+## 12. 2026-09-16 — model bump, dogfooding, re-ingest: status ledger
+
+One-day pass on top of §11. Everything below is on `main` (CI green through `344b69c`);
+`docs/HANDOFF.md` is the resume document until this section's open items are closed.
+
+### Done today
+
+| Area | What landed | Commit |
+|---|---|---|
+| Model roles | `light_model` role (Haiku 4.5) for classifier fallback / `--contextualize` / relabel / grading | `c355552` |
+| Claude 5 safety | `message_text` / `sampling_kwargs` / `thinking_kwargs` / `usage_tokens` / per-model `estimate_cost`; every `content[0].text` reader replaced | `97f54a3` |
+| Baseline tool | `eval/model_baseline.py` + `orchestrator.run(max_sessions=)`; report JSON committed | `2167a18` |
+| MODEL-1 | Sonnet 4.6 vs Sonnet 5 (± thinking) on athlete 1: agent roles → **`claude-sonnet-5`, thinking disabled** (8/8 first-try, −16 % cost, −27 % latency; adaptive thinking at a 4,096 budget returned no text); `explanation_max_tokens` 1024 → 2048; `max_tokens` doubles on `stop_reason=max_tokens` | `1c0a9d6`, `75d2d87` |
+| DOG-1 import | `import_program_csv.py` — the athlete's 11-week sheet as program 11 (completed, with logs); 75/76 names mapped | `48dd63b` |
+| DOG-1 fixes | agent venv lacked `openai` (silent no-retrieval); pulls treated as comp lifts by the validator; recent-log block was warm-up singles; per-source context cap shared with fault chunks; chapter headings in the catalogue | `608215f` `93eb6e1` `3857a4c` `1f9d9ab` `4e86279` |
+| DOG-1e–h | Previous Program block carries structure; 27 catalogue variants (migration **0014**); weekly comp-lift budget = one Prilepin optimal per session; compact exercise lines | `0625e65` `1fc2398` `c25a825` `54b5559` |
+| Program 12 | Regenerated for athlete 1 on the new defaults: 16 sessions, 0 validation errors, 22 distinct exercises, $0.42 | — |
+| DOG-2 | Catalyst crawl test (428 URLs; 11 chunks / 5 articles) | docs |
+| Ingestion hardening | `create_message_growing`; `thinking=disabled` on every ingestion call; `Chapter N` headings filtered; `build_golden` tolerant of prose-wrapped JSON | `1f7ba37` `ea90191` |
+| Re-ingest (dev copy) | Seven PDFs on joined pages with `--contextualize`, Catalyst 428 → 1,055 chunks, Charniga 168 → 1,001, retag; **5,077 chunks · 2,135 principles · 612 sources · 49 templates**; ≈ $28 | `344b69c` |
+| Eval gate | `eval/golden.json` (57 queries) + `eval/baseline.json`: recall@5 0.255 / MRR 0.904 / nDCG@5 0.574; dense-only ablation recorded (hybrid wins session + limiter, loses free-form legacy) | `344b69c` |
+
+### Still to do
+
+- [ ] **STRUCT-1 — Request JSON through tool use instead of free text.** The grader (`eval/build_golden.py`), principle extractor, program-template parser and session generator all parse JSON out of prose replies; today's run had one prose-wrapped grading reply (killed the first golden build) and one unquoted key from Sonnet 5 (retried). Define a tool per call site with the JSON schema as `input_schema` and force it with `tool_choice`, so the API returns schema-conformant input and the fence/regex salvage code becomes dead. Order: principle extractor first (a dropped reply loses an 8k-char window of a book), then the template parser, the grader, then `generate.py` (whose `parse_llm_response` coercions can then go). Keep `create_message_growing` — thinking still counts against `max_tokens`.
+- [ ] **CORPUS-DB — Apply the runbook to the corpus DB machine.** `make migrate` (0014), §5–§9 exactly as run on the dev copy today (timings + actual spend in §8b's note), then rebuild `golden.json` / `baseline.json` there (chunk ids differ) and reconcile `README.md` / `docs/SCHEMA.md` counts.
+- [ ] **RELABEL — `relabel_chunk_types.py` over the 5,077 chunks (≈ $3–4, Haiku)** before the next golden-set rebuild, not after — it changes the chunk-type preference boost the baseline was frozen with.
+- [ ] **PRIN-DEDUPE — 161 → 2,135 principles.** Joined sections reach the extractor whole; four books each restate Prilepin, warm-up ramps, deload rules. Add a cross-source near-duplicate pass (`principle_name` similarity + same `condition`) so `MAX_PRINCIPLES_IN_PROMPT` selects among distinct rules; review Zatsiorsky's 347 and Drechsler's 459 by category first.
+- [ ] **MEDVEDEV — 613 session-block chunks of ~324 chars.** The book is day-by-day sessions; merge consecutive session blocks into week-sized chunks in the `soviet` profile (or route whole day-log sections to the template parser) and re-ingest source 501 only.
+- [ ] **TAKANO-TEMPLATES — dedupe the 16 generic March templates against the 18 chapter-titled ones** (`program_templates WHERE source_id = 2`); keep the chapter-titled set, delete generic rows that duplicate a chapter.
+- [ ] **ENUM — `principle_category: "intensification"` rejected** (one Charniga principle dropped); map it to `periodization` in the extractor's category synonyms, and log which value was mapped.
+- [ ] **CHARNIGA-STUBS — 41 URLs kept pending as 51-char snapshots.** Verify one by hand (Wayback capture may be a redirect page); if empty, mark them ingested-empty so re-runs stop retrying them.
+- [ ] **MODEL-1b — move ingestion's `llm_model` to Sonnet 5.** Blocker cleared today (every ingestion call passes `thinking=disabled`); remaining step is one ingestion comparison (a single Catalyst article + one principle window on both models), then flip `DEFAULT_LLM_MODEL`.
+- [ ] **MODEL-2 — open-weight / third-party providers** (see §11; Fellow Security approval for any hosted vendor; needs a client adapter behind `shared/llm.py`).
+- [ ] **DOG-1 watch items** — Back Extension in 10 of 16 sessions of program 12 (cap accessories per session in the prompt rules if it persists); delete the stale drafts 7–10 for athlete 1 once program 12 has been reviewed in the UI.
+- [ ] **Delete `docs/HANDOFF.md`** when CORPUS-DB and RELABEL are done — its remaining content is this section.
+
 ## Notes / non-findings from audit 5 (2026-07-18)
 
 - Charniga articles never consult `SOURCE_PROFILE_MAP` — the web path sizes chunks via `for_web_article(word_count)`. Not a bug, but CLAUDE.md's "add to SOURCE_PROFILE_MAP first" rule is a no-op for `--site charniga`; keep in mind for the DB-machine run.
