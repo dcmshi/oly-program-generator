@@ -21,7 +21,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from shared.llm import create_message_with_retries, message_text, thinking_kwargs
+from shared.llm import (
+    BatchRequestFailed,
+    create_message_with_retries,
+    message_text,
+    run_message_batch,
+    thinking_kwargs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -41,15 +47,19 @@ _DEFAULT_VISION_MODEL = "claude-sonnet-5"
 class PDFExtractor:
     """Extract text from PDFs with a three-stage fallback chain."""
 
-    def __init__(self, anthropic_client=None, vision_model: str = _DEFAULT_VISION_MODEL):
+    def __init__(self, anthropic_client=None, vision_model: str = _DEFAULT_VISION_MODEL,
+                 batch: bool = False):
         """
         Args:
             anthropic_client: Optional Anthropic client instance. When provided,
                               used as a last-resort OCR fallback for image-only PDFs.
             vision_model:     Model id for vision OCR (threaded from settings).
+            batch:            Send every page group of the document as one Message
+                              Batch (half price, COST-1) instead of sequential calls.
         """
         self._client = anthropic_client
         self._vision_model = vision_model
+        self._batch = batch
 
     def extract(self, path: Path, max_pages: int = 0) -> list[str]:
         """Extract text from a PDF, returning a list of page texts.
@@ -179,27 +189,82 @@ class PDFExtractor:
             n_pages = min(n_pages, max_pages)
         logger.info(f"Vision OCR: processing {n_pages} pages in batches of {_VISION_BATCH_SIZE}")
 
+        groups = [
+            (start, min(start + _VISION_BATCH_SIZE, n_pages))
+            for start in range(0, n_pages, _VISION_BATCH_SIZE)
+        ]
         all_pages: list[str] = []
 
-        for batch_start in range(0, n_pages, _VISION_BATCH_SIZE):
-            batch_end = min(batch_start + _VISION_BATCH_SIZE, n_pages)
-            batch_texts = self._ocr_batch(doc, batch_start, batch_end)
-            all_pages.extend(batch_texts)
+        if self._batch:
+            all_pages = self._ocr_groups_batched(doc, groups)
+        else:
+            for start, end in groups:
+                batch_texts = self._ocr_batch(doc, start, end)
+                all_pages.extend(batch_texts)
 
-            logger.info(
-                f"  Vision OCR: pages {batch_start + 1}–{batch_end}/{n_pages} done "
-                f"({sum(len(t) for t in batch_texts):,} chars)"
-            )
+                logger.info(
+                    f"  Vision OCR: pages {start + 1}–{end}/{n_pages} done "
+                    f"({sum(len(t) for t in batch_texts):,} chars)"
+                )
 
-            # Brief pause between batches to stay within rate limits
-            if batch_end < n_pages:
-                time.sleep(1.0)
+                # Brief pause between batches to stay within rate limits
+                if end < n_pages:
+                    time.sleep(1.0)
 
         doc.close()
         return [t for t in all_pages if t.strip()]
 
+    def _ocr_groups_batched(self, doc, groups: list[tuple[int, int]]) -> list[str]:
+        """OCR every page group through one Message Batch (COST-1).
+
+        A group whose request failed yields empty pages and a warning — the
+        same outcome as an unparseable synchronous reply — rather than
+        aborting the document.
+        """
+        requests = {
+            f"pages-{start + 1}-{end}": self._ocr_request(doc, start, end)
+            for start, end in groups
+        }
+        responses = run_message_batch(
+            self._client, requests, label="Vision OCR",
+            ceiling=_VISION_MAX_TOKENS,   # the sync path never grows either
+        )
+        pages: list[str] = []
+        for start, end in groups:
+            response = responses.get(f"pages-{start + 1}-{end}")
+            if isinstance(response, BatchRequestFailed) or response is None:
+                logger.warning(f"Vision OCR: pages {start + 1}–{end} failed in batch: {response}")
+                pages.extend([""] * (end - start))
+                continue
+            texts = self._ocr_response_pages(response, start, end)
+            pages.extend(texts)
+            logger.info(
+                f"  Vision OCR: pages {start + 1}–{end} done ({sum(len(t) for t in texts):,} chars)"
+            )
+        return pages
+
     def _ocr_batch(self, doc, start: int, end: int) -> list[str]:
         """Send a batch of pages to Claude vision and return extracted text per page."""
+        response = create_message_with_retries(self._client, **self._ocr_request(doc, start, end))
+        return self._ocr_response_pages(response, start, end)
+
+    def _ocr_response_pages(self, response, start: int, end: int) -> list[str]:
+        """Per-page texts from one OCR reply (shared by the sync and batch paths)."""
+        # A truncated response silently drops the tail pages of the batch —
+        # surface it loudly (and hint at shrinking the batch) rather than
+        # embedding partial/blank pages (I-H2).
+        if getattr(response, "stop_reason", None) == "max_tokens":
+            logger.warning(
+                f"Vision OCR: response hit max_tokens ({_VISION_MAX_TOKENS}) for "
+                f"pages {start + 1}–{end}; text may be truncated — consider a "
+                f"smaller _VISION_BATCH_SIZE (currently {_VISION_BATCH_SIZE})."
+            )
+
+        raw = message_text(response)
+        return self._split_page_responses(raw, list(range(start, end)))
+
+    def _ocr_request(self, doc, start: int, end: int) -> dict:
+        """messages.create kwargs for one group of rendered pages."""
         import fitz
 
         # Build the message content: alternating page-number labels and images
@@ -237,26 +302,12 @@ class PDFExtractor:
             ),
         })
 
-        response = create_message_with_retries(
-            self._client,
+        return dict(
             model=self._vision_model,
             max_tokens=_VISION_MAX_TOKENS,
             messages=[{"role": "user", "content": content}],
             **thinking_kwargs(self._vision_model, "disabled"),   # transcription — no thinking
         )
-
-        # A truncated response silently drops the tail pages of the batch —
-        # surface it loudly (and hint at shrinking the batch) rather than
-        # embedding partial/blank pages (I-H2).
-        if getattr(response, "stop_reason", None) == "max_tokens":
-            logger.warning(
-                f"Vision OCR: response hit max_tokens ({_VISION_MAX_TOKENS}) for "
-                f"pages {start + 1}–{end}; text may be truncated — consider a "
-                f"smaller _VISION_BATCH_SIZE (currently {_VISION_BATCH_SIZE})."
-            )
-
-        raw = message_text(response)
-        return self._split_page_responses(raw, page_indices)
 
     @staticmethod
     def _split_page_responses(raw: str, page_indices: list[int]) -> list[str]:

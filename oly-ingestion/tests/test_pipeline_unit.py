@@ -377,6 +377,43 @@ if __name__ == "__main__":
     print(f"\n{passed} passed, {failed} failed")
 
 
+def test_flush_principle_batch_loads_per_section_and_counts():
+    """Queued sections go to extract_batch as (key, text, title); each section's
+    principles are loaded separately and one failed load doesn't lose the rest."""
+    pipeline = MagicMock()
+    pipeline.principle_extractor.extract_batch.return_value = {"3": ["p1", "p2"], "7": ["p3"], "9": []}
+    pipeline.structured_loader.load_principles.side_effect = [None, RuntimeError("bad row"), None]
+
+    total = IngestionPipeline._flush_principle_batch(
+        pipeline, [(3, "text a"), (7, "text b"), (9, "text c")], _make_source("Book"), 42, run_id=5, resume_from=0
+    )
+
+    assert pipeline.principle_extractor.extract_batch.call_args.args[0] == [
+        ("3", "text a", "Book"), ("7", "text b", "Book"), ("9", "text c", "Book"),
+    ]
+    assert total == 2                                   # section 7's load failed → not counted
+    assert pipeline._rollback_connections.call_count == 1
+    assert pipeline.structured_loader.update_run_progress.call_count == 0
+
+
+def test_flush_principle_batch_failure_rewinds_checkpoint_and_raises():
+    """The section loop has already checkpointed past the queued sections, so a
+    failed batch must rewind to resume_from or a resumed run would skip them."""
+    pipeline = MagicMock()
+    pipeline.principle_extractor.extract_batch.side_effect = TimeoutError("batch never ended")
+    try:
+        IngestionPipeline._flush_principle_batch(
+            pipeline, [(3, "a")], _make_source(), 1, run_id=5, resume_from=2
+        )
+        raise AssertionError("expected the batch error to propagate")
+    except TimeoutError:
+        pass
+    pipeline.structured_loader.update_run_progress.assert_called_once_with(
+        5, pages_processed=2, last_processed_page=2
+    )
+    pipeline.structured_loader.load_principles.assert_not_called()
+
+
 def test_prepare_pdf_pages_joins_pages_and_strips_running_heads():
     """RAG-H1: PDF pages become one document — running heads and folios removed,
     a sentence split by the page break re-joined, paragraph breaks kept."""

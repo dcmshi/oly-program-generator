@@ -166,8 +166,16 @@ and Medvedev (501) need `--vision`; use `--max-pages 20` first as a smoke test.
 ```bash
 cd oly-ingestion
 PYTHONUTF8=1 uv run python pipeline.py --source "sources/<file>.pdf" --title "<title>" --author "<author>" --type book [--vision] \
-    --contextualize --context-model claude-haiku-4-5-20251001
+    --contextualize --context-model claude-haiku-4-5-20251001 --batch
 ```
+
+`--batch` (COST-1, 2026-09-20) sends principle extraction and vision OCR through the
+Message Batches API at half price; with `llm_model` now Sonnet 5 (MODEL-1b) principle
+extraction runs at $1 / $5 per MTok instead of the $3 / $15 the dev-copy pass paid.
+Expect the run to block for minutes to an hour at "submitted batch …" after the
+section loop (and, with `--vision`, before it); a batch that fails rewinds the
+checkpoint so a resumed run re-queues the principle sections. Drop `--batch` for
+`--max-pages` smoke tests. `relabel_chunk_types.py --batch` does the same for §9.
 
 `--contextualize` (RAG-M3) adds the LLM-written retrieval context to every chunk
 before embedding — one short Haiku call per chunk with the section cached, a few

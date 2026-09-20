@@ -207,6 +207,155 @@ def test_create_message_growing_doubles_the_budget_on_truncation():
     assert client.messages.create.call_count == 1
 
 
+def _fake_batch_client(*rounds):
+    """A client whose `messages.batches` returns one ended batch per call.
+
+    `rounds` are dicts {custom_id: result}; a result is a message-like object
+    (returned as `succeeded`) or a string naming a failure type.
+    """
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    client = MagicMock()
+    submitted = []
+
+    def _create(requests):
+        submitted.append({r["custom_id"]: r["params"] for r in requests})
+        n = len(submitted)
+        return SimpleNamespace(id=f"batch_{n}", processing_status="ended", request_counts=None)
+
+    def _results(batch_id):
+        payload = rounds[int(batch_id.split("_")[1]) - 1]
+        for cid, res in payload.items():
+            if isinstance(res, str):
+                result = SimpleNamespace(type=res, error=SimpleNamespace(error=SimpleNamespace(message="boom")))
+            else:
+                result = SimpleNamespace(type="succeeded", message=res)
+            yield SimpleNamespace(custom_id=cid, result=result)
+
+    client.messages.batches.create.side_effect = _create
+    client.messages.batches.results.side_effect = _results
+    client.submitted = submitted
+    return client
+
+
+def test_run_message_batch_collects_results_and_regrows_truncated():
+    """Succeeded results map back by custom_id; a reply that stopped on
+    max_tokens is re-sent alone with a doubled budget, up to the ceiling."""
+    from types import SimpleNamespace
+
+    from shared.llm import run_message_batch
+
+    ok_a = SimpleNamespace(stop_reason="end_turn", content=[])
+    cut_b = SimpleNamespace(stop_reason="max_tokens", content=[])
+    ok_b = SimpleNamespace(stop_reason="end_turn", content=[])
+    client = _fake_batch_client({"a": ok_a, "b": cut_b}, {"b": ok_b})
+    out = run_message_batch(
+        client,
+        {"a": {"max_tokens": 100, "model": "m"}, "b": {"max_tokens": 100, "model": "m"}},
+        poll_interval=0, ceiling=400,
+    )
+    assert out == {"a": ok_a, "b": ok_b}
+    assert list(client.submitted[0]) == ["a", "b"]
+    assert client.submitted[1] == {"b": {"max_tokens": 200, "model": "m"}}
+
+    # at the ceiling the truncated reply is returned as-is
+    client = _fake_batch_client({"b": cut_b})
+    out = run_message_batch(client, {"b": {"max_tokens": 400}}, poll_interval=0, ceiling=400)
+    assert out == {"b": cut_b} and len(client.submitted) == 1
+
+    # grow=False never re-sends
+    client = _fake_batch_client({"b": cut_b})
+    out = run_message_batch(client, {"b": {"max_tokens": 100}}, poll_interval=0, ceiling=400, grow=False)
+    assert out == {"b": cut_b} and len(client.submitted) == 1
+
+
+def test_run_message_batch_reports_failed_and_missing_requests():
+    """Errored / expired results and ids the API never returned come back as
+    BatchRequestFailed instead of raising, so callers decide per item."""
+    from types import SimpleNamespace
+
+    from shared.llm import BatchRequestFailed, run_message_batch
+
+    ok = SimpleNamespace(stop_reason="end_turn", content=[])
+    client = _fake_batch_client({"a": ok, "b": "errored"})
+    out = run_message_batch(client, {"a": {}, "b": {}, "c": {}}, poll_interval=0)
+    assert out["a"] is ok
+    assert isinstance(out["b"], BatchRequestFailed) and out["b"].result_type == "errored"
+    assert "boom" in str(out["b"])
+    assert isinstance(out["c"], BatchRequestFailed) and out["c"].result_type == "missing"
+
+
+def test_run_message_batch_polls_until_ended_and_times_out():
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from shared.llm import run_message_batch
+
+    client = MagicMock()
+    client.messages.batches.create.return_value = SimpleNamespace(id="b1", processing_status="in_progress")
+    client.messages.batches.retrieve.side_effect = [
+        SimpleNamespace(id="b1", processing_status="in_progress", request_counts=None),
+        SimpleNamespace(id="b1", processing_status="ended", request_counts=None),
+    ]
+    client.messages.batches.results.return_value = iter([])
+    with patch("shared.llm.time.sleep") as sleep:
+        out = run_message_batch(client, {"x": {}}, poll_interval=7, grow=False)
+    assert sleep.call_count == 2 and client.messages.batches.retrieve.call_count == 2
+    assert out["x"].result_type == "missing"
+
+    client.messages.batches.retrieve.side_effect = None
+    client.messages.batches.retrieve.return_value = SimpleNamespace(
+        id="b1", processing_status="in_progress", request_counts=None
+    )
+    with patch("shared.llm.time.sleep"), patch("shared.llm.time.monotonic", side_effect=[0, 0, 10, 10, 100]):
+        try:
+            run_message_batch(client, {"x": {}}, poll_interval=1, timeout=50, grow=False)
+            raise AssertionError("expected TimeoutError")
+        except TimeoutError:
+            pass
+
+
+def test_extract_batch_windows_per_key_and_tolerates_a_failed_window():
+    """One request per window across all sections; results are grouped back by
+    key and de-duplicated by principle_name; a failed window contributes nothing."""
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from processors.principle_extractor import PrincipleExtractor
+
+    settings = SimpleNamespace(llm_model="claude-sonnet-5", llm_max_tokens=4096, anthropic_api_key="k")
+    ex = PrincipleExtractor(settings)
+    ex._client = object()
+    long_text = "x" * (_PRINCIPLE_WINDOW + 100)   # two windows
+
+    def _msg(items):
+        return SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text=json.dumps(items))])
+
+    principle = {"principle_name": "Deload every 4th week", "category": "deload", "rule_type": "guideline",
+                 "condition": {"phase": "accumulation"}, "recommendation": {"volume_modifier": 0.6},
+                 "rationale": "r", "priority": 5}
+    captured = {}
+
+    def fake_batch(client, requests, **kw):
+        captured.update(requests)
+        from shared.llm import BatchRequestFailed
+        return {
+            "s1:0": _msg([principle]),
+            "s1:1": _msg([principle, {**principle, "principle_name": "Other"}]),
+            "s2:0": BatchRequestFailed("s2:0", "errored"),
+        }
+
+    with patch("processors.principle_extractor.run_message_batch", side_effect=fake_batch):
+        out = ex.extract_batch([("s1", long_text, "Book"), ("s2", "short", "Book")])
+
+    assert set(captured) == {"s1:0", "s1:1", "s2:0"}
+    assert captured["s1:0"]["model"] == "claude-sonnet-5"
+    assert captured["s1:0"]["thinking"] == {"type": "disabled"}
+    assert [p.principle_name for p in out["s1"]] == ["Deload every 4th week", "Other"]
+    assert out["s2"] == []
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

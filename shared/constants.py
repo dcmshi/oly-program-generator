@@ -35,6 +35,13 @@ PROMPT_LENGTH_WARN_CHARS: int = 20_000  # log warning if prompt exceeds this (~5
 # max_tokens, so a 4,096 budget can be spent before any text is emitted;
 # retrying the same request just fails the same way (MODEL-1).
 LLM_MAX_TOKENS_CEILING: int = 16_384
+# Message Batches (COST-1): offline ingestion calls go through the Batch API at
+# half price. Poll cadence, the per-batch request cap (the API allows 100k /
+# 256 MB; a smaller batch fails smaller) and how long to wait before giving up
+# (the API itself expires a batch after 24 h).
+BATCH_POLL_INTERVAL_S: float = 30.0
+BATCH_MAX_REQUESTS: int = 2_000
+BATCH_TIMEOUT_S: float = 24 * 3600.0
 
 # ── Traceability ─────────────────────────────────────────────────
 MAX_SOURCE_CHUNKS_PER_EXERCISE: int = 3  # most-relevant chunk ids attached per exercise

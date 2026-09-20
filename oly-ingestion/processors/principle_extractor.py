@@ -13,7 +13,14 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
-from shared.llm import create_message_growing, message_text, parse_llm_json, thinking_kwargs
+from shared.llm import (
+    BatchRequestFailed,
+    create_message_growing,
+    message_text,
+    parse_llm_json,
+    run_message_batch,
+    thinking_kwargs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -152,24 +159,79 @@ class PrincipleExtractor:
                     principles.append(p)
         return principles
 
+    def extract_batch(self, items: list[tuple[str, str, str]]) -> dict[str, list[ExtractedPrinciple]]:
+        """`extract()` for many texts through the Message Batches API (COST-1).
+
+        `items` is `[(key, text, source_title), …]`; returns `{key: principles}`
+        with the same windowing and per-text de-duplication as `extract()`. A
+        window whose request failed is logged and contributes nothing, exactly
+        as a failed synchronous call would.
+        """
+        requests: dict[str, dict] = {}
+        windows_by_key: dict[str, list[str]] = {}
+        for key, text, source_title in items:
+            windows = self._windows(text)
+            windows_by_key[key] = [f"{key}:{n}" for n in range(len(windows))]
+            for custom_id, window in zip(windows_by_key[key], windows, strict=True):
+                requests[custom_id] = self._request_params(window, source_title)
+        if not requests:
+            return {key: [] for key, _t, _s in items}
+
+        logger.info(
+            f"Principle extraction: submitting {len(requests)} window(s) for "
+            f"{len(items)} section(s) as one batch"
+        )
+        responses = run_message_batch(self._get_client(), requests, label="Principle extraction")
+
+        out: dict[str, list[ExtractedPrinciple]] = {}
+        for key, _text, source_title in items:
+            principles: list[ExtractedPrinciple] = []
+            seen: set[str] = set()
+            for custom_id in windows_by_key[key]:
+                message = responses.get(custom_id)
+                if not isinstance(message, BatchRequestFailed) and message is not None:
+                    try:
+                        parsed = self._parse_response(message, source_title)
+                    except Exception as e:
+                        logger.warning(f"Principle extraction failed for '{source_title}': {e}")
+                        parsed = []
+                else:
+                    logger.warning(f"Principle extraction failed for '{source_title}': {message}")
+                    parsed = []
+                for p in parsed:
+                    if p.principle_name not in seen:
+                        seen.add(p.principle_name)
+                        principles.append(p)
+            out[key] = principles
+        return out
+
+    def _request_params(self, text: str, source_title: str) -> dict:
+        """messages.create kwargs for one window (shared by the sync and batch paths)."""
+        return dict(
+            model=self.settings.llm_model,
+            max_tokens=self.settings.llm_max_tokens,
+            messages=[{"role": "user", "content": EXTRACTION_PROMPT.format(text=text, source=source_title)}],
+            **thinking_kwargs(self.settings.llm_model, "disabled"),   # JSON out, no thinking
+        )
+
     def _extract_window(self, text: str, source_title: str) -> list[ExtractedPrinciple]:
         """Extract principles from a single window of text."""
-        prompt = EXTRACTION_PROMPT.format(text=text, source=source_title)
         try:
             client = self._get_client()
             message = create_message_growing(
                 client,
-                model=self.settings.llm_model,
-                max_tokens=self.settings.llm_max_tokens,
-                messages=[{"role": "user", "content": prompt}],
                 label=f"Principle extraction '{source_title}'",
-                **thinking_kwargs(self.settings.llm_model, "disabled"),   # JSON out, no thinking
+                **self._request_params(text, source_title),
             )
-            raw = parse_llm_json(message_text(message))
+            return self._parse_response(message, source_title)
         except Exception as e:
             logger.warning(f"Principle extraction failed for '{source_title}': {e}")
             return []
 
+    @staticmethod
+    def _parse_response(message, source_title: str) -> list[ExtractedPrinciple]:
+        """Principles from one reply; raises on unparseable JSON."""
+        raw = parse_llm_json(message_text(message))
         principles = []
         for item in raw:
             try:

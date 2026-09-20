@@ -283,6 +283,51 @@ def test_both_extractors_raise_no_crash():
 
 # ── Vision OCR — integration only ────────────────────────────────────────────
 
+def test_vision_batch_mode_sends_one_message_batch_and_keeps_page_order():
+    """With batch=True every page group is one request in a single Message
+    Batch; results come back in page order and a failed group yields blank
+    pages instead of aborting the document."""
+    from types import SimpleNamespace
+
+    from shared.llm import BatchRequestFailed
+
+    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="claude-sonnet-5", batch=True)
+    doc = MagicMock()
+    captured = {}
+
+    def fake_request(doc, start, end):
+        return {"model": "claude-sonnet-5", "max_tokens": 8192, "messages": [{"pages": (start, end)}]}
+
+    def fake_batch(client, requests, **kw):
+        captured.update(requests)
+        return {
+            "pages-1-5": SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(
+                type="text", text="".join(f"=== Page {i} ===\np{i}\n" for i in range(1, 6)))]),
+            "pages-6-7": BatchRequestFailed("pages-6-7", "errored"),
+        }
+
+    with patch.object(extractor, "_ocr_request", side_effect=fake_request), \
+         patch("extractors.pdf_extractor.run_message_batch", side_effect=fake_batch):
+        pages = extractor._ocr_groups_batched(doc, [(0, 5), (5, 7)])
+
+    assert list(captured) == ["pages-1-5", "pages-6-7"]
+    assert captured["pages-6-7"]["messages"] == [{"pages": (5, 7)}]
+    assert pages == ["p1", "p2", "p3", "p4", "p5", "", ""]
+
+
+def test_vision_sync_path_still_calls_messages_create():
+    from types import SimpleNamespace
+
+    client = MagicMock()
+    client.messages.create.return_value = SimpleNamespace(
+        stop_reason="end_turn", content=[SimpleNamespace(type="text", text="=== Page 1 ===\nhello")]
+    )
+    extractor = PDFExtractor(anthropic_client=client, vision_model="claude-sonnet-5")
+    with patch.object(extractor, "_ocr_request", return_value={"model": "claude-sonnet-5", "max_tokens": 8192, "messages": []}):
+        assert extractor._ocr_batch(MagicMock(), 0, 1) == ["hello"]
+    assert client.messages.create.call_args.kwargs["model"] == "claude-sonnet-5"
+
+
 def test_vision_ocr_requires_anthropic_client():
     """Calling _extract_with_vision without a client raises AttributeError."""
     _integration_only()  # gate — this test is a placeholder

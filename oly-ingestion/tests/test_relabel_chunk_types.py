@@ -73,3 +73,46 @@ def test_plan_updates_skips_unchanged_and_low_confidence():
 def test_plan_updates_threshold_is_inclusive():
     rows = [(1, "concept")]
     assert plan_updates(rows, {1: ("biomechanics", 0.6)}, min_confidence=0.6) == [(1, "concept", "biomechanics", 0.6)]
+
+
+def test_relabel_batch_mode_submits_one_message_batch(monkeypatch):
+    """use_batch=True builds every group's request up front, sends them through
+    run_message_batch and applies the labels per group; a failed group is skipped."""
+    import json
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    import relabel_chunk_types as mod
+
+    from shared.llm import BatchRequestFailed
+
+    rows = [(1, "concept", "deload text"), (2, "concept", "bar path text"), (3, "concept", "x")]
+    cur = MagicMock()
+    cur.fetchall.return_value = rows
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    monkeypatch.setattr(mod.psycopg2, "connect", lambda *_a, **_k: conn)
+    monkeypatch.setattr(mod, "Settings", lambda: SimpleNamespace(
+        anthropic_api_key="k", database_url="db", light_model="claude-haiku-4-5", llm_model="m"))
+    # `import anthropic` inside relabel() builds a real client from the fake key — no network needed
+
+    captured = {}
+
+    def fake_batch(client, requests, **kw):
+        captured.update(requests)
+        return {
+            "0": SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps([
+                {"index": 1, "chunk_type": "periodization", "confidence": 0.9},
+                {"index": 2, "chunk_type": "biomechanics", "confidence": 0.9},
+            ]))]),
+            "2": BatchRequestFailed("2", "errored"),
+        }
+    monkeypatch.setattr(mod, "run_message_batch", fake_batch)
+    monkeypatch.setattr(mod, "create_message_with_retries", lambda *a, **k: (_ for _ in ()).throw(AssertionError("sync path used")))
+
+    transitions = mod.relabel(None, dry_run=False, batch_size=2, use_batch=True)
+
+    assert list(captured) == ["0", "2"]
+    assert captured["0"]["model"] == "claude-haiku-4-5"
+    assert transitions == {("concept", "periodization"): 1, ("concept", "biomechanics"): 1}
+    assert cur.execute.call_count == 1 + 2          # the SELECT + two UPDATEs

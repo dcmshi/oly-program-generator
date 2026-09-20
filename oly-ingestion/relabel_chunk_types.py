@@ -16,6 +16,7 @@ Usage (from oly-ingestion/):
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --source-id 51        # one source
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --model claude-haiku-4-5-20251001
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --limit 200           # smoke test
+    PYTHONUTF8=1 uv run python relabel_chunk_types.py --batch               # Batch API, half price (COST-1)
 
 Cost: ~3.4k chunks × ~400 input tokens (1,500-char passage cap) in batches of 10;
 a Haiku-class model does the whole corpus for a few dollars.
@@ -32,7 +33,14 @@ import psycopg2
 sys.path.insert(0, str(Path(__file__).parent))
 from config import Settings
 
-from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json
+from shared.llm import (
+    BatchRequestFailed,
+    create_message_with_retries,
+    light_model_for,
+    message_text,
+    parse_llm_json,
+    run_message_batch,
+)
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -129,6 +137,7 @@ def relabel(
     min_confidence: float = DEFAULT_MIN_CONFIDENCE,
     model: str | None = None,
     limit: int = 0,
+    use_batch: bool = False,
 ) -> Counter:
     """Relabel the corpus (or one source). Returns a Counter of old→new transitions."""
     import anthropic
@@ -158,14 +167,30 @@ def relabel(
     transitions: Counter = Counter()
     updated = 0
 
-    for start in range(0, len(rows), batch_size):
+    offsets = list(range(0, len(rows), batch_size))
+
+    def _params(start: int) -> dict:
         batch = rows[start:start + batch_size]
         prompt = build_prompt([(i, text) for i, (_id, _t, text) in enumerate(batch, start=1)])
+        return dict(model=model, max_tokens=1024, messages=[{"role": "user", "content": prompt}])
+
+    # COST-1: one Message Batch for the whole corpus at half price, instead of
+    # one synchronous call per group of chunks.
+    batched: dict[str, object] = {}
+    if use_batch:
+        batched = run_message_batch(
+            client, {str(start): _params(start) for start in offsets}, label="Relabel",
+        )
+
+    for start in offsets:
+        batch = rows[start:start + batch_size]
         try:
-            message = create_message_with_retries(
-                client, model=model, max_tokens=1024,
-                messages=[{"role": "user", "content": prompt}],
-            )
+            if use_batch:
+                message = batched.get(str(start))
+                if isinstance(message, BatchRequestFailed) or message is None:
+                    raise RuntimeError(str(message))
+            else:
+                message = create_message_with_retries(client, **_params(start))
             labels = parse_labels(message_text(message), set(range(1, len(batch) + 1)))
         except Exception as e:
             logger.warning(f"Batch at offset {start} skipped: {type(e).__name__}: {e}")
@@ -213,5 +238,8 @@ if __name__ == "__main__":
     parser.add_argument("--model", default=None,
                         help="Anthropic model id (default: settings.light_model)")
     parser.add_argument("--limit", type=int, default=0, help="Only process the first N chunks (smoke test)")
+    parser.add_argument("--batch", action="store_true",
+                        help="One Message Batch for the whole run (half price, minutes of latency; COST-1)")
     args = parser.parse_args()
-    relabel(args.source_id, args.dry_run, args.batch_size, args.min_confidence, args.model, args.limit)
+    relabel(args.source_id, args.dry_run, args.batch_size, args.min_confidence, args.model, args.limit,
+            use_batch=args.batch)

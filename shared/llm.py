@@ -235,6 +235,118 @@ def create_message_growing(client, *, max_tokens: int, ceiling: int | None = Non
         budget = grown
 
 
+class BatchRequestFailed(RuntimeError):
+    """One request in a Message Batch did not succeed (errored / expired / canceled)."""
+
+    def __init__(self, custom_id: str, result_type: str, detail: str = ""):
+        self.custom_id = custom_id
+        self.result_type = result_type
+        super().__init__(f"batch request {custom_id!r} {result_type}{': ' + detail if detail else ''}")
+
+
+def _batch_error_detail(result) -> str:
+    error = getattr(result, "error", None)
+    inner = getattr(error, "error", None) or error
+    message = getattr(inner, "message", None)
+    if message:
+        return str(message)
+    return str(error) if error else ""
+
+
+def run_message_batch(client, requests: dict[str, dict], *, label: str = "batch",
+                      poll_interval: float | None = None, timeout: float | None = None,
+                      grow: bool = True, ceiling: int | None = None) -> dict[str, object]:
+    """Send `requests` ({custom_id: messages.create kwargs}) through the Message
+    Batches API and return {custom_id: Message | BatchRequestFailed}.
+
+    Half the price of synchronous calls (COST-1) for work that can wait — the
+    ingestion pipeline's principle extraction, template parsing, OCR and
+    relabelling. Submits in slices of BATCH_MAX_REQUESTS, polls each until it
+    has ended, then collects results. With `grow`, requests whose reply stopped
+    on `max_tokens` are re-sent in a follow-up batch with a doubled budget, up
+    to `ceiling` (default LLM_MAX_TOKENS_CEILING) — the batch counterpart of
+    `create_message_growing`. Requests that error, expire or are canceled come
+    back as BatchRequestFailed so the caller can decide per item; a batch that
+    never ends within `timeout` raises TimeoutError.
+    """
+    from shared.constants import (
+        BATCH_MAX_REQUESTS,
+        BATCH_POLL_INTERVAL_S,
+        BATCH_TIMEOUT_S,
+        LLM_MAX_TOKENS_CEILING,
+    )
+
+    poll_interval = BATCH_POLL_INTERVAL_S if poll_interval is None else poll_interval
+    timeout = BATCH_TIMEOUT_S if timeout is None else timeout
+    ceiling = ceiling or LLM_MAX_TOKENS_CEILING
+
+    results: dict[str, object] = {}
+    pending = dict(requests)
+    round_no = 0
+    while pending:
+        round_no += 1
+        ids = list(pending)
+        for start in range(0, len(ids), BATCH_MAX_REQUESTS):
+            slice_ids = ids[start:start + BATCH_MAX_REQUESTS]
+            batch = client.messages.batches.create(
+                requests=[{"custom_id": cid, "params": pending[cid]} for cid in slice_ids]
+            )
+            logger.info(
+                f"{label}: submitted batch {batch.id} ({len(slice_ids)} requests"
+                f"{f', round {round_no}' if round_no > 1 else ''})"
+            )
+            batch = _wait_for_batch(client, batch, label, poll_interval, timeout)
+            for item in client.messages.batches.results(batch.id):
+                result = item.result
+                kind = getattr(result, "type", "errored")
+                if kind == "succeeded":
+                    results[item.custom_id] = result.message
+                else:
+                    results[item.custom_id] = BatchRequestFailed(
+                        item.custom_id, kind, _batch_error_detail(result)
+                    )
+            missing = [cid for cid in slice_ids if cid not in results]
+            for cid in missing:  # a result the API never returned — treat as errored
+                results[cid] = BatchRequestFailed(cid, "missing")
+
+        if not grow:
+            break
+        regrow: dict[str, dict] = {}
+        for cid in ids:
+            message = results.get(cid)
+            if getattr(message, "stop_reason", None) != "max_tokens":
+                continue
+            budget = pending[cid].get("max_tokens", 0)
+            if budget >= ceiling:
+                continue
+            regrow[cid] = {**pending[cid], "max_tokens": min(budget * 2, ceiling)}
+        if regrow:
+            logger.warning(
+                f"{label}: {len(regrow)} response(s) truncated at max_tokens — "
+                f"re-sending with a doubled budget"
+            )
+        pending = regrow
+    return results
+
+
+def _wait_for_batch(client, batch, label: str, poll_interval: float, timeout: float):
+    """Poll a Message Batch until `processing_status == 'ended'`."""
+    deadline = time.monotonic() + timeout
+    while getattr(batch, "processing_status", None) != "ended":
+        if time.monotonic() >= deadline:
+            raise TimeoutError(f"{label}: batch {batch.id} did not end within {timeout:.0f}s")
+        time.sleep(poll_interval)
+        batch = client.messages.batches.retrieve(batch.id)
+        counts = getattr(batch, "request_counts", None)
+        if counts is not None:
+            logger.info(
+                f"{label}: batch {batch.id} {batch.processing_status} — "
+                f"{getattr(counts, 'succeeded', 0)} ok / {getattr(counts, 'errored', 0)} err / "
+                f"{getattr(counts, 'processing', 0)} pending"
+            )
+    return batch
+
+
 def create_llm_client(settings) -> Anthropic:
     """Create the Anthropic client.
 

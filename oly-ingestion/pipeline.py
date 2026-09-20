@@ -205,9 +205,16 @@ class SourceDocument:
 
 class IngestionPipeline:
     def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0,
-                 contextualize: bool = False, context_model: str | None = None):
+                 contextualize: bool = False, context_model: str | None = None,
+                 batch: bool = False):
         self.settings = settings
         self.max_pages = max_pages
+        # COST-1: principle extraction (the dominant ingestion spend) and vision
+        # OCR go through the Message Batches API at half price. Principle
+        # sections are queued during the section loop and flushed as one batch
+        # after it; a batch that fails rewinds the checkpoint so a rerun re-queues
+        # them (their prose chunks dedup by hash, so the rerun is cheap).
+        self.batch = batch
         # RAG-M3: LLM-written retrieval context per chunk (opt-in — one short
         # call per chunk; run it on the re-ingest so chunks are embedded once)
         self.contextualize = contextualize
@@ -218,7 +225,7 @@ class IngestionPipeline:
             import anthropic
             _anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
         self.pdf_extractor = PDFExtractor(
-            anthropic_client=_anthropic_client, vision_model=settings.llm_model
+            anthropic_client=_anthropic_client, vision_model=settings.llm_model, batch=batch,
         )
         self.classifier = ContentClassifier(settings)
         self.principle_extractor = PrincipleExtractor(settings)
@@ -265,6 +272,7 @@ class IngestionPipeline:
             "llm_model": self.settings.llm_model,
             "batch_size": self.settings.batch_size,
             "validate_chunks": self.settings.validate_chunks,
+            "batch": self.batch,
         }
 
         # Check for a resumable failed run
@@ -348,6 +356,8 @@ class IngestionPipeline:
 
             logger.info(f"Classified {len(all_sections)} sections across {len(pages)} page(s)")
 
+            pending_principles: list[tuple[int, str]] = []   # (section index, text) — batch mode
+
             for i, section in enumerate(all_sections):
                 if i < resume_from:
                     continue  # already processed in the prior (failed) run — skip (I-M1)
@@ -365,22 +375,20 @@ class IngestionPipeline:
                             stats = self._process_prose(
                                 section, chunker, source, source_id, stats, run_id
                             )
-                            principles = self.principle_extractor.extract(
-                                text=section.content,
-                                source_title=source.title,
-                                source_id=source_id,
-                            )
-                            self.structured_loader.load_principles(principles, source_id)
-                            stats["principles"] += len(principles)
+                            if self.batch:
+                                pending_principles.append((i, section.content))
+                            else:
+                                stats["principles"] += self._extract_and_load_principles(
+                                    section.content, source, source_id
+                                )
 
                         case ContentType.PRINCIPLE:
-                            principles = self.principle_extractor.extract(
-                                text=section.content,
-                                source_title=source.title,
-                                source_id=source_id,
-                            )
-                            self.structured_loader.load_principles(principles, source_id)
-                            stats["principles"] += len(principles)
+                            if self.batch:
+                                pending_principles.append((i, section.content))
+                            else:
+                                stats["principles"] += self._extract_and_load_principles(
+                                    section.content, source, source_id
+                                )
 
                         case ContentType.PROGRAM_TEMPLATE:
                             program = self._parse_program_template(section, source, source_id)
@@ -427,6 +435,11 @@ class IngestionPipeline:
                     self._rollback_connections()
                     continue
 
+            if pending_principles:
+                stats["principles"] += self._flush_principle_batch(
+                    pending_principles, source, source_id, run_id, resume_from
+                )
+
             # ── Step 6: Mark complete ──────────────────────────
             self.structured_loader.complete_run(run_id, stats)
             logger.info(f"Ingestion complete: {stats}")
@@ -440,6 +453,50 @@ class IngestionPipeline:
                 error_details={"traceback": traceback.format_exc()},
             )
             raise
+
+    def _extract_and_load_principles(self, text: str, source, source_id: int) -> int:
+        """Synchronous principle extraction + load for one section; returns the count."""
+        principles = self.principle_extractor.extract(
+            text=text, source_title=source.title, source_id=source_id,
+        )
+        self.structured_loader.load_principles(principles, source_id)
+        return len(principles)
+
+    def _flush_principle_batch(self, pending: list[tuple[int, str]], source, source_id: int,
+                               run_id: int, resume_from: int) -> int:
+        """Extract the queued principle sections as one Message Batch and load
+        them section by section (COST-1). Returns the number of principles.
+
+        The section loop has already checkpointed past these sections, so if
+        the batch itself fails the checkpoint is rewound to `resume_from` before
+        re-raising — a resumed run then re-queues them instead of skipping them.
+        A single section whose load fails is rolled back and skipped, as in the
+        synchronous path.
+        """
+        logger.info(f"Principle extraction: {len(pending)} section(s) queued for one batch")
+        try:
+            extracted = self.principle_extractor.extract_batch(
+                [(str(idx), text, source.title) for idx, text in pending]
+            )
+        except Exception:
+            self.structured_loader.update_run_progress(
+                run_id, pages_processed=resume_from, last_processed_page=resume_from
+            )
+            logger.error(
+                f"Principle batch failed — checkpoint rewound to section {resume_from} "
+                f"so a resumed run re-queues the {len(pending)} section(s)"
+            )
+            raise
+        total = 0
+        for idx, _text in pending:
+            principles = extracted.get(str(idx), [])
+            try:
+                self.structured_loader.load_principles(principles, source_id)
+                total += len(principles)
+            except Exception as e:
+                logger.error(f"Error loading principles for section {idx}: {e}")
+                self._rollback_connections()
+        return total
 
     @staticmethod
     def _prepare_pdf_pages(pages: list[str]) -> list[str]:
@@ -792,12 +849,16 @@ if __name__ == "__main__":
                              "one short call per chunk)")
     parser.add_argument("--context-model", default=None,
                         help="Model for --contextualize (default: settings.light_model)")
+    parser.add_argument("--batch", action="store_true",
+                        help="Send principle extraction and vision OCR through the Message Batches API "
+                             "(half price, minutes-to-hours of latency; COST-1)")
     args = parser.parse_args()
 
     settings = Settings()
     settings.ensure_working_dirs()
     pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages,
-                                 contextualize=args.contextualize, context_model=args.context_model)
+                                 contextualize=args.contextualize, context_model=args.context_model,
+                                 batch=args.batch)
 
     doc = SourceDocument(
         path=Path(args.source),

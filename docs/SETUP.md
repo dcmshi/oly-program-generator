@@ -127,6 +127,7 @@ PYTHONUTF8=1 uv run python ingest_web.py
 |------|-----------|--------|
 | `--vision` | `pipeline.py` | Enables the Claude vision OCR fallback for image-only PDFs (opt-in — it costs money) |
 | `--max-pages N` | `pipeline.py` | Limits extraction to the first N pages — use when testing an OCR run |
+| `--batch` | `pipeline.py`, `relabel_chunk_types.py` | Sends principle extraction, vision OCR (and the relabel calls) through the Message Batches API at half price. Principle sections are queued and flushed as one batch after the section loop; a batch takes minutes to hours, so not for smoke tests (COST-1) |
 | `--categories technique` | `ingest_web.py` | Restrict to one category instead of all priority categories |
 | `--site charniga` | `ingest_web.py` | Crawl Charniga via the Wayback CDX index instead of Catalyst |
 | `--limit 20` | `ingest_web.py` | Cap article count for a smoke test |
