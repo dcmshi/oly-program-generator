@@ -209,12 +209,13 @@ def test_hybrid_off_by_default_keeps_dense_sql():
 # ── Query-embedding LRU (RAG-L2) ─────────────────────────────────────────────
 
 def _embedding_loader(model="text-embedding-3-small"):
+    """A loader whose embedder is a mock provider (loaders/embedders.Embedder shape)."""
     from unittest.mock import MagicMock
 
     vl = VectorLoader.__new__(VectorLoader)
     vl.settings = MagicMock(embedding_model=model, embedding_dim=1536)
-    vl.embed_client = MagicMock()
-    vl.embed_client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.1, 0.2])])
+    vl.embedder = MagicMock(provider="openai", model_name=model, dim=1536)
+    vl.embedder.embed_query.return_value = [0.1, 0.2]
     return vl
 
 
@@ -222,12 +223,12 @@ def test_query_embedding_is_cached_per_text_and_model():
     vl = _embedding_loader()
     assert vl._embed("correcting early arm bend") == [0.1, 0.2]
     assert vl._embed("correcting early arm bend") == [0.1, 0.2]
-    assert vl.embed_client.embeddings.create.call_count == 1, "second identical query must hit the cache"
+    assert vl.embedder.embed_query.call_count == 1, "second identical query must hit the cache"
     vl._embed("a different query")
-    assert vl.embed_client.embeddings.create.call_count == 2
-    vl.settings.embedding_model = "text-embedding-3-large"      # model change → different key space
+    assert vl.embedder.embed_query.call_count == 2
+    vl.embedder.model_name = "text-embedding-3-large"      # model change → different key space
     vl._embed("correcting early arm bend")
-    assert vl.embed_client.embeddings.create.call_count == 3
+    assert vl.embedder.embed_query.call_count == 3
 
 
 def test_query_embedding_cache_is_bounded(monkeypatch):
@@ -237,7 +238,7 @@ def test_query_embedding_cache_is_bounded(monkeypatch):
         vl._embed(q)
     assert len(vl._query_cache) == 2
     vl._embed("q1")   # evicted (oldest) → refetched
-    assert vl.embed_client.embeddings.create.call_count == 4
+    assert vl.embedder.embed_query.call_count == 4
 
 # ── Dedup provenance (RAG-L5) ────────────────────────────────────────────────
 

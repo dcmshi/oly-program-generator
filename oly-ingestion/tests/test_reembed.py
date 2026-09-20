@@ -53,17 +53,51 @@ def test_similarity_search_filters_on_embedding_model():
 
 
 def test_dimensions_sent_only_for_text_embedding_3_models():
-    vl, _ = _loader(model="text-embedding-3-large", dim=1536)
-    vl.embed_client = MagicMock()
-    vl.embed_client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.1])])
-    vl._embed("q")
-    assert vl.embed_client.embeddings.create.call_args.kwargs["dimensions"] == 1536
+    """The OpenAI provider passes Matryoshka `dimensions` for text-embedding-3-*
+    only; every provider then fits the vector to the column width."""
+    from loaders.embedders import OpenAIEmbedder
 
-    vl_old, _ = _loader(model="text-embedding-ada-002", dim=1536)
-    vl_old.embed_client = MagicMock()
-    vl_old.embed_client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[0.1])])
-    vl_old._embed("q")
-    assert "dimensions" not in vl_old.embed_client.embeddings.create.call_args.kwargs
+    def _fake(embedder):
+        embedder.client = MagicMock()
+        embedder.client.embeddings.create.return_value = MagicMock(data=[MagicMock(embedding=[3.0, 4.0])])
+        return embedder.client.embeddings.create
+
+    e = OpenAIEmbedder("text-embedding-3-large", 4, api_key="k")
+    create = _fake(e)
+    vec = e.embed_query("q")
+    assert create.call_args.kwargs["dimensions"] == 4
+    assert [round(x, 4) for x in vec] == [0.6, 0.8, 0.0, 0.0]   # normalised, zero-padded to dim
+
+    e_old = OpenAIEmbedder("text-embedding-ada-002", 4, api_key="k")
+    create = _fake(e_old)
+    e_old.embed_query("q")
+    assert "dimensions" not in create.call_args.kwargs
+
+
+def test_embedder_factory_and_compat_provider():
+    """make_embedder picks the provider from settings; the OpenAI-compatible
+    provider points the OpenAI client at EMBEDDING_BASE_URL and never sends
+    `dimensions`; fit_dimension pads, truncates and normalises."""
+    from types import SimpleNamespace
+
+    from loaders.embedders import OpenAICompatEmbedder, OpenAIEmbedder, fit_dimension, make_embedder
+
+    assert [round(x, 4) for x in fit_dimension([[3.0, 4.0]], 3)[0]] == [0.6, 0.8, 0.0]      # float32 arithmetic
+    assert [round(x, 4) for x in fit_dimension([[1.0, 1.0, 1.0, 1.0]], 2)[0]] == [0.7071, 0.7071]   # truncate + renormalise
+    assert fit_dimension([[0.0, 0.0]], 2) == [[0.0, 0.0]]
+
+    s = SimpleNamespace(embedding_provider="openai", embedding_model="text-embedding-3-small", embedding_dim=1536, openai_api_key="k")
+    assert isinstance(make_embedder(s), OpenAIEmbedder)
+    s = SimpleNamespace(embedding_provider="openai_compat", embedding_model="BAAI/bge-m3", embedding_dim=1536,
+                        embedding_base_url="http://localhost:11434/v1", embedding_api_key="")
+    e = make_embedder(s)
+    assert isinstance(e, OpenAICompatEmbedder) and e.provider == "openai_compat" and not e.send_dimensions
+    assert str(e.client.base_url).startswith("http://localhost:11434/v1")
+    try:
+        make_embedder(SimpleNamespace(embedding_provider="bogus", embedding_model="m", embedding_dim=8))
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
 
 
 def test_select_sql_skips_rows_already_on_target_model():

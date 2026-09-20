@@ -23,6 +23,7 @@ dependencies = [
     # this the per-athlete timezone feature silently falls back to UTC (INF-M1).
     # Harmless no-op wheel on Linux.
     "tzdata>=2024.1",
+    "sentence-transformers>=6.1.0",
 ]
 
 [project.optional-dependencies]

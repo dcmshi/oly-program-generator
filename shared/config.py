@@ -52,7 +52,19 @@ class Settings:
     db_pool_max: int = 10
 
     # ── Embedding model ───────────────────────────────────────
-    embedding_model: str = "text-embedding-3-small"
+    # EMBEDDING_PROVIDER (oly-ingestion/loaders/embedders.py):
+    #   openai         OpenAI (OPENAI_API_KEY)                              — the default
+    #   openai_compat  any OpenAI-shaped /v1/embeddings server: Together, Ollama,
+    #                  text-embeddings-inference … (EMBEDDING_BASE_URL, EMBEDDING_API_KEY)
+    #   local          a sentence-transformers model on this machine (CPU is enough)
+    # EMBEDDING_MODEL names the model in that provider's namespace; every provider
+    # fits vectors to embedding_dim (the vector(N) column), and the per-row
+    # embedding_model tag keeps spaces apart. Switching = reembed.py + golden/baseline
+    # rebuild (docs/RETRIEVAL_EVAL.md).
+    embedding_provider: str = ""
+    embedding_model: str = ""
+    embedding_base_url: str = ""
+    embedding_api_key: str = ""
     embedding_dim: int = 1536
 
     # ── Model roles ───────────────────────────────────────────
@@ -156,6 +168,15 @@ class Settings:
             )
 
         self.openai_api_key = self.openai_api_key or os.getenv("OPENAI_API_KEY", "")
+        self.embedding_provider = (self.embedding_provider or os.getenv("EMBEDDING_PROVIDER", "openai")).strip().lower()
+        if self.embedding_provider not in ("openai", "openai_compat", "local"):
+            raise ValueError(f"EMBEDDING_PROVIDER must be openai, openai_compat or local, got {self.embedding_provider!r}")
+        _default_embedding = {"openai": "text-embedding-3-small", "local": "Qwen/Qwen3-Embedding-0.6B"}.get(self.embedding_provider, "")
+        self.embedding_model = self.embedding_model or os.getenv("EMBEDDING_MODEL", _default_embedding)
+        self.embedding_base_url = self.embedding_base_url or os.getenv("EMBEDDING_BASE_URL", "")
+        self.embedding_api_key = self.embedding_api_key or os.getenv("EMBEDDING_API_KEY", "")
+        if self.embedding_provider == "openai_compat" and not (self.embedding_model and self.embedding_base_url):
+            raise ValueError("EMBEDDING_PROVIDER=openai_compat needs EMBEDDING_MODEL and EMBEDDING_BASE_URL")
         self.anthropic_api_key = self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "")
         self.llm_provider = (self.llm_provider or os.getenv("LLM_PROVIDER", "anthropic")).strip().lower()
         self.openrouter_api_key = self.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
@@ -163,7 +184,7 @@ class Settings:
         if self.llm_provider not in ("anthropic", "openrouter"):
             raise ValueError(f"LLM_PROVIDER must be 'anthropic' or 'openrouter', got {self.llm_provider!r}")
 
-        if not self.openai_api_key:
+        if not self.openai_api_key and self.embedding_provider == "openai":
             _log.warning("OPENAI_API_KEY is not set — embeddings and vector search will fail")
         if self.llm_provider == "openrouter":
             if not self.openrouter_api_key:

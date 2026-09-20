@@ -3,7 +3,7 @@
 Loads processed chunks into pgvector with embeddings.
 
 Handles:
-- Embedding generation (OpenAI text-embedding-3-small)
+- Embedding generation through loaders/embedders.py (OpenAI, an OpenAI-compatible server, or a local model)
 - Batch inserts with configurable commit size
 - Deduplication: skips chunks whose content hash already exists
 - Similarity search with pre-filtering for the downstream agent
@@ -53,14 +53,11 @@ class VectorLoader:
         # (pre-0.8), so skip the SET on later calls instead of erroring each time.
         self._hnsw_settings_supported: bool | None = None
 
-        # OpenAI embedding client
-        from openai import OpenAI
-        if not settings.openai_api_key:
-            raise ValueError(
-                "OPENAI_API_KEY is required for embeddings. "
-                "Set it in .env or pass via environment variable."
-            )
-        self.embed_client = OpenAI(api_key=settings.openai_api_key)
+        # Embedding backend behind one interface (loaders/embedders.py):
+        # EMBEDDING_PROVIDER = openai | openai_compat | local. The loader never
+        # calls an embedding API itself.
+        from loaders.embedders import make_embedder
+        self.embedder = make_embedder(settings)
         self.last_skipped_count = 0  # dedup-skip count from the most recent load_chunks call
 
     @staticmethod
@@ -248,62 +245,9 @@ class VectorLoader:
         return loaded
 
     def _embed_batch(self, texts: list[str]) -> list[list[float]]:
-        """Batch embed multiple texts in as few API calls as possible.
-
-        OpenAI's embedding API accepts multiple texts per call (up to 2048).
-        For 200 chunks, this means 2 API calls instead of 200.
-        Retries transient errors (rate limits, timeouts, connection drops, 5xx)
-        by exception TYPE — matching on the "rate" substring missed 5xx/timeout
-        errors and failed the whole section even though earlier batches were
-        already paid for (I-L4).
-        """
-        import time
-
-        from openai import APIConnectionError, APITimeoutError, InternalServerError, RateLimitError
-
-        retryable = (RateLimitError, APITimeoutError, APIConnectionError, InternalServerError)
-        all_embeddings: list[list[float]] = []
-
-        for i in range(0, len(texts), self.EMBED_BATCH_SIZE):
-            batch = texts[i : i + self.EMBED_BATCH_SIZE]
-            logger.info(
-                f"  Embedding batch {i // self.EMBED_BATCH_SIZE + 1} "
-                f"({len(batch)} texts)"
-            )
-
-            for attempt in range(3):
-                try:
-                    response = self.embed_client.embeddings.create(
-                        model=self.settings.embedding_model,
-                        input=batch,
-                        **self._embed_kwargs(),
-                    )
-                    batch_embeddings = [item.embedding for item in response.data]
-                    all_embeddings.extend(batch_embeddings)
-                    break
-                except retryable as e:
-                    if attempt < 2:
-                        wait = 2 ** attempt
-                        logger.warning(f"  Embedding call failed ({type(e).__name__}), retrying in {wait}s...")
-                        time.sleep(wait)
-                    else:
-                        raise
-
-        return all_embeddings
-
-    def _embed_kwargs(self) -> dict:
-        """Extra embedding-API arguments derived from settings.
-
-        `text-embedding-3-*` models accept `dimensions` (Matryoshka truncation),
-        which is how `text-embedding-3-large` fits the existing vector(1536)
-        column without a schema change (roadmap #22). Older models reject the
-        argument, so it is only sent for the models that support it.
-        """
-        model = self.settings.embedding_model or ""
-        dim = getattr(self.settings, "embedding_dim", None)
-        if model.startswith("text-embedding-3") and dim:
-            return {"dimensions": int(dim)}
-        return {}
+        """Embed many texts through the configured provider (batching and
+        retries live in the provider). Vectors arrive fitted to embedding_dim."""
+        return self.embedder.embed_documents(texts)
 
     _QUERY_CACHE_MAX = 512  # distinct query strings kept per loader instance
 
@@ -313,23 +257,18 @@ class VectorLoader:
         Production queries are fixed templates (`build_session_query`,
         `build_fault_query`, `build_limiter_query`), so the same strings recur
         across sessions, programs and eval runs in the long-lived worker; caching
-        by (model, dimensions, text) removes those repeat API calls and makes
+        by (provider, model, dim, text) removes those repeat API calls and makes
         repeated evals deterministic (RAG-L2). Keyed on the model so a settings
         change can never serve a vector from another embedding space.
         """
         cache = getattr(self, "_query_cache", None)
         if cache is None:
             cache = self._query_cache = OrderedDict()
-        key = (self.settings.embedding_model, self._embed_kwargs().get("dimensions"), text)
+        key = (self.embedder.provider, self.embedder.model_name, self.embedder.dim, text)
         if key in cache:
             cache.move_to_end(key)
             return cache[key]
-        response = self.embed_client.embeddings.create(
-            model=self.settings.embedding_model,
-            input=text,
-            **self._embed_kwargs(),
-        )
-        vector = response.data[0].embedding
+        vector = self.embedder.embed_query(text)
         cache[key] = vector
         if len(cache) > self._QUERY_CACHE_MAX:
             cache.popitem(last=False)
