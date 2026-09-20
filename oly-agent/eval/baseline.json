@@ -1,45 +1,45 @@
 {
   "n_queries": 57,
-  "recall_at_k": 0.3069,
+  "recall_at_k": 0.2789,
   "recall_at_k_n": 57,
   "hit_at_k": 1.0,
   "hit_at_k_n": 57,
   "mrr": 0.9503,
   "mrr_n": 57,
-  "ndcg_at_k": 0.6547,
+  "ndcg_at_k": 0.64,
   "ndcg_at_k_n": 57,
-  "max_source_share": 0.6105,
+  "max_source_share": 0.6211,
   "max_source_share_n": 57,
   "by_kind": {
     "fault": {
       "n_queries": 13,
-      "recall_at_k": 0.3441,
+      "recall_at_k": 0.3025,
       "recall_at_k_n": 13,
       "hit_at_k": 1.0,
       "hit_at_k_n": 13,
       "mrr": 0.9615,
       "mrr_n": 13,
-      "ndcg_at_k": 0.6738,
+      "ndcg_at_k": 0.6618,
       "ndcg_at_k_n": 13,
-      "max_source_share": 0.6615,
+      "max_source_share": 0.6462,
       "max_source_share_n": 13
     },
     "legacy": {
       "n_queries": 22,
-      "recall_at_k": 0.3366,
+      "recall_at_k": 0.3046,
       "recall_at_k_n": 22,
       "hit_at_k": 1.0,
       "hit_at_k_n": 22,
       "mrr": 0.8939,
       "mrr_n": 22,
-      "ndcg_at_k": 0.6045,
+      "ndcg_at_k": 0.574,
       "ndcg_at_k_n": 22,
-      "max_source_share": 0.5818,
+      "max_source_share": 0.6182,
       "max_source_share_n": 22
     },
     "limiter": {
       "n_queries": 6,
-      "recall_at_k": 0.256,
+      "recall_at_k": 0.2408,
       "recall_at_k_n": 6,
       "hit_at_k": 1.0,
       "hit_at_k_n": 6,
@@ -52,13 +52,13 @@
     },
     "session": {
       "n_queries": 16,
-      "recall_at_k": 0.255,
+      "recall_at_k": 0.2388,
       "recall_at_k_n": 16,
       "hit_at_k": 1.0,
       "hit_at_k_n": 16,
       "mrr": 1.0,
       "mrr_n": 16,
-      "ndcg_at_k": 0.6431,
+      "ndcg_at_k": 0.6425,
       "ndcg_at_k_n": 16,
       "max_source_share": 0.6625,
       "max_source_share_n": 16
@@ -68,6 +68,7 @@
     "built_at": "2026-09-20T18:31:08+00:00",
     "model": "anthropic/claude-haiku-4.5",
     "candidates_per_retriever": 15,
-    "n_queries": 57
+    "n_queries": 57,
+    "union_regrade": "2026-09-20: pools under Haiku and Jev chunk_type labels, additions graded by anthropic/claude-haiku-4.5"
   }
 }

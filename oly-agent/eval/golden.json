@@ -3,7 +3,8 @@
   "built_at": "2026-09-20T18:31:08+00:00",
   "model": "anthropic/claude-haiku-4.5",
   "candidates_per_retriever": 15,
-  "n_queries": 57
+  "n_queries": 57,
+  "union_regrade": "2026-09-20: pools under Haiku and Jev chunk_type labels, additions graded by anthropic/claude-haiku-4.5"
  },
  "queries": [
   {
@@ -37,7 +38,9 @@
     "7462": 2,
     "5165": 1,
     "4767": 1,
-    "4690": 2
+    "4690": 2,
+    "6129": 1,
+    "8845": 1
    },
    "snippets": {
     "4684": "At more challenging weights, the muscle snatch will help strengthen the turnover of the snatch. Programming:\n The muscle snatch can be performed early in a trai",
@@ -95,7 +98,8 @@
     "4752": 2,
     "4717": 2,
     "8848": 1,
-    "4716": 1
+    "4716": 1,
+    "4719": 1
    },
    "snippets": {
     "4749": "Weights can be very heavy as long as the position and balance are correct and the bar is pushed up rather than\u00a0forward. Variations:\n There are a few variations ",
@@ -151,7 +155,8 @@
     "4677": 2,
     "7462": 2,
     "4689": 2,
-    "4672": 2
+    "4672": 2,
+    "6034": 2
    },
    "snippets": {
     "4700": "Programming:\n The snatch press can be done with anywhere from 3-10 reps per set. Weights should generally be such that the exercise can be performed fairly smoo",
@@ -206,7 +211,8 @@
     "4752": 1,
     "4742": 1,
     "4738": 1,
-    "6043": 2
+    "6043": 2,
+    "4744": 1
    },
    "snippets": {
     "5168": "It is a very \nlarge menu, however. Since most workouts will normally not consist of more than 5 or 6 \nexercises, it is obvious that most of the 100 exercises wi",
@@ -263,7 +269,11 @@
     "5165": 1,
     "4674": 1,
     "4767": 0,
-    "4690": 2
+    "4690": 2,
+    "4571": 1,
+    "6129": 0,
+    "4618": 2,
+    "8845": 1
    },
    "snippets": {
     "6513": "The data in the table indicates that the 85% lifts are done\nmost. 85% is used 22.9% in the snatch and 18.4% of the lifts in\nthe clean and jerk. Analysis of the ",
@@ -321,7 +331,8 @@
     "4752": 1,
     "4717": 2,
     "8848": 1,
-    "4716": 1
+    "4716": 1,
+    "5812": 1
    },
    "snippets": {
     "6513": "The data in the table indicates that the 85% lifts are done\nmost. 85% is used 22.9% in the snatch and 18.4% of the lifts in\nthe clean and jerk. Analysis of the ",
@@ -376,7 +387,10 @@
     "5165": 1,
     "4677": 2,
     "4695": 2,
-    "7462": 2
+    "7462": 2,
+    "4689": 2,
+    "4672": 1,
+    "6034": 2
    },
    "snippets": {
     "4700": "Programming:\n The snatch press can be done with anywhere from 3-10 reps per set. Weights should generally be such that the exercise can be performed fairly smoo",
@@ -431,7 +445,10 @@
     "8848": 1,
     "4752": 1,
     "4742": 1,
-    "4738": 1
+    "4738": 1,
+    "4618": 1,
+    "4751": 2,
+    "6043": 1
    },
    "snippets": {
     "5168": "It is a very \nlarge menu, however. Since most workouts will normally not consist of more than 5 or 6 \nexercises, it is obvious that most of the 100 exercises wi",
@@ -487,7 +504,9 @@
     "4687": 1,
     "5165": 1,
     "4767": 0,
-    "4690": 2
+    "4690": 2,
+    "6129": 0,
+    "8845": 1
    },
    "snippets": {
     "5171": "The generally best sequence for assigning the exercises in a single workout is to \nselect exercises from the various groups and order them so as to provide the ",
@@ -545,7 +564,8 @@
     "4752": 1,
     "4717": 1,
     "8848": 1,
-    "4716": 1
+    "4716": 1,
+    "4719": 1
    },
    "snippets": {
     "4497": "Once the bar settles back on the shoulders in the jerk rack position, the athlete is ready to jerk. This technique works, and will be the fallback if the better",
@@ -601,7 +621,8 @@
     "4677": 2,
     "4695": 2,
     "4689": 2,
-    "7462": 2
+    "7462": 2,
+    "6034": 2
    },
    "snippets": {
     "4700": "Programming:\n The snatch press can be done with anywhere from 3-10 reps per set. Weights should generally be such that the exercise can be performed fairly smoo",
@@ -715,7 +736,9 @@
     "4687": 1,
     "4674": 2,
     "5165": 1,
-    "4767": 1
+    "4767": 1,
+    "6129": 1,
+    "8845": 1
    },
    "snippets": {
     "4684": "At more challenging weights, the muscle snatch will help strengthen the turnover of the snatch. Programming:\n The muscle snatch can be performed early in a trai",
@@ -827,7 +850,9 @@
     "4677": 2,
     "4695": 2,
     "4689": 2,
-    "7462": 2
+    "7462": 2,
+    "6129": 0,
+    "6034": 2
    },
    "snippets": {
     "4700": "Programming:\n The snatch press can be done with anywhere from 3-10 reps per set. Weights should generally be such that the exercise can be performed fairly smoo",
@@ -930,7 +955,8 @@
     "4522": 1,
     "4503": 1,
     "5883": 0,
-    "4540": 0
+    "4540": 0,
+    "7409": 1
    },
    "snippets": {
     "4508": "However, this imbalance can have a number of sources, and correction will vary depending on the cause. Often this error proves extremely difficult and frustrati",
@@ -975,7 +1001,10 @@
     "5080": 1,
     "7199": 2,
     "7369": 1,
-    "5108": 0
+    "5108": 0,
+    "7474": 2,
+    "7220": 1,
+    "7218": 2
    },
    "snippets": {
     "4517": "Similarly, if the athlete is too far forward, often because the hips have started or ended up too high relative to the shoulders, he or she will have to rush to",
@@ -1024,7 +1053,12 @@
     "7290": 0,
     "4450": 1,
     "5489": 0,
-    "8415": 0
+    "8415": 0,
+    "7387": 1,
+    "7557": 1,
+    "4498": 0,
+    "7559": 2,
+    "7317": 1
    },
    "snippets": {
     "7469": "Continue pulling the elbows up even as your turn the arms over\u2014keep tension on throughout the movement. It\u2019s common to see lifters suddenly get slack in the sys",
@@ -1122,7 +1156,9 @@
     "7368": 2,
     "4510": 1,
     "6036": 2,
-    "4513": 2
+    "4513": 2,
+    "5824": 1,
+    "6429": 1
    },
    "snippets": {
     "4503": "These can be used in greater quantity and with more variety in a given session than technique work that involves more focused coaching and practice of a specifi",
@@ -1169,7 +1205,9 @@
     "7751": 2,
     "5788": 1,
     "4532": 2,
-    "3945": 0
+    "3945": 0,
+    "4511": 2,
+    "8141": 0
    },
    "snippets": {
     "4333": "This can be a difficult problem to fix and will typically require a good deal of patience from both the coach and athlete. To combat the inability of the athlet",
@@ -1216,7 +1254,9 @@
     "7330": 2,
     "4522": 1,
     "5829": 0,
-    "4530": 2
+    "4530": 2,
+    "5859": 1,
+    "4498": 0
    },
    "snippets": {
     "4511": "Exercises to help correct this problem should focus primarily on the movement between the knees and the power position or extension, the maintenance of maximal ",
@@ -1263,7 +1303,8 @@
     "7382": 2,
     "7456": 1,
     "4585": 1,
-    "4588": 1
+    "4588": 1,
+    "3939": 1
    },
    "snippets": {
     "4508": "However, this imbalance can have a number of sources, and correction will vary depending on the cause. Often this error proves extremely difficult and frustrati",
@@ -1311,7 +1352,8 @@
     "7369": 1,
     "4585": 0,
     "4586": 0,
-    "4588": 0
+    "4588": 0,
+    "7382": 2
    },
    "snippets": {
     "7368": "Snatch/clean from power position and snatch/clean pull + snatch/clean can help retrain the correct balance and angle of extension. Weight Too Far Back on Heels ",
@@ -1358,7 +1400,9 @@
     "7751": 0,
     "4507": 1,
     "4398": 1,
-    "7474": 2
+    "7474": 2,
+    "7219": 2,
+    "7220": 2
    },
    "snippets": {
     "5887": "is to move leg extensors concentrically and hip \nextensors isometrically during the second phase; \nhip extensors concentrically and leg extensors \neccentrically",
@@ -1405,7 +1449,8 @@
     "4501": 1,
     "5980": 2,
     "3904": 1,
-    "3903": 0
+    "3903": 0,
+    "4498": 1
    },
    "snippets": {
     "4503": "These can be used in greater quantity and with more variety in a given session than technique work that involves more focused coaching and practice of a specifi",
@@ -1452,7 +1497,9 @@
     "4509": 1,
     "4506": 1,
     "4526": 2,
-    "7472": 2
+    "7472": 2,
+    "4499": 1,
+    "9019": 1
    },
    "snippets": {
     "4503": "These can be used in greater quantity and with more variety in a given session than technique work that involves more focused coaching and practice of a specifi",
@@ -1499,7 +1546,9 @@
     "7458": 0,
     "5834": 1,
     "4485": 1,
-    "4543": 0
+    "4543": 0,
+    "7314": 2,
+    "6425": 0
    },
    "snippets": {
     "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi",
@@ -1552,7 +1601,11 @@
     "7719": 1,
     "8848": 1,
     "8038": 1,
-    "4762": 2
+    "4762": 2,
+    "8818": 0,
+    "7692": 1,
+    "4598": 2,
+    "7617": 2
    },
    "snippets": {
     "6043": "Effectiveness: Front squatting is a highly \neffective method of strengthening the legs for the \nrecovery from the clean and can also be used to \ncondition them ",
@@ -1609,7 +1662,9 @@
     "4695": 2,
     "4717": 2,
     "4677": 2,
-    "4711": 1
+    "4711": 1,
+    "6109": 2,
+    "6034": 2
    },
    "snippets": {
     "6513": "The data in the table indicates that the 85% lifts are done\nmost. 85% is used 22.9% in the snatch and 18.4% of the lifts in\nthe clean and jerk. Analysis of the ",
@@ -1663,7 +1718,10 @@
     "4527": 2,
     "4764": 1,
     "4685": 2,
-    "7423": 2
+    "7423": 2,
+    "6141": 0,
+    "6418": 1,
+    "7617": 0
    },
    "snippets": {
     "7289": "The bar should be in the palm slightly behind the center of the forearm with the heel of the palm facing up and the hand gripping the bar only tightly enough to",
@@ -1719,7 +1777,10 @@
     "4759": 2,
     "4751": 2,
     "4747": 2,
-    "7313": 1
+    "7313": 1,
+    "7240": 1,
+    "4745": 2,
+    "7695": 2
    },
    "snippets": {
     "8941": "For instance, the half \u2013 jerk is a common supplementary exercise where one performs a half squat and recovers to fully extended legs and a rise onto the toes. O",
@@ -1778,7 +1839,8 @@
     "4711": 2,
     "4719": 2,
     "8848": 1,
-    "4741": 2
+    "4741": 2,
+    "6141": 0
    },
    "snippets": {
     "5168": "It is a very \nlarge menu, however. Since most workouts will normally not consist of more than 5 or 6 \nexercises, it is obvious that most of the 100 exercises wi",
@@ -1835,7 +1897,8 @@
     "4715": 2,
     "6550": 0,
     "5980": 2,
-    "4554": 0
+    "4554": 0,
+    "6141": 0
    },
    "snippets": {
     "7292": "I know I'm not the only one who hears things like, I need to just deadlift really heavy so I can be stronger for the snatch and clean. The same people then proc",
@@ -1891,7 +1954,8 @@
     "3795": 1,
     "4671": 0,
     "5203": 0,
-    "4710": 0
+    "4710": 0,
+    "3733": 0
    },
    "snippets": {
     "4621": "The two primary benefits to this approach are minimizing the time investment at the beginning of the cycle, and allowing more accurate prescriptions because of ",
@@ -1952,7 +2016,11 @@
     "4689": 0,
     "4681": 0,
     "4673": 2,
-    "4670": 0
+    "4670": 0,
+    "4683": 1,
+    "7474": 2,
+    "4518": 1,
+    "4373": 1
    },
    "snippets": {
     "7472": "We\u2019ve all done it\u2014missed a snatch behind and reassured ourselves by saying a miss behind is better than a miss in front. I would agree that in some cases this i",
@@ -2010,7 +2078,9 @@
     "7322": 0,
     "4576": 0,
     "4351": 0,
-    "5944": 0
+    "5944": 0,
+    "10455": 0,
+    "3733": 0
    },
    "snippets": {
     "5181": "Another effective distribution of the weekly volumes might be 35%, 22%, 28%, \n15% or even 35%, 15%, 28%, 22%. These sequences can be adjusted by the coach as is",
@@ -2057,7 +2127,9 @@
     "5851": 1,
     "5842": 0,
     "5852": 1,
-    "5772": 1
+    "5772": 1,
+    "5854": 1,
+    "7826": 1
    },
    "snippets": {
     "8022": "Weightlifting technique can really be as complicated or simple as you want to make it. You could easily spend the rest of your life researching, experimenting, ",
@@ -2105,7 +2177,9 @@
     "4742": 0,
     "4767": 1,
     "4759": 0,
-    "4718": 0
+    "4718": 0,
+    "8845": 1,
+    "7617": 2
    },
    "snippets": {
     "8846": "Frolov \u2018s (2) findings are what one would anticipate considering the physiology involved. According to Lukashev (18), \u201cOne\u2019s results in the snatch depend to gre",
@@ -2164,7 +2238,10 @@
     "7471": 1,
     "6052": 0,
     "9200": 0,
-    "7694": 1
+    "7694": 1,
+    "7686": 0,
+    "7483": 2,
+    "4465": 1
    },
    "snippets": {
     "7567": "Gerasimos Asks: Hello i want to ask a question about jerk training. When a lifter has a weak jerk (strength or technique) is better to perform jerk and assistan",
@@ -2228,7 +2305,10 @@
     "4740": 0,
     "4715": 0,
     "4731": 0,
-    "7560": 1
+    "7560": 1,
+    "7492": 0,
+    "4518": 1,
+    "4433": 1
    },
    "snippets": {
     "4533": "Exercises that can help improve thoracic mobility and extension strength include:\n\nClean-grip overhead squat\n\nPress in clean (Sots press)\n\nPress behind the neck",
@@ -2286,7 +2366,10 @@
     "3725": 1,
     "3750": 1,
     "3729": 1,
-    "3757": 2
+    "3757": 2,
+    "4582": 2,
+    "7668": 1,
+    "3759": 1
    },
    "snippets": {
     "3746": "Because you\u2019ve done such low volumes of training during the recovery session(s), just going to the planned volume in the next stimulative session might be a bit",
@@ -2388,7 +2471,8 @@
     "4614": 1,
     "8282": 2,
     "10414": 2,
-    "6083": 1
+    "6083": 1,
+    "10417": 2
    },
    "snippets": {
     "10416": "The results of these two studies demonstrate the\neffectiveness of employing different starting conditions for the execution of the\nweightlifting exercises. The ",
@@ -2434,7 +2518,8 @@
     "6142": 0,
     "3815": 0,
     "3817": 2,
-    "6105": 1
+    "6105": 1,
+    "6515": 2
    },
    "snippets": {
     "3816": "At three sessions per week, beginners should be training virtually every muscle in every session. (Though this might change for training 4-5 times per week, as ",
@@ -2480,7 +2565,8 @@
     "5204": 1,
     "7598": 0,
     "6577": 0,
-    "7719": 0
+    "7719": 0,
+    "8285": 2
    },
    "snippets": {
     "4575": "The lower the repetitions, the higher the number of sets to a point: once intensity reaches a high enough level, it will limit the possible number of sets. For ",
@@ -2533,7 +2619,9 @@
     "6102": 0,
     "4621": 1,
     "7626": 0,
-    "7627": 0
+    "7627": 0,
+    "7748": 0,
+    "7751": 1
    },
    "snippets": {
     "7819": "Lighter work such as back extensions or reverse hyperextensions can be performed more frequently and in between heavy training sessions because it won\u2019t have so",
@@ -2586,7 +2674,9 @@
     "4622": 1,
     "4610": 1,
     "9199": 0,
-    "6076": 0
+    "6076": 0,
+    "3788": 1,
+    "6253": 0
    },
    "snippets": {
     "7615": "Two-handed barbell in jerk or snatch grip with or without weights hanging on bands or chains to increase instability, single arm dumbbell or kettlebell (standar",
@@ -2641,7 +2731,11 @@
     "8848": 1,
     "6043": 1,
     "4767": 2,
-    "5096": 0
+    "5096": 0,
+    "5807": 1,
+    "7617": 1,
+    "3952": 0,
+    "4536": 1
    },
    "snippets": {
     "7559": "Lastly, the turnover should always be completed as soon as possible; that is, the lifter should attempt to secure the bar in the rack position in as high of a s",
@@ -2702,7 +2796,10 @@
     "4674": 1,
     "4689": 0,
     "4709": 0,
-    "4690": 1
+    "4690": 1,
+    "4704": 1,
+    "4354": 1,
+    "7473": 2
    },
    "snippets": {
     "8185": "I combine the two here because there is a lot of overlap, especially in the way we train them. First, we do things with snatches and jerks like hold the bar ove",
@@ -2762,7 +2859,10 @@
     "7672": 0,
     "3985": 2,
     "7373": 1,
-    "3914": 0
+    "3914": 0,
+    "6044": 0,
+    "8765": 0,
+    "9104": 1
    },
    "snippets": {
     "7583": "The squat is foundational to the Olympic lifts as a position, a movement and a strength exercise. Without a well-developed and consistent squat, neither pulling",
@@ -2924,7 +3024,9 @@
     "3709": 0,
     "3749": 1,
     "3840": 0,
-    "3747": 0
+    "3747": 0,
+    "3677": 2,
+    "3817": 0
    },
    "snippets": {
     "3832": "Fatigue Management\n\nBecause fatigue is accumulated along with adaptation, in order to make continued hypertrophy progress, planned and autoregulated strategies ",
@@ -2976,7 +3078,10 @@
     "8834": 0,
     "4276": 0,
     "8872": 0,
-    "4490": 0
+    "4490": 0,
+    "8874": 0,
+    "4451": 0,
+    "9201": 0
    },
    "snippets": {
     "6059": "The torso is held parallel to \nthe ground or somewhat more upright, and the legs \nare nearly straight. The lifter then grasps a \ndumbbell that has been placed d",
@@ -3031,7 +3136,12 @@
     "4766": 0,
     "4764": 0,
     "8848": 1,
-    "7790": 1
+    "7790": 1,
+    "6042": 0,
+    "7818": 0,
+    "7701": 1,
+    "7644": 2,
+    "8845": 1
    },
    "snippets": {
     "6044": "It is\n\ndifficult to recruit all of the muscles of the legs, and\n\nFig. 35 only profound concentration and volitional effort\n\nwill both teach the lifter how to re",

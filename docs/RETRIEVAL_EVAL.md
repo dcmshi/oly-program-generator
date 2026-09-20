@@ -25,7 +25,32 @@ copy on 2026-09-16 after the full re-ingest — see the section below. Grades ar
 chunk ids, so rebuild both after any corpus change, and on the corpus DB machine once
 the runbook has been applied there (its ids differ).
 
-## Golden-set baseline — 2026-09-20 (dev copy, post MEDVEDEV + RELABEL)
+## Golden-set baseline — 2026-09-20 (union-graded pool; current `baseline.json`)
+
+The golden set was re-graded on the **union** of the candidate pools under two chunk_type
+label sets (Haiku's, in production, and Jev's — see JEV-1 in `TODO.md`), additions graded by
+the same Haiku 4.5 judge: 1,269 graded ids (was 1,160). Recall drops against the earlier
+freeze only because more relevant chunks are now known. Haiku labels, `k=5`, hybrid on.
+
+| Query family | n | recall@5 | MRR | nDCG@5 | max source share |
+|---|---:|---:|---:|---:|---:|
+| **all (baseline.json)** | 57 | **0.279** | **0.950** | **0.640** | 0.621 |
+| fault | 13 | 0.303 | 0.962 | 0.662 | 0.646 |
+| limiter | 6 | 0.241 | 1.000 | 0.828 | 0.467 |
+| session | 16 | 0.239 | 1.000 | 0.643 | 0.663 |
+| legacy (22 free-form) | 22 | 0.305 | 0.894 | 0.574 | 0.618 |
+
+Dense-only ablation: 0.274 / 0.965 / 0.649 — same picture as before (hybrid wins recall,
+dense edges MRR/nDCG). **Label A/B on this pool:** Jev's labels score 0.255 / 0.936 / 0.614;
+the session and limiter families are identical under both label sets, the gap is entirely in
+the free-form legacy queries (0.313 → 0.253 recall) and fault queries (0.303 → 0.285), even
+though a Sonnet 5 adjudication of the 914 disagreements finds Jev's label the better one in
+565 cases vs Haiku's 234 (115 neither). Reading: the chunk-type preference boost benefits from
+Haiku's *looser* `programming_rationale` / `fault_correction` sets; more precise labels shrink
+the boosted set without a ranking gain. A precision label wants a different lever (a reranker),
+not a better labeller.
+
+## Golden-set baseline — 2026-09-20, earlier freeze (superseded by the union-graded pool above)
 
 Corpus: 4,607 chunks · 2,234 principles · 612 sources · 39 templates. Since 2026-09-16:
 Medvedev re-chunked (613 × 324 chars → 143 × 1,430), `relabel_chunk_types.py` applied
