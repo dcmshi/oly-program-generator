@@ -17,6 +17,7 @@ from enum import Enum
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
+from processors.sectioning import MARKDOWN_HEADING_RE_SRC
 from shared.constants import WEEK_BOUNDARY_FLUSH_FRACTION
 
 # ──────────────────────────────────────────────────────────────
@@ -500,11 +501,17 @@ class SemanticChunker:
     # Capture the FULL heading line (…\.*$), not just the marker, so the section
     # title is the real heading (e.g. "# Snatch Technique") rather than the bare
     # "#", and the heading text isn't duplicated into the body / preamble (I-L7).
+    # Mirrors classifier._split_into_sections: `# 4 - March (Monday)` (vision
+    # OCR's rendering of Medvedev's session labels) is not a heading — this
+    # copy made chunk = session even after the classifier was fixed (MEDVEDEV).
+    # `Week N` is deliberately absent: a week label is handled by the chunker's
+    # week-boundary flush, which keeps the label in the chunk text instead of
+    # lifting it into a title.
     SECTION_BREAK_PATTERNS = [
-        r"^#{1,3}\s+.*$",                            # Markdown headers
+        r"^" + MARKDOWN_HEADING_RE_SRC + r"$",        # Markdown headers (minus OCR session labels)
         r"^Chapter\s+\d+.*$",                        # Chapter markers
         r"^PART\s+[IVX]+.*$",                        # Part markers
-        r"^(?:Week|Phase|Block|Cycle)\s+\d+.*$",     # Program phase markers
+        r"^(?:Phase|Block|Cycle)\s+\d+.*$",          # Program phase markers
         r"^\d+\.\d+\s+[A-Z].*$",                     # Numbered sections
     ]
 

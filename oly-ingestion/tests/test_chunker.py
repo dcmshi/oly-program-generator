@@ -313,3 +313,24 @@ def test_keyword_tag_matches_whole_words_only():
     assert "competition_peaking" in keyword_tag("The peak comes two weeks out.")
     assert "squat_programming" in keyword_tag("Front squat after the snatch.")     # multi-word keyword
     assert "competition_peaking" in keyword_tag("A pre-competition taper.")        # hyphenated keyword
+
+
+def test_chunk_keeps_ocr_session_labels_and_week_lines_in_the_text():
+    """MEDVEDEV, second copy of the heading bug: the chunker's own
+    SECTION_BREAK_PATTERNS made `# 4 - March (Monday)` a section title (chunk =
+    session, label lifted out of the text) even after the classifier was fixed,
+    and `Week N` lines became titles too. Through chunk(): labels and week
+    lines stay in raw_content and sessions pack together."""
+    def session(n):
+        lines = "\n".join(f"{i}. Ex. {i}, Ab. Kn., Bl.:  70 x 2 x 2, 80 x 2 x 3, 90 x 1 x 3" for i in range(1, 4))
+        return f"# {n} - March (Monday)\n{lines}\nF. L. = 45"
+    text = "Week 9\n" + "\n\n".join(session(n) for n in (4, 3, 2, 1)) + "\nTotals for week 9  F. L. = 180 lifts"
+    chunker = SemanticChunker.for_source("A System of Multi-Year Training in Weightlifting")
+    chunks = chunker.chunk(text, source_title="T", author="A")
+    assert len(chunks) == 1, [c.raw_content[:30] for c in chunks]
+    assert chunks[0].metadata["section_title"] == ""
+    assert chunks[0].raw_content.startswith("Week 9\n# 4 - March (Monday)")
+    assert chunks[0].raw_content.count("- March (Monday)") == 4
+    # a real markdown heading is still a section break
+    chunks = chunker.chunk("# Loading Dynamics\n\nProse about loading. " * 3 + "\n\n# 4 - March (Monday)\nsession", source_title="T", author="A")
+    assert all(c.metadata["section_title"] == "# Loading Dynamics" for c in chunks)

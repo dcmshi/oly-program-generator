@@ -20,7 +20,7 @@ from enum import Enum
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
-from processors.sectioning import merge_small_sections, split_oversized_sections
+from processors.sectioning import MARKDOWN_HEADING_RE_SRC, merge_small_sections, split_oversized_sections
 from shared.llm import (
     create_llm_client,
     create_message_with_retries,
@@ -153,7 +153,7 @@ class ContentClassifier:
         # made every training session its own section (639 sections → 613
         # chunks of ~320 chars, MEDVEDEV); a heading never starts "<n> -".
         header_pattern = re.compile(
-            r"^(#{1,3}\s+(?!\d+\s*[-–]\s).+|Chapter\s+\d+.*|PART\s+[IVX]+.*|\d+\.\d+\s+[A-Z].+)$",
+            rf"^({MARKDOWN_HEADING_RE_SRC}|Chapter\s+\d+.*|PART\s+[IVX]+.*|\d+\.\d+\s+[A-Z].+)$",
             re.MULTILINE,
         )
 

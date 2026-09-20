@@ -32,6 +32,16 @@ Section = tuple[str, str, dict]
 
 # Headings that are also plausible table/program lines. Only sections carrying
 # one of these (or no title at all) are candidates for merging.
+# `# 4 - March (Monday)`, `# 8 February (Wednesday)`, `# 4. - January (Friday)`,
+# `# 2 - 1. P. Cl.`: vision OCR renders Medvedev's "#N" session / listing labels
+# as markdown-looking headings. A heading regex that admits them makes every
+# session its own section (MEDVEDEV). Negative lookahead for the classifier's
+# and the chunker's `#{1,3}\s+` heading patterns: a number followed by a month,
+# another number, or a parenthesis is a label, not a heading.
+_MONTHS = "January|February|March|April|May|June|July|August|September|October|November|December"
+OCR_LABEL_LOOKAHEAD = rf"(?!\d+\.?\s*[-–]?\s*(?:{_MONTHS}|\d|\())"
+MARKDOWN_HEADING_RE_SRC = rf"#{{1,3}}\s+{OCR_LABEL_LOOKAHEAD}.+"
+
 WEAK_HEADING_RE = re.compile(r"^(?:\d+\.\d+\s|(?:Week|Phase|Block|Cycle)\s+\d+)", re.IGNORECASE)
 
 
