@@ -2,7 +2,8 @@
 .env
 
 # Source material (PDFs, EPUBs — not committed due to copyright and size)
-sources/
+sources/*
+!sources/url_lists/
 
 # Pipeline outputs and logs
 logs/

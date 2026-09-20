@@ -4,6 +4,9 @@
 
 # Source material (PDFs, EPUBs — copyright + size)
 sources/
+!oly-ingestion/sources/
+oly-ingestion/sources/*
+!oly-ingestion/sources/url_lists/
 *.pdf
 *.epub
 

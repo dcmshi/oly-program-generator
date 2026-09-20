@@ -10,6 +10,11 @@ A dev copy measured on 2026-09-15 held 3,368 chunks · 161 principles · 439 sou
 Medvedev re-chunked (613 × 324 chars → 143 × 1,430; the OCR'd session labels were being read
 as headings), `relabel_chunk_types.py` applied (`concept` 50 % → 22 % of the corpus), Takano /
 Medvedev page-fragment templates deleted. Golden set + baseline rebuilt the same day.
+**Dev copy after the free-source additions, 2026-09-20 (evening):** 5,662 chunks (5,395 live, 267
+quarantined) · 2,726 principles · 723 sources · 40 templates — rows 12–18 below. The new rows have
+not yet been through `quarantine_chunks.py`, `dedupe_principles.py` or `relabel_chunk_types.py`,
+and the golden set / baseline predate them (TODO CORPUS-FREE).
+
 **Dev copy after the full re-ingest, 2026-09-16:** 5,077 chunks · 2,135 principles · 612
 sources · 49 templates. All seven PDF sources re-chunked on joined pages with
 `--contextualize` (runbook §8b), Catalyst re-crawled (428 articles → 1,055 chunks, 2.5 per
@@ -39,7 +44,13 @@ size.
 | 9 | Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 504 | programming | 206 | 21 |
 | 10 | Starrett — *Becoming a Supple Leopard* | EPUB | 505 | theory_heavy | 137 | 16 |
 | 11 | Dan John — *Intervention* | PDF | 506 | programming | 123 (was 266; 17.0 paras/chunk) | 66 |
-| 12 | Charniga — sportivnypress.com (Wayback) | Web | — (166 rows with chunks) | web (dynamic) | 1,001 | 260 |
+| 12 | Charniga — sportivnypress.com (Wayback) | Web | — (208 rows) | web (dynamic) | 1,245 (was 1,001; 40 bot-check stubs recovered 2026-09-20) | 344 |
+| 13 | Stronger by Science — 29 curated articles (`url_lists/sbs.json`) | Web | — (29 rows) | web (dynamic) | 285 | 140 |
+| 14 | JTS / Max Aita — 24 articles of 98 listed (`url_lists/jts.json`) | Web | — (24 rows) | web (dynamic) | 82 | 20 |
+| 15 | Pendlay — beginner program (Lift Vault mirror) | Web | — | web (dynamic) | 7 | 10 |
+| 16 | Pritchard — taper thesis + 2 accepted manuscripts | PDF | 742–744 | research | 132 | 100 |
+| 17 | Research sweep — 13 open-access papers (table below) | PDF / Europe PMC text | 745–752, 794–798 | research | 303 (+1 template) | 138 |
+| 18 | Kono — *Championship Weightlifting* excerpt (Catalyst) | Web | — | web (dynamic) | 2 | 0 |
 
 Takano (#6) produced 16 generic program templates in March and 18 chapter-titled ones on the
 2026-09-16 re-ingest (both sets kept for now — several windows were truncated at 4,096 output
@@ -106,10 +117,15 @@ silently stall the gap it was meant to fill.
 
 ### Prerequisites and rules
 
-- **The `research` profile in rows 3–4 does not exist yet.** `CHUNK_PROFILES` in
-  `processors/chunker.py` defines only `theory_heavy`, `programming` and `soviet`.
-  Add it (papers are dense and short — start near `soviet`'s 700/150) before
-  ingesting either PDF.
+- **The `research` profile (rows 3–4) exists since 2026-09-20** at `soviet`'s 700/150;
+  the three Pritchard titles are in `SOURCE_PROFILE_MAP`.
+- **Rows 2, 5 and 6 are curated URL lists**, not crawls: `sources/url_lists/{sbs,jts,pendlay}.json`
+  (committed — the rest of `sources/` is ignored), ingested with
+  `ingest_web.py --site urls --url-file …`. `fetch_generic_article` picks the tightest
+  WordPress container holding the article, drops share/related/affiliate/TOC widgets and
+  the trailing related-posts block, takes the author from `<meta name="author">` or the
+  byline, and skips pages under `GENERIC_MIN_WORDS` (JTS video landing pages). To add
+  articles, append URLs to the list and re-run; `sources/urls_progress.json` skips the rest.
 - **Add every book title to `SOURCE_PROFILE_MAP` before ingesting it** — see the
   profile section below. Rows 1–2 and 5–6 are web ingests and never consult it.
 - **Buy clean ebook text; don't OCR.** Compare the Everett/Israetel EPUBs against
@@ -121,19 +137,79 @@ silently stall the gap it was meant to fill.
   [RETRIEVAL_EVAL.md](RETRIEVAL_EVAL.md), the Ingested Sources table above, and the
   corpus table in `README.md`.
 
+### Status of rows 1–12 (2026-09-20)
+
+Rows 1–6 are ingested on the dev copy (numbers in the Ingested Sources table). Rows
+7–12 all need a purchase; nothing in them has been obtained. What the sweep found:
+
+- **Rows 7, 8, 9 — and Verkhoshansky (row 10) too — are all in one place.** Sportivny
+  Press moved the *Russian Weightlifting Library* to ebooks in 2019–2020 (Kobo, Google
+  Play, Nook, Apple, Amazon; publisher Andrew Charniga): Roman *The Training of the
+  Weightlifter* and *The Snatch, the Clean and Jerk*; Medvedyev *A System of…* and
+  *A Program of…* (row 8: `source_id=501` is *A Program of…*, so buy *A System of…*,
+  [B08HYBSGWS](https://www.amazon.com/System-Multi-Year-Training-Weightlifting-Russian-ebook/dp/B08HYBSGWS));
+  Vorobyev *Weightlifting: Textbook for the Institutes of Sport of the USSR*;
+  Verkhoshansky *Fundamentals of Special Strength Training in Sport* **and**
+  *Programming and Organization of Training* (the latter is the periodization text —
+  closer to this corpus's gap than *Special Strength Training: Manual for Coaches*);
+  Laputin & Oleshko (a clean-text replacement for the OCR'd `source_id=499`); and the
+  Zhekov/Lukashev compilation *Weightlifting Training and Technique* (biomechanics).
+  Buy the EPUBs from Kobo (Canada storefront works) — EPUB extracts cleanly, no OCR.
+- **Row 11 (Kono)** — the free Catalyst excerpt is ingested (`sources/url_lists/extras.json`);
+  measure `fault_correction` retrieval before buying the print books.
+- **Row 12 (Bompa)** — unchanged; Kindle only.
+
+### Sweep 2026-09-20 — added beyond the plan
+
+Open-access research that speaks directly to the taper / block-periodization gaps,
+all under the `research` profile in `sources/research/` (gitignored):
+
+| Source | How obtained | Why |
+|---|---|---|
+| Winwood, Travis, Barnes, Keogh & Pritchard 2026 — *Tapering and Peaking in the Weight Lifting Sports: a systematic review of athletes' self-reported strategies* (Sports Med) | Springer OA PDF | Subsumes the paywalled 2023 JSCR paper that was in "Chasing" — 146 weightlifters, taper length 8.0 ± 4.4 d, linear/step, last heavy session ~5.9 d out |
+| Travis et al. 2021 — step vs exponential taper in strength athletes (Front Physiol) | Europe PMC JATS → text | Concrete 6-week peaking block with the week-by-week table |
+| Hornsby et al. 2017 — strength/RFD/power in weightlifters across five months (Sports) | Europe PMC | Stone-group block periodization with the actual weightlifting program |
+| Suarez et al. 2019 — phase-specific RFD changes through a block cycle in weightlifters (Sports) | Europe PMC | Same group, second block program with loading percentages |
+| Huebner et al. 2022 — how master weightlifters train (IJERPH) | Europe PMC | Frequency / volume / concurrent-training practices by age band |
+| Soriano et al. 2019 — weightlifting overhead pressing derivatives review (Sports Med) | Europe PMC | Exercise selection for jerk / overhead work |
+| Stavropoulos et al. 2025 — light vs heavy priming the day before competition (JFMK) | Europe PMC | Competition-week prescription |
+| Huebner et al. 2019 — performance development youth → senior, age of peak (Front Physiol) | Frontiers PDF | Long-term development context for the `novice` / masters bands |
+| Suchomel, Comfort & Stone 2015 — *Weightlifting Pulling Derivatives: rationale for implementation and application* (Sports Med) | Salford repository AM, saved by hand | Pull-variation selection and loading |
+| Suchomel et al. 2021 — *Training for Muscular Strength: methods for monitoring and adjusting training intensity* (Sports Med) | ECU repository AM, saved by hand | Autoregulation / RPE / velocity prescriptions |
+| Stone et al. 2021 — *Periodization and Block Periodization in Sports: emphasis on strength-power training* (JSCR) | ECU repository AM, saved by hand | The block-periodization argument behind the Hornsby / Suarez programs |
+| DeWeese, Hornsby, Stone & Stone 2015 — *The training process: planning for strength–power training in track and field*, Parts 1 + 2 (J Sport Health Sci, OA) | ScienceDirect, saved by hand | The practical Stone-model write-up (phases, emphasis, loading by block) |
+
+Europe PMC full text is fetched with `extractors/jats_extractor.py` (`python -m
+extractors.jats_extractor <PMCID> <dest.txt>`): JATS XML → `#` headings, `
+
+`
+paragraphs, tab-separated table rows, references dropped. Prefer it to a publisher PDF
+whenever a paper has a PMCID — no columns, running heads or hyphenation to undo. The
+repositories (ECU, Salford, ScienceDirect, MDPI, Springer) refuse scripted downloads
+(403); a paper without a PMCID has to be saved from a browser into `sources/research/`
+and ingested with `--type article`.
+
 ### Chasing — paywalled, author request the only route
 
 - **Storey & Smith 2012** — Auckland ResearchSpace holds abstract only (Springer
   copyright). ResearchGate or a direct author request.
-- **Winwood, Keogh, Travis & Pritchard 2023** — *The Tapering Practices of
-  Competitive Weightlifters* (JSCR). The most on-target tapering paper there is;
-  paywalled. Rows 3–4 are the working substitute until it arrives.
+- ~~**Winwood, Keogh, Travis & Pritchard 2023**~~ — superseded by the 2026 open-access
+  systematic review above, which reports the same survey.
 
 ### Considered and skipped
 
 - **Chidlovski Lift Up** — history and meet results; almost no prescriptive content.
 - **Mash Elite** free hybrid/super-total programs — noisy, weakly structured.
 - **Saxon / Sandow** public-domain books — wrong era for this corpus.
+- **Catalyst training programs** (`/olympic-weightlifting-training-program/`, 79) —
+  now app-only ($39–59); the public page is a blurb. The free daily-workout archive
+  is the remaining Catalyst program data if ever wanted, but it is uncurated.
+- **Torokhtiy guides** (torokhtiy.com, ~100 weightlifting posts) — SEO copy; the
+  "N-day / N-week program" pages describe phases without a program, and shop banners
+  leak into the text. Not worth the noise next to Catalyst + JTS.
+- **USA Weightlifting / IWF coaching manuals** — only pirated copies circulate.
+- **JTS video posts** — 74 of the 98 listed URLs are video landing pages and fall under
+  `GENERIC_MIN_WORDS`; 24 articles ingested.
 
 ---
 
@@ -144,6 +220,7 @@ silently stall the gap it was meant to fill.
 | `theory_heavy` | Zatsiorsky, Drechsler, Starrett | 1100 tokens | 250 |
 | `programming` | Everett, Takano, Israetel, Dan John | 900 tokens | 200 |
 | `soviet` | Laputin, Medvedev (data-dense, OCR'd) | 700 tokens | 150 |
+| `research` | Pritchard thesis + manuscripts (papers: short dense paragraphs, numbers throughout) | 700 tokens | 150 |
 | web article | Catalyst, Charniga | 500–1100 (dynamic) | 100–250 |
 
 Sizes are counted with tiktoken `cl100k_base` since 2026-09-15 (RAG-M2). Every

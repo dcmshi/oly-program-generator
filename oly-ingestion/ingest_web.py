@@ -2,8 +2,13 @@
 """
 Ingest web articles into the pipeline.
 
-Two sources are supported via --site:
+Three sources are supported via --site:
   * catalyst (default) — Catalyst Athletics; crawls live category pages.
+  * urls                — a curated list of article URLs on any site
+                          (sources/url_lists/<name>.json, see load_url_list);
+                          used for Stronger by Science, JTS / Max Aita and the
+                          archived Pendlay beginner program (CORPUS.md rows 2,
+                          5, 6). Generic WordPress-style extraction.
   * charniga            — Andrew "Bud" Charniga's Sportivny Press essays.
                           sportivnypress.com is defunct (domain no longer
                           resolves after his death in Jan 2025), so articles
@@ -27,6 +32,7 @@ Usage:
     python ingest_web.py --dry-run              # collect URLs, no ingestion
     python ingest_web.py --site charniga --dry-run   # enumerate Wayback URLs
     python ingest_web.py --site charniga             # ingest Charniga essays
+    python ingest_web.py --site urls --url-file sources/url_lists/sbs.json
 """
 
 import argparse
@@ -204,7 +210,8 @@ _DATE_LINE_RE = re.compile(
     r"^(?:(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{1,2},\s+\d{4}"
     r"|\d{1,2}\s+(?:January|February|March|April|May|June|July|August|September|October|November|December)\s+\d{4})$"
 )
-_HEADER_NOISE = {"see related articles", "related articles", "share this article", "print this article"}
+_HEADER_NOISE = {"see related articles", "related articles", "share this article", "print this article",
+                 "written by", "by"}
 
 
 def strip_article_header(text: str, title: str = "", author: str = "") -> str:
@@ -298,6 +305,168 @@ def fetch_article(url: str) -> tuple[dict | None, bool]:
         return None, True
 
     return {"title": title, "author": author, "text": text, "url": url}, False
+
+
+# ── Curated URL lists (any site) ───────────────────────────────
+
+URL_LIST_PROGRESS_FILE = Path(__file__).parent / "sources" / "urls_progress.json"
+URL_LIST_DIR = Path(__file__).parent / "sources" / "url_lists"
+GENERIC_MIN_WORDS = 400          # video / podcast landing pages carry a blurb + teaser cards only
+_GENERIC_CONTAINERS = [".entry-content", "article", "main", "#content", "#primary"]
+_GENERIC_DROP = re.compile(
+    r"share|social|related|comment|sidebar|newsletter|subscribe|author-box|author_bio|cookie|"
+    r"breadcrumb|pagination|post-nav|jp-relatedposts|sharedaddy|promo|advert|d-none|featured-article|sticky|"
+    r"lasso|aawp|affiliate|toc_container|ez-toc",
+    re.I,
+)
+_SITE_TITLE_SUFFIX_RE = re.compile(r"\s*[-|•–]\s*[^-|•–]{2,60}$")
+_BYLINE_LINE_RE = re.compile(r"^(written\s+)?by:?$", re.I)
+_INLINE_BYLINE_RE = re.compile(r"^(written\s+)?by:?\s+(?P<name>.+)$", re.I)
+_NAME_LINE_RE = re.compile(r"^[A-Z][a-zA-Z\-.']+(\s+[A-Z][a-zA-Z\-.']+){1,3}$")
+# Page chrome that follows an article body on WordPress themes; the text is
+# cut at the first of these once past _TRAILER_MIN_FRACTION of its length.
+_TRAILER_RE = re.compile(
+    r"^(see more in\b|related (posts|articles)|you may also like|popular products|featured articles|"
+    r"leave a (reply|comment)|manage consent|scroll to top|share this|about the author|read next|view all|"
+    r"\d+ comments?|post navigation)",
+    re.I,
+)
+_TRAILER_MIN_FRACTION = 0.5
+_LEADING_CHROME = {"skip to content", "menu", "home"}
+_CATEGORY_LINE_RE = re.compile(r"^[A-Z][\w &-]{1,30}(, [A-Z][\w &-]{1,30}){0,4}$")
+
+
+def _strip_generic_chrome(text: str, title: str, author: str) -> tuple[str, str]:
+    """Drop leading page chrome (skip links, a `by <Name>` byline — returned
+    as the author when none was given) and the trailing related-posts /
+    comments / consent block. Returns (text, author)."""
+    lines = text.splitlines()
+    known = {t.strip().lower() for t in (title, author) if t and t.strip()}
+    i = 0
+    while i < len(lines):
+        ln = lines[i].strip()
+        if not ln or ln.lower() in _LEADING_CHROME or ln.lower() in known or _DATE_LINE_RE.match(ln):
+            i += 1
+        elif (m := _INLINE_BYLINE_RE.match(ln)) and _NAME_LINE_RE.match(m.group("name")):   # "by Brandon Roberts"
+            if not author:
+                author = m.group("name")
+            i += 1
+        elif _BYLINE_LINE_RE.match(ln):
+            j = i + 1
+            while j < len(lines) and not lines[j].strip():
+                j += 1
+            if j < len(lines) and _NAME_LINE_RE.match(lines[j].strip()):
+                if not author:
+                    author = lines[j].strip()
+                i = j + 1
+                k = i
+                while k < len(lines) and not lines[k].strip():
+                    k += 1
+                if k < len(lines) and _CATEGORY_LINE_RE.match(lines[k].strip()):   # "Articles, Programming"
+                    i = k + 1
+            else:
+                i += 1
+        else:
+            break
+    lines = lines[i:]
+    total = sum(len(ln) for ln in lines)
+    seen = 0
+    for k, ln in enumerate(lines):
+        if seen >= _TRAILER_MIN_FRACTION * total and _TRAILER_RE.match(ln.strip()):
+            lines = lines[:k]
+            break
+        seen += len(ln)
+    return "\n".join(lines), author
+
+
+def load_url_list(path: Path) -> list[tuple[str, str]]:
+    """`[(url, author)]` from a curated list file.
+
+    Format: `{"author": "<default author>", "urls": ["https://…", {"url": "…",
+    "author": "…"}, …]}` — an entry may override the author. Order is kept;
+    duplicates are dropped.
+    """
+    data = json.loads(path.read_text(encoding="utf-8"))
+    default_author = data.get("author", "")
+    out, seen = [], set()
+    for entry in data["urls"]:
+        url, author = (entry, default_author) if isinstance(entry, str) else (entry["url"], entry.get("author", default_author))
+        if url not in seen:
+            seen.add(url)
+            out.append((url, author))
+    return out
+
+
+def fetch_generic_article(url: str, author: str = "") -> tuple[dict | None, bool]:
+    """Fetch one article from an arbitrary (WordPress-style) site.
+
+    Same (article, permanent_skip) contract as fetch_article. The body is the
+    largest of the usual containers after navigation, widgets, share bars and
+    comment blocks are removed; a page under GENERIC_MIN_WORDS (a video or
+    podcast landing page) is a permanent skip.
+    """
+    resp, permanent = _get_with_retry(url, timeout=30)
+    if resp is None:
+        return None, permanent
+    soup = BeautifulSoup(resp.text, "lxml")
+
+    title = ""
+    h1 = soup.find("h1")
+    if h1 and len(h1.get_text(strip=True)) > 5:
+        title = re.sub(r"\s+", " ", h1.get_text(" ", strip=True))
+    elif soup.title:
+        title = _SITE_TITLE_SUFFIX_RE.sub("", soup.title.get_text(strip=True))
+    if not author:
+        meta = soup.find("meta", attrs={"name": "author"})
+        byline = soup.find(attrs={"rel": "author"}) or soup.find(class_=re.compile(r"author[-_]?name|byline", re.I))
+        candidate = (meta.get("content") or "").strip() if meta else (byline.get_text(" ", strip=True) if byline else "")
+        candidate = re.sub(r"^(written\s+)?by\s+", "", candidate, flags=re.I)
+        if re.match(r"^[A-Z][a-zA-Z\s\-.']{3,40}$", candidate):
+            author = candidate
+
+    for tag in soup(["nav", "header", "footer", "script", "style", "aside", "form", "iframe", "noscript", "svg"]):
+        tag.decompose()
+    # Pick the container first, then clean inside it — a body-level theme class
+    # like `content-sidebar` must not take the whole page with it.
+    candidates = [el for sel in _GENERIC_CONTAINERS for el in soup.select(sel)] + ([soup.body] if soup.body else [])
+    if not candidates:
+        logger.warning(f"No content element found for {url}")
+        return None, True
+    sizes = {id(el): len(el.get_text(" ", strip=True)) for el in candidates}
+    main = max(candidates, key=lambda el: sizes[id(el)])
+    for el in candidates:                      # prefer the tightest container that still holds the article
+        if el is not main and sizes[id(el)] >= 0.8 * sizes[id(main)]:
+            main = el
+    main_len = len(main.get_text(" ", strip=True))
+    paragraphs = main.find_all("p")
+    body_anchor = max(paragraphs, key=lambda p: len(p.get_text(" ", strip=True))) if paragraphs else None
+    for tag in main.find_all(True, class_=_GENERIC_DROP) + main.find_all(True, id=_GENERIC_DROP):
+        # a theme wrapper (`content-sidebar-wrap`) matches too — never drop the
+        # element holding the article's longest paragraph
+        if tag.parent is not None and (body_anchor is None or body_anchor not in tag.descendants):
+            tag.decompose()
+    for ul in main.find_all(["ul", "ol"]):      # link-only lists are menus / related posts
+        items = ul.find_all("li", recursive=False)
+        if items and all(
+            li.find("a") is not None
+            and len(li.get_text(" ", strip=True)) <= sum(len(a.get_text(" ", strip=True)) for a in li.find_all("a")) + 3
+            for li in items
+        ):
+            ul.decompose()
+    for teaser in main.find_all("article"):     # nested teaser cards (related-post grids)
+        if len(teaser.get_text(" ", strip=True)) < 0.05 * main_len:
+            teaser.decompose()
+    if main.find("h1") is not None:
+        main.find("h1").decompose()       # the title is stored on the source, not in the text
+
+    text, author = _strip_generic_chrome(block_text(main), title, author)
+    text = strip_article_header(text, title, author)
+    text = re.sub(r"\n{3,}", "\n\n", text).strip()
+    words = len(text.split())
+    if words < GENERIC_MIN_WORDS:
+        logger.warning(f"Only {words} words at {url} (video/landing page?) — skipping")
+        return None, True
+    return {"title": title, "author": author or "Unknown", "text": text, "url": url}, False
 
 
 # ── Charniga / Sportivny Press (Wayback Machine) ───────────────
@@ -397,19 +566,62 @@ def _get_with_retry(url: str, timeout: int = 30, attempts: int = 3, params: dict
     return None, False
 
 
-def fetch_charniga_snapshot(original_url: str, timestamp: str) -> tuple[dict | None, bool]:
+# The 41 URLs the 2026-09-16 run kept pending as "51-char snapshots" were
+# Wayback captures of the site's bot-check interstitial ("One moment, please...
+# Please wait while your request is being verified") — the archive had saved
+# the challenge page, not the article (CHARNIGA-STUBS). Such a capture is
+# recognisable by its text; the fix is to try the URL's earlier captures.
+_BOT_CHECK_RE = re.compile(r"please wait while your request is being verified|one moment, please", re.I)
+ALTERNATE_CAPTURES_TO_TRY = 6
+
+
+def _is_bot_check(soup: BeautifulSoup) -> bool:
+    return bool(_BOT_CHECK_RE.search(soup.get_text(" ", strip=True)[:400]))
+
+
+def alternate_captures(original_url: str, before: str, limit: int = ALTERNATE_CAPTURES_TO_TRY) -> list[str]:
+    """Earlier HTTP-200 text/html capture timestamps of one URL, newest first,
+    strictly before `before`; [] on a CDX failure."""
+    resp, _ = _get_with_retry(WAYBACK_CDX_URL, timeout=60, params={
+        "url": original_url, "output": "json", "fl": "timestamp", "to": "20241231",
+        "filter": ["statuscode:200", "mimetype:text/html"],
+    })
+    if resp is None:
+        return []
+    try:
+        rows = resp.json()
+    except ValueError:
+        return []
+    stamps = sorted({r[0] for r in rows[1:] if r and r[0] < before}, reverse=True)
+    return stamps[:limit]
+
+
+def fetch_charniga_snapshot(original_url: str, timestamp: str, *, try_alternates: bool = True) -> tuple[dict | None, bool]:
     """Fetch one archived Charniga article from the Wayback Machine and extract text.
 
     Returns (article, permanent_skip). When article is None, permanent_skip=True
-    means the URL can never yield content (404, empty document) and may be
-    persisted as processed; False means a transient failure or a suspiciously
-    short extraction (Wayback hiccup, content-selector mismatch) — the URL must
-    stay pending so a later run can retry it (ING-H1).
+    means the URL can never yield content (404, empty document, only bot-check
+    captures) and may be persisted as processed; False means a transient failure
+    or a suspiciously short extraction (Wayback hiccup, content-selector
+    mismatch) — the URL must stay pending so a later run can retry it (ING-H1).
+    A capture that is the site's bot-check page falls back to the URL's earlier
+    captures (CHARNIGA-STUBS); if every tried capture is the challenge page the
+    URL is reported permanent so re-runs stop retrying it.
     """
     snapshot = WAYBACK_RAW_FMT.format(timestamp=timestamp, original=original_url)
     resp, permanent = _get_with_retry(snapshot, timeout=30)
     if resp is None:
         return None, permanent
+    if _is_bot_check(BeautifulSoup(resp.content, "lxml")):
+        if not try_alternates:
+            return None, True
+        for alt in alternate_captures(original_url, timestamp):
+            article, permanent = fetch_charniga_snapshot(original_url, alt, try_alternates=False)
+            if article is not None:
+                logger.info(f"Bot-check capture at {timestamp} for {original_url} — used capture {alt} instead")
+                return article, permanent
+        logger.warning(f"Every tried capture of {original_url} is the bot-check page — marking permanent")
+        return None, True
 
     # Bytes, not resp.text — requests defaults charset-less text/* to
     # ISO-8859-1, mojibake-ing UTF-8 quotes/dashes in old captures; BS4's
@@ -601,9 +813,12 @@ def main():
     parser = argparse.ArgumentParser(
         description="Ingest web articles (Catalyst Athletics live, or Charniga via Wayback Machine)")
     parser.add_argument(
-        "--site", choices=["catalyst", "charniga"], default="catalyst",
-        help="Source: 'catalyst' (live crawl) or 'charniga' (Wayback Machine; sportivnypress.com is defunct)",
+        "--site", choices=["catalyst", "charniga", "urls"], default="catalyst",
+        help="Source: 'catalyst' (live crawl), 'charniga' (Wayback Machine; sportivnypress.com is defunct) "
+             "or 'urls' (curated list, --url-file)",
     )
+    parser.add_argument("--url-file", type=Path, default=None,
+                        help="--site urls: JSON list file (sources/url_lists/<name>.json)")
     parser.add_argument(
         "--categories", nargs="+",
         choices=list(CATALYST_CATEGORIES.keys()),
@@ -629,6 +844,12 @@ def main():
         progress_file = CHARNIGA_PROGRESS_FILE
         logger.info("Collecting archived sportivnypress.com URLs from the Wayback Machine")
         all_urls: list[tuple[str, str]] = collect_charniga_urls()
+    elif args.site == "urls":
+        if args.url_file is None:
+            parser.error("--site urls needs --url-file")
+        progress_file = URL_LIST_PROGRESS_FILE
+        all_urls = load_url_list(args.url_file)      # meta = author
+        logger.info(f"Loaded {len(all_urls)} URLs from {args.url_file}")
     else:
         progress_file = PROGRESS_FILE
         all_urls = []  # (url, category_name)
@@ -698,6 +919,13 @@ def main():
         try:
             if args.site == "charniga":
                 article, permanent_skip = fetch_charniga_snapshot(url, meta)  # meta = Wayback timestamp
+            elif args.site == "urls":
+                if "catalystathletics.com" in url:                             # Catalyst has its own selectors
+                    article, permanent_skip = fetch_article(url)
+                    if article is not None and meta:
+                        article["author"] = meta
+                else:
+                    article, permanent_skip = fetch_generic_article(url, meta)  # meta = author
             else:
                 article, permanent_skip = fetch_article(url)
 

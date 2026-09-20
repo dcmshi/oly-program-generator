@@ -40,6 +40,7 @@ class SourceProfile(Enum):
     THEORY_HEAVY = "theory_heavy"           # Zatsiorsky, Verkhoshansky
     PROGRAMMING_FOCUSED = "programming"     # Everett, Takano, Pendlay
     DATA_HEAVY_SOVIET = "soviet"            # Medvedev, Laputin & Oleshko
+    RESEARCH = "research"                   # Pritchard taper thesis + manuscripts
     WEB_ARTICLE = "web_article"             # Catalyst website, SBS, JTS
 
 
@@ -60,6 +61,11 @@ CHUNK_PROFILES = {
         "chunk_overlap": 150,
         "description": "Terse prose between data tables",
     },
+    SourceProfile.RESEARCH: {
+        "chunk_size": 700,     # papers: dense, short paragraphs, numbers throughout
+        "chunk_overlap": 150,
+        "description": "Journal papers and theses — methods/results prose with numbers",
+    },
     SourceProfile.WEB_ARTICLE: {
         "chunk_size": 700,     # default; adjusted dynamically by article length
         "chunk_overlap": 150,
@@ -79,6 +85,21 @@ SOURCE_PROFILE_MAP = {
     "Supertraining": SourceProfile.THEORY_HEAVY,
     "Weightlifting Encyclopedia": SourceProfile.THEORY_HEAVY,
     "Becoming a Supple Leopard": SourceProfile.THEORY_HEAVY,
+    "Tapering Strategies to Enhance Maximal Strength": SourceProfile.RESEARCH,
+    "Short-term training cessation": SourceProfile.RESEARCH,
+    "Higher vs lower intensity strength training taper": SourceProfile.RESEARCH,
+    "Tapering and Peaking in the Weight Lifting Sports": SourceProfile.RESEARCH,
+    "Step and Exponential Taper": SourceProfile.RESEARCH,
+    "Alterations in Weightlifters across Five Months": SourceProfile.RESEARCH,
+    "Block Periodized Training Cycle in Weightlifters": SourceProfile.RESEARCH,
+    "How Do Master Weightlifters Train": SourceProfile.RESEARCH,
+    "Weightlifting Overhead Pressing Derivatives": SourceProfile.RESEARCH,
+    "Priming with Light vs. Heavy Loads": SourceProfile.RESEARCH,
+    "Performance Development From Youth to Senior": SourceProfile.RESEARCH,
+    "Weightlifting Pulling Derivatives": SourceProfile.RESEARCH,
+    "Training for Muscular Strength": SourceProfile.RESEARCH,
+    "Periodization and Block Periodization in Sports": SourceProfile.RESEARCH,
+    "The training process: Planning for strength": SourceProfile.RESEARCH,
 }
 
 

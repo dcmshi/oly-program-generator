@@ -130,7 +130,20 @@ CDX enumeration now retries transient Wayback 503s and a 0-URL collection
 aborts loudly instead of reporting "nothing to ingest". The content selectors
 are confirmed against a live snapshot (`div.entry-content` + `h1.entry-title`).
 Watch for "kept pending" warnings; re-run until the pending count stabilizes.
-Expected: ~215 sources with `author='Andrew Charniga'` and urls set.
+Expected: ~208 sources with `author='Andrew Charniga'` and urls set (209 CDX URLs;
+the 41 that were bot-check captures now fall back to earlier captures — CHARNIGA-STUBS).
+
+Then the other free additions (CORPUS.md rows 2–6 and the research sweep) — same
+commands as the dev copy, in this order:
+
+```bash
+PYTHONUTF8=1 uv run python ingest_web.py --site urls --url-file sources/url_lists/pendlay.json
+PYTHONUTF8=1 uv run python ingest_web.py --site urls --url-file sources/url_lists/sbs.json
+PYTHONUTF8=1 uv run python ingest_web.py --site urls --url-file sources/url_lists/jts.json
+PYTHONUTF8=1 uv run python ingest_web.py --site urls --url-file sources/url_lists/extras.json
+# papers: copy sources/research/ from the dev machine (gitignored) and run pipeline.py
+# --type article --classifier jev per file with the titles in docs/CORPUS.md
+```
 
 ## 8b. Re-ingest the seven PDF sources (RAG-H1)  ⚠ needs both keys (~$1–2 embeddings + principle extraction)
 

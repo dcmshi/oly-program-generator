@@ -133,6 +133,7 @@ PYTHONUTF8=1 uv run python ingest_web.py
 | `--batch` | `pipeline.py`, `relabel_chunk_types.py` | Sends principle extraction, vision OCR (and the relabel calls) through the Message Batches API at half price. Principle sections are queued and flushed as one batch after the section loop; a batch takes minutes to hours, so not for smoke tests (COST-1) |
 | `--categories technique` | `ingest_web.py` | Restrict to one category instead of all priority categories |
 | `--site charniga` | `ingest_web.py` | Crawl Charniga via the Wayback CDX index instead of Catalyst |
+| `--site urls --url-file sources/url_lists/<name>.json` | `ingest_web.py` | Ingest a curated URL list from any site (SBS, JTS, Pendlay); generic WordPress-style extraction, progress in `sources/urls_progress.json` |
 | `--limit 20` | `ingest_web.py` | Cap article count for a smoke test |
 | `--dry-run` | `ingest_web.py` | Collect URLs only, ingest nothing |
 
@@ -311,9 +312,9 @@ oly-program-generator/
 │   ├── pyproject.toml
 │   ├── docker-compose.yml           # Postgres + PgBouncer + Redis
 │   ├── pipeline.py                  # EPUB / PDF ingestion orchestrator
-│   ├── ingest_web.py                # Web article ingestion (Catalyst · Charniga)
+│   ├── ingest_web.py                # Web article ingestion (Catalyst · Charniga · curated URL lists)
 │   ├── retag_chunks.py              # Re-tag stored chunks after KEYWORD_TO_TOPIC changes
-│   ├── extractors/                  # pdf_extractor · epub_extractor · html_extractor
+│   ├── extractors/                  # pdf_extractor · epub_extractor · html_extractor · jats_extractor (Europe PMC) · ocr_cache
 │   ├── processors/                  # chunker · classifier · principle_extractor · ocr_corrections
 │   ├── loaders/                     # vector_loader · structured_loader
 │   ├── sources/                     # Source files + crawl progress JSON (gitignored)
