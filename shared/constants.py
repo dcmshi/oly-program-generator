@@ -174,3 +174,10 @@ PROMPT_CACHE_MIN_CHARS: int = 4000
 # VARCHAR(300); a longer heading line raised StringDataRightTruncation and
 # dropped the whole section (RAG-L8). Mirror of migration 0000.
 CHUNK_TITLE_MAX_CHARS: int = 300
+
+# ── Chunking (ingestion) ───────────────────────────────────────
+# A paragraph opening with a week label ("Week 9", "Week # 12") closes the
+# current chunk once it holds at least this fraction of the profile's
+# chunk_size, so day-by-day training logs (Medvedev) chunk per week instead
+# of wherever the token budget happens to run out (MEDVEDEV).
+WEEK_BOUNDARY_FLUSH_FRACTION: float = 0.4

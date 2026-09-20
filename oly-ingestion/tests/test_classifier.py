@@ -296,6 +296,23 @@ def test_oversized_section_split_at_paragraph_boundaries():
         assert all(p == para.strip() for p in sec_text.split("\n\n")), "a paragraph was cut"
 
 
+def test_ocr_session_labels_are_not_markdown_headings():
+    """MEDVEDEV: vision OCR renders the book's "#4" session labels as
+    `# 4 - February (Monday)`, which the markdown-heading regex took as a
+    heading — 639 sections, one per training session. A real `# Heading`
+    still splits."""
+    clf = make_classifier()
+    session = "1. Cl. Sn.:  70 x 2 x 2, 80 x 2 x 3\n2. B. Sq.:  55 x 3, 85 x 3 x 6\nF. L. = 56"
+    body = "\n\n".join(f"# {n} - February (Monday)\n{session}" for n in (4, 3, 2, 1))
+    text = "# Program of the Second Year\n\nWeek # 8\n" + body + "\n\n# Loading Dynamics\n\nThe volume rises across the block. " * 3
+    sections = clf._split_into_sections(text)
+    titles = [meta["title"] for _t, meta in sections]
+    assert "# Program of the Second Year" in titles and "# Loading Dynamics" in titles
+    assert not any("February" in t for t in titles), titles
+    program = next(t for t, meta in sections if meta["title"] == "# Program of the Second Year")
+    assert program.count("- February (Monday)") == 4 and "# 4 - February (Monday)" in program   # labels kept in the text
+
+
 def test_llm_classify_uses_the_light_model():
     """The 128-token label pick goes to settings.light_model, not the Sonnet-class llm_model."""
     from unittest.mock import MagicMock, patch

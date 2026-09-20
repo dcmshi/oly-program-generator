@@ -147,8 +147,12 @@ class ContentClassifier:
 
         Returns list of (section_text, metadata) tuples.
         """
+        # `#{1,3}\s+` is a markdown heading — except `# 4 - March (Monday)`,
+        # which is how vision OCR renders Medvedev's "#4" session labels. Those
+        # made every training session its own section (639 sections → 613
+        # chunks of ~320 chars, MEDVEDEV); a heading never starts "<n> -".
         header_pattern = re.compile(
-            r"^(#{1,3}\s+.+|Chapter\s+\d+.*|PART\s+[IVX]+.*|\d+\.\d+\s+[A-Z].+)$",
+            r"^(#{1,3}\s+(?!\d+\s*[-–]\s).+|Chapter\s+\d+.*|PART\s+[IVX]+.*|\d+\.\d+\s+[A-Z].+)$",
             re.MULTILINE,
         )
 

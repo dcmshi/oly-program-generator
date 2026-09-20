@@ -269,6 +269,36 @@ def test_program_listing_week_lines_do_not_fragment_chunks():
         assert f"Week {w}" in chunks[0].raw_content
 
 
+def test_training_log_chunks_per_week():
+    """MEDVEDEV: a day-by-day log chunks at `Week # N` lines once the chunk is
+    big enough — the week label glued to the previous week's totals line
+    starts a new paragraph, and no tail overlap crosses the boundary."""
+    from shared.constants import WEEK_BOUNDARY_FLUSH_FRACTION
+
+    def session(n):
+        return (f"# {n} - March (Monday)\n1. P. Sn.:  70 x 2 x 2, 80 x 2 x 3\n2. Cl. Sn.:  80 x 2 x 2, 90 x 1 x 3\n"
+                f"3. Sn. Pu.:  100 x 2 x 4\n4. B. Sq.:  65 x 3, 75 x 3 x 3\nF. L. = 45")
+
+    weeks = []
+    for w in range(9, 13):
+        days = "\n\n".join(session(n) for n in (3, 2, 1))
+        label = f"\nWeek # {w + 1}" if w < 12 else ""          # the label opens the NEXT week's text
+        weeks.append(f"{days}\nTotals for week {w}  F. L. = 135 lifts{label}")
+    text = "Week # 9\n" + "\n".join(weeks)
+    chunker = SemanticChunker.for_source("A System of Multi-Year Training in Weightlifting")
+    assert chunker.source_profile == SourceProfile.DATA_HEAVY_SOVIET
+    pieces = chunker._chunk_section(text)
+    assert len(pieces) == 4, [p[:20] for p in pieces]
+    assert all(p.startswith("Week # ") for p in pieces), [p[:12] for p in pieces]
+    for w, piece in zip(range(9, 13), pieces, strict=True):
+        assert piece.startswith(f"Week # {w}\n") and piece.count("- March (Monday)") == 3
+        assert f"Totals for week {w}" in piece and f"Totals for week {w + 1}" not in piece
+    # a week label after a tiny chunk does not flush (below the fraction)
+    tiny = "Week # 1\nCompete.\nWeek # 2\n" + session(1)
+    assert len(chunker._chunk_section(tiny)) == 1
+    assert 0 < WEEK_BOUNDARY_FLUSH_FRACTION < 1
+
+
 def test_keyword_tag_matches_whole_words_only():
     """RAG-M7: substring matching tagged 'requiring' as RPE/RIR content,
     'speaking' as peaking, 'permission' as fault correction."""

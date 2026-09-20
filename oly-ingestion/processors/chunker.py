@@ -11,8 +11,13 @@ Key design decisions:
 """
 
 import re
+import sys
 from dataclasses import dataclass, field
 from enum import Enum
+from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
+from shared.constants import WEEK_BOUNDARY_FLUSH_FRACTION
 
 # ──────────────────────────────────────────────────────────────
 # Data classes
@@ -79,6 +84,11 @@ SOURCE_PROFILE_MAP = {
 # ──────────────────────────────────────────────────────────────
 # Keep-together patterns
 # ──────────────────────────────────────────────────────────────
+
+# A line that opens a week of a training log: "Week 9", "Week # 12", "Week #10 -".
+# The chunker starts a paragraph there and prefers to close the chunk before it
+# (WEEK_BOUNDARY_FLUSH_FRACTION), so day-by-day logs chunk per week.
+WEEK_BOUNDARY_RE = re.compile(r"^Week\s*#?\s*\d+\b", re.IGNORECASE)
 
 KEEP_TOGETHER_PATTERNS = {
     # Rep schemes: "5x3 @ 75%", "3×2 at 85%"
@@ -673,6 +683,10 @@ class SemanticChunker:
         Respects keep-together patterns: if a chunk boundary would split
         a matched pattern, the chunk is extended to include the full match.
         """
+        # A week label glued to the previous session's totals ("F. L. = 67\n
+        # Totals for week 8 …\nWeek # 9\n# 3 - February") gets its own
+        # paragraph, so the week can start a chunk (MEDVEDEV).
+        text = re.sub(r"\n(?=Week\s*#?\s*\d+\b)", "\n\n", text)
         paragraphs = [
             piece
             for p in text.split("\n\n") if p.strip()
@@ -682,9 +696,19 @@ class SemanticChunker:
         chunks: list[str] = []
         current_chunk = ""
         current_tokens = 0
+        week_flush_at = self.chunk_size * WEEK_BOUNDARY_FLUSH_FRACTION
 
         for para in paragraphs:
             para_tokens = self._estimate_tokens(para)
+
+            # Close the chunk at a week boundary once it is big enough to be
+            # worth a chunk; no tail overlap — last week's totals are not
+            # context for this week.
+            if current_chunk and current_tokens >= week_flush_at and WEEK_BOUNDARY_RE.match(para):
+                chunks.append(current_chunk)
+                current_chunk = para
+                current_tokens = para_tokens
+                continue
 
             if current_tokens + para_tokens > self.chunk_size and current_chunk:
                 # Check if splitting here would break a keep-together pattern
