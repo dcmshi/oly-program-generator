@@ -34,6 +34,7 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
 
 from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
 from shared.llm import (
+    create_llm_client,
     create_message_with_retries,
     json_schema_kwargs,
     light_model_for,
@@ -183,8 +184,7 @@ def main(argv=None) -> int:
     loader = VectorLoader(settings)
     client = None
     if not args.dry_run:
-        import anthropic
-        client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        client = create_llm_client(settings)
     model = light_model_for(settings, args.model)
 
     graded = []

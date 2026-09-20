@@ -22,6 +22,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.sectioning import merge_small_sections, split_oversized_sections
 from shared.llm import (
+    create_llm_client,
     create_message_with_retries,
     json_schema_kwargs,
     light_model_for,
@@ -233,15 +234,9 @@ class ContentClassifier:
         return ContentType.PROSE, 0.60 if word_count < 50 else 0.80
 
     def _get_client(self):
-        """Lazy-init Anthropic client."""
+        """Lazy-init the LLM client (the provider's key must be in .env)."""
         if not hasattr(self, "_client"):
-            import anthropic
-            if not self.settings.anthropic_api_key:
-                raise ValueError(
-                    "ANTHROPIC_API_KEY is required for LLM classification. "
-                    "Set it in .env or pass via environment variable."
-                )
-            self._client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
+            self._client = create_llm_client(self.settings)
         return self._client
 
     _CLASSIFY_PROMPT = """\

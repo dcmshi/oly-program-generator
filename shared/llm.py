@@ -72,15 +72,54 @@ _NON_TEXT_BLOCK_TYPES = frozenset({
 })
 _warned_unknown_pricing: set[str] = set()
 
+# ── Providers ─────────────────────────────────────────────────────────────
+# "anthropic" (default) talks to api.anthropic.com with ANTHROPIC_API_KEY.
+# "openrouter" talks to OpenRouter's Anthropic-Messages-compatible endpoint
+# with OPENROUTER_API_KEY and OpenRouter's model ids ("anthropic/claude-sonnet-5",
+# "anthropic/claude-haiku-4.5"); same SDK, same request shape. No Message
+# Batches there — `supports_batches()` is False and --batch falls back to sync.
+PROVIDERS = ("anthropic", "openrouter")
+OPENROUTER_BASE_URL = "https://openrouter.ai/api"
+_OPENROUTER_VENDOR = "anthropic/"
+_DATE_SUFFIX_RE = re.compile(r"-\d{8}$")
+_MINOR_VERSION_RE = re.compile(r"^(claude-[a-z]+-\d)-(\d)$")
+
+
+def openrouter_model_id(model: str) -> str:
+    """Anthropic id → OpenRouter id: `anthropic/` prefix, dotted minor version,
+    no dated snapshot (`claude-haiku-4-5-20251001` → `anthropic/claude-haiku-4.5`).
+    Ids that already carry a vendor prefix pass through."""
+    if "/" in model:
+        return model
+    base = _DATE_SUFFIX_RE.sub("", model)
+    base = _MINOR_VERSION_RE.sub(r"\1.\2", base)
+    return _OPENROUTER_VENDOR + base
+
+
+def canonical_model(model: str | None) -> str:
+    """The Anthropic-style id behind any provider's id, for the family and
+    pricing tables: strips a `vendor/` prefix and turns a dotted minor version
+    back into dashes (`anthropic/claude-sonnet-4.6` → `claude-sonnet-4-6`)."""
+    if not model:
+        return ""
+    base = model.rsplit("/", 1)[-1]
+    return re.sub(r"^(claude-[a-z]+-\d)\.(\d)", r"\1-\2", base)
+
+
+def supports_batches(settings) -> bool:
+    """Message Batches exist on the first-party API only."""
+    return getattr(settings, "llm_provider", "anthropic") in ("", "anthropic")
+
 
 def _has_prefix(model: str | None, prefixes: tuple[str, ...]) -> bool:
-    return bool(model) and model.startswith(prefixes)
+    return bool(model) and canonical_model(model).startswith(prefixes)
 
 
 def pricing_for(model: str | None) -> tuple[float, float]:
     """(input, output) USD per million tokens for a model id (longest-prefix match)."""
     if model:
-        key = max((k for k in MODEL_PRICING_PER_MTOK if model.startswith(k)), key=len, default=None)
+        canon = canonical_model(model)
+        key = max((k for k in MODEL_PRICING_PER_MTOK if canon.startswith(k)), key=len, default=None)
         if key:
             return MODEL_PRICING_PER_MTOK[key]
         if model not in _warned_unknown_pricing:
@@ -386,13 +425,22 @@ def _wait_for_batch(client, batch, label: str, poll_interval: float, timeout: fl
 
 
 def create_llm_client(settings) -> Anthropic:
-    """Create the Anthropic client.
+    """The one place an Anthropic-SDK client is built (agent, ingestion, eval).
 
-    Used by:
-    - generate.py (Step 4: per-session program generation)
-    - explain.py  (Step 6: program rationale)
-    - plan.py     (optional, for ambiguous planning decisions)
+    `settings.llm_provider` picks the endpoint: the first-party API with
+    ANTHROPIC_API_KEY, or OpenRouter's Anthropic-compatible endpoint with
+    OPENROUTER_API_KEY (Settings has already rewritten the model ids).
     """
+    provider = getattr(settings, "llm_provider", "") or "anthropic"
+    if provider == "openrouter":
+        if not getattr(settings, "openrouter_api_key", ""):
+            raise ValueError("OPENROUTER_API_KEY is required when LLM_PROVIDER=openrouter. Set it in .env.")
+        return Anthropic(
+            api_key=settings.openrouter_api_key,
+            base_url=getattr(settings, "llm_base_url", "") or OPENROUTER_BASE_URL,
+        )
+    if provider != "anthropic":
+        raise ValueError(f"LLM_PROVIDER must be one of {PROVIDERS}, got {provider!r}")
     if not settings.anthropic_api_key:
         raise ValueError(
             "ANTHROPIC_API_KEY is required. Set it in .env or as an environment variable."

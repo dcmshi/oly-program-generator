@@ -199,3 +199,55 @@ if __name__ == "__main__":
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
+
+
+def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
+    """LLM_PROVIDER=openrouter routes the same Anthropic-SDK calls through
+    OpenRouter: model roles become OpenRouter ids, the client uses
+    OPENROUTER_API_KEY + the OpenRouter base URL, and Message Batches are off."""
+    import os
+    from unittest.mock import patch
+
+    from shared.llm import OPENROUTER_BASE_URL, create_llm_client, supports_batches
+
+    saved = {k: os.environ.pop(k, None) for k in ("LLM_PROVIDER", "OPENROUTER_API_KEY", "LLM_BASE_URL",
+                                                  "LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
+    try:
+        s = Settings()
+        assert s.llm_provider == "anthropic" and supports_batches(s)
+        assert s.llm_model == "claude-sonnet-5"
+
+        os.environ["LLM_PROVIDER"] = "openrouter"
+        os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+        s = Settings()
+        assert s.llm_provider == "openrouter" and not supports_batches(s)
+        assert s.llm_model == "anthropic/claude-sonnet-5"
+        assert s.light_model == "anthropic/claude-haiku-4.5"          # dated snapshot dropped, dotted minor
+        assert s.generation_model == s.explanation_model == "anthropic/claude-sonnet-5"
+        with patch("shared.llm.Anthropic") as client_cls:
+            create_llm_client(s)
+        assert client_cls.call_args.kwargs == {"api_key": "sk-or-test", "base_url": OPENROUTER_BASE_URL}
+
+        os.environ["LLM_BASE_URL"] = "https://proxy.example/api"
+        with patch("shared.llm.Anthropic") as client_cls:
+            create_llm_client(Settings())
+        assert client_cls.call_args.kwargs["base_url"] == "https://proxy.example/api"
+
+        os.environ.pop("OPENROUTER_API_KEY")
+        try:
+            create_llm_client(Settings())
+            raise AssertionError("expected ValueError without OPENROUTER_API_KEY")
+        except ValueError as e:
+            assert "OPENROUTER_API_KEY" in str(e)
+
+        os.environ["LLM_PROVIDER"] = "bogus"
+        try:
+            Settings()
+            raise AssertionError("expected ValueError for an unknown provider")
+        except ValueError:
+            pass
+    finally:
+        for k, v in saved.items():
+            os.environ.pop(k, None)
+            if v is not None:
+                os.environ[k] = v

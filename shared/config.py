@@ -107,9 +107,16 @@ class Settings:
     track_token_usage: bool = True
     cost_limit_per_program: float = 1.00
 
-    # ── API keys ──────────────────────────────────────────────
+    # ── API keys / provider ───────────────────────────────────
     openai_api_key: str = ""
     anthropic_api_key: str = ""
+    # LLM_PROVIDER: "anthropic" (default) or "openrouter" — OpenRouter's
+    # Anthropic-compatible endpoint with OPENROUTER_API_KEY; the model roles
+    # below are rewritten to OpenRouter ids in __post_init__. LLM_BASE_URL
+    # overrides the endpoint (blank = the provider's default).
+    llm_provider: str = ""
+    openrouter_api_key: str = ""
+    llm_base_url: str = ""
 
     # ── Web / deployment ──────────────────────────────────────
     secret_key: str = ""   # session signing key; MUST be set in production via SECRET_KEY env var
@@ -144,10 +151,18 @@ class Settings:
 
         self.openai_api_key = self.openai_api_key or os.getenv("OPENAI_API_KEY", "")
         self.anthropic_api_key = self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "")
+        self.llm_provider = (self.llm_provider or os.getenv("LLM_PROVIDER", "anthropic")).strip().lower()
+        self.openrouter_api_key = self.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
+        self.llm_base_url = self.llm_base_url or os.getenv("LLM_BASE_URL", "")
+        if self.llm_provider not in ("anthropic", "openrouter"):
+            raise ValueError(f"LLM_PROVIDER must be 'anthropic' or 'openrouter', got {self.llm_provider!r}")
 
         if not self.openai_api_key:
             _log.warning("OPENAI_API_KEY is not set — embeddings and vector search will fail")
-        if not self.anthropic_api_key:
+        if self.llm_provider == "openrouter":
+            if not self.openrouter_api_key:
+                _log.warning("OPENROUTER_API_KEY is not set — LLM calls will fail")
+        elif not self.anthropic_api_key:
             _log.warning("ANTHROPIC_API_KEY is not set — LLM calls will fail")
 
         self.redis_url = self.redis_url or os.getenv("REDIS_URL", "")
@@ -163,6 +178,12 @@ class Settings:
         self.explanation_thinking = (self.explanation_thinking
                                      or os.getenv("EXPLANATION_THINKING", DEFAULT_GENERATION_THINKING))
         self.explanation_effort = self.explanation_effort or os.getenv("EXPLANATION_EFFORT", "")
+        if self.llm_provider == "openrouter":
+            from shared.llm import openrouter_model_id
+            self.llm_model = openrouter_model_id(self.llm_model)
+            self.light_model = openrouter_model_id(self.light_model)
+            self.generation_model = openrouter_model_id(self.generation_model)
+            self.explanation_model = openrouter_model_id(self.explanation_model)
 
         self.https_only = self.https_only or os.getenv("HTTPS_ONLY", "").lower() in ("1", "true", "yes")
 

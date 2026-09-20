@@ -35,12 +35,14 @@ from config import Settings
 
 from shared.llm import (
     BatchRequestFailed,
+    create_llm_client,
     create_message_with_retries,
     json_schema_kwargs,
     light_model_for,
     message_text,
     parse_llm_json,
     run_message_batch,
+    supports_batches,
 )
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
@@ -157,13 +159,12 @@ def relabel(
     use_batch: bool = False,
 ) -> Counter:
     """Relabel the corpus (or one source). Returns a Counter of old→new transitions."""
-    import anthropic
-
     settings = Settings()
-    if not settings.anthropic_api_key:
-        raise SystemExit("ANTHROPIC_API_KEY is required")
-    client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+    client = create_llm_client(settings)
     model = light_model_for(settings, model)
+    if use_batch and not supports_batches(settings):
+        logger.warning(f"--batch ignored: provider {settings.llm_provider!r} has no Message Batches")
+        use_batch = False
 
     conn = psycopg2.connect(settings.database_url)
     cur = conn.cursor()

@@ -24,11 +24,13 @@ from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
 
 from shared.llm import (
+    create_llm_client,
     create_message_growing,
     json_schema_kwargs,
     light_model_for,
     message_text,
     parse_llm_json,
+    supports_batches,
     thinking_kwargs,
 )
 from shared.schema_enums import ATHLETE_LEVELS
@@ -274,16 +276,17 @@ class IngestionPipeline:
         # sections are queued during the section loop and flushed as one batch
         # after it; a batch that fails rewinds the checkpoint so a rerun re-queues
         # them (their prose chunks dedup by hash, so the rerun is cheap).
+        # Message Batches exist on the first-party API only.
+        if batch and not supports_batches(settings):
+            logger.warning(f"--batch ignored: provider {settings.llm_provider!r} has no Message Batches — running synchronously")
+            batch = False
         self.batch = batch
         # RAG-M3: LLM-written retrieval context per chunk (opt-in — one short
         # call per chunk; run it on the re-ingest so chunks are embedded once)
         self.contextualize = contextualize
         self.context_model = light_model_for(settings, context_model)
         # Build Anthropic client for vision OCR fallback (opt-in via --vision flag)
-        _anthropic_client = None
-        if use_vision and settings.anthropic_api_key:
-            import anthropic
-            _anthropic_client = anthropic.Anthropic(api_key=settings.anthropic_api_key)
+        _anthropic_client = create_llm_client(settings) if use_vision else None
         self.pdf_extractor = PDFExtractor(
             anthropic_client=_anthropic_client, vision_model=settings.llm_model, batch=batch,
         )

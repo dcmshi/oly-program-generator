@@ -15,6 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.llm import (
     BatchRequestFailed,
+    create_llm_client,
     create_message_growing,
     json_schema_kwargs,
     message_text,
@@ -237,15 +238,9 @@ class PrincipleExtractor:
         self._client = None  # lazy-initialized when first needed
 
     def _get_client(self):
-        """Lazy-init Anthropic client (requires ANTHROPIC_API_KEY in env)."""
+        """Lazy-init the LLM client (the provider's key must be in .env)."""
         if self._client is None:
-            import anthropic
-            if not self.settings.anthropic_api_key:
-                raise ValueError(
-                    "ANTHROPIC_API_KEY is required for principle extraction. "
-                    "Set it in .env or pass via environment variable."
-                )
-            self._client = anthropic.Anthropic(api_key=self.settings.anthropic_api_key)
+            self._client = create_llm_client(self.settings)
         return self._client
 
     @staticmethod

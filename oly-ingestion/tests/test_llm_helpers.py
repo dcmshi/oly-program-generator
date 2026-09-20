@@ -125,6 +125,27 @@ def test_sampling_kwargs_dropped_for_models_that_reject_temperature():
     assert sampling_kwargs("claude-sonnet-4-6", None) == {}
 
 
+def test_openrouter_ids_round_trip_through_the_family_and_pricing_tables():
+    """OpenRouter ids ("anthropic/claude-sonnet-5", "anthropic/claude-haiku-4.5")
+    must resolve to the same family rules and prices as the Anthropic ids —
+    otherwise Sonnet 5 via OpenRouter would silently run adaptive thinking."""
+    from shared.llm import canonical_model, openrouter_model_id, pricing_for, sampling_kwargs, thinking_kwargs
+
+    assert openrouter_model_id("claude-sonnet-5") == "anthropic/claude-sonnet-5"
+    assert openrouter_model_id("claude-haiku-4-5-20251001") == "anthropic/claude-haiku-4.5"
+    assert openrouter_model_id("claude-sonnet-4-6") == "anthropic/claude-sonnet-4.6"
+    assert openrouter_model_id("claude-opus-5") == "anthropic/claude-opus-5"
+    assert openrouter_model_id("z-ai/glm-5.3-flash") == "z-ai/glm-5.3-flash"      # already vendor-prefixed
+    assert canonical_model("anthropic/claude-sonnet-4.6") == "claude-sonnet-4-6"
+    assert canonical_model("anthropic/claude-haiku-4.5") == "claude-haiku-4-5"
+    assert canonical_model("claude-sonnet-5") == "claude-sonnet-5" and canonical_model(None) == ""
+    assert thinking_kwargs("anthropic/claude-sonnet-5", "disabled") == {"thinking": {"type": "disabled"}}
+    assert sampling_kwargs("anthropic/claude-sonnet-5", 0.3) == {}
+    assert sampling_kwargs("anthropic/claude-sonnet-4.6", 0.3) == {"temperature": 0.3}
+    assert pricing_for("anthropic/claude-haiku-4.5") == (1.0, 5.0)
+    assert pricing_for("anthropic/claude-sonnet-5") == (2.0, 10.0)
+
+
 def test_thinking_kwargs_per_model_family():
     from shared.llm import thinking_kwargs
 

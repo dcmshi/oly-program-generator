@@ -9,7 +9,7 @@
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) — `pip install uv`
 - Docker Desktop (for Postgres + PgBouncer + Redis)
-- `OPENAI_API_KEY` (embeddings) and `ANTHROPIC_API_KEY` (LLM)
+- `OPENAI_API_KEY` (embeddings) and `ANTHROPIC_API_KEY` (LLM) — or `LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY` to run the same Claude models through OpenRouter (no Message Batches there, so `--batch` runs synchronously)
 - `make` — on Windows: `winget install GnuWin32.Make` or use Git Bash with make from the Git SDK
 
 ---
