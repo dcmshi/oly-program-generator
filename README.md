@@ -4,7 +4,7 @@
 
 Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on ~3,800 chunks of coaching literature across 11 sources (current counts: [docs/CORPUS.md](docs/CORPUS.md)). A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and a no-key test suite for both subsystems (`make test`).
 
-**Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · Claude (`claude-sonnet-4-6`) · OpenAI embeddings · Alembic · uv · Docker
+**Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · Claude (`claude-sonnet-5`) · OpenAI embeddings · Alembic · uv · Docker
 
 ![Dashboard](screenshots/02-dashboard.png)
 
@@ -80,7 +80,7 @@ flowchart TB
         FEEDBACK["feedback.py<br/>outcome + max promotion"]
     end
 
-    CLAUDE(["Claude claude-sonnet-4-6"])
+    CLAUDE(["Claude claude-sonnet-5"])
 
     Sources --> EXT
     EXT --> CLASS

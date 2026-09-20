@@ -35,7 +35,7 @@ _VISION_BATCH_SIZE = 5
 # old 4096, truncating (and losing) the tail pages of the batch.
 _VISION_MAX_TOKENS = 8192
 
-_DEFAULT_VISION_MODEL = "claude-sonnet-4-6"
+_DEFAULT_VISION_MODEL = "claude-sonnet-5"
 
 
 class PDFExtractor:

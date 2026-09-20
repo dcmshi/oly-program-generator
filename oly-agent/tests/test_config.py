@@ -141,7 +141,7 @@ def test_model_roles_resolve_arg_env_default():
     saved = {k: os.environ.pop(k, None) for k in ("LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
     try:
         s = Settings()
-        assert s.llm_model == DEFAULT_LLM_MODEL == "claude-sonnet-4-6"
+        assert s.llm_model == DEFAULT_LLM_MODEL == "claude-sonnet-5"      # MODEL-1b (2026-09-20)
         assert s.light_model == DEFAULT_LIGHT_MODEL == "claude-haiku-4-5-20251001"
         # MODEL-1 (2026-09-16 baseline): the agent roles moved to Sonnet 5
         assert s.generation_model == DEFAULT_GENERATION_MODEL == "claude-sonnet-5"

@@ -33,7 +33,7 @@ flowchart TB
     end
 
     subgraph ext["External APIs"]
-        Anthropic["☁ Anthropic<br/>claude-sonnet-4-6"]
+        Anthropic["☁ Anthropic<br/>claude-sonnet-5"]
         OpenAI["☁ OpenAI<br/>text-embedding-3-small"]
     end
 

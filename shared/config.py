@@ -33,9 +33,12 @@ _PLACEHOLDER_SECRET_KEYS = frozenset({"change_me_to_a_random_64_char_hex_string"
 # disabled: the 2026-09-16 baseline (eval/model_baseline, athlete 1, 8 sessions)
 # had it 8/8 first-try like Sonnet 4.6 at 16% lower cost and 27% lower latency,
 # while adaptive thinking at a 4,096 output budget produced no text at all
-# (TODO MODEL-1). Ingestion stays on Sonnet 4.6 until its call sites pass
-# thinking_kwargs — on Sonnet 5 an omitted `thinking` means adaptive.
-DEFAULT_LLM_MODEL = "claude-sonnet-4-6"
+# (TODO MODEL-1). Ingestion followed on 2026-09-20 (MODEL-1b): every ingestion
+# call site passes thinking_kwargs(..., "disabled"), and on one Catalyst article
+# + one Everett window Sonnet 5 extracted principles with no parse errors at
+# −45% cost and −60% latency, folding 4.6's near-duplicate rules into fewer,
+# broader ones (13+12 → 7+6). Sonnet 5 is also $2/$10 vs 4.6's $3/$15.
+DEFAULT_LLM_MODEL = "claude-sonnet-5"
 DEFAULT_LIGHT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_GENERATION_MODEL = "claude-sonnet-5"
 DEFAULT_GENERATION_THINKING = "disabled"
