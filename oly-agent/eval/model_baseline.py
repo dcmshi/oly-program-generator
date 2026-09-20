@@ -84,8 +84,10 @@ class BaselineConfig:
             explanation_effort=self.effort,
         )
         if base is not None:
+            # provider + keys travel with the base so a pinned base means a
+            # pinned run (Settings would otherwise re-read LLM_PROVIDER from env)
             for name in ("database_url", "anthropic_api_key", "openai_api_key",
-                         "cost_limit_per_program"):
+                         "cost_limit_per_program", "llm_provider", "openrouter_api_key", "llm_base_url"):
                 kwargs[name] = getattr(base, name)
         kwargs.update(overrides)
         return Settings(**kwargs)

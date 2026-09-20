@@ -142,3 +142,36 @@ def test_live_eval_does_not_regress_baseline():
         pytest.skip("eval/golden.json not built yet — run: uv run python -m eval.build_golden")
     from eval.run_eval import main
     assert main([]) == 0
+
+
+def test_program_diff_renders_sessions_and_summary():
+    """program_diff aligns sessions across programs, marks warm-ups, and the
+    summary's overlap fields are relative to the first program."""
+    from collections import defaultdict
+
+    from eval.program_diff import render, summarise
+
+    def row(name, order, sets, reps, pct, rpe=7.5):
+        return {"exercise_name": name, "exercise_order": order, "sets": sets, "reps": reps, "intensity_pct": pct, "rpe_target": rpe}
+
+    a = {"name": "A", "focus": {(1, 1): "Snatch + Squat"}, "sessions": defaultdict(list, {
+        (1, 1): [row("Snatch", 1, 2, 3, 55.0, 6.0), row("Snatch", 2, 6, 3, 75.0), row("Back Squat", 3, 4, 5, 75.0)],
+        (1, 2): [row("Clean & Jerk", 1, 5, 2, 75.0)],
+    })}
+    b = {"name": "B", "focus": {}, "sessions": defaultdict(list, {
+        (1, 1): [row("Snatch", 1, 6, 3, 72.0), row("Overhead Squat", 2, 3, 3, 66.0)],
+        (1, 2): [row("Clean & Jerk", 1, 5, 2, 78.0), row("Snatch Pull", 2, 4, 3, 90.0)],
+    })}
+    programs = {12: a, 20: b}
+    text = render(programs)
+    assert "### Week 1 Day 1 — Snatch + Squat" in text and "### Week 1 Day 2" in text
+    assert "| 1 | w Snatch 2×3 @55% | Snatch 6×3 @72% |" in text        # warm-up marked, columns aligned
+    assert "| 3 | Back Squat 4×5 @75% | — |" in text                       # shorter session padded
+    assert "**20** adds: Overhead Squat, Snatch Pull" in text and "**20** drops: Back Squat" in text
+    assert render(programs, week=2).count("### Week") == 0
+
+    s = summarise(programs)
+    assert s[0]["program"] == 12 and s[0]["warmup_rows"] == 1 and s[0]["distinct_exercises"] == 3
+    assert s[1]["shared_with_first"] == 2 and s[1]["unique_vs_first"] == ["Overhead Squat", "Snatch Pull"]
+    assert s[1]["session_jaccard_vs_first"] == round((1 / 3 + 1 / 2) / 2, 2)
+    assert s[0]["mean_working_pct"] == 75.0 and s[1]["mean_working_pct"] == 76.5

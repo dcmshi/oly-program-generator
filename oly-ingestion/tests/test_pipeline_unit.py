@@ -47,6 +47,7 @@ def _make_pipeline(mock_client) -> MagicMock:
     pipeline = MagicMock()
     pipeline.principle_extractor._get_client.return_value = mock_client
     pipeline.settings.llm_model = "claude-sonnet-4-6"
+    pipeline.settings.template_model = ""          # blank → follows llm_model
     pipeline.settings.llm_max_tokens = 4096
     return pipeline
 

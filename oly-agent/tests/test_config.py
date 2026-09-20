@@ -210,7 +210,7 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
 
     from shared.llm import OPENROUTER_BASE_URL, create_llm_client, supports_batches
 
-    saved = {k: os.environ.pop(k, None) for k in ("LLM_PROVIDER", "OPENROUTER_API_KEY", "LLM_BASE_URL",
+    saved = {k: os.environ.pop(k, None) for k in ("LLM_PROVIDER", "OPENROUTER_API_KEY", "LLM_BASE_URL", "TEMPLATE_MODEL",
                                                   "LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
     try:
         s = Settings()
@@ -224,6 +224,13 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
         assert s.llm_model == "anthropic/claude-sonnet-5"
         assert s.light_model == "anthropic/claude-haiku-4.5"          # dated snapshot dropped, dotted minor
         assert s.generation_model == s.explanation_model == "anthropic/claude-sonnet-5"
+        assert s.template_model == s.llm_model                      # blank TEMPLATE_MODEL follows LLM_MODEL
+        os.environ["TEMPLATE_MODEL"] = "claude-sonnet-5"
+        os.environ["LLM_MODEL"] = "moonshotai/kimi-k3"
+        s = Settings()
+        assert s.llm_model == "moonshotai/kimi-k3" and s.template_model == "anthropic/claude-sonnet-5"
+        os.environ.pop("TEMPLATE_MODEL")
+        os.environ.pop("LLM_MODEL")
         with patch("shared.llm.Anthropic") as client_cls:
             create_llm_client(s)
         assert client_cls.call_args.kwargs == {"api_key": "sk-or-test", "base_url": OPENROUTER_BASE_URL}

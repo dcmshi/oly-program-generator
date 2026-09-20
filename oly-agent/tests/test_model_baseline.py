@@ -185,7 +185,7 @@ def test_run_config_patches_both_llm_entry_points_and_reads_the_log():
     import orchestrator
 
     cfg = parse_config("claude-sonnet-5:disabled:low")
-    base = Settings(database_url="postgresql://x", cost_limit_per_program=1.0)
+    base = Settings(database_url="postgresql://x", cost_limit_per_program=1.0, llm_provider="anthropic")   # pin: dev .env may be openrouter
     seen = {}
 
     def fake_run(athlete_id, settings, dry_run=False, deadline=None, max_sessions=None):

@@ -333,6 +333,7 @@ class IngestionPipeline:
         config_snapshot = {
             "embedding_model": self.settings.embedding_model,
             "llm_model": self.settings.llm_model,
+            "template_model": getattr(self.settings, "template_model", "") or self.settings.llm_model,
             "batch_size": self.settings.batch_size,
             "validate_chunks": self.settings.validate_chunks,
             "batch": self.batch,
@@ -690,13 +691,14 @@ class IngestionPipeline:
             # (STRUCT-1), and a budget that grows on truncation — a 5k-char
             # program window overran 4,096 output tokens on the 2026-09-16
             # re-ingest ("Expecting ',' delimiter … char 13792").
+            model = getattr(self.settings, "template_model", "") or self.settings.llm_model
             message = create_message_growing(
                 client,
-                model=self.settings.llm_model,
+                model=model,
                 max_tokens=self.settings.llm_max_tokens,
                 messages=[{"role": "user", "content": prompt}],
                 label=f"Program template parse '{source.title}'",
-                **json_schema_kwargs(schema, thinking_kwargs(self.settings.llm_model, "disabled")),
+                **json_schema_kwargs(schema, thinking_kwargs(model, "disabled")),
             )
             return parse_llm_json(message_text(message))
 
