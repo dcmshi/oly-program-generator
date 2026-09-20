@@ -136,6 +136,7 @@ Content is **routed before chunking** — the classifier sends each section down
 
 ### Tests
 
+- **The no-key suites are independent of the developer's `.env`.** `shared/config.py` loads `oly-ingestion/.env` once at import; both `tests/conftest.py` files then pin `LLM_PROVIDER=anthropic` and drop the model-role / thinking overrides, so `Settings()` in a test resolves to the code defaults (Claude ids) whatever the dev `.env` says. A test that needs a provider sets it explicitly (`Settings(llm_provider=…)` or `os.environ`). Don't pin individual tests instead.
 - **Router tests authenticate with signed session cookies, not middleware patching.** `BaseHTTPMiddleware` captures `self.dispatch_func = self.dispatch` at construction, so `patch.object(AuthMiddleware, "dispatch", …)` has no effect after the app is built. Build the cookie with `itsdangerous.TimestampSigner(secret).sign(base64(json(session)))` and set it on the TestClient jar; `get_settings().secret_key` gives the live key post-init.
 - **The `get_db` override must be `async def _db_override(): yield mock_conn`.** A sync generator won't satisfy async dependency injection.
 - **The asyncpg pool is created in the FastAPI `lifespan` handler** inside a try/except so `TestClient` works with no Postgres running. Tests override `get_db`, so `get_async_pool()` is never called.
