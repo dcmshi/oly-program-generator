@@ -17,6 +17,7 @@ Usage (from oly-ingestion/):
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --model claude-haiku-4-5-20251001
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --limit 200           # smoke test
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --batch               # Batch API, half price (COST-1)
+    PYTHONUTF8=1 uv run python relabel_chunk_types.py --judge jev           # Jev (typesafe.ai), ~$0.08 corpus-wide
 
 Cost: ~3.4k chunks × ~400 input tokens (1,500-char passage cap) in batches of 10;
 a Haiku-class model does the whole corpus for a few dollars.
@@ -157,11 +158,21 @@ def relabel(
     model: str | None = None,
     limit: int = 0,
     use_batch: bool = False,
+    judge: str = "llm",
 ) -> Counter:
-    """Relabel the corpus (or one source). Returns a Counter of old→new transitions."""
+    """Relabel the corpus (or one source). Returns a Counter of old→new transitions.
+
+    `judge="llm"` asks the light model in batches of `batch_size` passages;
+    `judge="jev"` asks TypeSafe's Jev one passage at a time (calibrated
+    confidence, ~$0.08 for the corpus; needs TYPESAFE_API_KEY).
+    """
     settings = Settings()
-    client = create_llm_client(settings)
-    model = light_model_for(settings, model)
+    if judge not in ("llm", "jev"):
+        raise ValueError(f"judge must be 'llm' or 'jev', got {judge!r}")
+    client = create_llm_client(settings) if judge == "llm" else None
+    model = light_model_for(settings, model) if judge == "llm" else "jev"
+    if use_batch and judge == "jev":
+        use_batch = False
     if use_batch and not supports_batches(settings):
         logger.warning(f"--batch ignored: provider {settings.llm_provider!r} has no Message Batches")
         use_batch = False
@@ -204,13 +215,17 @@ def relabel(
     for start in offsets:
         batch = rows[start:start + batch_size]
         try:
-            if use_batch:
+            if judge == "jev":
+                from processors.jev_judge import label_chunk_types
+                labels = label_chunk_types({i: text[:PASSAGE_CHARS] for i, (_id, _t, text) in enumerate(batch, start=1)})
+            elif use_batch:
                 message = batched.get(str(start))
                 if isinstance(message, BatchRequestFailed) or message is None:
                     raise RuntimeError(str(message))
             else:
                 message = create_message_with_retries(client, **_params(start))
-            labels = parse_labels(message_text(message), set(range(1, len(batch) + 1)))
+            if judge == "llm":
+                labels = parse_labels(message_text(message), set(range(1, len(batch) + 1)))
         except Exception as e:
             logger.warning(f"Batch at offset {start} skipped: {type(e).__name__}: {e}")
             continue
@@ -259,6 +274,9 @@ if __name__ == "__main__":
     parser.add_argument("--limit", type=int, default=0, help="Only process the first N chunks (smoke test)")
     parser.add_argument("--batch", action="store_true",
                         help="One Message Batch for the whole run (half price, minutes of latency; COST-1)")
+    parser.add_argument("--judge", choices=("llm", "jev"), default="llm",
+                        help="llm = the light model (default); jev = TypeSafe's Jev, calibrated confidence, "
+                             "~$0.08 for the corpus (needs TYPESAFE_API_KEY)")
     args = parser.parse_args()
     relabel(args.source_id, args.dry_run, args.batch_size, args.min_confidence, args.model, args.limit,
-            use_batch=args.batch)
+            use_batch=args.batch, judge=args.judge)

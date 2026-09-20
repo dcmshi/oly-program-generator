@@ -320,6 +320,8 @@ def test_llm_classify_uses_the_light_model():
     from unittest.mock import MagicMock, patch
 
     clf = make_classifier()
+    clf.settings.light_model = "claude-haiku-4-5-20251001"    # pin: the dev .env may point elsewhere
+    clf.settings.llm_model = "claude-sonnet-5"
     clf._client = MagicMock()
     reply = MagicMock()
     reply.content = [MagicMock(text='{"content_type": "prose", "confidence": 0.8, "reason": "r"}')]

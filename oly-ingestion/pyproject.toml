@@ -21,6 +21,7 @@ dependencies = [
     "ebooklib>=0.20,<1",
     "requests>=2.32.5,<3",
     "tiktoken>=0.14.0",
+    "typesafe-sdk>=0.7.0",
 ]
 
 [project.optional-dependencies]

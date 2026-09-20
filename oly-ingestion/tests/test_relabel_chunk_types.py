@@ -121,3 +121,39 @@ def test_relabel_batch_mode_submits_one_message_batch(monkeypatch):
     assert captured["0"]["model"] == "claude-haiku-4-5"
     assert transitions == {("concept", "periodization"): 1, ("concept", "biomechanics"): 1}
     assert cur.execute.call_count == 1 + 2          # the SELECT + two UPDATEs
+
+
+def test_relabel_jev_judge_labels_each_passage(monkeypatch):
+    """--judge jev routes every passage through processors.jev_judge.label_chunk_types
+    (no LLM client), applies the same confidence threshold, and never touches the
+    Message Batches path."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    import relabel_chunk_types as mod
+
+    rows = [(1, "concept", "deload text"), (2, "concept", "bar path text"), (3, "concept", "x" * 3000)]
+    cur = MagicMock()
+    cur.fetchall.return_value = rows
+    conn = MagicMock()
+    conn.cursor.return_value = cur
+    monkeypatch.setattr(mod.psycopg2, "connect", lambda *_a, **_k: conn)
+    monkeypatch.setattr(mod, "Settings", lambda: SimpleNamespace(
+        anthropic_api_key="", database_url="db", light_model="claude-haiku-4-5", llm_model="m",
+        llm_provider="openrouter", openrouter_api_key="k"))
+    monkeypatch.setattr(mod, "create_llm_client", lambda *_a, **_k: (_ for _ in ()).throw(AssertionError("LLM client built")))
+    monkeypatch.setattr(mod, "run_message_batch", lambda *a, **k: (_ for _ in ()).throw(AssertionError("batch used")))
+
+    seen = []
+
+    def fake_jev(passages, **kw):
+        seen.append(passages)
+        return {1: ("periodization", 0.91), 2: ("biomechanics", 0.55), 3: ("concept", 0.8)}
+    import processors.jev_judge as jev
+    monkeypatch.setattr(jev, "label_chunk_types", fake_jev)
+
+    transitions = mod.relabel(None, dry_run=False, batch_size=10, use_batch=True, judge="jev")
+
+    assert seen == [{1: "deload text", 2: "bar path text", 3: "x" * mod.PASSAGE_CHARS}]   # passages capped
+    assert transitions == {("concept", "periodization"): 1}       # 0.55 is below min_confidence
+    assert cur.execute.call_count == 1 + 1

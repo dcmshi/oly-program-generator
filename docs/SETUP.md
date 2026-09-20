@@ -9,7 +9,7 @@
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) — `pip install uv`
 - Docker Desktop (for Postgres + PgBouncer + Redis)
-- `OPENAI_API_KEY` (embeddings) and `ANTHROPIC_API_KEY` (LLM) — or `LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY` to run the same Claude models through OpenRouter (no Message Batches there, so `--batch` runs synchronously)
+- `OPENAI_API_KEY` (embeddings) and one LLM provider key: `LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY` (the dev default since 2026-09-20 — Claude and the open models through one account; no Message Batches, so `--batch` runs synchronously) or `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` (Claude only, Batches available). Optional `TYPESAFE_API_KEY` for Jev label/score decisions. Model roles and the provider notes are in `.env.example`.
 - `make` — on Windows: `winget install GnuWin32.Make` or use Git Bash with make from the Git SDK
 
 ---
@@ -127,6 +127,7 @@ PYTHONUTF8=1 uv run python ingest_web.py
 |------|-----------|--------|
 | `--vision` | `pipeline.py` | Enables the Claude vision OCR fallback for image-only PDFs (opt-in — it costs money) |
 | `--max-pages N` | `pipeline.py` | Limits extraction to the first N pages — use when testing an OCR run |
+| `--judge jev` | `relabel_chunk_types.py` | Labels through TypeSafe's Jev instead of the light model: one calibrated `Choice` per passage, ~185 ms and ~$0.19 for the corpus; needs `TYPESAFE_API_KEY`. Re-freeze the golden set / baseline after applying it (labels feed the chunk-type preference boost) |
 | `--batch` | `pipeline.py`, `relabel_chunk_types.py` | Sends principle extraction, vision OCR (and the relabel calls) through the Message Batches API at half price. Principle sections are queued and flushed as one batch after the section loop; a batch takes minutes to hours, so not for smoke tests (COST-1) |
 | `--categories technique` | `ingest_web.py` | Restrict to one category instead of all priority categories |
 | `--site charniga` | `ingest_web.py` | Crawl Charniga via the Wayback CDX index instead of Catalyst |
