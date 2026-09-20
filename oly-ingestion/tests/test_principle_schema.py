@@ -45,6 +45,34 @@ def test_extract_window_strips_unknown_keys_before_building_principles():
     assert call.call_args.kwargs["max_tokens"] == 100
 
 
+def test_normalize_comparisons_to_matcher_form():
+    """The schema's {"op", "values"} comparisons become the {"lte": 2} /
+    {"between": [lo, hi]} dicts principle_matcher.compare evaluates; the
+    pre-schema form passes through; malformed ones are dropped, not raised."""
+    from processors.principle_extractor import normalize_comparisons
+
+    assert normalize_comparisons({
+        "weeks_out_from_competition": {"op": "lte", "values": [2]},
+        "week_of_block": {"op": "between", "values": [3, 5]},
+        "training_age_years": {"gte": 2},                       # old form
+        "phase": ["accumulation"],
+        "recent_make_rate": {"op": "lt", "values": []},          # malformed
+        "rpe_average_last_week": {"op": "between", "values": [9]},   # malformed
+    }) == {
+        "weeks_out_from_competition": {"lte": 2},
+        "week_of_block": {"between": [3, 5]},
+        "training_age_years": {"gte": 2},
+        "phase": ["accumulation"],
+    }
+    # sanitize_condition applies it after dropping unknown keys
+    assert sanitize_condition({"week_of_block": {"op": "gte", "values": [3]}, "bogus": 1}) == {"week_of_block": {"gte": 3}}
+    # and the matcher evaluates the result
+    sys.path.insert(0, str(Path(__file__).parent.parent.parent / "oly-agent"))
+    from principle_matcher import condition_matches
+    cond = sanitize_condition({"week_of_block": {"op": "between", "values": [3, 5]}})
+    assert condition_matches(cond, {"week_of_block": 4}) and not condition_matches(cond, {"week_of_block": 6})
+
+
 def test_condition_keys_match_the_agent_matcher():
     """Drift guard: what the extractor keeps must be exactly what plan/orchestrator can evaluate."""
     from principle_matcher import KNOWN_CONDITION_KEYS

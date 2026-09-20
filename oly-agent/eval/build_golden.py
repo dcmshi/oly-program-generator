@@ -33,7 +33,14 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
         sys.path.insert(0, p)
 
 from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
-from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json, thinking_kwargs
+from shared.llm import (
+    create_message_with_retries,
+    json_schema_kwargs,
+    light_model_for,
+    message_text,
+    parse_llm_json,
+    thinking_kwargs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -58,7 +65,27 @@ QUERY: {query}
 PASSAGES:
 {passages}
 
-Respond with a JSON array only: [{{"id": <passage id>, "grade": 0|1|2}}, ...] — one entry per passage."""
+Respond with JSON only: {{"grades": [{{"id": <passage id>, "grade": 0|1|2}}, ...]}} — one entry per passage."""
+
+# Constrains the reply (STRUCT-1). One prose-wrapped reply killed the first
+# golden build on 2026-09-16; with the schema the item-by-item salvage below
+# is a fallback for replies produced without it.
+GRADING_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "grades": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {"id": {"type": "integer"}, "grade": {"type": "integer", "enum": [0, 1, 2]}},
+                "required": ["id", "grade"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["grades"],
+    "additionalProperties": False,
+}
 
 
 def candidate_pool(loader, query: dict, n: int = CANDIDATES_PER_RETRIEVER) -> list[dict]:
@@ -91,7 +118,7 @@ def parse_grades(raw_text: str, allowed_ids: set[int]) -> dict[int, int]:
     except (ValueError, TypeError):
         items = [{"id": int(i), "grade": int(g)} for i, g in _GRADE_ITEM_RE.findall(raw_text)]
     if isinstance(items, dict):
-        items = [items]
+        items = items.get("grades", [items])   # schema wrapper, or a bare single object
     if not isinstance(items, list):
         items = []
     grades: dict[int, int] = {}
@@ -121,7 +148,7 @@ def grade_candidates(client, model: str, query: str, candidates: list[dict]) -> 
                 message = create_message_with_retries(
                     client, model=model, max_tokens=512,
                     messages=[{"role": "user", "content": prompt}],
-                    **thinking_kwargs(model, "disabled"),
+                    **json_schema_kwargs(GRADING_SCHEMA, thinking_kwargs(model, "disabled")),
                 )
                 got = parse_grades(message_text(message), ids)
             except Exception as e:                       # API error, refusal, unparseable reply

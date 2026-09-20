@@ -139,6 +139,33 @@ def thinking_kwargs(model: str | None, mode: str = "", effort: str = "") -> dict
     return kwargs
 
 
+def json_schema_kwargs(schema: dict, base: dict | None = None) -> dict:
+    """`base` kwargs plus an `output_config.format` constraining the reply to
+    `schema` (structured outputs, STRUCT-1).
+
+    `output_config` also carries `effort` (from `thinking_kwargs`), so pass those
+    kwargs as `base` and this merges into them — `{**thinking_kwargs(...),
+    **json_schema_kwargs(schema)}` would silently drop one of the two.
+
+    The reply is still a text block holding JSON, so `message_text` + the
+    existing parsers keep working — the schema just guarantees it parses and
+    conforms, which retires the fence/regex salvage paths. Schema rules the API
+    enforces (400 otherwise): every object carries `additionalProperties: false`,
+    no `minimum`/`maximum`/`minLength`/`pattern`, arrays only `minItems` 0|1,
+    enums of scalars only; optional properties are fine (leave them out of
+    `required`). Supported on every model in MODEL_PRICING_PER_MTOK. Works with
+    thinking (the JSON follows the thinking block), Message Batches and prompt
+    caching; changing the schema invalidates the prompt cache for that request
+    shape, so keep a schema constant across a program's sessions.
+    """
+    out = dict(base or {})
+    out["output_config"] = {
+        **(out.get("output_config") or {}),
+        "format": {"type": "json_schema", "schema": schema},
+    }
+    return out
+
+
 class LLMRefusal(RuntimeError):
     """The model's safety classifiers declined the request (stop_reason='refusal')."""
 

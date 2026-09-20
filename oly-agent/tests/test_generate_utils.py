@@ -20,6 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from generate import (
+    SESSION_SCHEMA,
     build_session_prompt,
     generate_session_with_retries,
     parse_llm_response,
@@ -284,6 +285,31 @@ def test_parse_single_object_wrapped_in_list():
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
     assert result[0]["exercise_name"] == "Snatch"
+    return True, ""
+
+
+def test_parse_schema_object_wrapper():
+    """The STRUCT-1 reply is {"exercises": [...]} — unwrap it; a dict without
+    that key is still treated as one exercise."""
+    raw = json.dumps({"exercises": [VALID_EXERCISE, {**VALID_EXERCISE, "exercise_name": "Clean"}]})
+    result = parse_llm_response(raw)
+    assert [e["exercise_name"] for e in result] == ["Snatch", "Clean"]
+    assert parse_llm_response(json.dumps({"exercises": []})) == []
+    return True, ""
+
+
+def test_session_schema_requires_every_prompted_field():
+    """The schema's required list is exactly the field list in the prompt's
+    Instructions block, so a reply can't omit one and intensity_pct is the only
+    nullable field."""
+    item = SESSION_SCHEMA["properties"]["exercises"]["items"]
+    assert set(item["required"]) == set(item["properties"]) == {
+        "exercise_name", "exercise_order", "sets", "reps", "intensity_pct", "intensity_reference",
+        "rest_seconds", "rpe_target", "selection_rationale", "source_principle_ids",
+    }
+    assert item["properties"]["intensity_pct"]["type"] == ["number", "null"]
+    prompt = _make_prompt()
+    assert '{"exercises": [...]}' in prompt and "JSON array" not in prompt
     return True, ""
 
 
@@ -1097,7 +1123,9 @@ def test_generate_drops_temperature_and_reads_text_blocks_on_sonnet_5():
     kwargs = llm.messages.create.call_args.kwargs
     assert "temperature" not in kwargs
     assert kwargs["thinking"] == {"type": "disabled"}
-    assert kwargs["output_config"] == {"effort": "low"}
+    # effort and the STRUCT-1 schema share `output_config` — both must survive
+    assert kwargs["output_config"]["effort"] == "low"
+    assert kwargs["output_config"]["format"] == {"type": "json_schema", "schema": SESSION_SCHEMA}
     assert result.cache_read_tokens == 900 and result.input_tokens == 100
     return True, ""
 
@@ -1110,7 +1138,8 @@ def test_generate_keeps_temperature_and_omits_thinking_on_sonnet_4_6():
     assert result.status == "success"
     kwargs = llm.messages.create.call_args.kwargs
     assert kwargs["temperature"] == 0.7
-    assert "thinking" not in kwargs and "output_config" not in kwargs
+    assert "thinking" not in kwargs
+    assert set(kwargs["output_config"]) == {"format"}       # schema only, no effort on 4.6
     assert result.cache_read_tokens == 0   # MagicMock usage has no int cache fields
     return True, ""
 

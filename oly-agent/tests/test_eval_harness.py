@@ -109,6 +109,8 @@ def test_parse_grades_and_prompt():
     messy = 'Here are the grades:\n[{"id": 1, "grade": 2},\n {"id": 2, "grade": 0}]\nNote: id 9 was off-topic.\n[{"id": 9, "grade": 0}]'
     assert parse_grades(messy, {1, 2, 9}) == {1: 2, 2: 0, 9: 0}
     assert parse_grades("no json here", {1}) == {}
+    # the STRUCT-1 schema reply
+    assert parse_grades('{"grades": [{"id": 1, "grade": 2}, {"id": 2, "grade": 0}]}', {1, 2}) == {1: 2, 2: 0}
 
 
 def test_grade_candidates_skips_a_bad_batch_and_keeps_the_rest():

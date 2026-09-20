@@ -37,7 +37,7 @@ def test_build_prompt_indexes_and_truncates_passages():
     assert "[1] short passage" in prompt
     assert "[2] " + "x" * PASSAGE_CHARS in prompt
     assert "x" * (PASSAGE_CHARS + 1) not in prompt
-    assert "JSON array only" in prompt
+    assert '{{"labels": [' in prompt or '{"labels": [' in prompt
 
 
 def test_parse_labels_validates_type_index_and_confidence():
@@ -53,6 +53,11 @@ def test_parse_labels_validates_type_index_and_confidence():
     ```"""
     labels = parse_labels(raw, expected_indexes={1, 2, 3})
     assert labels == {1: ("periodization", 0.9), 3: ("fault_correction", 1.0)}
+
+
+def test_parse_labels_accepts_schema_wrapper():
+    raw = '{"labels": [{"index": 1, "chunk_type": "periodization", "confidence": 0.9}]}'
+    assert parse_labels(raw, {1, 2}) == {1: ("periodization", 0.9)}
 
 
 def test_parse_labels_accepts_single_object():

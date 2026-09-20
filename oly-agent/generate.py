@@ -47,6 +47,7 @@ from shared.constants import (
 from shared.llm import (
     create_message_with_retries,
     estimate_cost,
+    json_schema_kwargs,
     message_text,
     sampling_kwargs,
     thinking_kwargs,
@@ -70,6 +71,43 @@ def _is_exercise_list(result) -> bool:
 
 _INT_FIELDS = ("sets", "reps", "rest_seconds", "exercise_order")
 _FLOAT_FIELDS = ("intensity_pct", "rpe_target")
+
+# The session reply's schema (STRUCT-1), sent as `output_config.format` so the
+# API guarantees a parseable, typed reply: the salvage paths in
+# parse_llm_response and the string→number coercion become fallbacks for
+# replies produced without it. Field list mirrors the prompt's Instructions
+# block. `exercise_name` stays a free string — the catalogue is per program and
+# a per-program enum would recompile the grammar and invalidate the prompt
+# cache each time; validate_exercise_names + the validation retry cover it.
+SESSION_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "exercises": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "exercise_name": {"type": "string"},
+                    "exercise_order": {"type": "integer"},
+                    "sets": {"type": "integer"},
+                    "reps": {"type": "integer"},
+                    "intensity_pct": {"type": ["number", "null"]},
+                    "intensity_reference": {"type": "string"},
+                    "rest_seconds": {"type": "integer"},
+                    "rpe_target": {"type": "number"},
+                    "selection_rationale": {"type": "string"},
+                    "source_principle_ids": {"type": "array", "items": {"type": "integer"}},
+                },
+                "required": ["exercise_name", "exercise_order", "sets", "reps", "intensity_pct",
+                             "intensity_reference", "rest_seconds", "rpe_target",
+                             "selection_rationale", "source_principle_ids"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["exercises"],
+    "additionalProperties": False,
+}
 
 
 def _coerce_numeric_fields(exercises: list[dict]) -> list[dict]:
@@ -141,10 +179,13 @@ def parse_llm_response(raw_response: str) -> list[dict]:
     text = re.sub(r"\n?```\s*$", "", text)
     text = text.strip()
 
-    # Direct parse
+    # Direct parse — the schema reply is {"exercises": [...]}; a bare array or a
+    # single object are the pre-schema shapes.
     try:
         result = json.loads(text)
-        if isinstance(result, dict):
+        if isinstance(result, dict) and isinstance(result.get("exercises"), list):
+            result = result["exercises"]
+        elif isinstance(result, dict):
             result = [result]
         if _is_exercise_list(result):
             return _coerce_numeric_fields(result)
@@ -656,7 +697,7 @@ def build_session_prompt(
         else "  (none matched for this phase/level/frequency)"
     )
 
-    prompt = f"""You are an Olympic weightlifting programming assistant. Generate a training session as a JSON array.
+    prompt = f"""You are an Olympic weightlifting programming assistant. Generate a training session as a JSON object.
 
 You MUST:
 - Prescribe exercises as structured JSON (array of objects)
@@ -743,7 +784,7 @@ Remaining weekly rep budget: {remaining_weekly_reps} (of {week_target.total_comp
 {templates_block}
 
 ## Instructions
-Generate this session as a JSON array. Each object must include:
+Generate this session as a JSON object {{"exercises": [...]}}. Each exercise object must include:
 - exercise_name (exact match from Available Exercises)
 - exercise_order (1-indexed)
 - sets (integer >= 1)
@@ -755,7 +796,7 @@ Generate this session as a JSON array. Each object must include:
 - selection_rationale (1-2 sentences explaining why this exercise and prescription; cite the Programming Context chunks that informed it by label, e.g. [C2])
 - source_principle_ids (array of principle IDs from Active Principles, or empty array)
 
-Respond ONLY with a valid JSON array. No markdown, no preamble, no explanation outside the JSON."""
+Respond ONLY with valid JSON. No markdown, no preamble, no explanation outside the JSON."""
 
     prompt_chars = len(prompt)
     logger.debug(f"Prompt W{week_number}D{session_template.day_number}: {prompt_chars:,} chars (~{prompt_chars // 4:,} tokens)")
@@ -850,14 +891,16 @@ def generate_session_with_retries(
     # Request shape per model family: Sonnet 5 / Opus 5 reject `temperature`
     # and run adaptive thinking unless told otherwise; 4.x accept the
     # temperature and ignore thinking when omitted. Resolved once per session.
-    request_kwargs = {
+    # json_schema_kwargs merges its `output_config.format` with the effort's
+    # `output_config.effort` — both live under the same key.
+    request_kwargs = json_schema_kwargs(SESSION_SCHEMA, {
         **sampling_kwargs(settings.generation_model, settings.generation_temperature),
         **thinking_kwargs(
             settings.generation_model,
             _setting_str(settings, "generation_thinking"),
             _setting_str(settings, "generation_effort"),
         ),
-    }
+    })
 
     for attempt in range(1, max_attempts + 1):
         logger.info(f"  Generating W{week_number}D{day_number} (attempt {attempt}/{max_attempts})")
@@ -931,7 +974,7 @@ def generate_session_with_retries(
             )
             current_prompt = prompt + (
                 "\n\nIMPORTANT: Your previous response was not valid JSON. "
-                "Respond with ONLY a JSON array. No markdown, no explanation."
+                "Respond with ONLY the JSON object. No markdown, no explanation."
             )
             time.sleep(settings.retry_delay_seconds)
             continue

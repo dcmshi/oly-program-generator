@@ -21,7 +21,14 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.sectioning import merge_small_sections, split_oversized_sections
-from shared.llm import create_message_with_retries, light_model_for, message_text, parse_llm_json, thinking_kwargs
+from shared.llm import (
+    create_message_with_retries,
+    json_schema_kwargs,
+    light_model_for,
+    message_text,
+    parse_llm_json,
+    thinking_kwargs,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -250,6 +257,20 @@ TEXT:
 Respond with JSON only, no other text:
 {{"content_type": "<one of the types above>", "confidence": <0.0-1.0>, "reason": "<one sentence>"}}"""
 
+    # Constrains the reply (STRUCT-1) — `content_type` can only be a label the
+    # type_map below knows.
+    _CLASSIFY_SCHEMA = {
+        "type": "object",
+        "properties": {
+            "content_type": {"type": "string", "enum": ["prose", "principle", "mixed", "table",
+                                                        "program_template", "exercise_description"]},
+            "confidence": {"type": "number"},
+            "reason": {"type": "string"},
+        },
+        "required": ["content_type", "confidence"],
+        "additionalProperties": False,
+    }
+
     def _llm_classify(self, text: str, source_title: str) -> tuple[ContentType, float]:
         """LLM-assisted classification for ambiguous sections.
 
@@ -276,7 +297,7 @@ Respond with JSON only, no other text:
                 model=model,
                 max_tokens=128,
                 messages=[{"role": "user", "content": prompt}],
-                **thinking_kwargs(model, "disabled"),
+                **json_schema_kwargs(self._CLASSIFY_SCHEMA, thinking_kwargs(model, "disabled")),
             )
             parsed = parse_llm_json(message_text(message))
             content_type = type_map.get(parsed["content_type"], ContentType.PROSE)

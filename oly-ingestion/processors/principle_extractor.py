@@ -16,10 +16,18 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for sh
 from shared.llm import (
     BatchRequestFailed,
     create_message_growing,
+    json_schema_kwargs,
     message_text,
     parse_llm_json,
     run_message_batch,
     thinking_kwargs,
+)
+from shared.schema_enums import (
+    ATHLETE_LEVELS,
+    MOVEMENT_FAMILIES,
+    PRINCIPLE_CATEGORIES,
+    RULE_TYPES,
+    TRAINING_PHASES,
 )
 
 logger = logging.getLogger(__name__)
@@ -54,14 +62,14 @@ For each principle found, provide:
   - heuristic: Rules of thumb, useful defaults
 - condition: JSON object describing WHEN this applies. Use these fields (all optional):
     - "phase": training phase string or array, e.g. "intensification" or ["intensification", "realization"]
-    - "weeks_out_from_competition": comparison object, e.g. {{"lte": 2}}
+    - "weeks_out_from_competition": comparison, e.g. {{"op": "lte", "values": [2]}}
     - "athlete_level": array, e.g. ["intermediate", "advanced"]
-    - "training_age_years": comparison object, e.g. {{"gte": 2}}
-    - "week_of_block": comparison object, e.g. {{"gte": 3}}
+    - "training_age_years": comparison, e.g. {{"op": "gte", "values": [2]}}
+    - "week_of_block": comparison, e.g. {{"op": "gte", "values": [3]}}
     - "movement_family": string, e.g. "snatch"
-    - "recent_make_rate": comparison object, e.g. {{"lt": 0.7}}
-    - "rpe_average_last_week": comparison object, e.g. {{"gte": 9.0}}
-    Comparison operators: lte, gte, lt, gt, eq, between
+    - "recent_make_rate": comparison, e.g. {{"op": "lt", "values": [0.7]}}
+    - "rpe_average_last_week": comparison, e.g. {{"op": "gte", "values": [9.0]}}
+    A comparison is {{"op": <lte|gte|lt|gt|eq|between>, "values": [<number>]}} — "between" takes two values [low, high].
 - recommendation: JSON object describing WHAT to do. Use these fields (all optional):
     - "volume_modifier": float (e.g. 0.6 means reduce to 60%)
     - "total_reps_max": int (hard cap on total reps)
@@ -78,14 +86,14 @@ For each principle found, provide:
 - rationale: Brief explanation of WHY this rule exists
 - priority: 1-10 (10 = most critical, use 10 only for safety constraints)
 
-Respond with a JSON array of principles. If no clear principles are found, return [].
+Respond with a JSON object {{"principles": [...]}}. If no clear principles are found, return {{"principles": []}}.
 
 TEXT TO ANALYZE:
 {text}
 
 SOURCE: {source}
 
-Respond ONLY with valid JSON array, no other text."""
+Respond ONLY with valid JSON, no other text."""
 
 
 # The condition keys EXTRACTION_PROMPT defines — the only ones the agent's
@@ -100,14 +108,127 @@ CONDITION_KEYS: frozenset[str] = frozenset({
 })
 
 
+# ── Output schema (STRUCT-1) ──────────────────────────────────────────────
+# Sent as `output_config.format`, so the reply is guaranteed to parse and to
+# use only these keys/values: conditions can't carry an invented key or an
+# athlete level the matcher can't evaluate, recommendations can't hold
+# `null`, and `category` can't be a value the DB enum rejects.
+# A comparison is `{"op": …, "values": [...]}` with both keys required rather
+# than the matcher's `{"lte": 2}` form: the API caps a schema at 24 optional
+# properties (a 400 above that), and six optional operators × five comparison
+# keys alone would be 30. `normalize_comparisons` converts back at parse time.
+COMPARISON_OPS: tuple[str, ...] = ("lte", "gte", "lt", "gt", "eq", "between")
+_COMPARISON_KEYS: frozenset[str] = frozenset({
+    "weeks_out_from_competition", "training_age_years", "week_of_block",
+    "recent_make_rate", "rpe_average_last_week",
+})
+_COMPARISON = {
+    "type": "object",
+    "properties": {
+        "op": {"type": "string", "enum": list(COMPARISON_OPS)},
+        "values": {"type": "array", "items": {"type": "number"}},
+    },
+    "required": ["op", "values"],
+    "additionalProperties": False,
+}
+_PHASE = {"type": "string", "enum": list(TRAINING_PHASES)}
+_LEVEL = {"type": "string", "enum": list(ATHLETE_LEVELS)}
+_STRINGS = {"type": "array", "items": {"type": "string"}}
+PRINCIPLE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "principles": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "principle_name": {"type": "string"},
+                    "category": {"type": "string", "enum": list(PRINCIPLE_CATEGORIES)},
+                    "rule_type": {"type": "string", "enum": list(RULE_TYPES)},
+                    "condition": {
+                        "type": "object",
+                        "properties": {
+                            "phase": {"anyOf": [_PHASE, {"type": "array", "items": _PHASE}]},
+                            "weeks_out_from_competition": _COMPARISON,
+                            "athlete_level": {"type": "array", "items": _LEVEL},
+                            "training_age_years": _COMPARISON,
+                            "week_of_block": _COMPARISON,
+                            "movement_family": {"type": "string", "enum": list(MOVEMENT_FAMILIES)},
+                            "recent_make_rate": _COMPARISON,
+                            "rpe_average_last_week": _COMPARISON,
+                        },
+                        "additionalProperties": False,
+                    },
+                    "recommendation": {
+                        "type": "object",
+                        "properties": {
+                            "volume_modifier": {"type": "number"},
+                            "total_reps_max": {"type": "integer"},
+                            "intensity_floor": {"type": "integer"},
+                            "intensity_ceiling": {"type": "integer"},
+                            "sessions_per_week_max": {"type": "integer"},
+                            "competition_lift_frequency": {
+                                "anyOf": [{"type": "integer"}, {"type": "string", "const": "every_session"}],
+                            },
+                            "prefer_exercises": _STRINGS,
+                            "avoid_exercises": _STRINGS,
+                            "rest_between_sets_min": {"type": "integer"},
+                            "include_deload_week": {"type": "boolean"},
+                            "deload_frequency_weeks": {"type": "integer"},
+                            "competition_lifts_first": {"type": "boolean"},
+                        },
+                        "additionalProperties": False,
+                    },
+                    "rationale": {"type": "string"},
+                    "priority": {"type": "integer", "enum": list(range(1, 11))},
+                },
+                "required": ["principle_name", "category", "rule_type", "condition",
+                             "recommendation", "rationale", "priority"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["principles"],
+    "additionalProperties": False,
+}
+assert set(PRINCIPLE_SCHEMA["properties"]["principles"]["items"]["properties"]["condition"]["properties"]) == CONDITION_KEYS
+
+
+def normalize_comparisons(condition: dict) -> dict:
+    """`{"op": "lte", "values": [2]}` → `{"lte": 2}`, `{"op": "between",
+    "values": [3, 5]}` → `{"between": [3, 5]}` — the form principle_matcher
+    evaluates. Pre-schema operator dicts pass through unchanged; a malformed
+    comparison is dropped so the rule stays unconditional on that key."""
+    out = {}
+    for key, value in condition.items():
+        if key in _COMPARISON_KEYS and isinstance(value, dict) and "op" in value:
+            op, values = value.get("op"), value.get("values")
+            if not isinstance(values, list) or op not in COMPARISON_OPS:
+                logger.warning(f"Dropping malformed comparison {key}={value!r}")
+                continue
+            if op == "between":
+                if len(values) != 2:
+                    logger.warning(f"Dropping malformed comparison {key}={value!r}")
+                    continue
+                out[key] = {"between": values[:2]}
+            elif values:
+                out[key] = {op: values[0]}
+            else:
+                logger.warning(f"Dropping malformed comparison {key}={value!r}")
+            continue
+        out[key] = value
+    return out
+
+
 def sanitize_condition(condition) -> dict:
-    """Keep only schema condition keys; None / non-dict → {} (unconditional)."""
+    """Keep only schema condition keys and normalise comparisons; None /
+    non-dict → {} (unconditional)."""
     if not isinstance(condition, dict):
         return {}
     dropped = sorted(set(condition) - CONDITION_KEYS)
     if dropped:
         logger.warning(f"Dropping unknown principle condition key(s): {dropped}")
-    return {k: v for k, v in condition.items() if k in CONDITION_KEYS}
+    return normalize_comparisons({k: v for k, v in condition.items() if k in CONDITION_KEYS})
 
 
 class PrincipleExtractor:
@@ -211,7 +332,7 @@ class PrincipleExtractor:
             model=self.settings.llm_model,
             max_tokens=self.settings.llm_max_tokens,
             messages=[{"role": "user", "content": EXTRACTION_PROMPT.format(text=text, source=source_title)}],
-            **thinking_kwargs(self.settings.llm_model, "disabled"),   # JSON out, no thinking
+            **json_schema_kwargs(PRINCIPLE_SCHEMA, thinking_kwargs(self.settings.llm_model, "disabled")),
         )
 
     def _extract_window(self, text: str, source_title: str) -> list[ExtractedPrinciple]:
@@ -230,8 +351,14 @@ class PrincipleExtractor:
 
     @staticmethod
     def _parse_response(message, source_title: str) -> list[ExtractedPrinciple]:
-        """Principles from one reply; raises on unparseable JSON."""
+        """Principles from one reply; raises on unparseable JSON.
+
+        Accepts the schema's `{"principles": [...]}` and, for replies produced
+        without the schema, a bare array.
+        """
         raw = parse_llm_json(message_text(message))
+        if isinstance(raw, dict):
+            raw = raw.get("principles") or []
         principles = []
         for item in raw:
             try:

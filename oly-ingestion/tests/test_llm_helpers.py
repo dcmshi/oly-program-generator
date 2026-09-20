@@ -316,6 +316,49 @@ def test_run_message_batch_polls_until_ended_and_times_out():
             pass
 
 
+def test_json_schema_kwargs_merges_with_effort_under_output_config():
+    """`output_config` carries both `effort` and `format`; the helper must add
+    the format without dropping an effort already present (STRUCT-1)."""
+    from shared.llm import json_schema_kwargs, thinking_kwargs
+
+    schema = {"type": "object", "properties": {}, "additionalProperties": False}
+    assert json_schema_kwargs(schema) == {
+        "output_config": {"format": {"type": "json_schema", "schema": schema}}}
+    base = thinking_kwargs("claude-sonnet-5", "adaptive", "low")
+    merged = json_schema_kwargs(schema, base)
+    assert merged["thinking"] == {"type": "adaptive"}
+    assert merged["output_config"] == {"effort": "low", "format": {"type": "json_schema", "schema": schema}}
+    assert base["output_config"] == {"effort": "low"}          # base not mutated
+
+
+def test_extract_window_sends_the_schema_and_accepts_the_wrapper():
+    """The request carries `output_config.format` = PRINCIPLE_SCHEMA and the
+    parser reads the schema's {"principles": [...]} as well as a bare array."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from processors.principle_extractor import PRINCIPLE_SCHEMA, PrincipleExtractor
+
+    settings = SimpleNamespace(llm_model="claude-sonnet-5", llm_max_tokens=4096, anthropic_api_key="k")
+    ex = PrincipleExtractor(settings)
+    principle = {"principle_name": "P", "category": "deload", "rule_type": "guideline",
+                 "condition": {"phase": "deload"}, "recommendation": {"volume_modifier": 0.6},
+                 "rationale": "r", "priority": 5}
+    client = MagicMock()
+    client.messages.create.return_value = SimpleNamespace(
+        stop_reason="end_turn",
+        content=[SimpleNamespace(type="text", text=json.dumps({"principles": [principle]}))])
+    ex._client = client
+    out = ex._extract_window("text", "Book")
+    assert [p.principle_name for p in out] == ["P"]
+    kwargs = client.messages.create.call_args.kwargs
+    assert kwargs["output_config"]["format"] == {"type": "json_schema", "schema": PRINCIPLE_SCHEMA}
+    assert kwargs["thinking"] == {"type": "disabled"}
+    assert '{"principles": [...]}' in kwargs["messages"][0]["content"]
+    bare = SimpleNamespace(content=[SimpleNamespace(type="text", text=json.dumps([principle]))])
+    assert len(PrincipleExtractor._parse_response(bare, "Book")) == 1
+
+
 def test_extract_batch_windows_per_key_and_tolerates_a_failed_window():
     """One request per window across all sections; results are grouped back by
     key and de-duplicated by principle_name; a failed window contributes nothing."""

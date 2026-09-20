@@ -25,11 +25,13 @@ from processors.principle_extractor import PrincipleExtractor
 
 from shared.llm import (
     create_message_growing,
+    json_schema_kwargs,
     light_model_for,
     message_text,
     parse_llm_json,
     thinking_kwargs,
 )
+from shared.schema_enums import ATHLETE_LEVELS
 
 logging.basicConfig(
     level=logging.INFO,
@@ -155,6 +157,64 @@ TEXT:
 {text}
 
 Respond ONLY with valid JSON, no other text."""
+
+
+# Output schemas for the two template prompts (STRUCT-1). Every key is optional
+# so "not a parseable program" can still be `{}` / `{"weeks": []}`; `reps` keeps
+# the "1-3" range-string form the prompt allows.
+_TEMPLATE_EXERCISE_SCHEMA = {
+    "type": "object",
+    "properties": {
+        "name": {"type": "string"},
+        "sets": {"type": "integer"},
+        "reps": {"anyOf": [{"type": "integer"}, {"type": "string"}]},
+        "intensity_pct": {"type": "integer"},
+        "notes": {"type": "string"},
+    },
+    "required": ["name"],
+    "additionalProperties": False,
+}
+_TEMPLATE_WEEKS_SCHEMA = {
+    "type": "array",
+    "items": {
+        "type": "object",
+        "properties": {
+            "week_number": {"type": "integer"},
+            "sessions": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "day": {"type": "string"},
+                        "exercises": {"type": "array", "items": _TEMPLATE_EXERCISE_SCHEMA},
+                    },
+                    "required": ["day", "exercises"],
+                    "additionalProperties": False,
+                },
+            },
+        },
+        "required": ["week_number", "sessions"],
+        "additionalProperties": False,
+    },
+}
+PROGRAM_TEMPLATE_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "duration_weeks": {"type": "integer"},
+        "sessions_per_week": {"type": "integer"},
+        "athlete_level": {"type": "string", "enum": [*ATHLETE_LEVELS, "any"]},
+        "goal": {"type": "string", "enum": ["general_strength", "competition_prep", "technique_focus",
+                                             "hypertrophy", "work_capacity", "peaking", "return_to_sport"]},
+        "weeks": _TEMPLATE_WEEKS_SCHEMA,
+    },
+    "additionalProperties": False,
+}
+PROGRAM_CONTINUATION_SCHEMA: dict = {
+    "type": "object",
+    "properties": {"weeks": _TEMPLATE_WEEKS_SCHEMA},
+    "required": ["weeks"],
+    "additionalProperties": False,
+}
 
 
 _PROGRAM_CONTINUATION_PROMPT = """\
@@ -621,25 +681,26 @@ class IngestionPipeline:
         content = section.content
         client = self.principle_extractor._get_client()
 
-        def _llm_call(prompt: str) -> dict:
+        def _llm_call(prompt: str, schema: dict) -> dict:
             # Structured JSON out: no thinking (Sonnet 5 would otherwise run
-            # adaptive by default) and a budget that grows on truncation — a
-            # 5k-char program window overran 4,096 output tokens on the
-            # 2026-09-16 re-ingest ("Expecting ',' delimiter … char 13792").
+            # adaptive by default), the reply constrained to `schema`
+            # (STRUCT-1), and a budget that grows on truncation — a 5k-char
+            # program window overran 4,096 output tokens on the 2026-09-16
+            # re-ingest ("Expecting ',' delimiter … char 13792").
             message = create_message_growing(
                 client,
                 model=self.settings.llm_model,
                 max_tokens=self.settings.llm_max_tokens,
                 messages=[{"role": "user", "content": prompt}],
                 label=f"Program template parse '{source.title}'",
-                **thinking_kwargs(self.settings.llm_model, "disabled"),
+                **json_schema_kwargs(schema, thinking_kwargs(self.settings.llm_model, "disabled")),
             )
             return parse_llm_json(message_text(message))
 
         # --- First chunk: full parse for metadata + initial weeks ---
         parsed = {}
         try:
-            parsed = _llm_call(_PROGRAM_PARSE_PROMPT.format(text=content[:CHUNK_SIZE]))
+            parsed = _llm_call(_PROGRAM_PARSE_PROMPT.format(text=content[:CHUNK_SIZE]), PROGRAM_TEMPLATE_SCHEMA)
         except Exception as e:
             logger.warning(f"Program template parsing failed for '{source.title}': {e}")
 
@@ -669,7 +730,8 @@ class IngestionPipeline:
                 chunk = content[offset : offset + CHUNK_SIZE]
                 try:
                     continuation = _llm_call(
-                        _PROGRAM_CONTINUATION_PROMPT.format(last_week=last_week, text=chunk)
+                        _PROGRAM_CONTINUATION_PROMPT.format(last_week=last_week, text=chunk),
+                        PROGRAM_CONTINUATION_SCHEMA,
                     )
                     # require week_number: line 551's seen_weeks.update does a
                     # bare w["week_number"] — a malformed week without the key

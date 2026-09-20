@@ -36,6 +36,7 @@ from config import Settings
 from shared.llm import (
     BatchRequestFailed,
     create_message_with_retries,
+    json_schema_kwargs,
     light_model_for,
     message_text,
     parse_llm_json,
@@ -45,12 +46,7 @@ from shared.llm import (
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-# Mirrors the chunk_type enum in migration 0000 — test_relabel_chunk_types asserts it.
-CHUNK_TYPES: tuple[str, ...] = (
-    "concept", "methodology", "periodization", "programming_rationale",
-    "biomechanics", "case_study", "fault_correction",
-    "recovery_adaptation", "competition_strategy", "nutrition_bodyweight",
-)
+from shared.schema_enums import CHUNK_TYPES  # mirrors the DB enum; test_schema_enums asserts it
 
 DEFAULT_BATCH_SIZE = 10
 DEFAULT_MIN_CONFIDENCE = 0.6
@@ -74,8 +70,29 @@ TYPES (pick the single best fit):
 PASSAGES:
 {passages}
 
-Respond with a JSON array only, one object per passage, in order:
-[{{"index": 1, "chunk_type": "<type>", "confidence": <0.0-1.0>}}, ...]"""
+Respond with JSON only: {{"labels": [{{"index": 1, "chunk_type": "<type>", "confidence": <0.0-1.0>}}, ...]}} — one entry per passage, in order."""
+
+# Constrains the reply (STRUCT-1): `chunk_type` can only be a DB enum value.
+RELABEL_SCHEMA: dict = {
+    "type": "object",
+    "properties": {
+        "labels": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "properties": {
+                    "index": {"type": "integer"},
+                    "chunk_type": {"type": "string", "enum": list(CHUNK_TYPES)},
+                    "confidence": {"type": "number"},
+                },
+                "required": ["index", "chunk_type", "confidence"],
+                "additionalProperties": False,
+            },
+        },
+    },
+    "required": ["labels"],
+    "additionalProperties": False,
+}
 
 
 def build_prompt(batch: list[tuple[int, str]]) -> str:
@@ -93,7 +110,7 @@ def parse_labels(raw_text: str, expected_indexes: set[int]) -> dict[int, tuple[s
     """
     items = parse_llm_json(raw_text)
     if isinstance(items, dict):
-        items = [items]
+        items = items.get("labels", [items])   # schema wrapper, or a bare single object
     labels: dict[int, tuple[str, float]] = {}
     for item in items:
         if not isinstance(item, dict):
@@ -172,7 +189,8 @@ def relabel(
     def _params(start: int) -> dict:
         batch = rows[start:start + batch_size]
         prompt = build_prompt([(i, text) for i, (_id, _t, text) in enumerate(batch, start=1)])
-        return dict(model=model, max_tokens=1024, messages=[{"role": "user", "content": prompt}])
+        return dict(model=model, max_tokens=1024, messages=[{"role": "user", "content": prompt}],
+                    **json_schema_kwargs(RELABEL_SCHEMA))
 
     # COST-1: one Message Batch for the whole corpus at half price, instead of
     # one synchronous call per group of chunks.
