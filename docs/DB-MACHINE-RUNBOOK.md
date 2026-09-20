@@ -166,8 +166,10 @@ and Medvedev (501) need `--vision`; use `--max-pages 20` first as a smoke test.
 ```bash
 cd oly-ingestion
 PYTHONUTF8=1 uv run python pipeline.py --source "sources/<file>.pdf" --title "<title>" --author "<author>" --type book [--vision] \
-    --contextualize --context-model claude-haiku-4-5-20251001 --batch
+    --contextualize --context-model claude-haiku-4-5-20251001 --batch --classifier jev
 ```
+
+`--classifier jev` (JEV-1c, 2026-09-20) routes each section with a Jev `Choice` (needs `TYPESAFE_API_KEY`); leave it off if the key isn't on the machine — the heuristic router is the fallback either way.
 
 `--batch` (COST-1, 2026-09-20) sends principle extraction and vision OCR through the
 Message Batches API at half price; with `llm_model` now Sonnet 5 (MODEL-1b) principle

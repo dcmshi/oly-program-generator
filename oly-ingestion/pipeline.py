@@ -268,7 +268,7 @@ class SourceDocument:
 class IngestionPipeline:
     def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0,
                  contextualize: bool = False, context_model: str | None = None,
-                 batch: bool = False):
+                 batch: bool = False, classifier: str = "heuristic"):
         self.settings = settings
         self.max_pages = max_pages
         # COST-1: principle extraction (the dominant ingestion spend) and vision
@@ -290,7 +290,7 @@ class IngestionPipeline:
         self.pdf_extractor = PDFExtractor(
             anthropic_client=_anthropic_client, vision_model=settings.llm_model, batch=batch,
         )
-        self.classifier = ContentClassifier(settings)
+        self.classifier = ContentClassifier(settings, classifier=classifier)
         self.principle_extractor = PrincipleExtractor(settings)
         self.vector_loader = VectorLoader(settings)
         self.structured_loader = StructuredLoader(settings)
@@ -919,13 +919,16 @@ if __name__ == "__main__":
     parser.add_argument("--batch", action="store_true",
                         help="Send principle extraction and vision OCR through the Message Batches API "
                              "(half price, minutes-to-hours of latency; COST-1)")
+    parser.add_argument("--classifier", choices=("heuristic", "jev"), default="heuristic",
+                        help="Section router: heuristic + LLM fallback (default) or one Jev Choice per section "
+                             "(JEV-1c; needs TYPESAFE_API_KEY)")
     args = parser.parse_args()
 
     settings = Settings()
     settings.ensure_working_dirs()
     pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages,
                                  contextualize=args.contextualize, context_model=args.context_model,
-                                 batch=args.batch)
+                                 batch=args.batch, classifier=args.classifier)
 
     doc = SourceDocument(
         path=Path(args.source),

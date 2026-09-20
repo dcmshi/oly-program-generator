@@ -198,3 +198,8 @@ JUNK_QUARANTINE_THRESHOLD: float = 0.7
 # duplicate_of and plan._load_principles skips it.
 PRINCIPLE_DUPLICATE_MIN_COSINE: float = 0.70
 PRINCIPLE_DUPLICATE_THRESHOLD: float = 0.7
+
+# ── Jev section classifier (JEV-1c) ────────────────────────────────
+# pipeline.py --classifier jev takes Jev's content-type Choice for a section
+# when its calibrated confidence reaches this; below it the heuristic stands.
+JEV_CLASSIFY_MIN_CONFIDENCE: float = 0.5

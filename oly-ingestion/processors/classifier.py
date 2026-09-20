@@ -21,6 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.sectioning import MARKDOWN_HEADING_RE_SRC, merge_small_sections, split_oversized_sections
+from shared.constants import JEV_CLASSIFY_MIN_CONFIDENCE
 from shared.llm import (
     create_llm_client,
     create_message_with_retries,
@@ -99,8 +100,57 @@ class ContentClassifier:
         r"(?:rule of thumb|general guideline|as a rule)",
     ]
 
-    def __init__(self, settings):
+    # `classifier="jev"` (pipeline --classifier jev, JEV-1c): one calibrated
+    # Choice per section from Jev instead of heuristics + an LLM fallback. On
+    # 119 real sections it agreed with the heuristic on 101 and a Sonnet 5
+    # adjudication sided with Jev 13:4 on the rest. Below JEV_CLASSIFY_MIN_CONFIDENCE
+    # the heuristic answer stands.
+    def __init__(self, settings, classifier: str = "heuristic"):
+        if classifier not in ("heuristic", "jev"):
+            raise ValueError(f"classifier must be 'heuristic' or 'jev', got {classifier!r}")
         self.settings = settings
+        self.classifier = classifier
+
+    _JEV_TYPES = {
+        "prose": "general explanation, rationale, narrative, theory — no actionable rules",
+        "principle": "concrete if/then rules, thresholds or prescriptions (e.g. 'reduce volume by X% when …')",
+        "mixed": "substantial prose AND concrete programming rules/thresholds together",
+        "table": "percentage tables, rep/set schemes, structured numeric data",
+        "program_template": "a day/week training schedule with exercises and sets/reps",
+        "exercise_description": "how to perform a specific exercise",
+    }
+    _JEV_TO_TYPE = {
+        "prose": ContentType.PROSE, "principle": ContentType.PRINCIPLE, "mixed": ContentType.MIXED,
+        "table": ContentType.TABLE, "program_template": ContentType.PROGRAM_TEMPLATE,
+        "exercise_description": ContentType.EXERCISE_DESCRIPTION,
+    }
+
+    def _jev_classify(self, sections: list[str]) -> dict[int, tuple[ContentType, float]]:
+        """{index: (type, confidence)} for every section Jev answered."""
+        import asyncio
+
+        from typesafe_sdk import AsyncTypeSafeClient, Choice
+
+        question = Choice(instructions="Classify this section of a weightlifting coaching book into exactly one content type.",
+                          criteria=self._JEV_TYPES)
+
+        async def run() -> dict[int, tuple[ContentType, float]]:
+            out: dict[int, tuple[ContentType, float]] = {}
+            sem = asyncio.Semaphore(8)
+            async with AsyncTypeSafeClient() as client:
+                async def one(i: int, text: str) -> None:
+                    async with sem:
+                        try:
+                            r = await client.system_one(state={"section": text[:3000]}, questions={"type": question})
+                        except Exception as e:
+                            logger.warning(f"Jev classification failed for section {i}: {type(e).__name__}: {e}")
+                            return
+                    answer = r.choices["type"]
+                    out[i] = (self._JEV_TO_TYPE[str(answer.choice)], float(answer.confidence))
+                await asyncio.gather(*(one(i, t) for i, t in enumerate(sections)))
+            return out
+
+        return asyncio.run(run())
 
     def classify_sections(
         self, text: str, source_title: str = ""
@@ -116,12 +166,15 @@ class ContentClassifier:
         """
         raw_sections = self._split_into_sections(text)
         classified = []
+        jev = self._jev_classify([t for t, _m in raw_sections]) if self.classifier == "jev" else {}
 
-        for section_text, section_meta in raw_sections:
+        for i, (section_text, section_meta) in enumerate(raw_sections):
             content_type, confidence = self._classify_single(section_text)
 
+            if i in jev and jev[i][1] >= JEV_CLASSIFY_MIN_CONFIDENCE:
+                content_type, confidence = jev[i]
             # If low confidence from heuristics, fall back to LLM classification
-            if confidence < 0.6 and len(section_text) > 100:
+            elif confidence < 0.6 and len(section_text) > 100:
                 content_type, confidence = self._llm_classify(
                     section_text, source_title
                 )

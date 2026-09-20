@@ -330,3 +330,28 @@ def test_llm_classify_uses_the_light_model():
     assert call.call_args.kwargs["model"] == clf.settings.light_model
     assert clf.settings.light_model != clf.settings.llm_model
     assert "thinking" not in call.call_args.kwargs      # Haiku 4.5 has no thinking field
+
+
+def test_jev_classifier_overrides_heuristic_when_confident():
+    """--classifier jev: a confident Jev Choice replaces the heuristic label; a
+    low-confidence one leaves the heuristic (and its LLM fallback) in charge."""
+    from unittest.mock import patch
+
+    from shared.constants import JEV_CLASSIFY_MIN_CONFIDENCE
+
+    clf = ContentClassifier(Settings(), classifier="jev")
+    prose = "The preparatory period builds general capacity before the competition period sharpens it. " * 6
+    text = prose + "\n\nChapter 2 Loading\n\n" + prose
+    fake = {0: (ContentType.MIXED, 0.92), 1: (ContentType.TABLE, JEV_CLASSIFY_MIN_CONFIDENCE - 0.1)}
+    with patch.object(clf, "_jev_classify", return_value=fake) as jev, \
+         patch.object(clf, "_llm_classify", return_value=(ContentType.PROSE, 0.5)) as llm:
+        sections = clf.classify_sections(text, "Book")
+    assert jev.call_count == 1 and len(jev.call_args.args[0]) == len(sections)
+    assert sections[0].content_type == ContentType.MIXED and sections[0].confidence == 0.92
+    assert sections[1].content_type == ContentType.PROSE          # low-confidence Jev answer ignored
+    assert llm.call_count == 0                                      # heuristic was confident on its own
+    try:
+        ContentClassifier(Settings(), classifier="bogus")
+        raise AssertionError("expected ValueError")
+    except ValueError:
+        pass
