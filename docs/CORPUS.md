@@ -6,6 +6,10 @@ any ingest, re-ingest, or bulk delete.
 **Totals:** 3,796 chunks · 151 principles · 439 sources (corpus DB machine, 2026-03-18).
 A dev copy measured on 2026-09-15 held 3,368 chunks · 161 principles · 439 sources ·
 17 templates — the two diverged after the Catalyst delete / later principle runs.
+**Dev copy 2026-09-20:** 4,607 chunks · 2,234 principles · 612 sources · 39 templates —
+Medvedev re-chunked (613 × 324 chars → 143 × 1,430; the OCR'd session labels were being read
+as headings), `relabel_chunk_types.py` applied (`concept` 50 % → 22 % of the corpus), Takano /
+Medvedev page-fragment templates deleted. Golden set + baseline rebuilt the same day.
 **Dev copy after the full re-ingest, 2026-09-16:** 5,077 chunks · 2,135 principles · 612
 sources · 49 templates. All seven PDF sources re-chunked on joined pages with
 `--contextualize` (runbook §8b), Catalyst re-crawled (428 articles → 1,055 chunks, 2.5 per

@@ -71,10 +71,12 @@ _ADAPTIVE_THINKING_PREFIXES = _THINKING_DEFAULT_ON_PREFIXES + (
 )
 # Open models reached through OpenRouter's Anthropic-compatible endpoint
 # (MODEL-2). OpenRouter translates `thinking` / `output_config.effort` for
-# them; these reason by default and GLM-5.3-Flash 400s on `disabled`
-# ("Reasoning is mandatory for this endpoint") — "disabled" there becomes
-# adaptive at low effort (43 output tokens vs 1,208 unconstrained on the probe).
+# them. DeepSeek and Kimi honour `disabled`; GLM-5.3-Flash 400s on it
+# ("Reasoning is mandatory for this endpoint") and ignores `effort`, so
+# "disabled" there becomes a fixed `budget_tokens` (the one cap it honours;
+# DeepSeek in turn ignores a budget — hence per-family handling).
 _REASONING_MANDATORY_PREFIXES = ("z-ai/glm-",)
+OPEN_MODEL_THINKING_BUDGET_TOKENS = 1024
 THINKING_MODES = ("", "adaptive", "disabled")
 EFFORT_LEVELS = ("", "low", "medium", "high", "xhigh", "max")
 _NON_TEXT_BLOCK_TYPES = frozenset({
@@ -184,8 +186,12 @@ def thinking_kwargs(model: str | None, mode: str = "", effort: str = "") -> dict
     kwargs: dict = {}
     if _is_open_model(model):
         if mode == "disabled" and model.startswith(_REASONING_MANDATORY_PREFIXES):
-            kwargs["thinking"] = {"type": "adaptive"}
-            kwargs["output_config"] = {"effort": effort or "low"}
+            # The only cap GLM honours: adaptive + effort=low still spent 16k
+            # output tokens on thinking with no text on the real session prompt;
+            # a fixed budget returned the answer with ~30 chars of thinking.
+            kwargs["thinking"] = {"type": "enabled", "budget_tokens": OPEN_MODEL_THINKING_BUDGET_TOKENS}
+            if effort:
+                kwargs["output_config"] = {"effort": effort}
         elif mode:
             kwargs["thinking"] = {"type": mode}
             if effort:

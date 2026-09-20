@@ -1,0 +1,900 @@
+{
+  "meta": {
+    "athlete_id": 1,
+    "sessions": 8,
+    "cost_limit": 1.0,
+    "run_at": "2026-09-20T19:05:26+00:00",
+    "configs": [
+      "claude-sonnet-5",
+      "moonshotai/kimi-k3",
+      "deepseek/deepseek-v4.1-flash",
+      "z-ai/glm-5.3-flash",
+      "qwen/qwen3.8-flash"
+    ],
+    "deleted": false
+  },
+  "rows": [
+    {
+      "config": "claude-sonnet-5",
+      "program_id": 15,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 28814,
+      "output_tokens": 12503,
+      "cache_read_tokens": 34496,
+      "cost_usd": 0.2019,
+      "wall_s": 144.0,
+      "mean_call_s": 14.37,
+      "cost_per_session": 0.0252
+    },
+    {
+      "config": "moonshotai/kimi-k3",
+      "program_id": 16,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 38245,
+      "output_tokens": 6594,
+      "cache_read_tokens": 7409,
+      "cost_usd": 0.1223,
+      "wall_s": 114.3,
+      "mean_call_s": 11.88,
+      "cost_per_session": 0.0153
+    },
+    {
+      "config": "deepseek/deepseek-v4.1-flash",
+      "program_id": 17,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 25929,
+      "output_tokens": 8800,
+      "cache_read_tokens": 20292,
+      "cost_usd": 0.0095,
+      "wall_s": 82.9,
+      "mean_call_s": 8.41,
+      "cost_per_session": 0.0012
+    },
+    {
+      "config": "z-ai/glm-5.3-flash",
+      "program_id": 18,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 43284,
+      "output_tokens": 9396,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0067,
+      "wall_s": 72.0,
+      "mean_call_s": 7.24,
+      "cost_per_session": 0.0008
+    },
+    {
+      "config": "qwen/qwen3.8-flash",
+      "program_id": 19,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 552,
+      "output_tokens": 7393,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0128,
+      "wall_s": 118.4,
+      "mean_call_s": 12.33,
+      "cost_per_session": 0.0016
+    }
+  ],
+  "results": [
+    {
+      "config": "claude-sonnet-5",
+      "model": "claude-sonnet-5",
+      "thinking": "",
+      "effort": "",
+      "program_id": 15,
+      "wall_s": 144.0,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 28814,
+        "output_tokens": 12503,
+        "cache_read_tokens": 34496,
+        "cache_creation_tokens": 4928,
+        "cost_usd": 0.2019,
+        "mean_call_s": 14.37,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 13.71,
+            "max_s": 15.5,
+            "cost_usd": 0.187
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 19.64,
+            "max_s": 19.64,
+            "cost_usd": 0.0149
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 13.731890800001565,
+          "input_tokens": 3060,
+          "output_tokens": 1325,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 4928,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.03169,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 14.111059100017883,
+          "input_tokens": 3437,
+          "output_tokens": 1407,
+          "cache_read_tokens": 4928,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.021929599999999997,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 15.496809300035238,
+          "input_tokens": 3549,
+          "output_tokens": 1614,
+          "cache_read_tokens": 4928,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.024223599999999998,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 12.24703899997985,
+          "input_tokens": 3953,
+          "output_tokens": 1224,
+          "cache_read_tokens": 4928,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.021131599999999997,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 14.14884969999548,
+          "input_tokens": 3060,
+          "output_tokens": 1470,
+          "cache_read_tokens": 4928,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.021805599999999998,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 14.345346099988092,
+          "input_tokens": 3476,
+          "output_tokens": 1487,
+          "cache_read_tokens": 4928,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.022807599999999997,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 13.427082300011534,
+          "input_tokens": 3622,
+          "output_tokens": 1396,
+          "cache_read_tokens": 4928,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.022189599999999997,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 12.17436030000681,
+          "input_tokens": 3997,
+          "output_tokens": 1221,
+          "cache_read_tokens": 4928,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0211896,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "anthropic/claude-sonnet-5",
+          "elapsed_s": 19.639526900020428,
+          "input_tokens": 660,
+          "output_tokens": 1359,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01491,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 28154,
+        "log_output_tokens": 11144
+      }
+    },
+    {
+      "config": "moonshotai/kimi-k3",
+      "model": "moonshotai/kimi-k3",
+      "thinking": "",
+      "effort": "",
+      "program_id": 16,
+      "wall_s": 114.3,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 38245,
+        "output_tokens": 6594,
+        "cache_read_tokens": 7409,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.1223,
+        "mean_call_s": 11.88,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 12.65,
+            "max_s": 14.97,
+            "cost_usd": 0.1168
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 5.72,
+            "max_s": 5.72,
+            "cost_usd": 0.0055
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 11.291312900022604,
+          "input_tokens": 5373,
+          "output_tokens": 626,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0144551,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 12.417961599945556,
+          "input_tokens": 4551,
+          "output_tokens": 675,
+          "cache_read_tokens": 1064,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01365508,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 13.854165499971714,
+          "input_tokens": 4593,
+          "output_tokens": 802,
+          "cache_read_tokens": 1059,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01480513,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 14.973403999989387,
+          "input_tokens": 4863,
+          "output_tokens": 726,
+          "cache_read_tokens": 1063,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01461881,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 12.066414800006896,
+          "input_tokens": 4328,
+          "output_tokens": 777,
+          "cache_read_tokens": 1045,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01413975,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 12.42470949998824,
+          "input_tokens": 4581,
+          "output_tokens": 761,
+          "cache_read_tokens": 1056,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01443572,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 14.674856300000101,
+          "input_tokens": 4616,
+          "output_tokens": 921,
+          "cache_read_tokens": 1064,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01585658,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 9.467963000002783,
+          "input_tokens": 4905,
+          "output_tokens": 746,
+          "cache_read_tokens": 1058,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01485936,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 5.71537819999503,
+          "input_tokens": 435,
+          "output_tokens": 560,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0054995,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 37810,
+        "log_output_tokens": 6034
+      }
+    },
+    {
+      "config": "deepseek/deepseek-v4.1-flash",
+      "model": "deepseek/deepseek-v4.1-flash",
+      "thinking": "",
+      "effort": "",
+      "program_id": 17,
+      "wall_s": 82.9,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 25929,
+        "output_tokens": 8800,
+        "cache_read_tokens": 20292,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0095,
+        "mean_call_s": 8.41,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 8.69,
+            "max_s": 10.24,
+            "cost_usd": 0.0089
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 6.12,
+            "max_s": 6.12,
+            "cost_usd": 0.0006
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 6.421235400019214,
+          "input_tokens": 5191,
+          "output_tokens": 1120,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0014506500000000002,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 9.233621799969114,
+          "input_tokens": 5720,
+          "output_tokens": 984,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0014484,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 7.585101099975873,
+          "input_tokens": 2384,
+          "output_tokens": 836,
+          "cache_read_tokens": 3394,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0009101099999999999,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 7.5959546999656595,
+          "input_tokens": 2630,
+          "output_tokens": 922,
+          "cache_read_tokens": 3394,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0009986099999999998,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 9.671940800035372,
+          "input_tokens": 2115,
+          "output_tokens": 1060,
+          "cache_read_tokens": 3322,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00100308,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 9.865343399986159,
+          "input_tokens": 2352,
+          "output_tokens": 937,
+          "cache_read_tokens": 3394,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0009659099999999999,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 8.925625100033358,
+          "input_tokens": 2408,
+          "output_tokens": 1135,
+          "cache_read_tokens": 3394,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0010931100000000002,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 10.237066200003028,
+          "input_tokens": 2698,
+          "output_tokens": 996,
+          "cache_read_tokens": 3394,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00105321,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "deepseek/deepseek-v4.1-flash",
+          "elapsed_s": 6.1177510999841616,
+          "input_tokens": 431,
+          "output_tokens": 810,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00055065,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 25498,
+        "log_output_tokens": 7990
+      }
+    },
+    {
+      "config": "z-ai/glm-5.3-flash",
+      "model": "z-ai/glm-5.3-flash",
+      "thinking": "",
+      "effort": "",
+      "program_id": 18,
+      "wall_s": 72.0,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 43284,
+        "output_tokens": 9396,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0067,
+        "mean_call_s": 7.24,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 5.3,
+            "max_s": 7.3,
+            "cost_usd": 0.0065
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 22.75,
+            "max_s": 22.75,
+            "cost_usd": 0.0002
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 4.876454200013541,
+          "input_tokens": 5090,
+          "output_tokens": 1159,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0008058,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 5.578661700012162,
+          "input_tokens": 5348,
+          "output_tokens": 1020,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00078732,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 7.301949999993667,
+          "input_tokens": 5371,
+          "output_tokens": 1229,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0008520899999999999,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 3.9418097999878228,
+          "input_tokens": 5659,
+          "output_tokens": 666,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00070911,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 4.304712099954486,
+          "input_tokens": 5090,
+          "output_tokens": 867,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0007181999999999999,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 5.493248900049366,
+          "input_tokens": 5320,
+          "output_tokens": 1314,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.000873,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 6.668770299991593,
+          "input_tokens": 5327,
+          "output_tokens": 1762,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00100803,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 4.255041999975219,
+          "input_tokens": 5644,
+          "output_tokens": 839,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00075966,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "z-ai/glm-5.3-flash",
+          "elapsed_s": 22.754255999985617,
+          "input_tokens": 435,
+          "output_tokens": 540,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00020115,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 42849,
+        "log_output_tokens": 8856
+      }
+    },
+    {
+      "config": "qwen/qwen3.8-flash",
+      "model": "qwen/qwen3.8-flash",
+      "thinking": "",
+      "effort": "",
+      "program_id": 19,
+      "wall_s": 118.4,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 552,
+        "output_tokens": 7393,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 49294,
+        "cost_usd": 0.0128,
+        "mean_call_s": 12.33,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 12.69,
+            "max_s": 17.44,
+            "cost_usd": 0.0125
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 9.46,
+            "max_s": 9.46,
+            "cost_usd": 0.0003
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 12.064330199966207,
+          "input_tokens": 8,
+          "output_tokens": 926,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5804,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00152467,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 17.43672090000473,
+          "input_tokens": 8,
+          "output_tokens": 856,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6173,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0015609575,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 11.276630499982275,
+          "input_tokens": 8,
+          "output_tokens": 766,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6128,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00151022,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 12.04665269999532,
+          "input_tokens": 8,
+          "output_tokens": 924,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6468,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00164823,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 10.41600909997942,
+          "input_tokens": 8,
+          "output_tokens": 856,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5804,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00149177,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 16.42384740000125,
+          "input_tokens": 8,
+          "output_tokens": 1114,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6173,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0016822175,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 9.740237599995453,
+          "input_tokens": 8,
+          "output_tokens": 737,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6203,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0015106525,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 12.076536300010048,
+          "input_tokens": 8,
+          "output_tokens": 783,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6541,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0015956475000000001,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "qwen/qwen3.8-flash",
+          "elapsed_s": 9.460805299982894,
+          "input_tokens": 488,
+          "output_tokens": 431,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00027577,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 64,
+        "log_output_tokens": 6962
+      }
+    }
+  ]
+}

@@ -25,7 +25,32 @@ copy on 2026-09-16 after the full re-ingest — see the section below. Grades ar
 chunk ids, so rebuild both after any corpus change, and on the corpus DB machine once
 the runbook has been applied there (its ids differ).
 
-## Golden-set baseline — 2026-09-16 (dev copy, post re-ingest)
+## Golden-set baseline — 2026-09-20 (dev copy, post MEDVEDEV + RELABEL)
+
+Corpus: 4,607 chunks · 2,234 principles · 612 sources · 39 templates. Since 2026-09-16:
+Medvedev re-chunked (613 × 324 chars → 143 × 1,430), `relabel_chunk_types.py` applied
+(`concept` 2,314 → 1,018; `methodology` 0 → 226, `case_study` 0 → 350), Takano and Medvedev
+template fragments deduped. The golden set was rebuilt (50 of its graded ids had been Medvedev
+chunks) with the same Haiku 4.5 judge, reached through OpenRouter (`LLM_PROVIDER=openrouter`);
+57 queries, `k=5`, hybrid RRF on, session chunk-type preference on.
+
+| Query family | n | recall@5 | MRR | nDCG@5 | max source share |
+|---|---:|---:|---:|---:|---:|
+| **all (baseline.json)** | 57 | **0.307** | **0.950** | **0.655** | 0.611 |
+| fault | 13 | 0.344 | 0.962 | 0.674 | 0.662 |
+| limiter | 6 | 0.256 | 1.000 | 0.828 | 0.467 |
+| session | 16 | 0.255 | 1.000 | 0.643 | 0.663 |
+| legacy (22 free-form) | 22 | 0.337 | 0.894 | 0.605 | 0.582 |
+
+Dense-only ablation (`--dense-only`, same golden set): all 0.297 / 0.965 / 0.659; fault
+0.323 / 1.000 / 0.674; limiter 0.236 / 1.000 / 0.753; session 0.248 / 1.000 / 0.639; legacy
+0.334 / 0.909 / 0.639. Hybrid still wins recall overall and on the limiter / session families
+(+0.02 / +0.01 recall, +0.07 nDCG on limiter); dense edges MRR and the legacy nDCG, as on
+2026-09-16. The 2026-09-16 numbers below are a different graded pool (re-graded after the
+corpus change), so read the change as directional: every family moved up, and the relabel is
+what session queries needed (0.210 → 0.255 recall, 0.534 → 0.643 nDCG).
+
+## Golden-set baseline — 2026-09-16 (dev copy, post re-ingest; superseded)
 
 Corpus: 5,077 chunks · 2,135 principles · 612 sources · 49 templates (all seven PDF sources
 re-chunked on joined pages with `--contextualize`; Catalyst 428 articles → 1,055 chunks;

@@ -148,17 +148,18 @@ def test_openrouter_ids_round_trip_through_the_family_and_pricing_tables():
 
 def test_open_models_via_openrouter_get_thinking_and_pricing():
     """Vendor-prefixed non-Claude ids pass `thinking` / effort through (OpenRouter
-    translates them); GLM cannot disable reasoning, so "disabled" becomes
-    adaptive at low effort; prices come from the OpenRouter rows."""
+    translates them); GLM cannot disable reasoning, so "disabled" becomes a
+    fixed budget_tokens; prices come from the OpenRouter rows."""
     from shared.llm import pricing_for, sampling_kwargs, thinking_kwargs
 
     assert thinking_kwargs("deepseek/deepseek-v4.1-flash", "disabled") == {"thinking": {"type": "disabled"}}
     assert thinking_kwargs("qwen/qwen3.8-flash", "adaptive", "low") == {
         "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}}
     assert thinking_kwargs("z-ai/glm-5.3-flash", "disabled") == {
-        "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}}
+        "thinking": {"type": "enabled", "budget_tokens": 1024}}
     assert thinking_kwargs("z-ai/glm-5.3-flash", "disabled", "medium") == {
-        "thinking": {"type": "adaptive"}, "output_config": {"effort": "medium"}}
+        "thinking": {"type": "enabled", "budget_tokens": 1024}, "output_config": {"effort": "medium"}}
+    assert thinking_kwargs("moonshotai/kimi-k3", "disabled") == {"thinking": {"type": "disabled"}}
     assert thinking_kwargs("z-ai/glm-5.3-flash") == {}                  # model default
     assert sampling_kwargs("z-ai/glm-5.3-flash", 0.3) == {"temperature": 0.3}
     assert pricing_for("z-ai/glm-5.3-flash") == (0.09, 0.30)
