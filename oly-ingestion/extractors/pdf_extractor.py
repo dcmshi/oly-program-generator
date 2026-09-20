@@ -48,7 +48,7 @@ class PDFExtractor:
     """Extract text from PDFs with a three-stage fallback chain."""
 
     def __init__(self, anthropic_client=None, vision_model: str = _DEFAULT_VISION_MODEL,
-                 batch: bool = False):
+                 batch: bool = False, ocr_cache: bool = True):
         """
         Args:
             anthropic_client: Optional Anthropic client instance. When provided,
@@ -56,10 +56,13 @@ class PDFExtractor:
             vision_model:     Model id for vision OCR (threaded from settings).
             batch:            Send every page group of the document as one Message
                               Batch (half price, COST-1) instead of sequential calls.
+            ocr_cache:        Reuse page text from sources/.ocr_cache/<sha256>.json
+                              and write new pages back (ING-M5).
         """
         self._client = anthropic_client
         self._vision_model = vision_model
         self._batch = batch
+        self._ocr_cache = ocr_cache
 
     def extract(self, path: Path, max_pages: int = 0) -> list[str]:
         """Extract text from a PDF, returning a list of page texts.
@@ -187,32 +190,49 @@ class PDFExtractor:
         n_pages = len(doc)
         if max_pages:
             n_pages = min(n_pages, max_pages)
-        logger.info(f"Vision OCR: processing {n_pages} pages in batches of {_VISION_BATCH_SIZE}")
 
+        # ING-M5: pages already transcribed for this exact file + model come
+        # from the cache; only page groups with a missing page go to the model.
+        cache = None
+        if self._ocr_cache:
+            from extractors.ocr_cache import OcrCache
+            cache = OcrCache(path, self._vision_model)
+        pages: dict[int, str] = {i: cache.get(i) for i in range(n_pages) if cache and cache.has(i)}
         groups = [
             (start, min(start + _VISION_BATCH_SIZE, n_pages))
             for start in range(0, n_pages, _VISION_BATCH_SIZE)
+            if any(i not in pages for i in range(start, min(start + _VISION_BATCH_SIZE, n_pages)))
         ]
-        all_pages: list[str] = []
+        logger.info(
+            f"Vision OCR: {n_pages} pages, {len(pages)} from cache, "
+            f"{len(groups)} group(s) of {_VISION_BATCH_SIZE} to transcribe"
+        )
 
-        if self._batch:
-            all_pages = self._ocr_groups_batched(doc, groups)
-        else:
+        fresh: list[tuple[int, str]] = []
+        if groups and self._batch:
+            texts = self._ocr_groups_batched(doc, groups)
+            fresh = list(zip([i for start, end in groups for i in range(start, end)], texts, strict=True))
+        elif groups:
             for start, end in groups:
                 batch_texts = self._ocr_batch(doc, start, end)
-                all_pages.extend(batch_texts)
-
+                fresh.extend(zip(range(start, end), batch_texts, strict=True))
                 logger.info(
                     f"  Vision OCR: pages {start + 1}–{end}/{n_pages} done "
                     f"({sum(len(t) for t in batch_texts):,} chars)"
                 )
-
                 # Brief pause between batches to stay within rate limits
                 if end < n_pages:
                     time.sleep(1.0)
+        for i, text in fresh:
+            pages[i] = text
+            if cache is not None:
+                cache.put(i, text)
+        if cache is not None and fresh:
+            cache.save()
+            logger.info(f"  OCR cache: {len(cache)} page(s) stored at {cache.path}")
 
         doc.close()
-        return [t for t in all_pages if t.strip()]
+        return [pages[i] for i in range(n_pages) if pages.get(i, "").strip()]
 
     def _ocr_groups_batched(self, doc, groups: list[tuple[int, int]]) -> list[str]:
         """OCR every page group through one Message Batch (COST-1).

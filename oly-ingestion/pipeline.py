@@ -268,7 +268,7 @@ class SourceDocument:
 class IngestionPipeline:
     def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0,
                  contextualize: bool = False, context_model: str | None = None,
-                 batch: bool = False, classifier: str = "heuristic"):
+                 batch: bool = False, classifier: str = "heuristic", ocr_cache: bool = True):
         self.settings = settings
         self.max_pages = max_pages
         # COST-1: principle extraction (the dominant ingestion spend) and vision
@@ -288,7 +288,7 @@ class IngestionPipeline:
         # Build Anthropic client for vision OCR fallback (opt-in via --vision flag)
         _anthropic_client = create_llm_client(settings) if use_vision else None
         self.pdf_extractor = PDFExtractor(
-            anthropic_client=_anthropic_client, vision_model=settings.llm_model, batch=batch,
+            anthropic_client=_anthropic_client, vision_model=settings.llm_model, batch=batch, ocr_cache=ocr_cache,
         )
         self.classifier = ContentClassifier(settings, classifier=classifier)
         self.principle_extractor = PrincipleExtractor(settings)
@@ -919,6 +919,8 @@ if __name__ == "__main__":
     parser.add_argument("--batch", action="store_true",
                         help="Send principle extraction and vision OCR through the Message Batches API "
                              "(half price, minutes-to-hours of latency; COST-1)")
+    parser.add_argument("--no-ocr-cache", action="store_true",
+                        help="Ignore sources/.ocr_cache and transcribe every page again (ING-M5)")
     parser.add_argument("--classifier", choices=("heuristic", "jev"), default="heuristic",
                         help="Section router: heuristic + LLM fallback (default) or one Jev Choice per section "
                              "(JEV-1c; needs TYPESAFE_API_KEY)")
@@ -928,7 +930,7 @@ if __name__ == "__main__":
     settings.ensure_working_dirs()
     pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages,
                                  contextualize=args.contextualize, context_model=args.context_model,
-                                 batch=args.batch, classifier=args.classifier)
+                                 batch=args.batch, classifier=args.classifier, ocr_cache=not args.no_ocr_cache)
 
     doc = SourceDocument(
         path=Path(args.source),

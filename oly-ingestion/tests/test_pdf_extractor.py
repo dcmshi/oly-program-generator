@@ -358,3 +358,47 @@ if __name__ == "__main__":
         detail = f"  → {r[2]}" if len(r) > 2 else ""
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {skipped} skipped, {failed} failed")
+
+
+def test_vision_uses_the_page_cache_and_only_transcribes_missing_groups(tmp_path):
+    """ING-M5: pages cached for this file + model are reused; only groups with a
+    missing page reach the model; new pages are written back; a different model
+    invalidates the cache."""
+
+    from extractors.ocr_cache import OcrCache, file_sha256
+
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake")
+    cache = OcrCache(pdf, "claude-sonnet-5", cache_dir=tmp_path / "cache")
+    for i in range(5):                      # first group fully cached, second group missing
+        cache.put(i, f"cached page {i + 1}")
+    cache.save()
+    assert cache.path.name == file_sha256(pdf) + ".json"
+
+    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="claude-sonnet-5")
+    doc = MagicMock()
+    doc.__len__ = lambda self: 7
+    calls = []
+
+    def fake_ocr(d, start, end):
+        calls.append((start, end))
+        return [f"fresh page {i + 1}" for i in range(start, end)]
+
+    fz = MagicMock()
+    fz.open.return_value = doc
+    with patch.dict(sys.modules, {"fitz": fz}), \
+         patch("extractors.ocr_cache.CACHE_DIRNAME", "cache"), \
+         patch.object(extractor, "_ocr_batch", side_effect=fake_ocr):
+        pages = extractor._extract_with_vision(pdf)
+    assert calls == [(5, 7)]                                       # cached group skipped
+    assert pages == [f"cached page {i}" for i in range(1, 6)] + ["fresh page 6", "fresh page 7"]
+    reloaded = OcrCache(pdf, "claude-sonnet-5", cache_dir=tmp_path / "cache")
+    assert len(reloaded) == 7 and reloaded.get(6) == "fresh page 7"
+    assert len(OcrCache(pdf, "moonshotai/kimi-k3", cache_dir=tmp_path / "cache")) == 0   # model change → re-OCR
+
+    # --no-ocr-cache: everything is transcribed and nothing is written
+    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="claude-sonnet-5", ocr_cache=False)
+    calls.clear()
+    with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr):
+        extractor._extract_with_vision(pdf)
+    assert calls == [(0, 5), (5, 7)]
