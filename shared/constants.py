@@ -178,6 +178,9 @@ CHUNK_TITLE_MAX_CHARS: int = 300
 # ── Chunking (ingestion) ───────────────────────────────────────
 # A paragraph opening with a week label ("Week 9", "Week # 12") closes the
 # current chunk once it holds at least this fraction of the profile's
-# chunk_size, so day-by-day training logs (Medvedev) chunk per week instead
-# of wherever the token budget happens to run out (MEDVEDEV).
-WEEK_BOUNDARY_FLUSH_FRACTION: float = 0.4
+# chunk_size, so training logs chunk on week boundaries instead of wherever
+# the token budget runs out (MEDVEDEV). 0.7 of the 700-token soviet profile:
+# a week of Medvedev's day-by-day logs is 350-650 tokens (1-2 weeks per
+# chunk); a week of his exercise-selection listings is ~150 (3-4 per chunk).
+# 0.4 cut the listings into 1-2-week chunks of ~300 chars.
+WEEK_BOUNDARY_FLUSH_FRACTION: float = 0.7

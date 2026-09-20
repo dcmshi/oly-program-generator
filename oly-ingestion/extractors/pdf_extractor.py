@@ -23,7 +23,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from shared.llm import (
     BatchRequestFailed,
-    create_message_with_retries,
+    create_message_growing,
     message_text,
     run_message_batch,
     thinking_kwargs,
@@ -225,10 +225,10 @@ class PDFExtractor:
             f"pages-{start + 1}-{end}": self._ocr_request(doc, start, end)
             for start, end in groups
         }
-        responses = run_message_batch(
-            self._client, requests, label="Vision OCR",
-            ceiling=_VISION_MAX_TOKENS,   # the sync path never grows either
-        )
+        # A group that stops on max_tokens is re-sent with a doubled budget
+        # (up to LLM_MAX_TOKENS_CEILING) in a follow-up batch — five dense
+        # pages overran 8,192 twice on the 2026-09-20 Medvedev run.
+        responses = run_message_batch(self._client, requests, label="Vision OCR")
         pages: list[str] = []
         for start, end in groups:
             response = responses.get(f"pages-{start + 1}-{end}")
@@ -245,19 +245,21 @@ class PDFExtractor:
 
     def _ocr_batch(self, doc, start: int, end: int) -> list[str]:
         """Send a batch of pages to Claude vision and return extracted text per page."""
-        response = create_message_with_retries(self._client, **self._ocr_request(doc, start, end))
+        response = create_message_growing(
+            self._client, label=f"Vision OCR pages {start + 1}–{end}", **self._ocr_request(doc, start, end)
+        )
         return self._ocr_response_pages(response, start, end)
 
     def _ocr_response_pages(self, response, start: int, end: int) -> list[str]:
         """Per-page texts from one OCR reply (shared by the sync and batch paths)."""
-        # A truncated response silently drops the tail pages of the batch —
-        # surface it loudly (and hint at shrinking the batch) rather than
-        # embedding partial/blank pages (I-H2).
+        # Both paths already re-sent with a doubled budget up to the ceiling;
+        # a reply still stopping on max_tokens has lost its tail pages —
+        # surface it loudly rather than embedding partial/blank pages (I-H2).
         if getattr(response, "stop_reason", None) == "max_tokens":
             logger.warning(
-                f"Vision OCR: response hit max_tokens ({_VISION_MAX_TOKENS}) for "
-                f"pages {start + 1}–{end}; text may be truncated — consider a "
-                f"smaller _VISION_BATCH_SIZE (currently {_VISION_BATCH_SIZE})."
+                f"Vision OCR: response still hit max_tokens at the ceiling for "
+                f"pages {start + 1}–{end}; text is truncated — use a smaller "
+                f"_VISION_BATCH_SIZE (currently {_VISION_BATCH_SIZE})."
             )
 
         raw = message_text(response)

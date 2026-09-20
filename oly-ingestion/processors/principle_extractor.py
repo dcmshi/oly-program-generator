@@ -292,7 +292,8 @@ class PrincipleExtractor:
         windows_by_key: dict[str, list[str]] = {}
         for key, text, source_title in items:
             windows = self._windows(text)
-            windows_by_key[key] = [f"{key}:{n}" for n in range(len(windows))]
+            # custom_id may only hold [A-Za-z0-9_-]; keys are section indexes
+            windows_by_key[key] = [f"{key}-w{n}" for n in range(len(windows))]
             for custom_id, window in zip(windows_by_key[key], windows, strict=True):
                 requests[custom_id] = self._request_params(window, source_title)
         if not requests:

@@ -262,6 +262,11 @@ def create_message_growing(client, *, max_tokens: int, ceiling: int | None = Non
         budget = grown
 
 
+# The API's constraint on a batch request's custom_id (a colon in "3:0" 400'd
+# the first --batch principle run on 2026-09-20, after the OCR batch had run).
+_BATCH_CUSTOM_ID_RE = re.compile(r"[A-Za-z0-9_-]{1,64}")
+
+
 class BatchRequestFailed(RuntimeError):
     """One request in a Message Batch did not succeed (errored / expired / canceled)."""
 
@@ -306,6 +311,12 @@ def run_message_batch(client, requests: dict[str, dict], *, label: str = "batch"
     poll_interval = BATCH_POLL_INTERVAL_S if poll_interval is None else poll_interval
     timeout = BATCH_TIMEOUT_S if timeout is None else timeout
     ceiling = ceiling or LLM_MAX_TOKENS_CEILING
+
+    bad = [cid for cid in requests if not _BATCH_CUSTOM_ID_RE.fullmatch(cid)]
+    if bad:
+        raise ValueError(
+            f"{label}: custom_id must match {_BATCH_CUSTOM_ID_RE.pattern!r}; got {bad[:3]!r}"
+        )
 
     results: dict[str, object] = {}
     pending = dict(requests)

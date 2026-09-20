@@ -300,6 +300,7 @@ def test_vision_batch_mode_sends_one_message_batch_and_keeps_page_order():
 
     def fake_batch(client, requests, **kw):
         captured.update(requests)
+        assert "ceiling" not in kw          # truncated groups regrow up to LLM_MAX_TOKENS_CEILING
         return {
             "pages-1-5": SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(
                 type="text", text="".join(f"=== Page {i} ===\np{i}\n" for i in range(1, 6)))]),
@@ -315,16 +316,20 @@ def test_vision_batch_mode_sends_one_message_batch_and_keeps_page_order():
     assert pages == ["p1", "p2", "p3", "p4", "p5", "", ""]
 
 
-def test_vision_sync_path_still_calls_messages_create():
+def test_vision_sync_path_grows_the_budget_on_truncation():
+    """A group that stops on max_tokens is re-sent with a doubled budget (five
+    dense pages overran 8,192 twice on the 2026-09-20 Medvedev run); the
+    ceiling reply is still used, with the truncation warning."""
     from types import SimpleNamespace
 
+    cut = SimpleNamespace(stop_reason="max_tokens", content=[SimpleNamespace(type="text", text="=== Page 1 ===\nhel")])
+    ok = SimpleNamespace(stop_reason="end_turn", content=[SimpleNamespace(type="text", text="=== Page 1 ===\nhello")])
     client = MagicMock()
-    client.messages.create.return_value = SimpleNamespace(
-        stop_reason="end_turn", content=[SimpleNamespace(type="text", text="=== Page 1 ===\nhello")]
-    )
+    client.messages.create.side_effect = [cut, ok]
     extractor = PDFExtractor(anthropic_client=client, vision_model="claude-sonnet-5")
     with patch.object(extractor, "_ocr_request", return_value={"model": "claude-sonnet-5", "max_tokens": 8192, "messages": []}):
         assert extractor._ocr_batch(MagicMock(), 0, 1) == ["hello"]
+    assert [c.kwargs["max_tokens"] for c in client.messages.create.call_args_list] == [8192, 16384]
     assert client.messages.create.call_args.kwargs["model"] == "claude-sonnet-5"
 
 

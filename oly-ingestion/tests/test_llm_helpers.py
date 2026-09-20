@@ -270,6 +270,23 @@ def test_run_message_batch_collects_results_and_regrows_truncated():
     assert out == {"b": cut_b} and len(client.submitted) == 1
 
 
+def test_run_message_batch_rejects_bad_custom_ids_before_submitting():
+    """The API only accepts [A-Za-z0-9_-]{1,64}; a colon in "3:0" 400'd the first
+    --batch principle run after the OCR batch had already been paid for."""
+    from unittest.mock import MagicMock
+
+    from shared.llm import run_message_batch
+
+    client = MagicMock()
+    for bad in ("3:0", "", "x" * 65, "a b"):
+        try:
+            run_message_batch(client, {bad: {}, "ok-1": {}}, poll_interval=0)
+            raise AssertionError(f"expected ValueError for {bad!r}")
+        except ValueError as e:
+            assert "custom_id" in str(e)
+    client.messages.batches.create.assert_not_called()
+
+
 def test_run_message_batch_reports_failed_and_missing_requests():
     """Errored / expired results and ids the API never returned come back as
     BatchRequestFailed instead of raising, so callers decide per item."""
@@ -384,17 +401,17 @@ def test_extract_batch_windows_per_key_and_tolerates_a_failed_window():
         captured.update(requests)
         from shared.llm import BatchRequestFailed
         return {
-            "s1:0": _msg([principle]),
-            "s1:1": _msg([principle, {**principle, "principle_name": "Other"}]),
-            "s2:0": BatchRequestFailed("s2:0", "errored"),
+            "s1-w0": _msg([principle]),
+            "s1-w1": _msg([principle, {**principle, "principle_name": "Other"}]),
+            "s2-w0": BatchRequestFailed("s2-w0", "errored"),
         }
 
     with patch("processors.principle_extractor.run_message_batch", side_effect=fake_batch):
         out = ex.extract_batch([("s1", long_text, "Book"), ("s2", "short", "Book")])
 
-    assert set(captured) == {"s1:0", "s1:1", "s2:0"}
-    assert captured["s1:0"]["model"] == "claude-sonnet-5"
-    assert captured["s1:0"]["thinking"] == {"type": "disabled"}
+    assert set(captured) == {"s1-w0", "s1-w1", "s2-w0"}
+    assert captured["s1-w0"]["model"] == "claude-sonnet-5"
+    assert captured["s1-w0"]["thinking"] == {"type": "disabled"}
     assert [p.principle_name for p in out["s1"]] == ["Deload every 4th week", "Other"]
     assert out["s2"] == []
 

@@ -276,12 +276,12 @@ def test_training_log_chunks_per_week():
     from shared.constants import WEEK_BOUNDARY_FLUSH_FRACTION
 
     def session(n):
-        return (f"# {n} - March (Monday)\n1. P. Sn.:  70 x 2 x 2, 80 x 2 x 3\n2. Cl. Sn.:  80 x 2 x 2, 90 x 1 x 3\n"
-                f"3. Sn. Pu.:  100 x 2 x 4\n4. B. Sq.:  65 x 3, 75 x 3 x 3\nF. L. = 45")
+        lines = "\n".join(f"{i}. Ex. {i}, Ab. Kn., Bl.:  70 x 2 x 2, 80 x 2 x 3, 90 x 1 x 3" for i in range(1, 4))
+        return f"# {n} - March (Monday)\n{lines}\nF. L. = 45"
 
     weeks = []
     for w in range(9, 13):
-        days = "\n\n".join(session(n) for n in (3, 2, 1))
+        days = "\n\n".join(session(n) for n in (4, 3, 2, 1))   # a real log week: 350-650 tokens (this one ≈ 580)
         label = f"\nWeek # {w + 1}" if w < 12 else ""          # the label opens the NEXT week's text
         weeks.append(f"{days}\nTotals for week {w}  F. L. = 135 lifts{label}")
     text = "Week # 9\n" + "\n".join(weeks)
@@ -291,11 +291,15 @@ def test_training_log_chunks_per_week():
     assert len(pieces) == 4, [p[:20] for p in pieces]
     assert all(p.startswith("Week # ") for p in pieces), [p[:12] for p in pieces]
     for w, piece in zip(range(9, 13), pieces, strict=True):
-        assert piece.startswith(f"Week # {w}\n") and piece.count("- March (Monday)") == 3
+        assert piece.startswith(f"Week # {w}\n") and piece.count("- March (Monday)") == 4
         assert f"Totals for week {w}" in piece and f"Totals for week {w + 1}" not in piece
-    # a week label after a tiny chunk does not flush (below the fraction)
-    tiny = "Week # 1\nCompete.\nWeek # 2\n" + session(1)
-    assert len(chunker._chunk_section(tiny)) == 1
+    # a week label after a small chunk does not flush (below the fraction): the
+    # exercise-selection listings' weeks are ~150 tokens and pack 3-4 per chunk
+    listing = "\n".join(
+        f"Week {w}\n#1 - 1. P. Sn., Ab. Kn., Bl. 2. B. Sq. 3. Be. Pr.\n#2 - 1. P. Cl. 2. Fr. Sq. 3. Hyper."
+        for w in range(40, 44)
+    )
+    assert len(chunker._chunk_section(listing)) == 1
     assert 0 < WEEK_BOUNDARY_FLUSH_FRACTION < 1
 
 
