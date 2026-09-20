@@ -43,6 +43,11 @@ MODEL_PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-opus-5": (5.0, 25.0),
     "claude-fable-5": (10.0, 50.0),
     "claude-fable-5-1": (10.0, 50.0),
+    # Open models via OpenRouter (cheapest backend, 2026-09-20; MODEL-2 candidates)
+    "z-ai/glm-5.3-flash": (0.09, 0.30),
+    "deepseek/deepseek-v4.1-flash": (0.15, 0.60),
+    "qwen/qwen3.8-flash": (0.15, 0.47),
+    "moonshotai/kimi-k3": (1.70, 8.50),
 }
 DEFAULT_PRICING_PER_MTOK = MODEL_PRICING_PER_MTOK["claude-sonnet-4-6"]
 # Prompt-cache multipliers on the input rate (5-minute ephemeral cache).
@@ -64,6 +69,12 @@ _THINKING_ALWAYS_ON_PREFIXES = ("claude-fable-", "claude-mythos-")
 _ADAPTIVE_THINKING_PREFIXES = _THINKING_DEFAULT_ON_PREFIXES + (
     "claude-sonnet-4-6", "claude-opus-4-6", "claude-opus-4-7", "claude-opus-4-8",
 )
+# Open models reached through OpenRouter's Anthropic-compatible endpoint
+# (MODEL-2). OpenRouter translates `thinking` / `output_config.effort` for
+# them; these reason by default and GLM-5.3-Flash 400s on `disabled`
+# ("Reasoning is mandatory for this endpoint") — "disabled" there becomes
+# adaptive at low effort (43 output tokens vs 1,208 unconstrained on the probe).
+_REASONING_MANDATORY_PREFIXES = ("z-ai/glm-",)
 THINKING_MODES = ("", "adaptive", "disabled")
 EFFORT_LEVELS = ("", "low", "medium", "high", "xhigh", "max")
 _NON_TEXT_BLOCK_TYPES = frozenset({
@@ -115,10 +126,15 @@ def _has_prefix(model: str | None, prefixes: tuple[str, ...]) -> bool:
     return bool(model) and canonical_model(model).startswith(prefixes)
 
 
+def _is_open_model(model: str | None) -> bool:
+    """A vendor-prefixed non-Claude id (`z-ai/glm-5.3-flash`) — reached via OpenRouter."""
+    return bool(model) and "/" in model and not model.startswith(_OPENROUTER_VENDOR)
+
+
 def pricing_for(model: str | None) -> tuple[float, float]:
     """(input, output) USD per million tokens for a model id (longest-prefix match)."""
     if model:
-        canon = canonical_model(model)
+        canon = model if _is_open_model(model) else canonical_model(model)
         key = max((k for k in MODEL_PRICING_PER_MTOK if canon.startswith(k)), key=len, default=None)
         if key:
             return MODEL_PRICING_PER_MTOK[key]
@@ -166,6 +182,15 @@ def thinking_kwargs(model: str | None, mode: str = "", effort: str = "") -> dict
     if mode == "disabled" and effort in ("xhigh", "max"):
         raise ValueError("thinking 'disabled' cannot be combined with effort 'xhigh'/'max'")
     kwargs: dict = {}
+    if _is_open_model(model):
+        if mode == "disabled" and model.startswith(_REASONING_MANDATORY_PREFIXES):
+            kwargs["thinking"] = {"type": "adaptive"}
+            kwargs["output_config"] = {"effort": effort or "low"}
+        elif mode:
+            kwargs["thinking"] = {"type": mode}
+            if effort:
+                kwargs["output_config"] = {"effort": effort}
+        return kwargs
     if not _has_prefix(model, _ADAPTIVE_THINKING_PREFIXES):
         return kwargs
     if mode == "adaptive":
