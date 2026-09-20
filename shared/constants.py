@@ -190,3 +190,11 @@ WEEK_BOUNDARY_FLUSH_FRACTION: float = 0.7
 # P(junk) reaches this; 0.7 flagged 282 of 4,607 dev-copy chunks (indexes,
 # reference lists, TOCs) with 39/40 confirmed on a Sonnet spot-check.
 JUNK_QUARANTINE_THRESHOLD: float = 0.7
+
+# ── Principle dedupe (JEV-1b / PRIN-DEDUPE) ───────────────────────
+# dedupe_principles.py pairs same-category principles whose name+rationale
+# embeddings sit at or above this cosine, then asks Jev whether the pair
+# states the same rule; at or above the threshold the later row gets
+# duplicate_of and plan._load_principles skips it.
+PRINCIPLE_DUPLICATE_MIN_COSINE: float = 0.70
+PRINCIPLE_DUPLICATE_THRESHOLD: float = 0.7

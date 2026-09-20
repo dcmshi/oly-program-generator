@@ -280,7 +280,8 @@ def _load_principles(conn, phase: str, athlete_level: str) -> list[dict]:
         """
         SELECT id, principle_name, recommendation, rationale, priority, condition
         FROM programming_principles
-        WHERE (condition IS NULL
+        WHERE duplicate_of IS NULL
+          AND (condition IS NULL
                OR condition->'phase' IS NULL
                OR condition->'phase' @> to_jsonb(%s::text))
           AND (condition IS NULL
