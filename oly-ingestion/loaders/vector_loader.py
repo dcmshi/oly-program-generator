@@ -416,7 +416,9 @@ class VectorLoader:
         # Only rows in the query's embedding space: a cosine distance between
         # vectors from two models is meaningless, so a half-finished re-embed
         # (reembed.py) must never mix into one ranking (RAG-M8).
-        where_clauses = ["embedding_model = %s"]
+        # Quarantined rows (indexes, reference lists, TOCs — JEV-1a, migration
+        # 0015) stay in the table for provenance but never rank.
+        where_clauses = ["embedding_model = %s", "NOT quarantined"]
         params: list[Any] = [self.settings.embedding_model]
 
         if chunk_types:

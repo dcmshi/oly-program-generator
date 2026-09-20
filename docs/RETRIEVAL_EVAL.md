@@ -34,7 +34,8 @@ freeze only because more relevant chunks are now known. Haiku labels, `k=5`, hyb
 
 | Query family | n | recall@5 | MRR | nDCG@5 | max source share |
 |---|---:|---:|---:|---:|---:|
-| **all (baseline.json)** | 57 | **0.279** | **0.950** | **0.640** | 0.621 |
+| **all (baseline.json, after quarantine)** | 57 | **0.282** | **0.950** | **0.644** | 0.614 |
+| all, before quarantine | 57 | 0.279 | 0.950 | 0.640 | 0.621 |
 | fault | 13 | 0.303 | 0.962 | 0.662 | 0.646 |
 | limiter | 6 | 0.241 | 1.000 | 0.828 | 0.467 |
 | session | 16 | 0.239 | 1.000 | 0.643 | 0.663 |

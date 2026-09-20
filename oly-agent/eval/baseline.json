@@ -1,14 +1,14 @@
 {
   "n_queries": 57,
-  "recall_at_k": 0.2789,
+  "recall_at_k": 0.2816,
   "recall_at_k_n": 57,
   "hit_at_k": 1.0,
   "hit_at_k_n": 57,
   "mrr": 0.9503,
   "mrr_n": 57,
-  "ndcg_at_k": 0.64,
+  "ndcg_at_k": 0.644,
   "ndcg_at_k_n": 57,
-  "max_source_share": 0.6211,
+  "max_source_share": 0.614,
   "max_source_share_n": 57,
   "by_kind": {
     "fault": {
@@ -19,22 +19,22 @@
       "hit_at_k_n": 13,
       "mrr": 0.9615,
       "mrr_n": 13,
-      "ndcg_at_k": 0.6618,
+      "ndcg_at_k": 0.6509,
       "ndcg_at_k_n": 13,
-      "max_source_share": 0.6462,
+      "max_source_share": 0.6615,
       "max_source_share_n": 13
     },
     "legacy": {
       "n_queries": 22,
-      "recall_at_k": 0.3046,
+      "recall_at_k": 0.3116,
       "recall_at_k_n": 22,
       "hit_at_k": 1.0,
       "hit_at_k_n": 22,
       "mrr": 0.8939,
       "mrr_n": 22,
-      "ndcg_at_k": 0.574,
+      "ndcg_at_k": 0.589,
       "ndcg_at_k_n": 22,
-      "max_source_share": 0.6182,
+      "max_source_share": 0.5909,
       "max_source_share_n": 22
     },
     "limiter": {
@@ -45,9 +45,9 @@
       "hit_at_k_n": 6,
       "mrr": 1.0,
       "mrr_n": 6,
-      "ndcg_at_k": 0.8281,
+      "ndcg_at_k": 0.8166,
       "ndcg_at_k_n": 6,
-      "max_source_share": 0.4667,
+      "max_source_share": 0.5,
       "max_source_share_n": 6
     },
     "session": {
@@ -58,9 +58,9 @@
       "hit_at_k_n": 16,
       "mrr": 1.0,
       "mrr_n": 16,
-      "ndcg_at_k": 0.6425,
+      "ndcg_at_k": 0.6492,
       "ndcg_at_k_n": 16,
-      "max_source_share": 0.6625,
+      "max_source_share": 0.65,
       "max_source_share_n": 16
     }
   },

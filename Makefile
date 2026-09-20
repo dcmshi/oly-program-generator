@@ -119,7 +119,8 @@ INGESTION_TESTS := \
 	tests/test_tokens.py \
 	tests/test_contextualizer.py \
 	tests/test_principle_schema.py \
-	tests/test_schema_enums.py
+	tests/test_schema_enums.py \
+	tests/test_quarantine_chunks.py
 
 test: test-agent test-ingestion
 

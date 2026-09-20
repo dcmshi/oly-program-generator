@@ -184,3 +184,9 @@ CHUNK_TITLE_MAX_CHARS: int = 300
 # chunk); a week of his exercise-selection listings is ~150 (3-4 per chunk).
 # 0.4 cut the listings into 1-2-week chunks of ~300 chars.
 WEEK_BOUNDARY_FLUSH_FRACTION: float = 0.7
+
+# ── Chunk quarantine (JEV-1a) ──────────────────────────────────────
+# quarantine_chunks.py marks a chunk non-content when Jev's calibrated
+# P(junk) reaches this; 0.7 flagged 282 of 4,607 dev-copy chunks (indexes,
+# reference lists, TOCs) with 39/40 confirmed on a Sonnet spot-check.
+JUNK_QUARANTINE_THRESHOLD: float = 0.7
