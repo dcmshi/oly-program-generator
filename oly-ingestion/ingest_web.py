@@ -51,6 +51,7 @@ from loaders.vector_loader import VectorLoader
 from processors.chunker import SemanticChunker
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
+from processors.progress import Progress
 
 from shared.llm import light_model_for
 
@@ -908,8 +909,9 @@ def main():
 
     # ── Ingest loop ──
     successes = 0
+    progress = Progress(len(pending), logger, label="article")
     for i, (url, meta) in enumerate(pending, 1):
-        logger.info(f"[{i}/{len(pending)}] {meta}: {url}")
+        progress.tick(i, f"{meta}: {url} · ingested={run_stats['articles_ingested']} chunks={run_stats['chunks_total']}")
 
         # One bad article must not abort the whole run: parts of the ingest
         # (upsert_source, run creation) sit outside ingest_article's internal

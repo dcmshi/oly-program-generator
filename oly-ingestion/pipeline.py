@@ -22,6 +22,7 @@ from loaders.vector_loader import VectorLoader
 from processors.chunker import SemanticChunker, SourceProfile, validate_chunk
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
+from processors.progress import Progress, Stage, fmt_duration
 
 from shared.llm import (
     create_llm_client,
@@ -293,6 +294,7 @@ class IngestionPipeline:
             force_vision=force_vision,
         )
         self.classifier = ContentClassifier(settings, classifier=classifier)
+        self.classifier_name = classifier
         self.principle_extractor = PrincipleExtractor(settings)
         self.vector_loader = VectorLoader(settings)
         self.structured_loader = StructuredLoader(settings)
@@ -365,16 +367,19 @@ class IngestionPipeline:
                 self.structured_loader.complete_run(run_id, stats)
                 return stats
 
-            if source.path.suffix == ".pdf":
-                pages = self.pdf_extractor.extract(source.path, max_pages=self.max_pages)
-            elif source.path.suffix in (".html", ".htm"):
-                from extractors.html_extractor import extract_text_from_html
-                pages = [extract_text_from_html(source.path)]
-            elif source.path.suffix == ".epub":
-                from extractors.epub_extractor import extract_text_from_epub
-                pages = extract_text_from_epub(source.path)
-            else:
-                pages = [source.path.read_text(encoding="utf-8")]
+            import time
+            run_started = time.perf_counter()
+            with Stage("1/3 Extract text", logger, source.path.name):
+                if source.path.suffix == ".pdf":
+                    pages = self.pdf_extractor.extract(source.path, max_pages=self.max_pages)
+                elif source.path.suffix in (".html", ".htm"):
+                    from extractors.html_extractor import extract_text_from_html
+                    pages = [extract_text_from_html(source.path)]
+                elif source.path.suffix == ".epub":
+                    from extractors.epub_extractor import extract_text_from_epub
+                    pages = extract_text_from_epub(source.path)
+                else:
+                    pages = [source.path.read_text(encoding="utf-8")]
 
             total_chars = sum(len(p) for p in pages)
             logger.info(
@@ -411,24 +416,38 @@ class IngestionPipeline:
             # chunk = page for every PyMuPDF source (RAG-H1), so pages are
             # cleaned of running heads/folios and joined into one document first;
             # the classifier then caps sections at paragraph boundaries.
-            if source.path.suffix == ".pdf":
-                pages = self._prepare_pdf_pages(pages)
-            all_sections = []
-            for page_text in pages:
-                if not page_text.strip():
-                    continue
-                page_sections = self.classifier.classify_sections(page_text, source.title)
-                all_sections.extend(page_sections)
-
-            logger.info(f"Classified {len(all_sections)} sections across {len(pages)} page(s)")
+            with Stage("2/3 Classify sections", logger, f"{len(pages)} page(s), classifier={self.classifier_name}"):
+                if source.path.suffix == ".pdf":
+                    pages = self._prepare_pdf_pages(pages)
+                all_sections = []
+                classify_progress = Progress(len(pages), logger, label="page", every=max(1, len(pages) // 10))
+                for p_idx, page_text in enumerate(pages):
+                    if page_text.strip():
+                        page_sections = self.classifier.classify_sections(page_text, source.title)
+                        all_sections.extend(page_sections)
+                    classify_progress.tick(p_idx + 1, f"sections={len(all_sections)}")
+                by_type = {}
+                for sec in all_sections:
+                    by_type[sec.content_type.value] = by_type.get(sec.content_type.value, 0) + 1
+                logger.info(f"Classified {len(all_sections)} sections across {len(pages)} page(s): "
+                            + ", ".join(f"{k}={v}" for k, v in sorted(by_type.items(), key=lambda kv: -kv[1])))
 
             pending_principles: list[tuple[int, str]] = []   # (section index, text) — batch mode
 
+            route_stage = Stage("3/3 Route sections", logger, f"{len(all_sections) - resume_from} to process")
+            route_stage.__enter__()
+            route_progress = Progress(len(all_sections), logger, label="section", every=1)
             for i, section in enumerate(all_sections):
                 if i < resume_from:
                     continue  # already processed in the prior (failed) run — skip (I-M1)
                 if not section.content.strip():
                     continue
+                route_progress.tick(
+                    i + 1,
+                    f"{section.content_type.value} '{str(section.metadata.get('title', ''))[:40]}' "
+                    f"({len(section.content):,} ch) · chunks={stats.get('chunks_loaded', stats['prose_chunks'])} principles={stats['principles']} "
+                    f"programs={stats['programs']}",
+                )
                 try:
                     match section.content_type:
 
@@ -505,10 +524,11 @@ class IngestionPipeline:
                 stats["principles"] += self._flush_principle_batch(
                     pending_principles, source, source_id, run_id, resume_from
                 )
+            route_stage.__exit__(None, None, None)
 
             # ── Step 6: Mark complete ──────────────────────────
             self.structured_loader.complete_run(run_id, stats)
-            logger.info(f"Ingestion complete: {stats}")
+            logger.info(f"Ingestion complete in {fmt_duration(time.perf_counter() - run_started)}: {stats}")
             return stats
 
         except Exception as e:
