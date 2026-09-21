@@ -290,8 +290,13 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
     """
     from anthropic import APIConnectionError, APIStatusError
 
+    from shared.constants import RATE_LIMIT_MAX_WAITS, RATE_LIMIT_RETRY_S
+
     last_exc = None
-    for attempt in range(1, max_attempts + 1):
+    attempt = 0
+    rate_limit_waits = 0
+    while True:
+        attempt += 1
         try:
             return client.messages.create(**kwargs)
         except APIConnectionError as e:  # includes APITimeoutError
@@ -300,6 +305,21 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
             if e.status_code not in RETRYABLE_STATUS_CODES:
                 raise
             last_exc = e
+            if e.status_code == 429 and rate_limit_waits < RATE_LIMIT_MAX_WAITS:
+                # A per-minute cap (OpenRouter: 20 rpm for Haiku on new accounts) is
+                # not a transient fault — wait for the window, honour Retry-After,
+                # and don't spend the attempt budget on it.
+                rate_limit_waits += 1
+                attempt -= 1
+                retry_after = None
+                try:
+                    retry_after = float((e.response.headers or {}).get("retry-after") or 0) or None
+                except (TypeError, ValueError, AttributeError):
+                    pass
+                delay = max(RATE_LIMIT_RETRY_S, retry_after or 0.0)
+                logger.warning(f"Rate limited (429); waiting {delay:.0f}s ({rate_limit_waits}/{RATE_LIMIT_MAX_WAITS})")
+                time.sleep(delay)
+                continue
         if attempt < max_attempts:
             delay = base_delay * (2 ** (attempt - 1))
             logger.warning(
@@ -307,7 +327,8 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
                 f"retrying in {delay:.0f}s (attempt {attempt}/{max_attempts})"
             )
             time.sleep(delay)
-    raise last_exc
+            continue
+        raise last_exc
 
 
 def create_message_growing(client, *, max_tokens: int, ceiling: int | None = None,

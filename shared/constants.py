@@ -225,6 +225,11 @@ OCR_VIEW_ROTATIONS_DEG: tuple[float, ...] = (1.5, -1.5)   # second / third view:
 # scanned pages answers in 40–90 s on Kimi K3; a request past
 # OCR_REQUEST_TIMEOUT_S is a hung socket, not a slow page.
 LLM_REQUEST_TIMEOUT_S: float = 300.0
+# A 429 is a per-minute window, not a fault: wait this long (or Retry-After if
+# longer) up to RATE_LIMIT_MAX_WAITS times without spending the attempt budget.
+# OpenRouter caps new accounts at 20 rpm for Claude Haiku.
+RATE_LIMIT_RETRY_S: float = 15.0
+RATE_LIMIT_MAX_WAITS: int = 20
 OCR_REQUEST_TIMEOUT_S: float = 240.0
 OCR_REQUEST_ATTEMPTS: int = 4
 # Page groups OCR'd concurrently (OCR-PERF). Four keeps well under OpenRouter's
