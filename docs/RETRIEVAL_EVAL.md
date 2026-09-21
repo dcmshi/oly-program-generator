@@ -25,7 +25,33 @@ copy on 2026-09-16 after the full re-ingest — see the section below. Grades ar
 chunk ids, so rebuild both after any corpus change, and on the corpus DB machine once
 the runbook has been applied there (its ids differ).
 
-## Golden-set baseline — 2026-09-20 (union-graded pool; current `baseline.json`)
+## Golden-set baseline — 2026-09-21 (corpus 6,835 chunks; current `baseline.json`)
+
+Rebuilt after the 2026-09-20/21 additions (Charniga stubs, SBS, JTS, Pendlay, Pritchard,
+13 open-access papers, Roman, Verkhoshansky, Vorobyev, Bompa, four Charniga volumes, Kono —
+`docs/CORPUS.md` rows 12–27; 4,607 → 6,835 chunks, 2,234 → 4,182 principles). Fresh pools,
+15 candidates per retriever, graded by the same Haiku 4.5 judge (kept deliberately so the
+corpus is the only change — JUDGE-1): 1,158 graded ids, 869 relevant. New rows went through
+the Jev quarantine pass at ingest, `dedupe_principles.py` (88 restatements marked) and
+`relabel_chunk_types.py --min-id 10562` before grading. Haiku labels, `k=5`, hybrid on.
+
+| Query family | n | recall@5 | MRR | nDCG@5 | max source share |
+|---|---:|---:|---:|---:|---:|
+| **all (baseline.json)** | 57 | **0.307** | **0.942** | **0.653** | 0.554 |
+| fault | 13 | 0.337 | 0.962 | 0.674 | 0.631 |
+| limiter | 6 | 0.261 | 1.000 | 0.744 | 0.433 |
+| session | 16 | 0.275 | 0.969 | 0.653 | 0.525 |
+| legacy (22 free-form) | 22 | 0.324 | 0.894 | 0.615 | 0.564 |
+
+Against the 2026-09-20 freeze (0.282 / 0.950 / 0.644): recall +0.025, nDCG +0.009, MRR
+−0.008, and **max source share 0.614 → 0.554** — the new sources are being retrieved rather
+than sitting behind Everett/Catalyst. Session queries gained most (recall 0.239 → 0.275); the
+one soft spot is `session:intensification:d2:clean` (MRR 0.5, nDCG 0.33), where the top hit
+is a Bompa general-strength chunk rather than a clean-specific one — a case for the reranker
+noted under the label A/B below. Pools are fresh (not a union with the previous set), so the
+absolute numbers are comparable only in direction, not to the decimal.
+
+## Golden-set baseline — 2026-09-20 (union-graded pool; superseded by the 2026-09-21 rebuild)
 
 The golden set was re-graded on the **union** of the candidate pools under two chunk_type
 label sets (Haiku's, in production, and Jev's — see JEV-1 in `TODO.md`), additions graded by
