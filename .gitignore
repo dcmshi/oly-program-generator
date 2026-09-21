@@ -59,3 +59,4 @@ Thumbs.db
 
 # Memory files (session-specific, not for repo)
 memory/
+oly-agent/eval/exports/

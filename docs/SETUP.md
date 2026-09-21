@@ -121,6 +121,14 @@ PYTHONUTF8=1 uv run python ingest_web.py
 
 > The `make` targets set `PYTHONUTF8=1` automatically. When running `uv run` directly on Windows, prefix it manually.
 
+### Exporting a program for someone outside the app
+
+`cd oly-agent && PYTHONUTF8=1 uv run python -m eval.program_export <program_id> --pdf --out ~/Desktop`
+writes a standalone `program_<id>.html` and, with Chrome installed, `program_<id>.pdf` (headless
+print): maxes on file, the rationale, every session as a table (sets × reps, kg, % of which max, RPE,
+rest), warm-ups greyed, and a weekly-loading summary. No login needed — it reads the database. The
+in-app **Export PDF** button is the browser-print equivalent.
+
 ### Reading the log
 
 A book ingest logs three stage banners with elapsed time (`── 1/3 Extract text … done in 13m 02s`,

@@ -9,7 +9,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from shared.exercise_mapping import is_warmup_set
+from shared.exercise_mapping import is_competition_lift, is_warmup_set
 
 # In-memory cache for exercise name → id lookups.
 # exercises are static seed data that never change at runtime.
@@ -165,7 +165,10 @@ async def get_program_weeks(conn, program_id: int) -> list[dict]:
         )
         for ex in exercises:
             row = dict(ex)
-            row["is_warmup"] = is_warmup_set(ex["intensity_reference"], ex["intensity_pct"])
+            # A snatch-grip push press at 60 % of the snatch is assistance, not a warm-up —
+            # the badge needs the exercise to be a competition lift (or its variant) too.
+            row["is_warmup"] = (is_competition_lift(ex["exercise_name"], ex["intensity_reference"])
+                                and is_warmup_set(ex["intensity_reference"], ex["intensity_pct"]))
             exercises_by_session.setdefault(ex["session_id"], []).append(row)
 
     # Group sessions by week
