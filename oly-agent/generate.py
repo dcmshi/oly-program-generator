@@ -466,9 +466,10 @@ def build_session_prompt(
     from plan import training_preferences
     prefs = training_preferences(athlete_context.athlete)
     warmup_rule = (
-        "- Include 2-3 warmup sets (50-60%) before each competition lift or heavy pull (snatch, clean, jerk, clean & jerk). "
-        "Warmup sets are 2-3 reps, ordered first in the session. Use the same exercise name as the working sets "
-        '(e.g. "Snatch" warmups before "Snatch" working sets).'
+        "- Include 2-3 warmup sets (50-60%) before the first working set of each competition-lift family (snatch; clean / jerk / "
+        "clean & jerk). Warmup sets are 2-3 reps and are ordered before that family's working sets. A warmup may be the lift "
+        "itself or a lighter variant of the same family (e.g. Muscle Snatch → Power Snatch → Snatch; Power Clean before Clean & Jerk); "
+        "never warm up one family with the other."
         if prefs["warmups"] == "prescribed" else
         "- Do NOT prescribe warm-up sets: the athlete warms up on their own. Start each lift at its first working set."
     )

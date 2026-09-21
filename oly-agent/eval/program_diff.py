@@ -39,7 +39,7 @@ def load_programs(conn, program_ids: list[int]) -> dict[int, dict]:
     cur.execute(
         """
         SELECT s.program_id, s.week_number, s.day_number, s.focus_area,
-               e.exercise_name, e.exercise_order, e.sets, e.reps, e.intensity_pct, e.rpe_target
+               e.exercise_name, e.exercise_order, e.sets, e.reps, e.intensity_pct, e.rpe_target, e.intensity_reference
           FROM program_sessions s JOIN session_exercises e ON e.session_id = s.id
          WHERE s.program_id = ANY(%s)
          ORDER BY s.program_id, s.week_number, s.day_number, e.exercise_order
@@ -47,11 +47,11 @@ def load_programs(conn, program_ids: list[int]) -> dict[int, dict]:
         (program_ids,),
     )
     out = {pid: {"name": names[pid], "sessions": defaultdict(list), "focus": {}} for pid in program_ids}
-    for pid, week, day, focus, name, order, sets, reps, pct, rpe in cur.fetchall():
+    for pid, week, day, focus, name, order, sets, reps, pct, rpe, ref in cur.fetchall():
         out[pid]["sessions"][(week, day)].append(
             {"exercise_name": name, "exercise_order": order, "sets": sets, "reps": reps,
              "intensity_pct": float(pct) if pct is not None else None,
-             "rpe_target": float(rpe) if rpe is not None else None}
+             "rpe_target": float(rpe) if rpe is not None else None, "intensity_reference": ref}
         )
         out[pid]["focus"][(week, day)] = focus
     return out
@@ -62,7 +62,12 @@ def is_warmup(row: Row) -> bool:
 
 
 def fmt_row(row: Row) -> str:
-    pct = f"@{row['intensity_pct']:g}%" if row["intensity_pct"] is not None else "@bw"
+    if row["intensity_pct"] is not None:
+        pct = f"@{row['intensity_pct']:g}%"
+    elif row.get("intensity_reference") == "bodyweight":
+        pct = "@BW"
+    else:
+        pct = f"@RPE{row['rpe_target']:g}" if row.get("rpe_target") is not None else "@—"
     return f"{'w ' if is_warmup(row) else ''}{row['exercise_name']} {row['sets']}×{row['reps']} {pct}"
 
 

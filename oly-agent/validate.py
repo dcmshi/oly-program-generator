@@ -32,7 +32,7 @@ from shared.constants import (
     WARMUP_VOLUME_EXCLUSION_PCT,
     WEEKLY_REP_BUDGET_TOLERANCE,
 )
-from shared.exercise_mapping import is_accessory, is_competition_lift
+from shared.exercise_mapping import is_accessory, is_competition_lift, is_warmup_set, lift_family
 from shared.formulas import estimate_session_minutes
 from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
@@ -322,6 +322,27 @@ def validate_session(
                     f"First exercise is '{first.get('exercise_name')}', "
                     f"but principle requires competition lifts first"
                 )
+
+    # ── Check 8: Warm-up ordering per lift family ────────────
+    # A warm-up may be a lighter variant (muscle snatch before snatch) — what
+    # matters is that every warm-up set of a family precedes that family's
+    # first working set. Warning only: the session is still usable.
+    first_working: dict[str, int] = {}
+    ordered = sorted(session_exercises, key=lambda e: e.get("exercise_order") or 0)
+    for ex in ordered:
+        fam = lift_family(ex.get("intensity_reference"))
+        if fam is None or not is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference")):
+            continue
+        if not is_warmup_set(ex.get("intensity_reference"), _numeric_pct(ex)):
+            first_working.setdefault(fam, ex.get("exercise_order") or 0)
+    for ex in ordered:
+        fam = lift_family(ex.get("intensity_reference"))
+        if (fam in first_working and is_warmup_set(ex.get("intensity_reference"), _numeric_pct(ex))
+                and (ex.get("exercise_order") or 0) > first_working[fam]):
+            warnings.append(
+                f"{ex.get('exercise_name')}: warm-up set ordered after the {fam} family's first working set "
+                f"(order {ex.get('exercise_order')} > {first_working[fam]})"
+            )
 
     # ── Check 7: Accessory variety across the week (DOG-1) ────
     # A warning only — an accessory repeated a third time is a quality note,

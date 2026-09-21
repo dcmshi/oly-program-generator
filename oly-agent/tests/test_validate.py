@@ -907,3 +907,21 @@ def test_accessory_repeated_beyond_weekly_cap_is_a_warning_not_an_error():
     assert r.is_valid
     assert any("Back Extension" in w and "max" in w for w in r.warnings)
     assert not any("Back Squat" in w for w in r.warnings)
+
+
+def test_warmup_variant_before_working_sets_is_fine_but_after_warns():
+    """A muscle snatch at 45 % is a snatch-family warm-up; it must come before the
+    first snatch working set. Out of order → warning only."""
+    from validate import validate_session
+    week = {"intensity_floor": 70, "intensity_ceiling": 80, "reps_per_set_range": [2, 4],
+            "total_competition_lift_reps": 60, "volume_modifier": 1.0, "is_deload": False, "week_number": 1}
+
+    def ex(name, order, pct, ref, sets=3, reps=3):
+        return {"exercise_name": name, "exercise_order": order, "sets": sets, "reps": reps, "intensity_pct": pct,
+                "intensity_reference": ref, "rest_seconds": 90, "rpe_target": 7.0}
+    good = [ex("Muscle Snatch", 1, 45, "snatch"), ex("Snatch", 2, 55, "snatch", 1, 2), ex("Snatch", 3, 75, "snatch", 6, 3)]
+    r = validate_session(good, week, [], {"exercise_preferences": {}})
+    assert r.is_valid and not any("warm-up set ordered" in w for w in r.warnings)
+    bad = [ex("Snatch", 1, 75, "snatch", 6, 3), ex("Muscle Snatch", 2, 45, "snatch")]
+    r = validate_session(bad, week, [], {"exercise_preferences": {}})
+    assert r.is_valid and any("Muscle Snatch" in w and "warm-up set ordered after" in w for w in r.warnings)

@@ -80,6 +80,17 @@ def is_competition_lift(exercise_name, intensity_reference) -> bool:
     return not any(marker in name for marker in NON_COMP_LIFT_NAME_MARKERS)
 
 
+def lift_family(intensity_reference) -> str | None:
+    """'snatch' or 'clean' for a competition-lift reference, else None. Warm-up
+    ordering is per family: a muscle snatch or power snatch at 45–60 % is a
+    valid warm-up for the snatch, a power clean for the clean & jerk."""
+    if intensity_reference == "snatch":
+        return "snatch"
+    if intensity_reference in ("clean", "clean_and_jerk", "jerk"):
+        return "clean"
+    return None
+
+
 def is_warmup_set(intensity_reference, intensity_pct) -> bool:
     """True if this prescription is one of the mandated warmup ramp sets.
 

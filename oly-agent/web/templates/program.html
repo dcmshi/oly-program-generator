@@ -223,7 +223,12 @@
                 {% endif %}
               </td>
               <td class="py-1.5 pr-3 text-right text-ink-sec">{{ ex.sets }}×{{ ex.reps }}</td>
-              <td class="py-1.5 pr-3 text-right font-medium">{{ ex.absolute_weight_kg | fmt_weight }}</td>
+              <td class="py-1.5 pr-3 text-right font-medium">
+                {%- if ex.absolute_weight_kg is not none %}{{ ex.absolute_weight_kg | fmt_weight }}
+                {%- elif ex.intensity_reference == 'bodyweight' %}<span class="text-ink-muted" title="Bodyweight">BW</span>
+                {%- elif ex.rpe_target %}<span class="text-ink-muted" title="No max on file for this exercise — load by feel">RPE {{ ex.rpe_target | fmt_rpe }}</span>
+                {%- else %}—{% endif -%}
+              </td>
               <td class="py-1.5 pr-3 text-right text-ink-muted hidden sm:table-cell print:table-cell">{{ ex.intensity_pct | fmt_pct }}</td>
               <td class="py-1.5 pr-3 text-right text-ink-muted hidden sm:table-cell print:table-cell">{{ ex.rpe_target | fmt_rpe }}</td>
               <td class="py-1.5 text-right text-ink-faint text-xs hidden sm:table-cell print:table-cell">{{ ex.rest_seconds }}s</td>
