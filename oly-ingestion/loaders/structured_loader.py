@@ -16,6 +16,15 @@ from psycopg2.extras import Json
 logger = logging.getLogger(__name__)
 
 
+def _json_safe(obj):
+    """Stats dicts carry ints, floats, lists and dicts with int keys (OCR verdicts) — JSONB wants str keys."""
+    if isinstance(obj, dict):
+        return {str(k): _json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_json_safe(v) for v in obj]
+    return obj
+
+
 class StructuredLoader:
     def __init__(self, settings):
         self.conn = psycopg2.connect(settings.database_url)
@@ -494,7 +503,8 @@ class StructuredLoader:
                    principles_extracted    = %s,
                    programs_parsed         = %s,
                    exercises_created       = %s,
-                   tables_parsed           = %s
+                   tables_parsed           = %s,
+                   result                  = %s
              WHERE id = %s
             """,
             (
@@ -505,6 +515,7 @@ class StructuredLoader:
                 stats.get("programs", 0),
                 stats.get("exercises", 0),
                 stats.get("tables_parsed", 0),
+                Json(_json_safe(stats)),
                 run_id,
             ),
         )

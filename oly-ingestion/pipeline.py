@@ -270,7 +270,7 @@ class IngestionPipeline:
     def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0,
                  contextualize: bool = False, context_model: str | None = None,
                  batch: bool = False, classifier: str = "heuristic", ocr_cache: bool = True,
-                 force_vision: bool = False):
+                 force_vision: bool = False, ocr_postcorrect: bool = False, quarantine: bool = True):
         self.settings = settings
         self.max_pages = max_pages
         # COST-1: principle extraction (the dominant ingestion spend) and vision
@@ -291,8 +291,10 @@ class IngestionPipeline:
         _anthropic_client = create_llm_client(settings) if (use_vision or force_vision) else None
         self.pdf_extractor = PDFExtractor(
             anthropic_client=_anthropic_client, vision_model=settings.llm_model, batch=batch, ocr_cache=ocr_cache,
-            force_vision=force_vision,
+            force_vision=force_vision, ocr_postcorrect=ocr_postcorrect,
+            postcorrect_model=light_model_for(settings, None),
         )
+        self.quarantine = quarantine
         self.classifier = ContentClassifier(settings, classifier=classifier)
         self.classifier_name = classifier
         self.principle_extractor = PrincipleExtractor(settings)
@@ -534,7 +536,11 @@ class IngestionPipeline:
                 )
             route_stage.__exit__(None, None, None)
 
-            # ── Step 6: Mark complete ──────────────────────────
+            # ── Step 6: Jev junk pass over this source's chunks ─
+            if self.quarantine and stats.get("chunks_loaded", 0):
+                stats["chunks_quarantined_jev"] = self._quarantine_source(source_id)
+
+            # ── Step 7: Mark complete ──────────────────────────
             self.structured_loader.complete_run(run_id, stats)
             logger.info(f"Ingestion complete in {fmt_duration(time.perf_counter() - run_started)}: {stats}")
             return stats
@@ -555,6 +561,22 @@ class IngestionPipeline:
         )
         self.structured_loader.load_principles(principles, source_id)
         return len(principles)
+
+    def _quarantine_source(self, source_id: int) -> int | None:
+        """Run quarantine_chunks.py over one source (JEV-1a) at the end of an
+        ingest so indexes / TOCs / reference lists never wait for a manual pass.
+        Needs TYPESAFE_API_KEY; without it the step is skipped with a warning."""
+        import os
+        if not os.environ.get("TYPESAFE_API_KEY"):
+            logger.warning("Quarantine pass skipped — TYPESAFE_API_KEY not set")
+            return None
+        try:
+            from quarantine_chunks import quarantine_source
+            with Stage("Quarantine pass", logger, f"source {source_id}, Jev junk detector"):
+                return quarantine_source(source_id, self.settings)
+        except Exception as e:                       # noqa: BLE001 — the ingest is already committed
+            logger.error(f"Quarantine pass failed for source {source_id}: {e}")
+            return None
 
     def _flush_principle_batch(self, pending: list[tuple[int, str]], source, source_id: int,
                                run_id: int, resume_from: int) -> int:
@@ -952,6 +974,11 @@ if __name__ == "__main__":
     parser.add_argument("--batch", action="store_true",
                         help="Send principle extraction and vision OCR through the Message Batches API "
                              "(half price, minutes-to-hours of latency; COST-1)")
+    parser.add_argument("--ocr-postcorrect", action="store_true",
+                        help="OCR-QA: send pages still garbled after the view check to the light model for "
+                             "guarded OCR error correction (kept only if the garbled share drops, length ±10%%)")
+    parser.add_argument("--no-quarantine", action="store_true",
+                        help="Skip the Jev junk pass over the new source's chunks at the end of the run")
     parser.add_argument("--no-ocr-cache", action="store_true",
                         help="Ignore sources/.ocr_cache and transcribe every page again (ING-M5)")
     parser.add_argument("--classifier", choices=("heuristic", "jev"), default="heuristic",
@@ -964,7 +991,8 @@ if __name__ == "__main__":
     pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages,
                                  contextualize=args.contextualize, context_model=args.context_model,
                                  batch=args.batch, classifier=args.classifier, ocr_cache=not args.no_ocr_cache,
-                                 force_vision=args.force_vision)
+                                 force_vision=args.force_vision, ocr_postcorrect=args.ocr_postcorrect,
+                                 quarantine=not args.no_quarantine)
 
     doc = SourceDocument(
         path=Path(args.source),

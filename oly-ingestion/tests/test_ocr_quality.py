@@ -48,3 +48,12 @@ def test_choose_view_recovers_blank_and_flags_disagreement():
     text, agreement, verdict = choose_view(PAGE, other)
     assert verdict == "disagree" and agreement < 0.1
     assert view_agreement("", "") == 1.0
+
+
+def test_resolve_views_keeps_the_agreeing_pair():
+    from processors.ocr_quality import resolve_views
+    other = "Completely different transcription of an unrelated page about the jerk dip and drive. " * 10
+    text, agreement, verdict = resolve_views([other, PAGE, PAGE + " tail."])
+    assert verdict == "agree" and text.endswith("tail.") and agreement > 0.8
+    text, agreement, verdict = resolve_views(["", "", ""])
+    assert verdict == "disagree" and text == ""

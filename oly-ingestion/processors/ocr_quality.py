@@ -146,7 +146,29 @@ def choose_view(first: str, second: str) -> tuple[str, float, str]:
     if len(first.strip()) < OCR_MIN_PAGE_CHARS and len(second.strip()) >= OCR_MIN_PAGE_CHARS:
         return second, a, "recovered"
     longer = first if len(first) >= len(second) else second
+    if len(longer.strip()) < OCR_MIN_PAGE_CHARS:            # two blank views agree on nothing
+        return longer, a, "disagree"
     return longer, a, ("agree" if a >= OCR_VIEW_AGREEMENT_MIN else "disagree")
+
+
+def resolve_views(views: list[str]) -> tuple[str, float, str]:
+    """Consensus over three or more transcriptions of one page: return the
+    text from the pair that agrees best (the longer member), with that pair's
+    agreement; 'disagree' when no pair reaches OCR_VIEW_AGREEMENT_MIN."""
+    best: tuple[float, str] = (-1.0, "")
+    for i in range(len(views)):
+        for j in range(i + 1, len(views)):
+            a = view_agreement(views[i], views[j])
+            if a > best[0]:
+                longer = views[i] if len(views[i]) >= len(views[j]) else views[j]
+                best = (a, longer)
+    agreement, text = best
+    if agreement >= OCR_VIEW_AGREEMENT_MIN and len(text.strip()) >= OCR_MIN_PAGE_CHARS:
+        return text, agreement, "agree"
+    nonblank = [v for v in views if len(v.strip()) >= OCR_MIN_PAGE_CHARS]
+    if nonblank:
+        return max(nonblank, key=len), agreement, "disagree"
+    return "", agreement, "disagree"
 
 
 def summarize(qualities: list[PageQuality]) -> dict:

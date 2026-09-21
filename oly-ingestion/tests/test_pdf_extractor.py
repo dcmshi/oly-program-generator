@@ -433,8 +433,8 @@ def test_vision_retries_blank_pages_singly(tmp_path):
 
     body = "The lifter pulls the bar and drops under it in one continuous movement. " * 6
 
-    def fake_ocr(d, start, end, dpi=150):
-        calls.append((start, end, dpi))
+    def fake_ocr(d, start, end, dpi=150, view=0):
+        calls.append((start, end, dpi, view))
         if end - start > 1:                      # group pass: pages 2 and 4 lost
             return [f"page {i + 1} {body}" if i not in (1, 3) else "" for i in range(start, end)]
         return [f"recovered page 2 {body}"] if start == 1 else [""]
@@ -443,7 +443,28 @@ def test_vision_retries_blank_pages_singly(tmp_path):
     fz.open.return_value = doc
     with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr),          patch.object(extractor, "_page_has_ink", return_value=True):
         pages = extractor._extract_with_vision(pdf)
-    assert calls == [(0, 5, 150), (1, 2, 200), (3, 4, 200)]           # suspects get a second view at 200 DPI
+    # suspects get a second view (200 DPI, rotated); page 4 stays blank so a third view is tried too
+    assert calls == [(0, 5, 150, 0), (1, 2, 200, 1), (3, 4, 200, 1), (3, 4, 200, 2)]
     assert [p.split(" The")[0] for p in pages] == ["page 1", "recovered page 2", "page 3", "page 5"]  # page 4 omitted
     assert extractor.last_ocr_report["pages_unresolved"] == [4]
     assert extractor.last_ocr_report["verdicts"][2].startswith("recovered")
+
+
+def test_split_page_responses_assigns_by_header_number():
+    """OCR-QA: a repeated, missing or out-of-range header no longer shifts the
+    following pages; text under a repeated header is joined."""
+    raw = "=== Page 6 ===\nsix\n=== Page 8 ===\neight-a\n=== Page 8 ===\neight-b\n=== Page 9 ===\nnine\n=== Page 42 ===\nstray"
+    assert PDFExtractor._split_page_responses(raw, [5, 6, 7, 8, 9]) == ["six", "", "eight-a\n\neight-b", "nine", ""]
+
+
+def test_postcorrect_is_guarded():
+    """Post-correction output is kept only when the garbled share drops and the
+    length stays within ±10 %."""
+    from types import SimpleNamespace
+    ex = PDFExtractor(anthropic_client=MagicMock(), vision_model="m", ocr_postcorrect=True)
+    garbled = "The sn atch is per formed frm the flr with spd undr the bar xq tbxrq vvvvvv zzzzzz " * 6
+    clean = "The snatch is performed from the floor with speed under the bar and a solid catch. " * 6
+    ex._client.messages.create.return_value = SimpleNamespace(content=[SimpleNamespace(type="text", text=clean)])
+    assert ex._postcorrect(garbled, 3) == clean.strip()
+    ex._client.messages.create.return_value = SimpleNamespace(content=[SimpleNamespace(type="text", text=clean * 3)])
+    assert ex._postcorrect(garbled, 3) is None          # length ×3 → rejected

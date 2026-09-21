@@ -81,6 +81,33 @@ def plan(probabilities: dict[int, float], current: dict[int, bool], threshold: f
     return quarantine, release
 
 
+def quarantine_source(source_id: int, settings: Settings, threshold: float = JUNK_QUARANTINE_THRESHOLD) -> int:
+    """Score one source's chunks with Jev and quarantine those at/above the
+    threshold — what pipeline.py runs at the end of every ingest. Returns the
+    number quarantined."""
+    conn = psycopg2.connect(settings.database_url)
+    try:
+        cur = conn.cursor()
+        cur.execute("SELECT id, left(raw_content, %s), quarantined FROM knowledge_chunks WHERE source_id = %s ORDER BY id",
+                    (PASSAGE_CHARS, source_id))
+        rows = cur.fetchall()
+        if not rows:
+            return 0
+        probabilities = score_chunks({r[0]: r[1] for r in rows})
+        to_q, to_r = plan(probabilities, {r[0]: bool(r[2]) for r in rows}, threshold)
+        cur.executemany("UPDATE knowledge_chunks SET junk_probability = %s WHERE id = %s",
+                        [(p, cid) for cid, p in probabilities.items()])
+        if to_q:
+            cur.execute("UPDATE knowledge_chunks SET quarantined = TRUE, quarantine_reason = %s WHERE id = ANY(%s)", (REASON, to_q))
+        if to_r:
+            cur.execute("UPDATE knowledge_chunks SET quarantined = FALSE, quarantine_reason = NULL WHERE id = ANY(%s)", (to_r,))
+        conn.commit()
+        logger.info(f"Quarantine pass: source {source_id}: {len(rows)} chunks scored, {len(to_q)} quarantined, {len(to_r)} released")
+        return len(to_q)
+    finally:
+        conn.close()
+
+
 def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description="Quarantine non-content chunks with Jev (JEV-1a)")
     ap.add_argument("--threshold", type=float, default=JUNK_QUARANTINE_THRESHOLD)

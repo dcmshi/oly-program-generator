@@ -216,3 +216,4 @@ OCR_GARBLED_RATIO_MAX: float = 0.15       # share of non-word tokens tolerated
 OCR_NON_ASCII_RATIO_MAX: float = 0.10     # Cyrillic table headers in translations sit ~2 %
 OCR_VIEW_AGREEMENT_MIN: float = 0.5       # 3-shingle Jaccard between the two views to call them consistent
 OCR_SECOND_VIEW_DPI: int = 200            # first view renders at 150 DPI (_ocr_request)
+OCR_VIEW_ROTATIONS_DEG: tuple[float, ...] = (1.5, -1.5)   # second / third view: zoom + slight rotation = independent probe

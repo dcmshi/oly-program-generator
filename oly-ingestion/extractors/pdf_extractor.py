@@ -22,7 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from shared.constants import OCR_SECOND_VIEW_DPI
+from shared.constants import OCR_GARBLED_RATIO_MAX, OCR_SECOND_VIEW_DPI, OCR_VIEW_ROTATIONS_DEG
 from shared.llm import (
     BatchRequestFailed,
     create_message_growing,
@@ -50,7 +50,8 @@ class PDFExtractor:
     """Extract text from PDFs with a three-stage fallback chain."""
 
     def __init__(self, anthropic_client=None, vision_model: str = _DEFAULT_VISION_MODEL,
-                 batch: bool = False, ocr_cache: bool = True, force_vision: bool = False):
+                 batch: bool = False, ocr_cache: bool = True, force_vision: bool = False,
+                 ocr_postcorrect: bool = False, postcorrect_model: str | None = None):
         """
         Args:
             anthropic_client: Optional Anthropic client instance. When provided,
@@ -63,12 +64,20 @@ class PDFExtractor:
             force_vision:     Skip the text layer and OCR every page. For scans
                               whose embedded OCR is one block per line (paragraphs
                               lost) or full of spaced digits ("1 9 7 3").
+            ocr_postcorrect:  After the views agree, send a page that is still
+                              garbled to a text model for OCR error correction
+                              (ICDAR 2026 HIPE-OCRepair setting). Guarded: the
+                              corrected text is kept only if the garbled share
+                              drops and the length stays within ±10 %. Off by
+                              default — post-correction can also hallucinate.
         """
         self._client = anthropic_client
         self._vision_model = vision_model
         self._batch = batch
         self._ocr_cache = ocr_cache
         self._force_vision = force_vision
+        self._ocr_postcorrect = ocr_postcorrect
+        self._postcorrect_model = postcorrect_model
         self.last_ocr_report: dict | None = None   # OCR-QA report of the last _extract_with_vision
 
     def extract(self, path: Path, max_pages: int = 0) -> list[str]:
@@ -250,9 +259,11 @@ class PDFExtractor:
         # page stays flagged where they don't. Roman pp. 86–90 were stored blank
         # on 2026-09-20 with only a warning — this is what turns that into a
         # recovery, and into a page list in the run stats when it can't recover.
+        # The second-view calls are single synchronous requests, so the gate
+        # runs for --batch documents too.
         self.last_ocr_report = None
-        if not self._batch:
-            from processors.ocr_quality import assess_pages, choose_view, summarize
+        if True:
+            from processors.ocr_quality import assess_pages, choose_view, garbled_ratio, resolve_views, summarize
             texts = [pages.get(i, "") for i in range(n_pages)]
             ink = [self._page_has_ink(doc, i) for i in range(n_pages)]
             qualities = assess_pages(texts, ink)
@@ -263,8 +274,14 @@ class PDFExtractor:
                                f"{[(q.index + 1, q.reasons[0]) for q in suspects][:12]}")
             verdicts: dict[int, str] = {}
             for q in suspects:
-                second = self._ocr_batch(doc, q.index, q.index + 1, dpi=OCR_SECOND_VIEW_DPI)[0]
+                second = self._ocr_batch(doc, q.index, q.index + 1, dpi=OCR_SECOND_VIEW_DPI, view=1)[0]
                 text, agreement, verdict = choose_view(texts[q.index], second)
+                if verdict == "disagree":
+                    # tie-break with a third independent view: keep the pair that agrees
+                    third = self._ocr_batch(doc, q.index, q.index + 1, dpi=OCR_SECOND_VIEW_DPI, view=2)[0]
+                    text, agreement, verdict = resolve_views([texts[q.index], second, third])
+                if verdict != "disagree" and self._ocr_postcorrect and garbled_ratio(text) > OCR_GARBLED_RATIO_MAX:
+                    text = self._postcorrect(text, q.index) or text
                 verdicts[q.index + 1] = f"{verdict} ({agreement:.2f})"
                 if text != texts[q.index]:
                     pages[q.index] = text
@@ -321,10 +338,11 @@ class PDFExtractor:
             )
         return pages
 
-    def _ocr_batch(self, doc, start: int, end: int, dpi: int = 150) -> list[str]:
+    def _ocr_batch(self, doc, start: int, end: int, dpi: int = 150, view: int = 0) -> list[str]:
         """Send a batch of pages to Claude vision and return extracted text per page."""
         response = create_message_growing(
-            self._client, label=f"Vision OCR pages {start + 1}–{end}", **self._ocr_request(doc, start, end, dpi=dpi)
+            self._client, label=f"Vision OCR pages {start + 1}–{end}",
+            **self._ocr_request(doc, start, end, dpi=dpi, view=view),
         )
         return self._ocr_response_pages(response, start, end)
 
@@ -344,9 +362,15 @@ class PDFExtractor:
         return self._split_page_responses(raw, list(range(start, end)))
 
     @staticmethod
-    def _render_png(doc, index: int, dpi: int = 150) -> bytes:
+    def _render_png(doc, index: int, dpi: int = 150, view: int = 0) -> bytes:
+        """Render one page. `view` > 0 applies a small geometric transform (a
+        different zoom and a slight rotation) so a re-transcription is an
+        independent probe of the same page, not a re-run of the same pixels
+        (risk-controlled VLM OCR, arXiv 2603.19790)."""
         import fitz
         mat = fitz.Matrix(dpi / 72, dpi / 72)
+        if view:
+            mat = mat.prerotate(OCR_VIEW_ROTATIONS_DEG[(view - 1) % len(OCR_VIEW_ROTATIONS_DEG)])
         return doc[index].get_pixmap(matrix=mat).tobytes("png")
 
     @staticmethod
@@ -358,7 +382,34 @@ class PDFExtractor:
         dark = sum(1 for b in pix.samples if b < 128)
         return dark > 0.002 * len(pix.samples)
 
-    def _ocr_request(self, doc, start: int, end: int, dpi: int = 150) -> dict:
+    def _postcorrect(self, text: str, index: int) -> str | None:
+        """LLM OCR post-correction with an acceptance guard (see __init__)."""
+        from processors.ocr_quality import garbled_ratio
+        model = self._postcorrect_model or self._vision_model
+        try:
+            response = self._client.messages.create(
+                model=model, max_tokens=4096,
+                **thinking_kwargs(model, "disabled"),
+                messages=[{"role": "user", "content": (
+                    "The text below is OCR output from a scanned book page and contains recognition errors. "
+                    "Correct ONLY obvious OCR errors (broken words, wrong characters, spaced digits). "
+                    "Do not add, remove, reorder or paraphrase anything; keep all numbers and line breaks. "
+                    "Return only the corrected text.\n\n" + text
+                )}],
+            )
+            fixed = message_text(response).strip()
+        except Exception as e:                       # noqa: BLE001 — never fail a page on post-correction
+            logger.warning(f"Vision OCR: post-correction of page {index + 1} failed: {e}")
+            return None
+        before, after = garbled_ratio(text), garbled_ratio(fixed)
+        ratio = len(fixed) / max(1, len(text))
+        if after < before and 0.9 <= ratio <= 1.1:
+            logger.info(f"  Vision OCR: page {index + 1} post-corrected (garbled {before:.0%} → {after:.0%})")
+            return fixed
+        logger.info(f"  Vision OCR: page {index + 1} post-correction rejected (garbled {before:.0%} → {after:.0%}, length ×{ratio:.2f})")
+        return None
+
+    def _ocr_request(self, doc, start: int, end: int, dpi: int = 150, view: int = 0) -> dict:
         """messages.create kwargs for one group of rendered pages."""
         # Build the message content: alternating page-number labels and images
         content = []
@@ -366,7 +417,7 @@ class PDFExtractor:
 
         for i in page_indices:
             # Render at 150 DPI — good balance of legibility vs token cost
-            b64 = base64.standard_b64encode(self._render_png(doc, i, dpi)).decode()
+            b64 = base64.standard_b64encode(self._render_png(doc, i, dpi, view)).decode()
 
             content.append({
                 "type": "text",
@@ -407,6 +458,24 @@ class PDFExtractor:
         """
         import re
         n = len(page_indices)
+        # Assign text by the page NUMBER in each header, not by position: a
+        # model that repeats a header, drops one or splits a page in two used
+        # to shift every following page of the group (OCR-QA). Text under a
+        # repeated header is concatenated; a number outside the group is ignored.
+        by_number: dict[int, list[str]] = {}
+        parts = re.split(r"===\s*Page\s+(\d+)\s*===", raw)
+        for k in range(1, len(parts) - 1, 2):
+            by_number.setdefault(int(parts[k]), []).append(parts[k + 1].strip())
+        if by_number:
+            wanted = {i + 1 for i in page_indices}
+            hits = [num for num in by_number if num in wanted]
+            if hits:
+                if len(hits) < n or set(by_number) - wanted:
+                    logger.warning(
+                        f"Vision OCR: pages {page_indices[0] + 1}–{page_indices[-1] + 1}: headers for "
+                        f"{sorted(by_number)} — assigning by page number, {n - len(hits)} page(s) blank"
+                    )
+                return ["\n\n".join(t for t in by_number.get(i + 1, []) if t) for i in page_indices]
         sections = re.split(r"===\s*Page\s+\d+\s*===", raw)
         # First element is any text before the first header — discard it
         sections = [s.strip() for s in sections[1:]]
