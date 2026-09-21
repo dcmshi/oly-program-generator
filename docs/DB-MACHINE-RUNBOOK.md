@@ -1,3 +1,7 @@
+> **Historical (retired 2026-09-21).** Written when a second "corpus DB machine" was expected to
+> replay these operations. That machine is this one; every step below has been executed here,
+> the last on 2026-09-21. Kept as a record of the order things ran in. Nothing is pending.
+
 # DB-Machine Runbook — migrations 0006/0007 + Catalyst re-ingest + Charniga ingest
 
 Verified 2026-07-18 by rehearsal on the dev machine (audit 4): the migration

@@ -21,9 +21,8 @@ Read these rather than re-deriving them; update them when the underlying thing c
 | `docs/RETRIEVAL_EVAL.md` | Retrieval-quality baseline — the graded, gated harness is `oly-agent/eval/` (`build_golden` → `golden.json`, `run_eval` vs `baseline.json`); rebuild the golden set after any corpus change and re-run after any retrieval change |
 | `docs/RAG_RESEARCH.md` | RAG / ingestion / vector-DB review against current practice (2026-09-15): gap matrix, probe evidence, and the ordered remediation plan behind the RAG-* items in `TODO.md` |
 | `docs/CONTRIBUTING.md` | Security audit, scaling checklist, coverage |
-| `docs/DB-MACHINE-RUNBOOK.md` | Pending ops that must run on the corpus DB machine |
+| `docs/DB-MACHINE-RUNBOOK.md` | Historical — the ops replay list from when a second corpus machine was expected; everything in it has run here. Read-only |
 | `TODO.md` | Current audit findings and their status |
-| `docs/HANDOFF.md` | Mid-stream handoff for the model-bump + dogfooding work (state, designs, next commands) — delete when done |
 | `docs/design/` | Historical build docs — read-only reference |
 
 ---

@@ -3,9 +3,10 @@
 State of the ingested source material backing retrieval. Update this file after
 any ingest, re-ingest, or bulk delete.
 
-**Totals:** 3,796 chunks · 151 principles · 439 sources (corpus DB machine, 2026-03-18).
-A dev copy measured on 2026-09-15 held 3,368 chunks · 161 principles · 439 sources ·
-17 templates — the two diverged after the Catalyst delete / later principle runs.
+**Totals (2026-09-21):** 6,835 chunks (6,550 live) · 4,182 principles · 732 sources · 47 templates.
+There is one corpus database — the machine this repo runs on. Earlier notes about a separate
+"corpus DB machine" and a diverging "dev copy" described the same box; the runbook that was
+kept for replaying ops elsewhere is retired (`docs/DB-MACHINE-RUNBOOK.md` is history only).
 **Dev copy 2026-09-20:** 4,607 chunks · 2,234 principles · 612 sources · 39 templates —
 Medvedev re-chunked (613 × 324 chars → 143 × 1,430; the OCR'd session labels were being read
 as headings), `relabel_chunk_types.py` applied (`concept` 50 % → 22 % of the corpus), Takano /
@@ -20,8 +21,7 @@ sources · 49 templates. All seven PDF sources re-chunked on joined pages with
 `--contextualize` (runbook §8b), Catalyst re-crawled (428 articles → 1,055 chunks, 2.5 per
 article, was ≈ 1), Charniga ingested from the Wayback Machine (168 of 209 articles → 1,001
 chunks; 41 snapshots are 51-char stubs and stay pending). Every chunk written that day carries
-a `context_prefix`. The corpus DB machine still holds the 2026-03-18 state until the runbook is
-applied there; reconcile `README.md` and `docs/SCHEMA.md` when it is.
+a `context_prefix`.
 
 ---
 
@@ -109,14 +109,12 @@ the run history; row 499 is the live one.
 
 - **Everett (#1)** was re-ingested 2026-03-18 after the EPUB paragraph-extraction
   fix (was 198 chunks / 44 principles at `source_id=1`).
-- **Catalyst (#4)** was ingested *before* the HTML paragraph fix, so it averages
-  ≈1 chunk per article instead of several. A full re-ingest is pending on the
-  corpus DB machine — see [DB-MACHINE-RUNBOOK.md](DB-MACHINE-RUNBOOK.md).
+- **Catalyst (#4)** was re-crawled on 2026-09-16 after the HTML paragraph fix (1,055 chunks, 2.5 per article).
 - **All seven PDF sources (#2, #3, #5, #6, #7, #8, #11) were ingested *before* the
   PDF page-join fix (RAG-H1, 2026-09-15)** and are chunked by page: 100% of the
-  PyMuPDF chunks are single-paragraph, Medvedev is 269-char fragments. Re-ingest
-  is pending on the corpus DB machine — [DB-MACHINE-RUNBOOK.md §8b](DB-MACHINE-RUNBOOK.md).
-  Expect fewer, larger chunks (Takano 229 → ~160 at mean ~590 est. tokens;
+  PyMuPDF chunks were single-paragraph, Medvedev 269-char fragments — all seven were
+  re-ingested on 2026-09-16 (and Medvedev again on 2026-09-20 for the session-label fix).
+  Result: fewer, larger chunks (Takano 229 → ~160 at mean ~590 est. tokens;
   Zatsiorsky ~0.9 chunks/page at mean ~810) and chapter metadata on nearly every
   chunk instead of 3%. Evidence and measurements: [RAG_RESEARCH.md §5.1](RAG_RESEARCH.md).
 
@@ -125,8 +123,8 @@ the run history; row 499 is the live one.
 ## Planned Additions
 
 Task #23 in [../TODO-audit-2026-07-03.md](../TODO-audit-2026-07-03.md). Everything
-here is **not yet ingested**; all of it needs the corpus DB machine and both API
-keys. Ordered by ingest priority, which puts the free material first — those rows
+here was **not yet ingested** when written; rows 1–6 and 11 have since gone in (see
+*Status of rows 1–12* below). Everything needs both API keys. Ordered by ingest priority, which puts the free material first — those rows
 need no purchase decision and can go in as soon as the Catalyst re-ingest and
 migrations are done.
 

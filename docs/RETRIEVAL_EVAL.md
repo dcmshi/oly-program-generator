@@ -22,8 +22,7 @@ Production-shaped queries are built with `retrieve.py`'s own query builders
 exactly what generation receives. **Status:** `golden.json` (57 queries, Haiku 4.5
 grades over dense ∪ hybrid candidate pools) and `baseline.json` were built on the dev
 copy on 2026-09-16 after the full re-ingest — see the section below. Grades are tied to
-chunk ids, so rebuild both after any corpus change, and on the corpus DB machine once
-the runbook has been applied there (its ids differ).
+chunk ids, so rebuild both after any corpus change.
 
 ## Judge study — 2026-09-21 (JUDGE-1): the grader moved from Haiku 4.5 to GLM-5.3 Flash
 

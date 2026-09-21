@@ -312,7 +312,7 @@ oly-program-generator/
 │   ├── SCHEMA.md                    # ER diagrams + table reference (20 tables)
 │   ├── CORPUS.md                    # Ingested + planned sources, chunk-size profiles
 │   ├── RETRIEVAL_EVAL.md            # Retrieval quality baseline scores
-│   ├── DB-MACHINE-RUNBOOK.md        # Pending ops on the corpus DB machine
+│   ├── DB-MACHINE-RUNBOOK.md        # Historical ops replay list (everything in it has run)
 │   └── design/                      # Historical build docs (pipeline, agent, code reference)
 │
 ├── shared/                          # Shared modules (imported by both subsystems)
