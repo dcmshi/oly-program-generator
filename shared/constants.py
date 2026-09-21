@@ -87,6 +87,18 @@ BLOCK_WEEKS_DEFAULT_BY_LEVEL: dict[str, dict[str, int]] = {
     "elite":        {"accumulation": 6},
 }
 
+# ── Training preferences (PLAN-2 §1.4, §3.4, §3.5, §3.8) ─────────
+# Stored under athletes.exercise_preferences["prefs"] (JSONB; "avoid" lives
+# beside it). Read by plan.py (deload cadence), generate.py (warm-up and deload
+# rules in the prompt) and orchestrator.py (max-test session).
+TRAINING_PREFERENCE_OPTIONS: dict[str, tuple[str, ...]] = {
+    "warmups":      ("prescribed", "own"),               # program writes 2–3 warm-up sets / athlete warms up alone
+    "deload_style": ("volume", "intensity", "none"),     # last week: cut sets, cut load, or no deload week
+    "max_test":     ("auto", "always", "never"),         # auto = phase profile decides
+}
+TRAINING_PREFERENCE_DEFAULTS: dict[str, str] = {"warmups": "prescribed", "deload_style": "volume", "max_test": "auto"}
+DELOAD_EVERY_WEEKS_OPTIONS: tuple[int, ...] = (3, 4, 5, 6)   # extra deload weeks inside a long block; blank = only the last week
+
 # ── Phase advancement & outcome adjustments ─────────────────────
 # Used by plan._advance_phase / plan._apply_outcome_adjustments and mirrored
 # by feedback._compute_phase_verdict — keep both reading from here.
@@ -96,6 +108,15 @@ ADVANCE_MAX_RPE_DEVIATION: float = 1.5    # RPE deviation above this blocks adva
 ADJUST_RPE_DEVIATION: float = 1.0         # RPE deviation above this triggers volume reduction
 EXCELLENT_ADHERENCE_PCT: float = 90.0     # adherence for "excellent performance" intensity boost
 EXCELLENT_MAKE_RATE: float = 0.85         # make rate for "excellent performance" intensity boost
+# Outcome nudges are proportional to the miss (PLAN-2 §1.8): the STEP is the
+# maximum, reached when the miss equals the FULL_MISS span.
+OUTCOME_VOLUME_STEP_ADHERENCE: float = 0.10       # volume_modifier −10 % at 40 % adherence or worse
+OUTCOME_ADHERENCE_FULL_MISS_PCT: float = 30.0     # 70 → 40 %
+OUTCOME_INTENSITY_STEP_MAKE_RATE: float = 3.0     # ceiling −3 pts at make rate 0.50 or worse
+OUTCOME_MAKE_RATE_FULL_MISS: float = 0.25         # 0.75 → 0.50
+OUTCOME_VOLUME_STEP_RPE: float = 0.05             # volume −5 % at RPE deviation 2.0 or more
+OUTCOME_RPE_FULL_MISS: float = 1.0                # 1.0 → 2.0
+OUTCOME_INTENSITY_BOOST_EXCELLENT: float = 2.0    # flat +2 pts
 
 # ── Trend detection (feedback._compute_trend) ───────────────────
 # Half-average difference needed to call a sequence ascending/descending.

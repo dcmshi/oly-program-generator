@@ -1602,3 +1602,21 @@ def test_context_chunks_are_delimited_and_marked_as_data():
 def test_no_delimiter_when_nothing_retrieved():
     prompt = _make_prompt(_make_athlete(), _make_retrieval(), context_chunks=[])
     assert "<knowledge_base>" not in prompt and "(none retrieved)" in prompt
+
+
+def test_prompt_warmup_and_deload_rules_follow_preferences():
+    """PLAN-2 §3.4 / §3.5: 'own' warm-ups replaces the warm-up rule; the
+    intensity deload wording replaces the volume one on a deload week."""
+    from models import WeekTarget
+    default = _make_prompt()
+    assert "Include 2-3 warmup sets" in default and "warms up on their own" not in default
+    ctx = _make_athlete()
+    ctx.athlete["exercise_preferences"] = {"prefs": {"warmups": "own", "deload_style": "intensity"}}
+    own = build_session_prompt(
+        ctx, WeekTarget(4, 0.6, 65.0, 73.0, 12, [2, 4], True),
+        SessionTemplate(1, "Snatch + Squat", "snatch", ["squat"], 0.30), _make_retrieval(),
+        week_number=4, duration_weeks=4, already_prescribed=[], session_rep_target=6,
+        cumulative_comp_reps=0, phase="accumulation",
+    )
+    assert "warms up on their own" in own and "Include 2-3 warmup sets" not in own
+    assert "intensity deload" in own

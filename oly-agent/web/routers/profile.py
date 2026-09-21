@@ -10,6 +10,8 @@ from web.auth import get_current_athlete_id, hash_password, password_too_long, v
 from web.deps import get_db, limiter
 from web.queries import profile as q
 
+from shared.constants import DELOAD_EVERY_WEEKS_OPTIONS, TRAINING_PREFERENCE_DEFAULTS, TRAINING_PREFERENCE_OPTIONS
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/profile")
 
@@ -82,6 +84,15 @@ async def update_profile(
         "strength_limiters": strength_limiters,
         "competition_experience": competition_experience or "none",
         "timezone": timezone.strip() or "UTC",
+        # PLAN-2 training preferences → exercise_preferences["prefs"]; out-of-vocabulary
+        # values fall back to the default rather than 500 (the JSONB has no CHECK).
+        "prefs": {
+            **{k: (form.get(f"pref_{k}") if form.get(f"pref_{k}") in opts else TRAINING_PREFERENCE_DEFAULTS[k])
+               for k, opts in TRAINING_PREFERENCE_OPTIONS.items()},
+            "deload_every_weeks": (int(form.get("pref_deload_every_weeks"))
+                                   if (form.get("pref_deload_every_weeks") or "").isdigit()
+                                   and int(form.get("pref_deload_every_weeks")) in DELOAD_EVERY_WEEKS_OPTIONS else None),
+        },
     }
 
     # DB enum columns — an out-of-vocabulary value 500s at asyncpg (audit5-L7).

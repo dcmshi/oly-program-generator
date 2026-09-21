@@ -356,6 +356,46 @@ def test_plan_honours_requested_weeks_end_to_end():
     assert result.weekly_targets[-1].is_deload                      # extension keeps the deload last
 
 
+# ── training preferences (PLAN-2 §1.4 / §3.5 / §3.8) ─────────────────────────
+
+def test_training_preferences_defaults_and_validation():
+    from plan import training_preferences
+    assert training_preferences({}) == {"warmups": "prescribed", "deload_style": "volume", "max_test": "auto", "deload_every_weeks": None}
+    got = training_preferences({"exercise_preferences": {"avoid": ["x"], "prefs": {"warmups": "own", "deload_style": "bogus", "max_test": "never", "deload_every_weeks": 4}}})
+    assert got == {"warmups": "own", "deload_style": "volume", "max_test": "never", "deload_every_weeks": 4}
+    assert training_preferences({"exercise_preferences": {"prefs": {"deload_every_weeks": 7}}})["deload_every_weeks"] is None
+
+
+def test_deload_preferences_shape_the_block():
+    from phase_profiles import build_weekly_targets
+    none = build_weekly_targets("accumulation", 4, "intermediate", deload_style="none")
+    assert not any(w["is_deload"] for w in none)
+    long = build_weekly_targets("accumulation", 8, "intermediate", deload_every_weeks=4)
+    assert [w["week_number"] for w in long if w["is_deload"]] == [4, 8]
+    assert long[3]["intensity_ceiling"] == long[7]["intensity_ceiling"]          # mid-block deload copies the profile deload
+    short = build_weekly_targets("accumulation", 4, "intermediate", deload_every_weeks=4)
+    assert [w["week_number"] for w in short if w["is_deload"]] == [4]            # never doubles the last week
+
+
+def test_plan_reads_preferences_from_the_athlete_row():
+    ctx = _ctx(level="intermediate", previous_program={"phase": "realization", "outcome_summary": {}})
+    ctx.athlete["exercise_preferences"] = {"prefs": {"deload_style": "none"}}
+    with patch("plan.fetch_all", return_value=[]):
+        result = plan(ctx, None, _FakeSettings())
+    assert result.deload_week is None and not any(w.is_deload for w in result.weekly_targets)
+
+
+def test_outcome_nudges_are_proportional_to_the_miss():
+    """PLAN-2 §1.8: a small miss is a small nudge; the old flat steps are the cap."""
+    from phase_progression import compute_load_adjustments, compute_load_deltas
+    vol, inten, labels = compute_load_deltas(adherence_pct=67.0, avg_make_rate=0.74, avg_rpe_deviation=1.1)
+    assert -0.02 < vol < 0 and -0.5 < inten < 0
+    vol, inten, labels = compute_load_deltas(adherence_pct=30.0, avg_make_rate=0.40, avg_rpe_deviation=3.0)
+    assert vol == -0.15 and inten == -3.0                                  # −10 % −5 % / −3 pts caps
+    assert labels == compute_load_adjustments(30.0, 0.40, 3.0)             # feedback shows the same strings
+    assert compute_load_deltas(95.0, 0.9, 0.0)[1] == 2.0
+
+
 # ── Runner ───────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

@@ -114,7 +114,8 @@ LEVEL_PHASE_OVERRIDES: dict[str, dict[str, dict]] = {
 }
 
 
-def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str) -> list[dict]:
+def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str,
+                         deload_every_weeks: int | None = None, deload_style: str = "volume") -> list[dict]:
     """Build WeekTarget dicts from a phase profile.
 
     Adjustments by athlete level:
@@ -125,6 +126,11 @@ def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str) ->
     If duration_weeks differs from the profile default:
     - Longer: repeat middle working weeks, push deload to end
     - Shorter: drop early ramp-up weeks, keep peak + deload
+
+    Preferences (PLAN-2 §1.4 / §3.5): `deload_every_weeks` turns every Nth
+    working week of a long block into an extra deload (its intensity band and
+    volume copied from the profile's deload week); `deload_style="none"` drops
+    the deload flag so the last week is a normal working week.
     """
     profile = PHASE_PROFILES[phase]
     base_weeks = list(profile["weeks"].items())
@@ -155,15 +161,21 @@ def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str) ->
         if deload_week:
             deload_week = duration_weeks
 
+    if deload_style == "none":
+        deload_week = None
     level = athlete_level if athlete_level in _LEVEL_ADJUSTMENTS else "intermediate"
     adj = _LEVEL_ADJUSTMENTS[level]
     over = LEVEL_PHASE_OVERRIDES.get(level, {}).get(phase, {})
 
+    profile_deload = profile["weeks"].get(profile.get("deload_week")) if profile.get("deload_week") else None
     targets = []
     for week_num, week_data in base_weeks:
         if week_num > duration_weeks:
             break
         is_deload = week_num == deload_week
+        if (deload_every_weeks and profile_deload is not None and not is_deload
+                and week_num % deload_every_weeks == 0 and week_num < duration_weeks):
+            week_data, is_deload = profile_deload, True     # extra mid-block deload
         ceiling = min(week_data["intensity_ceiling"] + adj["intensity_offset"], 100)
         floor = week_data["intensity_floor"] + adj["intensity_offset"]
         if "ceiling_cap" in over:

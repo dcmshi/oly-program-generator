@@ -55,6 +55,23 @@ principle block (≤ `MAX_PRINCIPLES_IN_PROMPT` = 8) is selected per session fro
 corpus. So the corpus already *could* drive most of §1–§3; the skeleton just doesn't
 ask it to.
 
+## Status (2026-09-21)
+
+| Done | Row(s) | How |
+|---|---|---|
+| ✅ | 1.1 | PLAN-1: `--weeks` / form field, `BLOCK_WEEKS_*` bounds + level defaults |
+| ✅ | 1.4, 3.5 | `exercise_preferences.prefs.deload_every_weeks`, `deload_style` (volume / intensity / none) → `build_weekly_targets` + prompt |
+| ✅ | 1.5, 1.6 | `phase_profiles.LEVEL_PHASE_OVERRIDES` (ceiling caps, floors, reps, volume) grounded in Medvedev / Vorobyev / Laputin principles |
+| ✅ | 1.8 | `phase_progression.compute_load_deltas` — proportional nudges, one source for plan + feedback |
+| ✅ | 2.1, 2.2, 2.3 | 2- and 6-day layouts; `lift_emphasis` flips the light day; shares per layout |
+| ✅ | 3.4, 3.8 | `prefs.warmups` (own / prescribed) → prompt rule; `prefs.max_test` (auto / always / never) → orchestrator |
+| — | 1.2, 1.3 | Multi-block plans stay chained generations (each re-plans on the last outcome); phase order fixed by design |
+| — | 1.7 | Thresholds are constants; per-athlete overrides not needed until a masters cohort exists |
+| — | 2.4 | Strength-work curve: needs its own profile table (Bompa MxS / Roman squat tables) — next candidate |
+| — | 3.1 | Prilepin remains the volume table; Roman/Medvedev alternatives are in the principle block, not the validator |
+| — | 3.2 | No complexes in the exercise catalogue yet; revisit when they are added |
+| — | 3.3, 3.6, 3.7, 3.9 | Fine as constants (3.6 already reads `session_duration_minutes`) |
+
 ## Suggested order
 
 1. PLAN-1 (block length) — smallest change, most user-visible.

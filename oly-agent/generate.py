@@ -460,6 +460,24 @@ def build_session_prompt(
     avoid = (athlete_context.athlete.get("exercise_preferences") or {}).get("avoid", [])
     avoid_str = ", ".join(avoid) or "none"
     lift_emphasis = athlete_context.athlete.get("lift_emphasis") or "balanced"
+    # PLAN-2 §3.4 / §3.5: warm-up and deload rules follow the athlete's preferences.
+    from plan import training_preferences
+    prefs = training_preferences(athlete_context.athlete)
+    warmup_rule = (
+        "- Include 2-3 warmup sets (50-60%) before each competition lift or heavy pull (snatch, clean, jerk, clean & jerk). "
+        "Warmup sets are 2-3 reps, ordered first in the session. Use the same exercise name as the working sets "
+        '(e.g. "Snatch" warmups before "Snatch" working sets).'
+        if prefs["warmups"] == "prescribed" else
+        "- Do NOT prescribe warm-up sets: the athlete warms up on their own. Start each lift at its first working set."
+    )
+    if not week_target.is_deload:
+        deload_rule = "No"
+    elif prefs["deload_style"] == "intensity":
+        deload_rule = ("YES (intensity deload) — keep the usual sets and reps but load every competition lift and pull at "
+                       "the bottom of the intensity range; no set above the range's floor + 5%")
+    else:
+        deload_rule = ("YES — reduce all loads; do NOT exceed 3 sets or 3 reps per set on any competition lift; "
+                       "prioritize movement quality over load")
     strength_limiters_str = (
         ", ".join(athlete_context.athlete.get("strength_limiters") or []) or "none identified"
     )
@@ -706,7 +724,7 @@ You MUST:
 - Respect all active programming principles
 - Provide a brief selection_rationale for each exercise (1-2 sentences)
 - Reference principle IDs in source_principle_ids where applicable
-- Include 2-3 warmup sets (50-60%) before each competition lift or heavy pull (snatch, clean, jerk, clean & jerk). Warmup sets are 2-3 reps, ordered first in the session. Use the same exercise name as the working sets (e.g. "Snatch" warmups before "Snatch" working sets).
+{warmup_rule}
 
 You MUST NOT:
 - Exceed the week's intensity ceiling given under Program Plan on competition lifts (snatch, clean, jerk, clean & jerk and their power/hang/block variants)
@@ -757,7 +775,7 @@ Intensity range: {week_target.intensity_floor}% – {week_target.intensity_ceili
 Intensity ceiling (hard limit for competition lifts): {week_target.intensity_ceiling}%
 Volume modifier: {week_target.volume_modifier:.2f} (1.0 = baseline)
 Reps per set (comp lifts): {week_target.reps_per_set_range[0]}–{week_target.reps_per_set_range[1]}
-Deload week: {'YES — reduce all loads; do NOT exceed 3 sets or 3 reps per set on any competition lift; prioritize movement quality over load' if week_target.is_deload else 'No'}
+Deload week: {deload_rule}
 
 ## Session Template
 Day {session_template.day_number}: {session_template.label}

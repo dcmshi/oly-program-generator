@@ -1,6 +1,7 @@
 # web/queries/profile.py
 """DB queries for athlete profile viewing and editing."""
 
+import json
 from datetime import date
 
 from web.formparse import parse_float as _float  # finite + bounded (WEB-L4)
@@ -30,7 +31,8 @@ async def get_athlete(conn, athlete_id: int) -> dict | None:
                bodyweight_kg, height_cm, date_of_birth, weight_class,
                training_age_years, sessions_per_week, session_duration_minutes,
                available_equipment, technical_faults, injuries, notes,
-               lift_emphasis, strength_limiters, competition_experience, timezone
+               lift_emphasis, strength_limiters, competition_experience, timezone,
+               COALESCE(exercise_preferences, '{}'::jsonb) AS exercise_preferences
         FROM athletes
         WHERE id = $1
         """,
@@ -133,6 +135,7 @@ async def update_profile(conn, athlete_id: int, data: dict):
             strength_limiters       = $17,
             competition_experience  = $18,
             timezone                = $19,
+            exercise_preferences    = COALESCE(exercise_preferences, '{}'::jsonb) || jsonb_build_object('prefs', $21::jsonb),
             updated_at              = NOW()
         WHERE id = $20
         """,
@@ -161,6 +164,7 @@ async def update_profile(conn, athlete_id: int, data: dict):
         data.get("competition_experience") or "none",
         data.get("timezone") or "UTC",
         athlete_id,
+        json.dumps(data.get("prefs") or {}),      # PLAN-2 training preferences; "avoid" is preserved by ||
     )
 
 

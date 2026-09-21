@@ -166,6 +166,43 @@
       </div>
     </div>
 
+    <!-- Training preferences (PLAN-2) -->
+    {% set prefs = (athlete.exercise_preferences or {}).get('prefs') or {} %}
+    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+      <div>
+        <label class="block text-xs font-medium text-ink-sec mb-1" for="pref_warmups">Warm-up sets</label>
+        <select name="pref_warmups" id="pref_warmups" class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
+          <option value="prescribed" {% if (prefs.get('warmups') or 'prescribed') == 'prescribed' %}selected{% endif %}>Written into the program</option>
+          <option value="own"        {% if prefs.get('warmups') == 'own' %}selected{% endif %}>I warm up on my own</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-ink-sec mb-1" for="pref_deload_style">Deload week</label>
+        <select name="pref_deload_style" id="pref_deload_style" class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
+          <option value="volume"    {% if (prefs.get('deload_style') or 'volume') == 'volume' %}selected{% endif %}>Cut volume (fewer sets)</option>
+          <option value="intensity" {% if prefs.get('deload_style') == 'intensity' %}selected{% endif %}>Cut intensity (lighter loads)</option>
+          <option value="none"      {% if prefs.get('deload_style') == 'none' %}selected{% endif %}>No deload week</option>
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-ink-sec mb-1" for="pref_deload_every_weeks">Extra deload every</label>
+        <select name="pref_deload_every_weeks" id="pref_deload_every_weeks" class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
+          <option value="" {% if not prefs.get('deload_every_weeks') %}selected{% endif %}>Only at block end</option>
+          {% for n in [3, 4, 5, 6] %}
+          <option value="{{ n }}" {% if prefs.get('deload_every_weeks') == n %}selected{% endif %}>{{ n }} weeks</option>
+          {% endfor %}
+        </select>
+      </div>
+      <div>
+        <label class="block text-xs font-medium text-ink-sec mb-1" for="pref_max_test">Max test at peak</label>
+        <select name="pref_max_test" id="pref_max_test" class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
+          <option value="auto"   {% if (prefs.get('max_test') or 'auto') == 'auto' %}selected{% endif %}>Phase decides</option>
+          <option value="always" {% if prefs.get('max_test') == 'always' %}selected{% endif %}>Always</option>
+          <option value="never"  {% if prefs.get('max_test') == 'never' %}selected{% endif %}>Never</option>
+        </select>
+      </div>
+    </div>
+
     <!-- Strength limiters -->
     <div>
       <p class="text-xs font-medium text-ink-sec mb-2">Strength limiters <span class="text-ink-faint">(what's holding performance back?)</span></p>

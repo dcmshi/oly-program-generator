@@ -14,21 +14,19 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan, SessionTemplate, WeekTarget
 from phase_profiles import build_weekly_targets
-from phase_progression import decide_next_phase
+from phase_progression import compute_load_deltas, decide_next_phase
 from pydantic import ValidationError
 from schemas import OutcomeSummary
 from session_templates import get_session_templates
 
 from shared.constants import (
-    ADJUST_RPE_DEVIATION,
-    ADVANCE_MIN_ADHERENCE_PCT,
-    ADVANCE_MIN_MAKE_RATE,
     BLOCK_WEEKS_DEFAULT_BY_LEVEL,
     BLOCK_WEEKS_MAX_BY_LEVEL,
     BLOCK_WEEKS_MIN,
-    EXCELLENT_ADHERENCE_PCT,
-    EXCELLENT_MAKE_RATE,
+    DELOAD_EVERY_WEEKS_OPTIONS,
     MAX_PRINCIPLE_CANDIDATES,
+    TRAINING_PREFERENCE_DEFAULTS,
+    TRAINING_PREFERENCE_OPTIONS,
 )
 from shared.db import fetch_all
 from shared.prilepin import compute_session_rep_target
@@ -58,9 +56,12 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
     phase, default_weeks = _select_phase_and_duration(athlete_context)
     duration_weeks = resolve_block_length(phase, default_weeks, athlete_context, duration_weeks)
     logger.info(f"Selected phase={phase}, duration={duration_weeks} weeks")
+    prefs = training_preferences(athlete_context.athlete)
 
     # ── Build weekly targets ───────────────────────────────────
-    raw_targets = build_weekly_targets(phase, duration_weeks, athlete_context.level)
+    raw_targets = build_weekly_targets(phase, duration_weeks, athlete_context.level,
+                                       deload_every_weeks=prefs.get("deload_every_weeks"),
+                                       deload_style=prefs["deload_style"])
 
     # ── Cold-start overrides ──────────────────────────────────
     intensity_ceiling_override = None
@@ -74,7 +75,9 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
         # the deload tail, so a beginner's first program ended on its heaviest
         # week with no deload (A-M9).
         duration_weeks = min(duration_weeks, 4)
-        raw_targets = build_weekly_targets(phase, duration_weeks, athlete_context.level)
+        raw_targets = build_weekly_targets(phase, duration_weeks, athlete_context.level,
+                                           deload_every_weeks=prefs.get("deload_every_weeks"),
+                                           deload_style=prefs["deload_style"])
         # Clamp the floor to the capped ceiling too — realization starts at
         # floor 85, so capping only the ceiling emitted a contradictory
         # "85%–80%" range in the prompt (AGT-M1; mirrors plan.py's
@@ -155,6 +158,20 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
         intensity_ceiling_override=intensity_ceiling_override,
         max_complexity=max_complexity,
     )
+
+
+def training_preferences(athlete: dict) -> dict:
+    """The athlete's training preferences with defaults filled in (PLAN-2):
+    `warmups`, `deload_style`, `max_test`, `deload_every_weeks` (int | None).
+    Unknown values fall back to the default so a hand-edited row can't break
+    planning."""
+    raw = ((athlete or {}).get("exercise_preferences") or {}).get("prefs") or {}
+    prefs = {}
+    for key, options in TRAINING_PREFERENCE_OPTIONS.items():
+        prefs[key] = raw.get(key) if raw.get(key) in options else TRAINING_PREFERENCE_DEFAULTS[key]
+    every = raw.get("deload_every_weeks")
+    prefs["deload_every_weeks"] = int(every) if isinstance(every, (int, float)) and int(every) in DELOAD_EVERY_WEEKS_OPTIONS else None
+    return prefs
 
 
 def resolve_block_length(phase: str, default_weeks: int, ctx: AthleteContext, requested: int | None) -> int:
@@ -262,21 +279,10 @@ def _apply_outcome_adjustments(raw_targets: list[dict], previous_program: dict) 
     make_rate = outcome.avg_make_rate
     rpe_dev = outcome.avg_rpe_deviation
 
-    vol_delta = 0.0
-    int_delta = 0.0
-
-    if adherence < ADVANCE_MIN_ADHERENCE_PCT:
-        vol_delta -= 0.10
-        logger.info(f"Outcome adjustment: adherence={adherence:.0f}% → volume -10%")
-    if make_rate < ADVANCE_MIN_MAKE_RATE:
-        int_delta -= 3.0
-        logger.info(f"Outcome adjustment: make_rate={make_rate:.0%} → intensity ceiling -3%")
-    if rpe_dev > ADJUST_RPE_DEVIATION:
-        vol_delta -= 0.05
-        logger.info(f"Outcome adjustment: rpe_deviation={rpe_dev:+.2f} → volume -5%")
-    if adherence >= EXCELLENT_ADHERENCE_PCT and make_rate >= EXCELLENT_MAKE_RATE:
-        int_delta += 2.0
-        logger.info("Outcome adjustment: excellent performance → intensity ceiling +2%")
+    # Proportional to the miss, one source with feedback's verdict labels (PLAN-2 §1.8).
+    vol_delta, int_delta, labels = compute_load_deltas(adherence, make_rate, rpe_dev)
+    for label in labels:
+        logger.info(f"Outcome adjustment: {label}")
 
     if vol_delta == 0.0 and int_delta == 0.0:
         return raw_targets

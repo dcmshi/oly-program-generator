@@ -371,8 +371,11 @@ def run(
 
         # ── Max test session (realization / intensification) ──
         peak_week = compute_peak_week(program_plan.weekly_targets)
-        if (not capped and PHASE_PROFILES.get(program_plan.phase, {}).get("includes_max_test")
-                and peak_week is not None):
+        from plan import training_preferences
+        max_test_pref = training_preferences(athlete_context.athlete)["max_test"]   # PLAN-2 §3.8
+        wants_max_test = {"always": True, "never": False}.get(
+            max_test_pref, bool(PHASE_PROFILES.get(program_plan.phase, {}).get("includes_max_test")))
+        if not capped and wants_max_test and peak_week is not None:
             max_test_day = compute_max_test_day(
                 program_plan.session_templates, program_plan.sessions_per_week
             )
