@@ -165,9 +165,16 @@ silently stall the gap it was meant to fill.
 Rows 1–6 are ingested on the dev copy (numbers in the Ingested Sources table). Rows
 7–12 all need a purchase; nothing in them has been obtained. What the sweep found:
 
-- **Rows 7, 8, 9 — and Verkhoshansky (row 10) too — are all in one place.** Sportivny
-  Press moved the *Russian Weightlifting Library* to ebooks in 2019–2020 (Kobo, Google
-  Play, Nook, Apple, Amazon; publisher Andrew Charniga): Roman *The Training of the
+- **Rows 7, 8, 9 and Verkhoshansky (row 10) were one purchase — and are now delisted.**
+  Sportivny Press moved the *Russian Weightlifting Library* to ebooks in 2019–2020 (Kobo,
+  Google Play, Nook, Apple, Amazon; publisher Andrew Charniga). Checked 2026-09-20: none of
+  them is on Kobo or Nook any more and Google Play shows "not available in your country" in
+  CA/US/UK — pulled after Charniga's death. Still sold digitally: only Charniga's own
+  compilations (*Weightlifting Training and Technique* — the Zhekov / Dvorkin / Roman
+  articles — *Training and Biomechanics*, *There is No System*, *De-Masculinization*) on
+  [Kobo CA](https://www.kobo.com/ca/en/ebook/weightlifting-training-and-technique). For the
+  books themselves the legitimate route is now used print ([EliteFTS](https://elitefts.com/products/the-training-of-the-weightlifter),
+  Westside Barbell list Roman) plus `--vision` OCR. The list as it was: Roman *The Training of the
   Weightlifter* and *The Snatch, the Clean and Jerk*; Medvedyev *A System of…* and
   *A Program of…* (row 8: `source_id=501` is *A Program of…* — its title page says so; the DB title was wrong until 2026-09-20 — so buy *A System of…*,
   [B08HYBSGWS](https://www.amazon.com/System-Multi-Year-Training-Weightlifting-Russian-ebook/dp/B08HYBSGWS));
@@ -177,7 +184,7 @@ Rows 1–6 are ingested on the dev copy (numbers in the Ingested Sources table).
   closer to this corpus's gap than *Special Strength Training: Manual for Coaches*);
   Laputin & Oleshko (a clean-text replacement for the OCR'd `source_id=499`); and the
   Zhekov/Lukashev compilation *Weightlifting Training and Technique* (biomechanics).
-  Buy the EPUBs from Kobo (Canada storefront works) — EPUB extracts cleanly, no OCR.
+  Bompa (row 12) is on [Kobo CA](https://www.kobo.com/ca/en/ebook/periodization-of-strength-training-for-sports) as an EPUB.
 - **Row 11 (Kono)** — the free Catalyst excerpt is ingested (`sources/url_lists/extras.json`);
   measure `fault_correction` retrieval before buying the print books.
 - **Row 12 (Bompa)** — unchanged; Kindle only.
