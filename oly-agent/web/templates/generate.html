@@ -30,6 +30,12 @@
   <form hx-post="/generate/run"
         hx-target="#gen-output"
         hx-swap="innerHTML">
+    <label class="block text-sm mb-4">
+      <span class="block mb-1">Block length (weeks)</span>
+      <input type="number" name="weeks" min="2" max="8" step="1" placeholder="auto"
+             class="border border-line rounded-lg px-3 py-1.5 w-28 bg-paper">
+      <span class="block text-xs text-ink-muted mt-1">Leave blank for the phase default (beginners up to 4, intermediates 6, advanced 8). A competition date overrides this.</span>
+    </label>
     <label class="flex items-center gap-2 text-sm mb-4 cursor-pointer">
       <input type="checkbox" name="dry_run" class="rounded">
       Dry run (ASSESS + PLAN only, no LLM calls)

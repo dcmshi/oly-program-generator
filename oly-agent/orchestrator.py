@@ -48,6 +48,7 @@ def run(
     dry_run: bool = False,
     deadline: float | None = None,
     max_sessions: int | None = None,
+    duration_weeks: int | None = None,
 ) -> int | None:
     """Generate a complete training program for the given athlete.
 
@@ -86,7 +87,7 @@ def run(
         # ── Step 2: PLAN ──────────────────────────────────────
         logger.info("=== Step 2: PLAN ===")
         _t0 = time.perf_counter()
-        program_plan = plan(athlete_context, conn, settings)
+        program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks)
         logger.info("Step 2 complete", extra={"step": "plan", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         if dry_run:
@@ -741,10 +742,12 @@ if __name__ == "__main__":
                         help="Athlete ID from the athletes table")
     parser.add_argument("--dry-run", action="store_true",
                         help="Run ASSESS + PLAN only; don't call LLM or write sessions")
+    parser.add_argument("--weeks", type=int, default=None,
+                        help="Block length; clamped to the athlete's level bounds, ignored when a competition date fixes it (PLAN-1)")
     args = parser.parse_args()
 
     settings = Settings()
-    program_id = run(args.athlete_id, settings, dry_run=args.dry_run)
+    program_id = run(args.athlete_id, settings, dry_run=args.dry_run, duration_weeks=args.weeks)
 
     if program_id:
         print(f"\nProgram generated: id={program_id}")

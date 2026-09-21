@@ -72,6 +72,21 @@ EXERCISE_NAME_MAX_CHARS: int = 200      # session_exercises / training_log_exerc
 INTENSITY_REFERENCE_MAX_CHARS: int = 100  # session_exercises.intensity_reference
 MAX_RPE_TARGET: float = 99.9            # session_exercises.rpe_target NUMERIC(3,1)
 
+# ── Block length (PLAN-1) ────────────────────────────────────────
+# A block is the phase profile's default length unless the athlete asks for
+# another (`--weeks` / the generate form). Level bounds keep a beginner off an
+# 8-week grind and let an advanced lifter run a longer accumulation; a
+# competition date still overrides (weeks_to_competition decides realization).
+BLOCK_WEEKS_MIN: int = 2
+BLOCK_WEEKS_MAX_BY_LEVEL: dict[str, int] = {"beginner": 4, "intermediate": 6, "advanced": 8, "elite": 8}
+# Level-aware defaults per phase when nothing is requested (None = profile default).
+BLOCK_WEEKS_DEFAULT_BY_LEVEL: dict[str, dict[str, int]] = {
+    "beginner":     {"general_prep": 4, "accumulation": 4},
+    "intermediate": {},
+    "advanced":     {"accumulation": 5},
+    "elite":        {"accumulation": 6},
+}
+
 # ── Phase advancement & outcome adjustments ─────────────────────
 # Used by plan._advance_phase / plan._apply_outcome_adjustments and mirrored
 # by feedback._compute_phase_verdict — keep both reading from here.

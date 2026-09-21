@@ -8,6 +8,8 @@ from web.auth import get_current_athlete_id
 from web.deps import get_db, limiter
 from web.queries import program as qp
 
+from shared.constants import BLOCK_WEEKS_MAX_BY_LEVEL, BLOCK_WEEKS_MIN
+
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/generate")
 
@@ -40,9 +42,21 @@ async def run_generation(
     from web.app import templates
     form = await request.form()
     dry_run = form.get("dry_run") == "on"
+    duration_weeks = None
+    raw_weeks = (form.get("weeks") or "").strip()
+    if raw_weeks:
+        try:
+            duration_weeks = int(raw_weeks)
+        except ValueError:
+            return HTMLResponse('<div class="text-red-700 text-sm">Block length must be a whole number of weeks.</div>', status_code=422)
+        if not BLOCK_WEEKS_MIN <= duration_weeks <= max(BLOCK_WEEKS_MAX_BY_LEVEL.values()):
+            return HTMLResponse(
+                f'<div class="text-red-700 text-sm">Block length must be between {BLOCK_WEEKS_MIN} and '
+                f'{max(BLOCK_WEEKS_MAX_BY_LEVEL.values())} weeks.</div>', status_code=422)
     request_id = getattr(request.state, "request_id", "-")
     try:
-        job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run, request_id=request_id)
+        job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run, request_id=request_id,
+                                              duration_weeks=duration_weeks)
     except jobs.GenerationInFlightError:
         logger.info(f"Generation rejected — already in flight for athlete {athlete_id}")
         return HTMLResponse(

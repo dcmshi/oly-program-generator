@@ -321,13 +321,15 @@ def test_worker_passes_deadline_to_orchestrator():
     import web.worker as worker
     captured = {}
 
-    def fake_run(athlete_id, settings, dry_run=False, deadline=None):
+    def fake_run(athlete_id, settings, dry_run=False, deadline=None, duration_weeks=None):
         captured["deadline"] = deadline
+        captured["duration_weeks"] = duration_weeks
         return 42
 
     with patch("orchestrator.run", side_effect=fake_run):
-        result = asyncio.run(worker.run_generation({}, 1))
+        result = asyncio.run(worker.run_generation({}, 1, duration_weeks=6))
     assert result["program_id"] == 42
+    assert captured["duration_weeks"] == 6                      # PLAN-1: the form's block length reaches the planner
     assert captured.get("deadline") is not None, \
         "worker must pass a monotonic deadline (WEB-M8 — thread outlives job_timeout)"
 

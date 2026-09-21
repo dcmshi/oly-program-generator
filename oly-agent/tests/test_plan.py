@@ -322,6 +322,38 @@ def test_plan_total_reps_positive():
             assert wt.total_competition_lift_reps > 0
 
 
+# ── resolve_block_length (PLAN-1) ────────────────────────────────────────────
+
+def test_block_length_default_is_level_aware():
+    from plan import resolve_block_length
+
+    from shared.constants import BLOCK_WEEKS_DEFAULT_BY_LEVEL
+    assert resolve_block_length("accumulation", 4, _ctx(level="intermediate"), None) == 4
+    assert resolve_block_length("accumulation", 4, _ctx(level="advanced"), None) == BLOCK_WEEKS_DEFAULT_BY_LEVEL["advanced"]["accumulation"]
+    assert resolve_block_length("realization", 3, _ctx(level="elite"), None) == 3      # no level default → profile
+
+
+def test_block_length_request_is_clamped_to_level_bounds():
+    from plan import resolve_block_length
+    assert resolve_block_length("accumulation", 4, _ctx(level="intermediate"), 6) == 6
+    assert resolve_block_length("accumulation", 4, _ctx(level="intermediate"), 8) == 6   # intermediate max
+    assert resolve_block_length("accumulation", 4, _ctx(level="beginner"), 6) == 4       # beginner max
+    assert resolve_block_length("accumulation", 4, _ctx(level="advanced"), 1) == 2       # floor
+
+
+def test_block_length_competition_date_wins():
+    from plan import resolve_block_length
+    assert resolve_block_length("realization", 2, _ctx(weeks_to_competition=2), 6) == 2
+
+
+def test_plan_honours_requested_weeks_end_to_end():
+    with patch("plan.fetch_all", return_value=[]):
+        result = plan(_ctx(level="intermediate", previous_program={"phase": "realization", "outcome_summary": {}}),   # → accumulation rebuild
+                      conn=None, settings=_FakeSettings(), duration_weeks=6)
+    assert result.duration_weeks == 6 and len(result.weekly_targets) == 6
+    assert result.weekly_targets[-1].is_deload                      # extension keeps the deload last
+
+
 # ── Runner ───────────────────────────────────────────────────────────────────
 
 if __name__ == "__main__":

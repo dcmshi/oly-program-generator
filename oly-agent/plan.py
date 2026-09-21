@@ -23,6 +23,9 @@ from shared.constants import (
     ADJUST_RPE_DEVIATION,
     ADVANCE_MIN_ADHERENCE_PCT,
     ADVANCE_MIN_MAKE_RATE,
+    BLOCK_WEEKS_DEFAULT_BY_LEVEL,
+    BLOCK_WEEKS_MAX_BY_LEVEL,
+    BLOCK_WEEKS_MIN,
     EXCELLENT_ADHERENCE_PCT,
     EXCELLENT_MAKE_RATE,
     MAX_PRINCIPLE_CANDIDATES,
@@ -33,7 +36,7 @@ from shared.prilepin import compute_session_rep_target
 logger = logging.getLogger(__name__)
 
 
-def plan(athlete_context: AthleteContext, conn, settings) -> ProgramPlan:
+def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | None = None) -> ProgramPlan:
     """Determine the program shape from athlete context.
 
     Decision tree:
@@ -46,9 +49,14 @@ def plan(athlete_context: AthleteContext, conn, settings) -> ProgramPlan:
       - First program (cold start) -> map goal_type to phase, cap intensity
       - Has previous program -> advance phase along progression, adjust by outcome
 
+    `duration_weeks` (PLAN-1) overrides the phase default when the athlete asked
+    for a length; it is clamped to the level's bounds and ignored when a
+    competition date fixes the block (realization runs to the meet).
+
     Returns a ProgramPlan with weekly targets and session templates.
     """
-    phase, duration_weeks = _select_phase_and_duration(athlete_context)
+    phase, default_weeks = _select_phase_and_duration(athlete_context)
+    duration_weeks = resolve_block_length(phase, default_weeks, athlete_context, duration_weeks)
     logger.info(f"Selected phase={phase}, duration={duration_weeks} weeks")
 
     # ── Build weekly targets ───────────────────────────────────
@@ -145,6 +153,27 @@ def plan(athlete_context: AthleteContext, conn, settings) -> ProgramPlan:
         intensity_ceiling_override=intensity_ceiling_override,
         max_complexity=max_complexity,
     )
+
+
+def resolve_block_length(phase: str, default_weeks: int, ctx: AthleteContext, requested: int | None) -> int:
+    """PLAN-1: the block length actually used.
+
+    - competition date set → the phase/length the date implies, never overridden
+    - requested → clamped to [BLOCK_WEEKS_MIN, BLOCK_WEEKS_MAX_BY_LEVEL[level]]
+    - otherwise → the level's default for this phase, else the profile default
+    """
+    if ctx.weeks_to_competition is not None:
+        if requested is not None and requested != default_weeks:
+            logger.info(f"Requested {requested} weeks ignored — competition in {ctx.weeks_to_competition} weeks fixes the block at {default_weeks}")
+        return default_weeks
+    level = ctx.level if ctx.level in BLOCK_WEEKS_MAX_BY_LEVEL else "intermediate"
+    upper = BLOCK_WEEKS_MAX_BY_LEVEL[level]
+    if requested is not None:
+        clamped = max(BLOCK_WEEKS_MIN, min(upper, int(requested)))
+        if clamped != requested:
+            logger.info(f"Requested {requested} weeks clamped to {clamped} for a {level} athlete")
+        return clamped
+    return BLOCK_WEEKS_DEFAULT_BY_LEVEL.get(level, {}).get(phase, default_weeks)
 
 
 def _select_phase_and_duration(ctx: AthleteContext) -> tuple[str, int]:

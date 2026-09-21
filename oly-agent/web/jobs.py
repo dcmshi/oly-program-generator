@@ -71,7 +71,8 @@ async def close_arq_pool() -> None:
         _arq_pool = None
 
 
-async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: str = "-") -> str:
+async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: str = "-",
+                            duration_weeks: int | None = None) -> str:
     if _arq_pool is None:
         raise RuntimeError("ARQ pool not initialised — is Redis running?")
     # One in-flight generation per athlete — double-clicks otherwise queue N
@@ -83,7 +84,8 @@ async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: 
     # job payload itself — no separate owner key that could race the enqueue or
     # outlive/under-live the job (W-L4).
     try:
-        job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run, request_id=request_id)
+        job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run, request_id=request_id,
+                                          duration_weeks=duration_weeks)
     except BaseException:
         # No job exists to release the guard via the status poll — without this
         # the athlete is locked out for the full TTL (audit2-L5). BaseException:
