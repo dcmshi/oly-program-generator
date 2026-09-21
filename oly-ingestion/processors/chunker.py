@@ -90,6 +90,8 @@ SOURCE_PROFILE_MAP = {
     "Weightlifting Training and Biomechanics": SourceProfile.THEORY_HEAVY,
     "There Is No System": SourceProfile.THEORY_HEAVY,
     "A De-Masculinization of Strength": SourceProfile.THEORY_HEAVY,
+    "Weightlifting, Olympic Style": SourceProfile.PROGRAMMING_FOCUSED,
+    "Junior Weightlifting": SourceProfile.PROGRAMMING_FOCUSED,
     "Science and Practice of Strength Training": SourceProfile.THEORY_HEAVY,
     "Supertraining": SourceProfile.THEORY_HEAVY,
     "Weightlifting Encyclopedia": SourceProfile.THEORY_HEAVY,

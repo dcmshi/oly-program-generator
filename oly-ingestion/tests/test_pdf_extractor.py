@@ -419,3 +419,27 @@ def test_force_vision_skips_the_text_layer(tmp_path):
     import pytest
     with pytest.raises(ValueError):
         PDFExtractor(anthropic_client=None, force_vision=True).extract(pdf)
+
+
+def test_vision_retries_blank_pages_singly(tmp_path):
+    """OCR-QA: a page that came back blank from its group is re-OCR'd on its own;
+    the recovered text is used and cached, a page still blank is reported."""
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake")
+    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="m", ocr_cache=False)
+    doc = MagicMock()
+    doc.__len__ = lambda self: 5
+    calls = []
+
+    def fake_ocr(d, start, end):
+        calls.append((start, end))
+        if end - start > 1:                      # group pass: pages 2 and 4 lost
+            return [f"page {i + 1}" if i not in (1, 3) else "" for i in range(start, end)]
+        return ["recovered page 2"] if start == 1 else [""]
+
+    fz = MagicMock()
+    fz.open.return_value = doc
+    with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr):
+        pages = extractor._extract_with_vision(pdf)
+    assert calls == [(0, 5), (1, 2), (3, 4)]
+    assert pages == ["page 1", "recovered page 2", "page 3", "page 5"]   # page 4 still blank → omitted

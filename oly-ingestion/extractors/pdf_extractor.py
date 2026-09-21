@@ -238,6 +238,28 @@ class PDFExtractor:
             pages[i] = text
             if cache is not None:
                 cache.put(i, text)
+
+        # OCR quality gate (OCR-QA): a group whose reply lost its page headers
+        # comes back as blank pages — Roman pp. 86–90 vanished that way on
+        # 2026-09-20 with only a warning. Re-OCR every blank page on its own
+        # once; what is still blank after that is reported page by page so the
+        # run log says which pages the corpus is missing.
+        blank = [i for i in range(n_pages) if not pages.get(i, "").strip()]
+        if blank and not self._batch:
+            logger.warning(f"Vision OCR: {len(blank)} blank page(s) after the group pass — retrying singly: "
+                           f"{[i + 1 for i in blank][:20]}")
+            for i in blank:
+                text = self._ocr_batch(doc, i, i + 1)[0]
+                if text.strip():
+                    pages[i] = text
+                    fresh.append((i, text))
+                    if cache is not None:
+                        cache.put(i, text)
+            still = [i + 1 for i in blank if not pages.get(i, "").strip()]
+            if still:
+                logger.error(f"Vision OCR: {len(still)} page(s) still blank after retry — missing from the corpus: {still}")
+            else:
+                logger.info(f"  Vision OCR: all {len(blank)} blank page(s) recovered on retry")
         if cache is not None and fresh:
             cache.save()
             logger.info(f"  OCR cache: {len(cache)} page(s) stored at {cache.path}")
