@@ -12,6 +12,7 @@ Checks:
 """
 
 import sys
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -22,6 +23,7 @@ from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
     EXERCISE_NAME_MAX_CHARS,
     INTENSITY_REFERENCE_MAX_CHARS,
+    MAX_ACCESSORY_SESSIONS_PER_WEEK,
     MAX_RPE_TARGET,
     PRILEPIN_HARD_CAP_MULTIPLIER,
     SESSION_DURATION_TOLERANCE,
@@ -30,7 +32,7 @@ from shared.constants import (
     WARMUP_VOLUME_EXCLUSION_PCT,
     WEEKLY_REP_BUDGET_TOLERANCE,
 )
-from shared.exercise_mapping import is_competition_lift
+from shared.exercise_mapping import is_accessory, is_competition_lift
 from shared.formulas import estimate_session_minutes
 from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
@@ -66,6 +68,7 @@ def validate_session(
     athlete: dict,
     week_cumulative_reps: dict | None = None,
     fault_exercise_names: list[str] | None = None,
+    week_already_prescribed: list[dict] | None = None,
 ) -> ValidationResult:
     """Validate a generated session against all programming constraints.
 
@@ -319,6 +322,20 @@ def validate_session(
                     f"First exercise is '{first.get('exercise_name')}', "
                     f"but principle requires competition lifts first"
                 )
+
+    # ── Check 7: Accessory variety across the week (DOG-1) ────
+    # A warning only — an accessory repeated a third time is a quality note,
+    # not worth a paid retry.
+    prior_acc = Counter(
+        ex.get("exercise_name") for ex in (week_already_prescribed or []) if is_accessory(ex.get("exercise_name"))
+    )
+    for ex in session_exercises:
+        name = ex.get("exercise_name")
+        if is_accessory(name) and prior_acc.get(name, 0) >= MAX_ACCESSORY_SESSIONS_PER_WEEK:
+            warnings.append(
+                f"{name}: already prescribed in {prior_acc[name]} sessions this week "
+                f"(max {MAX_ACCESSORY_SESSIONS_PER_WEEK} for an accessory)"
+            )
 
     # ── Check 6: Estimated session duration ───────────────────
     available_minutes = athlete.get("session_duration_minutes") or DEFAULT_SESSION_DURATION_MINUTES

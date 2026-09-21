@@ -33,6 +33,7 @@ from validate import validate_session
 from shared.constants import (
     DEFAULT_SESSION_DURATION_MINUTES,
     LLM_MAX_TOKENS_CEILING,
+    MAX_ACCESSORY_SESSIONS_PER_WEEK,
     MAX_CONTEXT_CHUNKS,
     MAX_FAULT_CHUNKS_IN_CONTEXT,
     MAX_PRINCIPLES_IN_PROMPT,
@@ -44,6 +45,7 @@ from shared.constants import (
     PROMPT_STATIC_DYNAMIC_MARKER,
     SNIPPET_MAX_CHARS,
 )
+from shared.exercise_mapping import is_accessory
 from shared.llm import (
     create_message_with_retries,
     estimate_cost,
@@ -630,6 +632,13 @@ def build_session_prompt(
 
     # ── Already prescribed this week ─────────────────────────
     if already_prescribed:
+        # DOG-1: accessories already used twice this week are named so the model
+        # varies them (validate.py check 7 warns on the same rule).
+        from collections import Counter
+        acc_days = Counter(
+            ex.get("exercise_name") for ex in already_prescribed if is_accessory(ex.get("exercise_name"))
+        )
+        saturated = sorted(n for n, c in acc_days.items() if c >= MAX_ACCESSORY_SESSIONS_PER_WEEK)
         ap_lines = [
             f"  D{ex.get('day_number', '?')}: {ex.get('exercise_name')} "
             f"{ex.get('sets')}x{ex.get('reps')} @ {ex.get('intensity_pct')}%"
@@ -637,6 +646,9 @@ def build_session_prompt(
             for ex in already_prescribed
         ]
         already_block = "\n".join(ap_lines)
+        if saturated:
+            already_block += (f"\n  Accessories already used {MAX_ACCESSORY_SESSIONS_PER_WEEK} times this week — "
+                              f"choose a different accessory: {', '.join(saturated)}")
     else:
         already_block = "  (first session of the week)"
 
@@ -732,6 +744,7 @@ You MUST NOT:
 (Pulls, deadlifts, squats and presses are not competition lifts: they may sit above the ceiling — up to ~120% of the referenced max — and take 3-5 reps per set; reference the lift's own max when one is listed, e.g. "clean_pull".)
 - Include exercises from the avoid list
 - Include exercises the athlete cannot perform due to injuries
+- Prescribe the same accessory exercise (back extensions, presses, rows, RDLs, core work) in more than {MAX_ACCESSORY_SESSIONS_PER_WEEK} sessions of a week — vary accessories across the week
 {"- Prescribe any exercise requiring lifting blocks (e.g. any from-blocks variation) — athlete does not have blocks available." if not has_blocks else ""}
 
 ## Athlete Profile
@@ -876,6 +889,7 @@ def generate_session_with_retries(
     conn,
     fault_exercise_names: list[str] | None = None,
     retrieval_set: list[dict] | None = None,
+    week_already_prescribed: list[dict] | None = None,
 ) -> GenerationResult:
     """Generate one session with parse + validation retries.
 
@@ -1024,6 +1038,7 @@ def generate_session_with_retries(
             athlete=athlete,
             week_cumulative_reps=week_cumulative_reps,
             fault_exercise_names=fault_exercise_names,
+            week_already_prescribed=week_already_prescribed,
         )
         if not last_validation.is_valid:
             logger.warning(f"  Validation errors (attempt {attempt}): {last_validation.errors}")

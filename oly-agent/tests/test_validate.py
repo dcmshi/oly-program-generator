@@ -885,3 +885,25 @@ def test_comp_lift_first_principle_sees_through_a_borrowed_max():
 
 if __name__ == "__main__":
     main()
+
+
+def test_accessory_repeated_beyond_weekly_cap_is_a_warning_not_an_error():
+    """DOG-1: Back Extension in a third session of the week warns (no paid retry);
+    squats / pulls / comp lifts are exempt."""
+    from validate import validate_session
+
+    from shared.constants import MAX_ACCESSORY_SESSIONS_PER_WEEK
+    prior = [{"exercise_name": "Back Extension", "day_number": d} for d in range(1, MAX_ACCESSORY_SESSIONS_PER_WEEK + 1)]
+    prior += [{"exercise_name": "Back Squat", "day_number": d} for d in range(1, 4)]
+    session = [
+        {"exercise_name": "Back Extension", "exercise_order": 1, "sets": 3, "reps": 10, "intensity_pct": None,
+         "intensity_reference": "bodyweight", "rest_seconds": 60, "rpe_target": 7.0},
+        {"exercise_name": "Back Squat", "exercise_order": 2, "sets": 4, "reps": 5, "intensity_pct": 75,
+         "intensity_reference": "back_squat", "rest_seconds": 120, "rpe_target": 7.5},
+    ]
+    week = {"intensity_floor": 70, "intensity_ceiling": 80, "reps_per_set_range": [3, 5],
+            "total_competition_lift_reps": 60, "volume_modifier": 1.0, "is_deload": False, "week_number": 1}
+    r = validate_session(session, week, [], {"exercise_preferences": {}}, week_already_prescribed=prior)
+    assert r.is_valid
+    assert any("Back Extension" in w and "max" in w for w in r.warnings)
+    assert not any("Back Squat" in w for w in r.warnings)

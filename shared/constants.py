@@ -13,6 +13,11 @@ MIN_SESSION_DURATION_MINUTES: int = 30   # floor for a session duration estimate
 # ── Prilepin chart ───────────────────────────────────────────────
 PRILEPIN_HARD_CAP_MULTIPLIER: float = 1.5   # hard session-volume cap = range_high * this
 MIN_SESSION_REPS: int = 3                    # minimum reps to be a meaningful set
+# An accessory (anything that is not a competition lift, squat or pull) may
+# appear in at most this many sessions of one week — Back Extension turned
+# up in 10 of 16 sessions of program 12 and 8 of 16 of program 23 (DOG-1).
+# A prompt rule + a validator WARNING (never a paid retry).
+MAX_ACCESSORY_SESSIONS_PER_WEEK: int = 2
 WEEKLY_REP_BUDGET_TOLERANCE: float = 1.25   # warn when weekly comp reps exceed budget × this (AGT-L3)
 
 # ── Vector search ────────────────────────────────────────────────

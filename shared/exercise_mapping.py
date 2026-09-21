@@ -52,6 +52,17 @@ NON_COMP_LIFT_NAME_MARKERS: tuple[str, ...] = (
 )
 
 
+_MAIN_WORK_MARKERS = ("snatch", "clean", "jerk", "squat", "pull", "deadlift")
+
+
+def is_accessory(exercise_name) -> bool:
+    """True for supporting work that is neither a competition lift nor a squat
+    or pull (back extension, press, row, RDL, core …) — the pool the weekly
+    accessory-variety rule applies to (MAX_ACCESSORY_SESSIONS_PER_WEEK)."""
+    name = (exercise_name or "").lower()
+    return bool(name) and not any(m in name for m in _MAIN_WORK_MARKERS)
+
+
 def is_competition_lift(exercise_name, intensity_reference) -> bool:
     """True for a snatch / clean / jerk / C&J and their power, hang, block,
     pause, muscle … variants: the rows Prilepin's chart, the week's intensity

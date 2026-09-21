@@ -301,6 +301,7 @@ def run(
                     conn=conn,
                     fault_exercise_names=fault_exercise_names,
                     retrieval_set=retrieval_set,
+                    week_already_prescribed=week_already_prescribed,
                 )
 
                 cumulative_cost += estimate_cost(
@@ -345,6 +346,7 @@ def run(
                     active_principles=session_principles,
                     athlete=athlete_context.athlete,
                     week_cumulative_reps=week_cumulative_reps,
+                    week_already_prescribed=week_already_prescribed,
                 )
                 for zone, reps in validation.session_comp_reps.items():
                     week_cumulative_reps[zone] = week_cumulative_reps.get(zone, 0) + reps
