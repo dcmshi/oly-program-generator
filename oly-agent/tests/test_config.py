@@ -138,19 +138,22 @@ def test_model_roles_resolve_arg_env_default():
 
     from shared.config import DEFAULT_GENERATION_MODEL, DEFAULT_LIGHT_MODEL, DEFAULT_LLM_MODEL
 
-    saved = {k: os.environ.pop(k, None) for k in ("LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
+    saved = {k: os.environ.pop(k, None) for k in ("LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL", "JUDGE_MODEL")}
     try:
         s = Settings()
         assert s.llm_model == DEFAULT_LLM_MODEL == "claude-sonnet-5"      # MODEL-1b (2026-09-20)
         assert s.light_model == DEFAULT_LIGHT_MODEL == "claude-haiku-4-5-20251001"
+        assert s.judge_model == s.light_model                              # JUDGE-1: blank judge = light model
         # MODEL-1 (2026-09-16 baseline): the agent roles moved to Sonnet 5
         assert s.generation_model == DEFAULT_GENERATION_MODEL == "claude-sonnet-5"
         assert s.explanation_model == DEFAULT_GENERATION_MODEL
 
         os.environ["LIGHT_MODEL"] = "light-from-env"
         os.environ["GENERATION_MODEL"] = "gen-from-env"
+        os.environ["JUDGE_MODEL"] = "judge-from-env"
         s = Settings()
         assert s.light_model == "light-from-env" and s.generation_model == "gen-from-env"
+        assert s.judge_model == "judge-from-env"
         assert s.explanation_model == DEFAULT_GENERATION_MODEL  # untouched role keeps its default
 
         s = Settings(light_model="explicit", generation_model="explicit-gen")

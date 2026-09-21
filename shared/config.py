@@ -80,6 +80,7 @@ class Settings:
     llm_model: str = ""
     llm_max_tokens: int = 4096
     light_model: str = ""
+    judge_model: str = ""        # golden-set grader (JUDGE-1); blank = light_model
     # TEMPLATE_MODEL: program-template parsing only; blank = llm_model. Split out
     # on 2026-09-20 because Kimi K3 handles principle extraction and OCR but
     # returned one empty template parse in four (a silently lost program), and
@@ -198,6 +199,7 @@ class Settings:
         self.llm_model = self.llm_model or os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL)
         self.light_model = self.light_model or os.getenv("LIGHT_MODEL", DEFAULT_LIGHT_MODEL)
         self.template_model = self.template_model or os.getenv("TEMPLATE_MODEL", "") or self.llm_model
+        self.judge_model = self.judge_model or os.getenv("JUDGE_MODEL", "") or self.light_model
         self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", DEFAULT_GENERATION_MODEL)
         self.explanation_model = self.explanation_model or os.getenv("EXPLANATION_MODEL", DEFAULT_GENERATION_MODEL)
         self.generation_thinking = (self.generation_thinking
@@ -211,6 +213,7 @@ class Settings:
             self.llm_model = openrouter_model_id(self.llm_model)
             self.template_model = openrouter_model_id(self.template_model)
             self.light_model = openrouter_model_id(self.light_model)
+            self.judge_model = openrouter_model_id(self.judge_model)
             self.generation_model = openrouter_model_id(self.generation_model)
             self.explanation_model = openrouter_model_id(self.explanation_model)
 

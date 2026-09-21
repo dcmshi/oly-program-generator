@@ -20,7 +20,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for sh
 import shared.config  # noqa: E402,F401  (loads .env once)
 
 os.environ["LLM_PROVIDER"] = "anthropic"
-for _var in ("LLM_MODEL", "LIGHT_MODEL", "TEMPLATE_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL",
+for _var in ("LLM_MODEL", "LIGHT_MODEL", "JUDGE_MODEL", "TEMPLATE_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL",
              "GENERATION_THINKING", "GENERATION_EFFORT", "EXPLANATION_THINKING", "EXPLANATION_EFFORT",
              "LLM_BASE_URL"):
     os.environ.pop(_var, None)

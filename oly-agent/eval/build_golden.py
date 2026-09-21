@@ -10,7 +10,7 @@ golden.json; run_eval.py then scores any retriever change against them.
     cd oly-agent
     PYTHONUTF8=1 uv run python -m eval.build_golden --dry-run        # queries + pool sizes, no LLM
     PYTHONUTF8=1 uv run python -m eval.build_golden --limit 5        # smoke test
-    PYTHONUTF8=1 uv run python -m eval.build_golden [--model claude-haiku-4-5-20251001]
+    PYTHONUTF8=1 uv run python -m eval.build_golden [--model z-ai/glm-5.3-flash]   # default: settings.judge_model
 
 Cost: ~70 queries × ~30 candidates × ~400 tokens ≈ 1M input tokens — about a
 dollar on a Haiku-class model. Skim the output (grades are stored next to a
@@ -169,7 +169,7 @@ def main(argv=None) -> int:
     parser.add_argument("--out", type=Path, default=_HERE / "golden.json")
     parser.add_argument("--dry-run", action="store_true", help="print queries + pool sizes; no LLM calls")
     parser.add_argument("--limit", type=int, default=0, help="only the first N queries (smoke test)")
-    parser.add_argument("--model", default=None, help="grading model (default: settings.light_model)")
+    parser.add_argument("--model", default=None, help="grading model (default: settings.judge_model — JUDGE_MODEL in .env)")
     args = parser.parse_args(argv)
 
     from eval.queries import all_queries
@@ -185,7 +185,7 @@ def main(argv=None) -> int:
     client = None
     if not args.dry_run:
         client = create_llm_client(settings)
-    model = light_model_for(settings, args.model)
+    model = args.model or settings.judge_model or light_model_for(settings, None)
 
     graded = []
     try:

@@ -14,7 +14,7 @@ No re-embedding: `content`/`embedding` are untouched. Safe to re-run.
 Usage (from oly-ingestion/):
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --dry-run             # distribution shift only
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --source-id 51        # one source
-    PYTHONUTF8=1 uv run python relabel_chunk_types.py --model claude-haiku-4-5-20251001
+    PYTHONUTF8=1 uv run python relabel_chunk_types.py [--model anthropic/claude-haiku-4.5]   # default: settings.light_model
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --limit 200           # smoke test
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --batch               # Batch API, half price (COST-1)
     PYTHONUTF8=1 uv run python relabel_chunk_types.py --judge jev           # Jev (typesafe.ai), ~$0.08 corpus-wide
