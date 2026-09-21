@@ -360,6 +360,15 @@ class PrincipleExtractor:
             try:
                 if isinstance(item, dict):
                     item = {**item, "condition": sanitize_condition(item.get("condition"))}
+                    # Open models through OpenRouter don't always honour the
+                    # schema's enums (Kimi K3 emitted category "hard_constraint"
+                    # on Bompa, 2026-09-20); the DB enum would reject the row.
+                    for field, allowed, fallback in (("category", PRINCIPLE_CATEGORIES, "periodization"),
+                                                     ("rule_type", RULE_TYPES, RULE_TYPES[0])):
+                        if item.get(field) not in allowed:
+                            logger.warning(f"Principle {item.get('principle_name')!r}: {field}={item.get(field)!r} "
+                                           f"is not in the enum — using {fallback!r}")
+                            item[field] = fallback
                 principles.append(ExtractedPrinciple(**item))
             except (TypeError, KeyError) as e:
                 logger.warning(f"Skipping malformed principle: {e}")

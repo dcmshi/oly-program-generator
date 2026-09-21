@@ -78,3 +78,19 @@ def test_condition_keys_match_the_agent_matcher():
     from principle_matcher import KNOWN_CONDITION_KEYS
 
     assert set(CONDITION_KEYS) == set(KNOWN_CONDITION_KEYS)
+
+
+def test_parse_response_coerces_out_of_enum_category_and_rule_type():
+    """Open models via OpenRouter don't always honour schema enums (Kimi emitted
+    category='hard_constraint' on Bompa); the row must not reach the DB enum."""
+    from types import SimpleNamespace
+
+    from processors.principle_extractor import PrincipleExtractor
+
+    item = {"principle_name": "Eccentric spotter requirement", "category": "hard_constraint",
+            "rule_type": "must", "condition": {}, "recommendation": {"spotter": True}, "rationale": "safety",
+            "priority": 3}
+    msg = SimpleNamespace(content=[SimpleNamespace(type="text", text='{"principles": [%s]}' % __import__("json").dumps(item))])
+    out = PrincipleExtractor._parse_response(msg, "Bompa")
+    assert len(out) == 1
+    assert out[0].category == "periodization" and out[0].rule_type == "hard_constraint"
