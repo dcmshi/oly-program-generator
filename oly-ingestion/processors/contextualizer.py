@@ -27,6 +27,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.chunker import Chunk
+from shared.constants import CONTEXTUALIZE_CONCURRENCY
 from shared.llm import create_message_with_retries, message_text, thinking_kwargs
 
 logger = logging.getLogger(__name__)
@@ -106,22 +107,40 @@ def contextualize(
         "text": build_document_block(document, source_title),
         "cache_control": {"type": "ephemeral"},   # the section is reused across its chunks
     }]
+    def one(chunk):
+        message = create_message_with_retries(
+            client,
+            model=model,
+            max_tokens=MAX_CONTEXT_TOKENS,
+            system=system_block,
+            messages=[{"role": "user", "content": build_chunk_message(chunk.raw_content)}],
+            **thinking_kwargs(model, "disabled"),   # two sentences out — never think
+        )
+        return message_text(message).strip()
+
+    # The chunks of one section are independent short calls — run them
+    # concurrently (OCR-PERF); the first call warms the cached section block
+    # for the rest, so it goes alone.
+    from concurrent.futures import ThreadPoolExecutor
+
     done = 0
-    for chunk in chunks:
+    results: dict[int, str] = {}
+    if chunks:
         try:
-            message = create_message_with_retries(
-                client,
-                model=model,
-                max_tokens=MAX_CONTEXT_TOKENS,
-                system=system_block,
-                messages=[{"role": "user", "content": build_chunk_message(chunk.raw_content)}],
-                **thinking_kwargs(model, "disabled"),   # two sentences out — never think
-            )
-            text = message_text(message).strip()
-            if text:
-                apply_context(chunk, text)
-                done += 1
+            results[0] = one(chunks[0])
         except Exception as e:
             logger.warning(f"Contextualizer skipped a chunk ({type(e).__name__}: {e})")
+        with ThreadPoolExecutor(max_workers=CONTEXTUALIZE_CONCURRENCY) as pool:
+            futures = {pool.submit(one, c): k for k, c in enumerate(chunks) if k > 0}
+            for fut, k in futures.items():
+                try:
+                    results[k] = fut.result()
+                except Exception as e:
+                    logger.warning(f"Contextualizer skipped a chunk ({type(e).__name__}: {e})")
+    for k, chunk in enumerate(chunks):
+        text = results.get(k, "")
+        if text:
+            apply_context(chunk, text)
+            done += 1
     logger.info(f"  Contextualized {done}/{len(chunks)} chunk(s) with {model}")
     return chunks

@@ -227,3 +227,8 @@ OCR_VIEW_ROTATIONS_DEG: tuple[float, ...] = (1.5, -1.5)   # second / third view:
 LLM_REQUEST_TIMEOUT_S: float = 300.0
 OCR_REQUEST_TIMEOUT_S: float = 240.0
 OCR_REQUEST_ATTEMPTS: int = 4
+# Page groups OCR'd concurrently (OCR-PERF). Four keeps well under OpenRouter's
+# per-key limits for Kimi K3 and cuts a 150-page scan from ~25 to ~7 minutes;
+# raise it only if the log shows no 429 retries.
+OCR_CONCURRENCY: int = 4
+CONTEXTUALIZE_CONCURRENCY: int = 6

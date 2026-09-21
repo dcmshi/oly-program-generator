@@ -380,7 +380,7 @@ def test_vision_uses_the_page_cache_and_only_transcribes_missing_groups(tmp_path
     doc.__len__ = lambda self: 7
     calls = []
 
-    def fake_ocr(d, start, end):
+    def fake_ocr(d, start, end, dpi=150, view=0, images=None):
         calls.append((start, end))
         return [f"fresh page {i + 1}" for i in range(start, end)]
 
@@ -433,7 +433,7 @@ def test_vision_retries_blank_pages_singly(tmp_path):
 
     body = "The lifter pulls the bar and drops under it in one continuous movement. " * 6
 
-    def fake_ocr(d, start, end, dpi=150, view=0):
+    def fake_ocr(d, start, end, dpi=150, view=0, images=None):
         calls.append((start, end, dpi, view))
         if end - start > 1:                      # group pass: pages 2 and 4 lost
             return [f"page {i + 1} {body}" if i not in (1, 3) else "" for i in range(start, end)]
@@ -441,7 +441,7 @@ def test_vision_retries_blank_pages_singly(tmp_path):
 
     fz = MagicMock()
     fz.open.return_value = doc
-    with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr),          patch.object(extractor, "_page_has_ink", return_value=True):
+    with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr),          patch.object(extractor, "_render_group", return_value=[b"png"] * 5),          patch.object(extractor, "_page_has_ink", return_value=True):
         pages = extractor._extract_with_vision(pdf)
     # suspects get a second view (200 DPI, rotated); page 4 stays blank so a third view is tried too
     assert calls == [(0, 5, 150, 0), (1, 2, 200, 1), (3, 4, 200, 1), (3, 4, 200, 2)]

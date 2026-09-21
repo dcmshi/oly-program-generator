@@ -23,6 +23,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from shared.constants import (
+    OCR_CONCURRENCY,
     OCR_GARBLED_RATIO_MAX,
     OCR_REQUEST_ATTEMPTS,
     OCR_REQUEST_TIMEOUT_S,
@@ -243,25 +244,45 @@ class PDFExtractor:
             texts = self._ocr_groups_batched(doc, groups)
             fresh = list(zip([i for start, end in groups for i in range(start, end)], texts, strict=True))
         elif groups:
+            # OCR-PERF: groups are independent requests, so OCR_CONCURRENCY of
+            # them are in flight at once (a 150-page scan went from ~25 min to
+            # ~7). Pages are rendered on the main thread as each slot frees up
+            # (PyMuPDF is not thread-safe); results are cached and reported as
+            # they complete, in completion order.
+            from concurrent.futures import FIRST_COMPLETED, ThreadPoolExecutor, wait
+
             from processors.progress import Progress
             progress = Progress(n_pages, logger, label="OCR page", every=_VISION_BATCH_SIZE)
-            progress.done = len(pages)
-            for start, end in groups:
-                batch_texts = self._ocr_batch(doc, start, end)
-                fresh.extend(zip(range(start, end), batch_texts, strict=True))
-                progress.tick(end, f"({sum(len(t) for t in batch_texts):,} chars in pages {start + 1}–{end})")
-                if cache is not None:                # save per group: a killed run keeps its pages
-                    for i, text in zip(range(start, end), batch_texts, strict=True):
-                        cache.put(i, text)
-                    cache.save()
-                if self.heartbeat is not None:       # liveness in ingestion_runs without watching spend
-                    try:
-                        self.heartbeat(end, n_pages)
-                    except Exception as e:           # noqa: BLE001
-                        logger.debug(f"heartbeat failed: {e}")
-                # Brief pause between batches to stay within rate limits
-                if end < n_pages:
-                    time.sleep(1.0)
+            done_pages = len(pages)
+            pending_groups = list(groups)
+            in_flight = {}
+            with ThreadPoolExecutor(max_workers=OCR_CONCURRENCY) as pool:
+                def submit_next():
+                    start, end = pending_groups.pop(0)
+                    images = self._render_group(doc, start, end)
+                    in_flight[pool.submit(self._ocr_batch, None, start, end, 150, 0, images)] = (start, end)
+
+                while pending_groups and len(in_flight) < OCR_CONCURRENCY:
+                    submit_next()
+                while in_flight:
+                    finished, _ = wait(list(in_flight), return_when=FIRST_COMPLETED)
+                    for fut in finished:
+                        start, end = in_flight.pop(fut)
+                        batch_texts = fut.result()           # a failed group raises after its own retries
+                        fresh.extend(zip(range(start, end), batch_texts, strict=True))
+                        done_pages += end - start
+                        progress.tick(done_pages, f"({sum(len(t) for t in batch_texts):,} chars in pages {start + 1}–{end})")
+                        if cache is not None:            # save per group: a killed run keeps its pages
+                            for i, text in zip(range(start, end), batch_texts, strict=True):
+                                cache.put(i, text)
+                            cache.save()
+                        if self.heartbeat is not None:   # liveness in ingestion_runs without watching spend
+                            try:
+                                self.heartbeat(done_pages, n_pages)
+                            except Exception as e:       # noqa: BLE001
+                                logger.debug(f"heartbeat failed: {e}")
+                        if pending_groups:
+                            submit_next()
         for i, text in fresh:
             pages[i] = text
             if cache is not None:
@@ -354,12 +375,13 @@ class PDFExtractor:
             )
         return pages
 
-    def _ocr_batch(self, doc, start: int, end: int, dpi: int = 150, view: int = 0) -> list[str]:
+    def _ocr_batch(self, doc, start: int, end: int, dpi: int = 150, view: int = 0,
+                   images: list[bytes] | None = None) -> list[str]:
         """Send a batch of pages to Claude vision and return extracted text per page."""
         response = create_message_growing(
             self._client, label=f"Vision OCR pages {start + 1}–{end}",
             max_attempts=OCR_REQUEST_ATTEMPTS, timeout=OCR_REQUEST_TIMEOUT_S,
-            **self._ocr_request(doc, start, end, dpi=dpi, view=view),
+            **self._ocr_request(doc, start, end, dpi=dpi, view=view, images=images),
         )
         return self._ocr_response_pages(response, start, end)
 
@@ -426,15 +448,22 @@ class PDFExtractor:
         logger.info(f"  Vision OCR: page {index + 1} post-correction rejected (garbled {before:.0%} → {after:.0%}, length ×{ratio:.2f})")
         return None
 
-    def _ocr_request(self, doc, start: int, end: int, dpi: int = 150, view: int = 0) -> dict:
+    def _render_group(self, doc, start: int, end: int, dpi: int = 150, view: int = 0) -> list[bytes]:
+        """PNGs for one page group — always on the main thread (PyMuPDF documents
+        are not thread-safe); the request itself can then go to a worker."""
+        return [self._render_png(doc, i, dpi, view) for i in range(start, end)]
+
+    def _ocr_request(self, doc, start: int, end: int, dpi: int = 150, view: int = 0,
+                     images: list[bytes] | None = None) -> dict:
         """messages.create kwargs for one group of rendered pages."""
         # Build the message content: alternating page-number labels and images
         content = []
         page_indices = list(range(start, end))
+        images = images if images is not None else self._render_group(doc, start, end, dpi, view)
 
-        for i in page_indices:
+        for i, png in zip(page_indices, images, strict=True):
             # Render at 150 DPI — good balance of legibility vs token cost
-            b64 = base64.standard_b64encode(self._render_png(doc, i, dpi, view)).decode()
+            b64 = base64.standard_b64encode(png).decode()
 
             content.append({
                 "type": "text",
