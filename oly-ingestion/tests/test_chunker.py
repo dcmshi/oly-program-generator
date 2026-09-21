@@ -334,3 +334,13 @@ def test_chunk_keeps_ocr_session_labels_and_week_lines_in_the_text():
     # a real markdown heading is still a section break
     chunks = chunker.chunk("# Loading Dynamics\n\nProse about loading. " * 3 + "\n\n# 4 - March (Monday)\nsession", source_title="T", author="A")
     assert all(c.metadata["section_title"] == "# Loading Dynamics" for c in chunks)
+
+
+def test_validate_chunk_severity_is_the_worst_check_not_the_last():
+    """ING-L2: a chunk that is both too short (warning) and dual-storage (info)
+    must report 'warning'."""
+    from processors.chunker import Chunk, validate_chunk
+    c = Chunk(content="x", raw_content="Snatch 3x2 @ 80%\nSnatch 3x2 @ 85%\nClean 3x2 @ 80%",
+              metadata={"chunk_type": "concept"}, token_count=10, topics=[])
+    r = validate_chunk(c)
+    assert not r.is_valid and r.severity == "warning"

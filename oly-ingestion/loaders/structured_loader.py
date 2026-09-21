@@ -32,6 +32,15 @@ class StructuredLoader:
     # ── Sources ───────────────────────────────────────────────
 
     def upsert_source(self, title: str, author: str, source_type: str, url: str | None = None) -> int | None:
+        # ING-M6: sources.title is VARCHAR(300), author 200, url 500 — an EPUB
+        # with a paragraph-length <title> used to fail the INSERT after extraction.
+        if len(title) > 300:
+            logger.warning(f"Source title truncated to 300 chars: {title[:60]!r}…")
+            title = title[:300]
+        author = (author or "")[:200]
+        if url and len(url) > 500:
+            logger.warning(f"Source url truncated to 500 chars: {url[:60]!r}…")
+            url = url[:500]
         """Insert or retrieve a source record. Returns the source ID.
 
         Returns the existing ID if the source already exists, or the new ID

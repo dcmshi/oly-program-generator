@@ -396,6 +396,8 @@ class IngestionPipeline:
                     pages = extract_text_from_epub(source.path)
                 else:
                     pages = [source.path.read_text(encoding="utf-8")]
+                if self.max_pages and source.path.suffix != ".pdf":
+                    pages = pages[: self.max_pages]           # ING-L4: --max-pages for EPUB items / HTML / TXT too
 
             total_chars = sum(len(p) for p in pages)
             logger.info(

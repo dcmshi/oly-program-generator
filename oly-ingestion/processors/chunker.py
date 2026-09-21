@@ -457,6 +457,15 @@ class ChunkValidationResult:
     severity: str = "info"     # info | warning | error
 
 
+_SEVERITY_RANK = {"info": 0, "warning": 1, "error": 2}
+
+
+def _worse(current: str, new: str) -> str:
+    """Aggregate check severities by rank (ING-L2): a later 'info' check must not
+    downgrade an earlier 'warning'."""
+    return new if _SEVERITY_RANK[new] > _SEVERITY_RANK[current] else current
+
+
 def validate_chunk(chunk: Chunk) -> ChunkValidationResult:
     """Validate a chunk before loading into the vector store."""
     issues = []
@@ -468,7 +477,7 @@ def validate_chunk(chunk: Chunk) -> ChunkValidationResult:
             f"Chunk too short ({chunk.token_count} tokens). "
             "Likely a fragment — consider merging with adjacent chunk."
         )
-        severity = "warning"
+        severity = _worse(severity, "warning")
 
     # Too long — embedding signal dilution
     if chunk.token_count > 1500:
@@ -476,14 +485,14 @@ def validate_chunk(chunk: Chunk) -> ChunkValidationResult:
             f"Chunk too long ({chunk.token_count} tokens). "
             "Consider splitting further."
         )
-        severity = "warning"
+        severity = _worse(severity, "warning")
 
     # No topics — invisible to filtered search
     if not chunk.topics:
         issues.append(
             "No topics assigned. Chunk will only appear in unfiltered similarity search."
         )
-        severity = "warning"
+        severity = _worse(severity, "warning")
 
     # Contains structured data that should have been routed to tables
     rep_scheme_count = len(
@@ -494,7 +503,7 @@ def validate_chunk(chunk: Chunk) -> ChunkValidationResult:
             f"Contains {rep_scheme_count} rep schemes. "
             "Consider also routing to percentage_schemes table."
         )
-        severity = "info"  # dual-storage is fine, just flag it
+        severity = _worse(severity, "info")  # dual-storage is fine, just flag it
 
     # Contains a table
     lines = chunk.raw_content.split("\n")
@@ -503,7 +512,7 @@ def validate_chunk(chunk: Chunk) -> ChunkValidationResult:
         issues.append(
             "Contains what looks like a table. Consider parsing as structured data."
         )
-        severity = "warning"
+        severity = _worse(severity, "warning")
 
     # Orphaned context — chunk starts mid-sentence
     stripped = chunk.raw_content.strip()
@@ -512,7 +521,7 @@ def validate_chunk(chunk: Chunk) -> ChunkValidationResult:
             "Starts with lowercase — likely a mid-sentence split. "
             "Check chunk boundary alignment."
         )
-        severity = "warning"
+        severity = _worse(severity, "warning")
 
     return ChunkValidationResult(
         chunk_index=chunk.metadata.get("chunk_index", -1),
