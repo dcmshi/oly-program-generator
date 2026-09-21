@@ -22,6 +22,11 @@ EXERCISE_NAME_TO_INTENSITY_REF: dict[str, str] = {
     "Push Press":        "push_press",
     "Overhead Squat":    "overhead_squat",
     "Jerk":              "jerk",
+    # Accessories with a max worth tracking. Both rows share one reference so a
+    # "Barbell Row" max loads a Pendlay Row prescription too (the model can
+    # now give rows a percentage instead of intensity_reference "none").
+    "Barbell Row":       "barbell_row",
+    "Pendlay Row":       "barbell_row",
 }
 
 # Competition lift intensity_reference values — used for Prilepin volume counting,

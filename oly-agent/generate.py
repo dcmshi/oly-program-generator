@@ -822,7 +822,7 @@ Generate this session as a JSON object {{"exercises": [...]}}. Each exercise obj
 - sets (integer >= 1)
 - reps (integer >= 1)
 - intensity_pct (percentage of the reference max, or null for bodyweight/unloaded)
-- intensity_reference (which max to use: "snatch", "clean_and_jerk", "back_squat", "front_squat", etc.)
+- intensity_reference (which max to use: "snatch", "clean_and_jerk", "back_squat", "front_squat", "barbell_row" for rows, etc.; "bodyweight" only for unloaded work)
 - rest_seconds (integer)
 - rpe_target (float 6.0–10.0)
 - selection_rationale (1-2 sentences explaining why this exercise and prescription; cite the Programming Context chunks that informed it by label, e.g. [C2])

@@ -40,6 +40,9 @@ MAX_ESTIMATION_RATIOS = {
     # gated by the weaker of the two, so each ≈ the C&J max.
     "clean":           {"reference": "clean_and_jerk", "ratio": 1.02},
     "jerk":            {"reference": "clean_and_jerk", "ratio": 1.0},
+    # A strict barbell row (Pendlay) for a lifter sits around 55–65 % of the
+    # clean & jerk; conservative until the athlete records one.
+    "barbell_row":     {"reference": "clean_and_jerk", "ratio": 0.60},
 }
 
 

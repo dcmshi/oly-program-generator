@@ -90,4 +90,5 @@ MAX_EXERCISES = [
     "Snatch Pull",
     "Clean Pull",
     "Push Press",
+    "Barbell Row",
 ]

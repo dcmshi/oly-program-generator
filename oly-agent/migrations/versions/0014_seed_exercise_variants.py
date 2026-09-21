@@ -143,11 +143,11 @@ _ROWS = [
     ("Barbell Row", "accessory", "row", None, False, 1,
      "Upper-back strength for bar control and lockout",
      ["upper back", "lat strength"], ["lost_back_tightness"],
-     3, 4, 6, 10, None, None, 90, ["barbell"], ["flat back", "pull to the hip"], None),
+     3, 4, 6, 10, 60, 80, 90, ["barbell"], ["flat back", "pull to the hip"], None),   # % of the barbell_row max
     ("Pendlay Row", "accessory", "row", None, False, 1,
      "Dead-stop row from the floor — upper-back strength with a rigid trunk",
      ["upper back", "trunk rigidity"], ["lost_back_tightness"],
-     3, 4, 5, 8, None, None, 90, ["barbell"], ["reset every rep", "torso parallel"], None),
+     3, 4, 5, 8, 60, 80, 90, ["barbell"], ["reset every rep", "torso parallel"], None),
     ("Back Extension", "accessory", "hinge", None, False, 1,
      "Spinal erector endurance for pulling positions",
      ["back endurance"], ["lost_back_tightness"],
