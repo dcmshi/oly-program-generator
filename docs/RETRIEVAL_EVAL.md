@@ -25,7 +25,65 @@ copy on 2026-09-16 after the full re-ingest — see the section below. Grades ar
 chunk ids, so rebuild both after any corpus change, and on the corpus DB machine once
 the runbook has been applied there (its ids differ).
 
-## Golden-set baseline — 2026-09-21 (corpus 6,835 chunks; current `baseline.json`)
+## Judge study — 2026-09-21 (JUDGE-1): the grader moved from Haiku 4.5 to GLM-5.3 Flash
+
+Every production role had left Anthropic but the golden set was still graded by Claude
+Haiku 4.5. Two tools now make a judge change a measured decision rather than a swap:
+
+- `eval/judge_agreement.py --model X` re-grades the *existing* pool with a candidate and
+  reports exact agreement, linear-weighted Cohen's κ on the 0/1/2 scale, and binary
+  (relevant-or-not) agreement against the stored grades; `--write` keeps the candidate's
+  grades as `eval/golden_<model>.json`.
+- `eval/judge_adjudicate.py` builds the inter-judge κ matrix over every judge on disk, sends
+  each (query, chunk) pair the judges *disagree* on to a strong adjudicator (Opus 5, blind to
+  the judges' grades), and scores every judge against that adjudication.
+
+Agreement with Haiku alone was misleading — the two best judges scored "worst" on it:
+
+| Judge | κ vs Haiku | accuracy vs Opus 5 (601 disputed) | κ vs Opus | relevant/not vs Opus | over / under | $ per regrade |
+|---|---:|---:|---:|---:|---:|---:|
+| Kimi K3 | 0.651 | 0.812 | 0.479 | 0.923 | 111 / 105 | ~$1.00 |
+| **GLM-5.3 Flash** | 0.620 | **0.813** | 0.475 | 0.919 | 117 / 98 | **~$0.06** |
+| Haiku 4.5 (incumbent) | — | 0.750 | 0.336 | 0.872 | 91 / 196 | ~$0.60 |
+| DeepSeek V4.1 Flash | 0.592 | 0.690 | 0.232 | 0.832 | 49 / 307 | ~$0.10 |
+
+Inter-judge κ: Haiku–Kimi 0.65, Haiku–GLM 0.62, Haiku–DeepSeek 0.59, Kimi–GLM 0.69,
+DeepSeek–anyone ≤ 0.57. 546 of 1,147 pairs were unanimous; on the 601 disputed ones Opus
+sided with Kimi and GLM 81 % of the time and with Haiku 75 %. Haiku's and DeepSeek's errors
+are almost all *under*-grading (196 and 307 "under" vs 91 / 49 "over"): they call directly
+useful chunks "partially useful". Kimi and GLM are balanced and statistically tied; GLM was
+chosen on cost (≈ 17× cheaper than Kimi, 10× cheaper than Haiku) and vendor independence.
+Caveats recorded: the adjudicator is itself a Claude model (it nonetheless disagreed with
+Haiku more than with the open models), and the pool it judged was Haiku-built.
+
+`JUDGE_MODEL` in `.env` (blank = `LIGHT_MODEL`) now names the grader; `build_golden.py`
+reads it. Changing it means re-freezing — the baselines below the next heading are the last
+Haiku-era numbers and are not comparable to the decimal with the GLM-era ones above them.
+
+## Golden-set baseline — 2026-09-21, GLM judge (current `baseline.json`)
+
+First freeze under the new judge: same 57 queries, fresh pools (15 candidates per
+retriever), graded by GLM-5.3 Flash — 1,140 graded ids, 934 relevant (GLM grades more
+chunks relevant than Haiku did: 82 % vs 75 %, consistent with the adjudication finding
+that Haiku under-graded). Corpus 6,835 chunks, Haiku labels, `k=5`, hybrid on. Grading cost
+≈ $0.06 (GLM's mandatory 1,024-token thinking budget makes it slower than Haiku, ~15 min for
+the pool, not dearer).
+
+| Query family | n | recall@5 | MRR | nDCG@5 | max source share |
+|---|---:|---:|---:|---:|---:|
+| **all (baseline.json)** | 57 | **0.281** | **0.980** | **0.669** | 0.554 |
+| fault | 13 | 0.287 | 0.962 | 0.618 | 0.631 |
+| limiter | 6 | 0.268 | 1.000 | 0.687 | 0.433 |
+| session | 16 | 0.259 | 1.000 | 0.736 | 0.525 |
+| legacy (22 free-form) | 22 | 0.298 | 0.970 | 0.646 | 0.564 |
+
+Read against the Haiku-era line below (0.307 / 0.942 / 0.653): recall@5 is lower only because
+the denominator grew (more chunks count as relevant under a judge that doesn't under-grade),
+while MRR and nDCG — which reward putting a relevant chunk first — both rose. Session queries
+lead on nDCG (0.736) with MRR 1.0. Not comparable to the decimal with the Haiku-era numbers;
+the regression gate now compares against this freeze.
+
+## Golden-set baseline — 2026-09-21 (corpus 6,835 chunks; Haiku judge — superseded by the GLM re-freeze above)
 
 Rebuilt after the 2026-09-20/21 additions (Charniga stubs, SBS, JTS, Pendlay, Pritchard,
 13 open-access papers, Roman, Verkhoshansky, Vorobyev, Bompa, four Charniga volumes, Kono —
