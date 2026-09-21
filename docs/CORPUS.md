@@ -10,10 +10,10 @@ A dev copy measured on 2026-09-15 held 3,368 chunks · 161 principles · 439 sou
 Medvedev re-chunked (613 × 324 chars → 143 × 1,430; the OCR'd session labels were being read
 as headings), `relabel_chunk_types.py` applied (`concept` 50 % → 22 % of the corpus), Takano /
 Medvedev page-fragment templates deleted. Golden set + baseline rebuilt the same day.
-**Dev copy after the free-source additions, 2026-09-20 (evening):** 5,662 chunks (5,395 live, 267
-quarantined) · 2,726 principles · 723 sources · 40 templates — rows 12–18 below. The new rows have
-not yet been through `quarantine_chunks.py`, `dedupe_principles.py` or `relabel_chunk_types.py`,
-and the golden set / baseline predate them (TODO CORPUS-FREE).
+**Dev copy after the book additions, 2026-09-21 01:00:** 6,835 chunks (6,550 live, 285 quarantined) ·
+4,182 principles · 732 sources · 47 templates — rows 12–27 below. Rows 19–27 went through the OCR-QA
+gate (0 unresolved pages) and the per-source Jev quarantine pass at ingest; the dedupe / relabel /
+golden-set rebuild ran afterwards (`docs/RETRIEVAL_EVAL.md`).
 
 **Dev copy after the full re-ingest, 2026-09-16:** 5,077 chunks · 2,135 principles · 612
 sources · 49 templates. All seven PDF sources re-chunked on joined pages with
@@ -51,6 +51,15 @@ size.
 | 16 | Pritchard — taper thesis + 2 accepted manuscripts | PDF | 742–744 | research | 132 | 100 |
 | 17 | Research sweep — 13 open-access papers (table below) | PDF / Europe PMC text | 745–752, 794–798 | research | 303 (+1 template) | 138 |
 | 18 | Kono — *Championship Weightlifting* excerpt (Catalyst) | Web | — | web (dynamic) | 2 | 0 |
+| 19 | Roman — *The Training of the Weightlifter* (1986, tr. 1988) | PDF (vision OCR, scan) | 799 | soviet | 150 (+5 quarantined) | 421 |
+| 20 | Verkhoshansky — *Programming and Organization of Training* (1985, tr. 1988) | PDF (vision OCR, `--force-vision`) | 800 | theory_heavy | 89 (+6) | 31 |
+| 21 | Vorobyev — *A Textbook on Weightlifting* (1978) | PDF (vision OCR, scan) | 801 | theory_heavy | 121 | 182 |
+| 22 | Bompa & Buzzichelli — *Periodization of Strength Training for Sports*, 4th ed. | EPUB (Kobo) | 802 | programming | 250 | 536 |
+| 23 | Zhekov / Charniga — *Weightlifting Training and Technique* | EPUB (Kobo) | 803 | theory_heavy | 81 | 86 (+2 templates) |
+| 24 | Charniga — *Weightlifting Training and Biomechanics* | EPUB (Kobo) | 804 | theory_heavy | 113 | 0 |
+| 25 | Charniga — *There Is No System* | EPUB (Kobo) | 805 | theory_heavy | 56 (14 deduped vs the Wayback essays) | 26 (+2 templates) |
+| 26 | Charniga — *A De-Masculinization of Strength* | EPUB (Kobo) | 806 | theory_heavy | 101 | 0 |
+| 27 | Kono — *Weightlifting, Olympic Style* (2010) | PDF (vision OCR, scan) | 807 | programming | 194 (+7) | 174 (+2 templates) |
 
 Takano (#6) produced 16 generic program templates in March and 18 chapter-titled ones on the
 2026-09-16 re-ingest (both sets kept for now — several windows were truncated at 4,096 output
@@ -85,6 +94,12 @@ for new books, and make the `--title` you pass match the `SOURCE_PROFILE_MAP` ke
 | 9 | `Mike Israetel - Scientific Principles of Hypertrophy Training (2021, Renaissance Periodization).epub` |
 | 10 | `Kelly Starrett - Becoming a Supple Leopard (2015, 2nd ed, Victory Belt).epub` |
 | 11 | `Dan John - Intervention (2013, On Target Publications).pdf` |
+| 19 | `R.A. Roman - The Training of the Weightlifter (1986, Sportivny Press 1988, scan).pdf` |
+| 20 | `Y.V. Verkhoshansky - Programming and Organization of Training (1985, Sportivny Press 1988, scan).pdf` |
+| 21 | `A.N. Vorobyev - A Textbook on Weightlifting (1978, Sportivny Press, scan).pdf` |
+| 22 | `Tudor Bompa, Carlo Buzzichelli - Periodization of Strength Training for Sports (2021, 4th ed, Human Kinetics).epub` |
+| 23–26 | `Ilya Zhekov, Andrew Charniga - Weightlifting Training and Technique (2020, Sportivny Press).epub`, `Andrew Charniga - {Weightlifting Training and Biomechanics, There Is No System, A De-Masculinization of Strength} (2019, Sportivny Press).epub` |
+| 27 | `Tommy Kono - Weightlifting, Olympic Style (2010, Hawaii Kono Weightlifting, scan).pdf` |
 | 16–17 | `research/<Author Year - short title (journal)>.pdf|.txt` |
 
 `sources` row 53 is an empty March 2026 Laputin attempt (one failed run, no chunks) kept for
