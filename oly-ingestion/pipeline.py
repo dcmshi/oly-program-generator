@@ -373,7 +373,13 @@ class IngestionPipeline:
             run_started = time.perf_counter()
             with Stage("1/3 Extract text", logger, source.path.name):
                 if source.path.suffix == ".pdf":
+                    # OCR heartbeat: pages_processed ticks per group so `ingestion_runs`
+                    # shows the run is alive; the section loop overwrites it afterwards.
+                    self.pdf_extractor.heartbeat = lambda done, total: self.structured_loader.update_run_progress(
+                        run_id, pages_processed=done, last_processed_page=0
+                    )
                     pages = self.pdf_extractor.extract(source.path, max_pages=self.max_pages)
+                    self.pdf_extractor.heartbeat = None
                     ocr_report = getattr(self.pdf_extractor, "last_ocr_report", None)
                     if ocr_report:
                         # OCR-QA: the page-level verdicts travel with the run so

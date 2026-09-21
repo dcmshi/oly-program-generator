@@ -217,3 +217,13 @@ OCR_NON_ASCII_RATIO_MAX: float = 0.10     # Cyrillic table headers in translatio
 OCR_VIEW_AGREEMENT_MIN: float = 0.5       # 3-shingle Jaccard between the two views to call them consistent
 OCR_SECOND_VIEW_DPI: int = 200            # first view renders at 150 DPI (_ocr_request)
 OCR_VIEW_ROTATIONS_DEG: tuple[float, ...] = (1.5, -1.5)   # second / third view: zoom + slight rotation = independent probe
+
+# ── LLM request resilience ───────────────────────────────────────────
+# The client is built with max_retries=0 so create_message_with_retries owns
+# every retry (logged, exponential backoff) instead of the SDK silently
+# retrying inside a 10-minute default timeout. A vision-OCR group of five
+# scanned pages answers in 40–90 s on Kimi K3; a request past
+# OCR_REQUEST_TIMEOUT_S is a hung socket, not a slow page.
+LLM_REQUEST_TIMEOUT_S: float = 300.0
+OCR_REQUEST_TIMEOUT_S: float = 240.0
+OCR_REQUEST_ATTEMPTS: int = 4

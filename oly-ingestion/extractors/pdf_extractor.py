@@ -22,7 +22,13 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
-from shared.constants import OCR_GARBLED_RATIO_MAX, OCR_SECOND_VIEW_DPI, OCR_VIEW_ROTATIONS_DEG
+from shared.constants import (
+    OCR_GARBLED_RATIO_MAX,
+    OCR_REQUEST_ATTEMPTS,
+    OCR_REQUEST_TIMEOUT_S,
+    OCR_SECOND_VIEW_DPI,
+    OCR_VIEW_ROTATIONS_DEG,
+)
 from shared.llm import (
     BatchRequestFailed,
     create_message_growing,
@@ -78,6 +84,7 @@ class PDFExtractor:
         self._force_vision = force_vision
         self._ocr_postcorrect = ocr_postcorrect
         self._postcorrect_model = postcorrect_model
+        self.heartbeat = None            # optional callable(pages_done, pages_total) — set by the pipeline per run
         self.last_ocr_report: dict | None = None   # OCR-QA report of the last _extract_with_vision
 
     def extract(self, path: Path, max_pages: int = 0) -> list[str]:
@@ -236,13 +243,22 @@ class PDFExtractor:
             texts = self._ocr_groups_batched(doc, groups)
             fresh = list(zip([i for start, end in groups for i in range(start, end)], texts, strict=True))
         elif groups:
+            from processors.progress import Progress
+            progress = Progress(n_pages, logger, label="OCR page", every=_VISION_BATCH_SIZE)
+            progress.done = len(pages)
             for start, end in groups:
                 batch_texts = self._ocr_batch(doc, start, end)
                 fresh.extend(zip(range(start, end), batch_texts, strict=True))
-                logger.info(
-                    f"  Vision OCR: pages {start + 1}–{end}/{n_pages} done "
-                    f"({sum(len(t) for t in batch_texts):,} chars)"
-                )
+                progress.tick(end, f"({sum(len(t) for t in batch_texts):,} chars in pages {start + 1}–{end})")
+                if cache is not None:                # save per group: a killed run keeps its pages
+                    for i, text in zip(range(start, end), batch_texts, strict=True):
+                        cache.put(i, text)
+                    cache.save()
+                if self.heartbeat is not None:       # liveness in ingestion_runs without watching spend
+                    try:
+                        self.heartbeat(end, n_pages)
+                    except Exception as e:           # noqa: BLE001
+                        logger.debug(f"heartbeat failed: {e}")
                 # Brief pause between batches to stay within rate limits
                 if end < n_pages:
                     time.sleep(1.0)
@@ -342,6 +358,7 @@ class PDFExtractor:
         """Send a batch of pages to Claude vision and return extracted text per page."""
         response = create_message_growing(
             self._client, label=f"Vision OCR pages {start + 1}–{end}",
+            max_attempts=OCR_REQUEST_ATTEMPTS, timeout=OCR_REQUEST_TIMEOUT_S,
             **self._ocr_request(doc, start, end, dpi=dpi, view=view),
         )
         return self._ocr_response_pages(response, start, end)

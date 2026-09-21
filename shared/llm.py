@@ -311,7 +311,7 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
 
 
 def create_message_growing(client, *, max_tokens: int, ceiling: int | None = None,
-                           label: str = "LLM call", **kwargs):
+                           label: str = "LLM call", max_attempts: int = 3, **kwargs):
     """`create_message_with_retries` that re-sends with a doubled `max_tokens`
     (up to `ceiling`, default LLM_MAX_TOKENS_CEILING) whenever the response
     stops on `max_tokens`. A truncated JSON payload (a program template, a
@@ -324,7 +324,7 @@ def create_message_growing(client, *, max_tokens: int, ceiling: int | None = Non
     ceiling = ceiling or LLM_MAX_TOKENS_CEILING
     budget = max_tokens
     while True:
-        response = create_message_with_retries(client, max_tokens=budget, **kwargs)
+        response = create_message_with_retries(client, max_tokens=budget, max_attempts=max_attempts, **kwargs)
         if getattr(response, "stop_reason", None) != "max_tokens" or budget >= ceiling:
             return response
         grown = min(budget * 2, ceiling)
@@ -462,6 +462,8 @@ def create_llm_client(settings) -> Anthropic:
     ANTHROPIC_API_KEY, or OpenRouter's Anthropic-compatible endpoint with
     OPENROUTER_API_KEY (Settings has already rewritten the model ids).
     """
+    from shared.constants import LLM_REQUEST_TIMEOUT_S
+
     provider = getattr(settings, "llm_provider", "") or "anthropic"
     if provider == "openrouter":
         if not getattr(settings, "openrouter_api_key", ""):
@@ -469,6 +471,7 @@ def create_llm_client(settings) -> Anthropic:
         return Anthropic(
             api_key=settings.openrouter_api_key,
             base_url=getattr(settings, "llm_base_url", "") or OPENROUTER_BASE_URL,
+            timeout=LLM_REQUEST_TIMEOUT_S, max_retries=0,   # our wrapper retries, with logging
         )
     if provider != "anthropic":
         raise ValueError(f"LLM_PROVIDER must be one of {PROVIDERS}, got {provider!r}")
@@ -476,7 +479,7 @@ def create_llm_client(settings) -> Anthropic:
         raise ValueError(
             "ANTHROPIC_API_KEY is required. Set it in .env or as an environment variable."
         )
-    return Anthropic(api_key=settings.anthropic_api_key)
+    return Anthropic(api_key=settings.anthropic_api_key, timeout=LLM_REQUEST_TIMEOUT_S, max_retries=0)
 
 
 def estimate_cost(

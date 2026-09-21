@@ -233,7 +233,8 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
         os.environ.pop("LLM_MODEL")
         with patch("shared.llm.Anthropic") as client_cls:
             create_llm_client(s)
-        assert client_cls.call_args.kwargs == {"api_key": "sk-or-test", "base_url": OPENROUTER_BASE_URL}
+        assert client_cls.call_args.kwargs == {"api_key": "sk-or-test", "base_url": OPENROUTER_BASE_URL,
+                                           "timeout": 300.0, "max_retries": 0}   # our wrapper owns retries
 
         os.environ["LLM_BASE_URL"] = "https://proxy.example/api"
         with patch("shared.llm.Anthropic") as client_cls:
