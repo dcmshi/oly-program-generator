@@ -118,6 +118,7 @@ INGESTION_TESTS := \
 	tests/test_reembed.py \
 	tests/test_tokens.py \
 	tests/test_jats_extractor.py \
+	tests/test_progress.py \
 	tests/test_contextualizer.py \
 	tests/test_principle_schema.py \
 	tests/test_schema_enums.py \

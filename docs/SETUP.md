@@ -121,6 +121,15 @@ PYTHONUTF8=1 uv run python ingest_web.py
 
 > The `make` targets set `PYTHONUTF8=1` automatically. When running `uv run` directly on Windows, prefix it manually.
 
+### Reading the log
+
+A book ingest logs three stage banners with elapsed time (`── 1/3 Extract text … done in 13m 02s`,
+`2/3 Classify sections`, `3/3 Route sections`) and one line per section
+(`[section 12/48 · 25%] mixed 'Chapter 3' (3,412 ch) · chunks=40 principles=120 · elapsed 4m · ETA ~12m`);
+vision OCR logs every 5-page group and any pages still blank after the retry. `ingest_web.py` logs
+`[article i/n]` the same way. If you pipe the output through `grep`, add `--line-buffered` or the
+file stays empty until the process exits.
+
 ### Useful flags
 
 | Flag | Applies to | Effect |
