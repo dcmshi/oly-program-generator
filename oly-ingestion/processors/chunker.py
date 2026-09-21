@@ -81,6 +81,7 @@ SOURCE_PROFILE_MAP = {
     "Intervention": SourceProfile.PROGRAMMING_FOCUSED,
     "Managing the Training of Weightlifters": SourceProfile.DATA_HEAVY_SOVIET,
     "A System of Multi-Year Training in Weightlifting": SourceProfile.DATA_HEAVY_SOVIET,
+    "A Program of Multi-Year Training in Weightlifting": SourceProfile.DATA_HEAVY_SOVIET,
     "Science and Practice of Strength Training": SourceProfile.THEORY_HEAVY,
     "Supertraining": SourceProfile.THEORY_HEAVY,
     "Weightlifting Encyclopedia": SourceProfile.THEORY_HEAVY,

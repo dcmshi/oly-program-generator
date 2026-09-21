@@ -39,7 +39,7 @@ size.
 | 4 | Catalyst Athletics articles | Web | — (415 rows with chunks) | web (dynamic) | 1,055 (was 446) | 495 |
 | 5 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 499 | soviet | 101 (was 110; 8.9 paras/chunk) | 125 |
 | 6 | Takano — *Weightlifting Programming* | PDF | 2 | programming | 106 (was 218; 8.7 paras/chunk) | 141 |
-| 7 | Medvedev — *Multi-Year Training in Weightlifting* | PDF (vision OCR) | 501 | soviet | 613 (was 617; still 2.3 paras / 324 chars — see note) | 89 |
+| 7 | Medvedev — *A Program of Multi-Year Training in Weightlifting* (1986; the `sources` row was titled *A System of…* until 2026-09-20) | PDF (vision OCR) | 501 | soviet | 613 (was 617; still 2.3 paras / 324 chars — see note) | 89 |
 | 8 | Everett — *Olympic Weightlifting for Sports* | PDF | 502 | programming | 25 (was 172; 10.5 paras/chunk) | 40 |
 | 9 | Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 504 | programming | 206 | 21 |
 | 10 | Starrett — *Becoming a Supple Leopard* | EPUB | 505 | theory_heavy | 137 | 16 |
@@ -66,6 +66,29 @@ sectioner keeps separate, so 639 sections → 613 chunks of ~324 chars. That is 
 not prose — 16 sections did route to the template parser (12 templates) — and the right fix is
 to merge consecutive session blocks into week-sized chunks in the `soviet` profile, not to
 raise the profile size (TODO §11).
+
+### Files on disk (`oly-ingestion/sources/`, gitignored)
+
+Renamed 2026-09-20 to `Author - Title (Year, Publisher).ext` so a title in this table maps
+to one file; the OCR cache is keyed by file hash, so renames cost nothing. Keep the scheme
+for new books, and make the `--title` you pass match the `SOURCE_PROFILE_MAP` key.
+
+| # | File |
+|---|---|
+| 1 | `Greg Everett - Olympic Weightlifting_ A Complete Guide for Athletes & Coaches (2016, Catalyst Athletics).epub` |
+| 2 | `Vladimir Zatsiorsky, William Kraemer, Andrew Fry - Science and Practice of Strength Training (2021, 3rd ed, Human Kinetics).pdf` |
+| 3 | `Arthur Drechsler - The Weightlifting Encyclopedia (1998, A is A Communications).pdf` |
+| 5 | `N.P. Laputin, V.G. Oleshko - Managing the Training of Weightlifters (1982, Sportivny Press).pdf` |
+| 6 | `Bob Takano - Weightlifting Programming_ A Winning Coach's Guide (2012, Catalyst Athletics).pdf` |
+| 7 | `A.S. Medvedev - A Program of Multi-Year Training in Weightlifting (1986, Sportivny Press 1995).pdf` — plus the `… (OCR text reconstructed 2026-09-20).txt` the 2026-09-20 re-chunk ran from |
+| 8 | `Greg Everett - Olympic Weightlifting for Sports (2012, Catalyst Athletics).pdf` |
+| 9 | `Mike Israetel - Scientific Principles of Hypertrophy Training (2021, Renaissance Periodization).epub` |
+| 10 | `Kelly Starrett - Becoming a Supple Leopard (2015, 2nd ed, Victory Belt).epub` |
+| 11 | `Dan John - Intervention (2013, On Target Publications).pdf` |
+| 16–17 | `research/<Author Year - short title (journal)>.pdf|.txt` |
+
+`sources` row 53 is an empty March 2026 Laputin attempt (one failed run, no chunks) kept for
+the run history; row 499 is the live one.
 
 ### Notes
 
@@ -146,7 +169,7 @@ Rows 1–6 are ingested on the dev copy (numbers in the Ingested Sources table).
   Press moved the *Russian Weightlifting Library* to ebooks in 2019–2020 (Kobo, Google
   Play, Nook, Apple, Amazon; publisher Andrew Charniga): Roman *The Training of the
   Weightlifter* and *The Snatch, the Clean and Jerk*; Medvedyev *A System of…* and
-  *A Program of…* (row 8: `source_id=501` is *A Program of…*, so buy *A System of…*,
+  *A Program of…* (row 8: `source_id=501` is *A Program of…* — its title page says so; the DB title was wrong until 2026-09-20 — so buy *A System of…*,
   [B08HYBSGWS](https://www.amazon.com/System-Multi-Year-Training-Weightlifting-Russian-ebook/dp/B08HYBSGWS));
   Vorobyev *Weightlifting: Textbook for the Institutes of Sport of the USSR*;
   Verkhoshansky *Fundamentals of Special Strength Training in Sport* **and**
