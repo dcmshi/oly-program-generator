@@ -431,15 +431,19 @@ def test_vision_retries_blank_pages_singly(tmp_path):
     doc.__len__ = lambda self: 5
     calls = []
 
-    def fake_ocr(d, start, end):
-        calls.append((start, end))
+    body = "The lifter pulls the bar and drops under it in one continuous movement. " * 6
+
+    def fake_ocr(d, start, end, dpi=150):
+        calls.append((start, end, dpi))
         if end - start > 1:                      # group pass: pages 2 and 4 lost
-            return [f"page {i + 1}" if i not in (1, 3) else "" for i in range(start, end)]
-        return ["recovered page 2"] if start == 1 else [""]
+            return [f"page {i + 1} {body}" if i not in (1, 3) else "" for i in range(start, end)]
+        return [f"recovered page 2 {body}"] if start == 1 else [""]
 
     fz = MagicMock()
     fz.open.return_value = doc
-    with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr):
+    with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr),          patch.object(extractor, "_page_has_ink", return_value=True):
         pages = extractor._extract_with_vision(pdf)
-    assert calls == [(0, 5), (1, 2), (3, 4)]
-    assert pages == ["page 1", "recovered page 2", "page 3", "page 5"]   # page 4 still blank → omitted
+    assert calls == [(0, 5, 150), (1, 2, 200), (3, 4, 200)]           # suspects get a second view at 200 DPI
+    assert [p.split(" The")[0] for p in pages] == ["page 1", "recovered page 2", "page 3", "page 5"]  # page 4 omitted
+    assert extractor.last_ocr_report["pages_unresolved"] == [4]
+    assert extractor.last_ocr_report["verdicts"][2].startswith("recovered")

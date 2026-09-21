@@ -13,6 +13,7 @@ majority of cases. The vision fallback is used for scanned Soviet-era books
 """
 
 import base64
+import json
 import logging
 import re
 import sys
@@ -21,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
+from shared.constants import OCR_SECOND_VIEW_DPI
 from shared.llm import (
     BatchRequestFailed,
     create_message_growing,
@@ -67,6 +69,7 @@ class PDFExtractor:
         self._batch = batch
         self._ocr_cache = ocr_cache
         self._force_vision = force_vision
+        self.last_ocr_report: dict | None = None   # OCR-QA report of the last _extract_with_vision
 
     def extract(self, path: Path, max_pages: int = 0) -> list[str]:
         """Extract text from a PDF, returning a list of page texts.
@@ -239,27 +242,49 @@ class PDFExtractor:
             if cache is not None:
                 cache.put(i, text)
 
-        # OCR quality gate (OCR-QA): a group whose reply lost its page headers
-        # comes back as blank pages — Roman pp. 86–90 vanished that way on
-        # 2026-09-20 with only a warning. Re-OCR every blank page on its own
-        # once; what is still blank after that is reported page by page so the
-        # run log says which pages the corpus is missing.
-        blank = [i for i in range(n_pages) if not pages.get(i, "").strip()]
-        if blank and not self._batch:
-            logger.warning(f"Vision OCR: {len(blank)} blank page(s) after the group pass — retrying singly: "
-                           f"{[i + 1 for i in blank][:20]}")
-            for i in blank:
-                text = self._ocr_batch(doc, i, i + 1)[0]
-                if text.strip():
-                    pages[i] = text
-                    fresh.append((i, text))
+        # OCR quality gate (OCR-QA). No reference exists for a scan, so every
+        # page is scored on signals that need none (processors/ocr_quality.py:
+        # blank, short against neighbours, echo of the previous page, garbled
+        # or non-ASCII share) and each suspect is re-OCR'd on its own as a second
+        # view at another zoom; the two views are kept where they agree and the
+        # page stays flagged where they don't. Roman pp. 86–90 were stored blank
+        # on 2026-09-20 with only a warning — this is what turns that into a
+        # recovery, and into a page list in the run stats when it can't recover.
+        self.last_ocr_report = None
+        if not self._batch:
+            from processors.ocr_quality import assess_pages, choose_view, summarize
+            texts = [pages.get(i, "") for i in range(n_pages)]
+            ink = [self._page_has_ink(doc, i) for i in range(n_pages)]
+            qualities = assess_pages(texts, ink)
+            suspects = [q for q in qualities if q.suspect]
+            if suspects:
+                logger.warning(f"Vision OCR: {len(suspects)} suspect page(s) after the group pass — "
+                               f"second view at {OCR_SECOND_VIEW_DPI} DPI: "
+                               f"{[(q.index + 1, q.reasons[0]) for q in suspects][:12]}")
+            verdicts: dict[int, str] = {}
+            for q in suspects:
+                second = self._ocr_batch(doc, q.index, q.index + 1, dpi=OCR_SECOND_VIEW_DPI)[0]
+                text, agreement, verdict = choose_view(texts[q.index], second)
+                verdicts[q.index + 1] = f"{verdict} ({agreement:.2f})"
+                if text != texts[q.index]:
+                    pages[q.index] = text
+                    fresh.append((q.index, text))
                     if cache is not None:
-                        cache.put(i, text)
-            still = [i + 1 for i in blank if not pages.get(i, "").strip()]
-            if still:
-                logger.error(f"Vision OCR: {len(still)} page(s) still blank after retry — missing from the corpus: {still}")
-            else:
-                logger.info(f"  Vision OCR: all {len(blank)} blank page(s) recovered on retry")
+                        cache.put(q.index, text)
+            report = summarize(qualities)
+            report["verdicts"] = verdicts
+            report["pages_unresolved"] = sorted(
+                p for p, v in verdicts.items() if v.startswith("disagree") or not pages.get(p - 1, "").strip()
+            )
+            self.last_ocr_report = report
+            if cache is not None:                       # sits beside the page cache for ocr_audit.py
+                report_path = cache.path.with_suffix(".report.json")
+                report_path.write_text(json.dumps(report, indent=1), encoding="utf-8")
+            if report["pages_unresolved"]:
+                logger.error(f"Vision OCR: {len(report['pages_unresolved'])} page(s) unresolved after the second view "
+                             f"(blank or the views disagree) — check these in the scan: {report['pages_unresolved']}")
+            elif suspects:
+                logger.info(f"  Vision OCR: all {len(suspects)} suspect page(s) resolved by the second view")
         if cache is not None and fresh:
             cache.save()
             logger.info(f"  OCR cache: {len(cache)} page(s) stored at {cache.path}")
@@ -296,10 +321,10 @@ class PDFExtractor:
             )
         return pages
 
-    def _ocr_batch(self, doc, start: int, end: int) -> list[str]:
+    def _ocr_batch(self, doc, start: int, end: int, dpi: int = 150) -> list[str]:
         """Send a batch of pages to Claude vision and return extracted text per page."""
         response = create_message_growing(
-            self._client, label=f"Vision OCR pages {start + 1}–{end}", **self._ocr_request(doc, start, end)
+            self._client, label=f"Vision OCR pages {start + 1}–{end}", **self._ocr_request(doc, start, end, dpi=dpi)
         )
         return self._ocr_response_pages(response, start, end)
 
@@ -318,21 +343,30 @@ class PDFExtractor:
         raw = message_text(response)
         return self._split_page_responses(raw, list(range(start, end)))
 
-    def _ocr_request(self, doc, start: int, end: int) -> dict:
-        """messages.create kwargs for one group of rendered pages."""
+    @staticmethod
+    def _render_png(doc, index: int, dpi: int = 150) -> bytes:
         import fitz
+        mat = fitz.Matrix(dpi / 72, dpi / 72)
+        return doc[index].get_pixmap(matrix=mat).tobytes("png")
 
+    @staticmethod
+    def _page_has_ink(doc, index: int) -> bool:
+        """Cheap blank-page test on a 30-DPI grayscale render: any pixel darker
+        than mid-grey on more than 0.2 % of the page."""
+        import fitz
+        pix = doc[index].get_pixmap(matrix=fitz.Matrix(30 / 72, 30 / 72), colorspace=fitz.csGRAY)
+        dark = sum(1 for b in pix.samples if b < 128)
+        return dark > 0.002 * len(pix.samples)
+
+    def _ocr_request(self, doc, start: int, end: int, dpi: int = 150) -> dict:
+        """messages.create kwargs for one group of rendered pages."""
         # Build the message content: alternating page-number labels and images
         content = []
         page_indices = list(range(start, end))
 
         for i in page_indices:
-            page = doc[i]
             # Render at 150 DPI — good balance of legibility vs token cost
-            mat = fitz.Matrix(150 / 72, 150 / 72)
-            pix = page.get_pixmap(matrix=mat)
-            png_bytes = pix.tobytes("png")
-            b64 = base64.standard_b64encode(png_bytes).decode()
+            b64 = base64.standard_b64encode(self._render_png(doc, i, dpi)).decode()
 
             content.append({
                 "type": "text",

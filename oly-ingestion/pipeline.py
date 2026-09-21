@@ -372,6 +372,14 @@ class IngestionPipeline:
             with Stage("1/3 Extract text", logger, source.path.name):
                 if source.path.suffix == ".pdf":
                     pages = self.pdf_extractor.extract(source.path, max_pages=self.max_pages)
+                    ocr_report = getattr(self.pdf_extractor, "last_ocr_report", None)
+                    if ocr_report:
+                        # OCR-QA: the page-level verdicts travel with the run so
+                        # `ingestion_runs.result` says which pages to check by hand.
+                        stats["ocr_pages"] = ocr_report["pages"]
+                        stats["ocr_pages_suspect"] = ocr_report["pages_suspect"]
+                        stats["ocr_pages_unresolved"] = ocr_report["pages_unresolved"]
+                        stats["ocr_verdicts"] = ocr_report["verdicts"]
                 elif source.path.suffix in (".html", ".htm"):
                     from extractors.html_extractor import extract_text_from_html
                     pages = [extract_text_from_html(source.path)]

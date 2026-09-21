@@ -203,3 +203,16 @@ PRINCIPLE_DUPLICATE_THRESHOLD: float = 0.7
 # pipeline.py --classifier jev takes Jev's content-type Choice for a section
 # when its calibrated confidence reaches this; below it the heuristic stands.
 JEV_CLASSIFY_MIN_CONFIDENCE: float = 0.5
+
+# ── Vision-OCR quality gate (OCR-QA) ───────────────────────────────
+# processors/ocr_quality.py scores every OCR'd page without a reference;
+# PDFExtractor re-OCRs suspects at a second zoom and keeps what the two
+# views agree on. Thresholds set on the 2026-09-20 caches (Roman,
+# Verkhoshansky, Vorobyev): figure pages are ~30 chars, text pages 1.7–2.1k.
+OCR_MIN_PAGE_CHARS: int = 40              # below this a page counts as blank
+OCR_SHORT_VS_NEIGHBOURS: float = 0.25     # < 25 % of the neighbouring pages' median → suspect
+OCR_ECHO_JACCARD: float = 0.6             # 5-word shingle overlap with the previous page → echo
+OCR_GARBLED_RATIO_MAX: float = 0.15       # share of non-word tokens tolerated
+OCR_NON_ASCII_RATIO_MAX: float = 0.10     # Cyrillic table headers in translations sit ~2 %
+OCR_VIEW_AGREEMENT_MIN: float = 0.5       # 3-shingle Jaccard between the two views to call them consistent
+OCR_SECOND_VIEW_DPI: int = 200            # first view renders at 150 DPI (_ocr_request)
