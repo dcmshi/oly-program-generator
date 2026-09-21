@@ -159,6 +159,7 @@ def relabel(
     limit: int = 0,
     use_batch: bool = False,
     judge: str = "llm",
+    min_id: int = 0,
 ) -> Counter:
     """Relabel the corpus (or one source). Returns a Counter of old→new transitions.
 
@@ -181,9 +182,15 @@ def relabel(
     cur = conn.cursor()
     sql = "SELECT id, chunk_type::text, raw_content FROM knowledge_chunks"
     params: list = []
+    where = []
     if source_id:
-        sql += " WHERE source_id = %s"
+        where.append("source_id = %s")
         params.append(source_id)
+    if min_id:
+        where.append("id >= %s")            # only chunks ingested since a known id (new sources)
+        params.append(min_id)
+    if where:
+        sql += " WHERE " + " AND ".join(where)
     sql += " ORDER BY id"
     if limit:
         sql += " LIMIT %s"
@@ -265,6 +272,7 @@ def relabel(
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Relabel knowledge_chunks.chunk_type with an LLM (RAG-H2)")
     parser.add_argument("--source-id", type=int, help="Limit to one source")
+    parser.add_argument("--min-id", type=int, default=0, help="Only chunks with id >= N (relabel just the new rows after an ingest)")
     parser.add_argument("--dry-run", action="store_true", help="Show the distribution shift without writing")
     parser.add_argument("--batch-size", type=int, default=DEFAULT_BATCH_SIZE)
     parser.add_argument("--min-confidence", type=float, default=DEFAULT_MIN_CONFIDENCE,
@@ -279,4 +287,4 @@ if __name__ == "__main__":
                              "~$0.08 for the corpus (needs TYPESAFE_API_KEY)")
     args = parser.parse_args()
     relabel(args.source_id, args.dry_run, args.batch_size, args.min_confidence, args.model, args.limit,
-            use_batch=args.batch, judge=args.judge)
+            use_batch=args.batch, judge=args.judge, min_id=args.min_id)
