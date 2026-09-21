@@ -402,3 +402,20 @@ def test_vision_uses_the_page_cache_and_only_transcribes_missing_groups(tmp_path
     with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr):
         extractor._extract_with_vision(pdf)
     assert calls == [(0, 5), (5, 7)]
+
+
+def test_force_vision_skips_the_text_layer(tmp_path):
+    """--force-vision: a PDF with a usable (but paragraph-less) text layer still
+    goes straight to vision OCR; without a client it raises instead of silently
+    using the layer."""
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake")
+    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="m", ocr_cache=False, force_vision=True)
+    with patch.object(extractor, "_extract_with_pymupdf") as pymupdf, \
+         patch.object(extractor, "_extract_with_vision", return_value=["ocr page"]) as vision:
+        assert extractor.extract(pdf) == ["ocr page"]
+    pymupdf.assert_not_called()
+    vision.assert_called_once()
+    import pytest
+    with pytest.raises(ValueError):
+        PDFExtractor(anthropic_client=None, force_vision=True).extract(pdf)

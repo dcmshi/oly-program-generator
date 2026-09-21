@@ -187,7 +187,8 @@ Rows 1–6 are ingested on the dev copy (numbers in the Ingested Sources table).
   Bompa (row 12) is on [Kobo CA](https://www.kobo.com/ca/en/ebook/periodization-of-strength-training-for-sports) as an EPUB.
 - **Row 11 (Kono)** — the free Catalyst excerpt is ingested (`sources/url_lists/extras.json`);
   measure `fault_correction` retrieval before buying the print books.
-- **Row 12 (Bompa)** — unchanged; Kindle only.
+- **Row 12 (Bompa)** — bought on Kobo 2026-09-20 (4th ed. EPUB) with the four Charniga
+  compilations; imported via [KOBO-IMPORT.md](KOBO-IMPORT.md).
 
 ### Sweep 2026-09-20 — added beyond the plan
 

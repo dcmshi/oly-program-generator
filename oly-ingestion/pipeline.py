@@ -268,7 +268,8 @@ class SourceDocument:
 class IngestionPipeline:
     def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0,
                  contextualize: bool = False, context_model: str | None = None,
-                 batch: bool = False, classifier: str = "heuristic", ocr_cache: bool = True):
+                 batch: bool = False, classifier: str = "heuristic", ocr_cache: bool = True,
+                 force_vision: bool = False):
         self.settings = settings
         self.max_pages = max_pages
         # COST-1: principle extraction (the dominant ingestion spend) and vision
@@ -286,9 +287,10 @@ class IngestionPipeline:
         self.contextualize = contextualize
         self.context_model = light_model_for(settings, context_model)
         # Build Anthropic client for vision OCR fallback (opt-in via --vision flag)
-        _anthropic_client = create_llm_client(settings) if use_vision else None
+        _anthropic_client = create_llm_client(settings) if (use_vision or force_vision) else None
         self.pdf_extractor = PDFExtractor(
             anthropic_client=_anthropic_client, vision_model=settings.llm_model, batch=batch, ocr_cache=ocr_cache,
+            force_vision=force_vision,
         )
         self.classifier = ContentClassifier(settings, classifier=classifier)
         self.principle_extractor = PrincipleExtractor(settings)
@@ -909,6 +911,9 @@ if __name__ == "__main__":
                         help="Source document type")
     parser.add_argument("--vision", action="store_true",
                         help="Enable Claude vision API as OCR fallback for image-only PDFs")
+    parser.add_argument("--force-vision", action="store_true",
+                        help="With --vision: ignore the PDF's text layer and OCR every page "
+                             "(old OCR layers are one block per line and lose paragraphs)")
     parser.add_argument("--max-pages", type=int, default=0, metavar="N",
                         help="Only process the first N pages (useful for test runs)")
     parser.add_argument("--contextualize", action="store_true",
@@ -930,7 +935,8 @@ if __name__ == "__main__":
     settings.ensure_working_dirs()
     pipeline = IngestionPipeline(settings, use_vision=args.vision, max_pages=args.max_pages,
                                  contextualize=args.contextualize, context_model=args.context_model,
-                                 batch=args.batch, classifier=args.classifier, ocr_cache=not args.no_ocr_cache)
+                                 batch=args.batch, classifier=args.classifier, ocr_cache=not args.no_ocr_cache,
+                                 force_vision=args.force_vision)
 
     doc = SourceDocument(
         path=Path(args.source),

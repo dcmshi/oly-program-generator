@@ -127,6 +127,7 @@ PYTHONUTF8=1 uv run python ingest_web.py
 |------|-----------|--------|
 | `--vision` | `pipeline.py` | Enables the Claude vision OCR fallback for image-only PDFs (opt-in — it costs money) |
 | `--max-pages N` | `pipeline.py` | Limits extraction to the first N pages — use when testing an OCR run |
+| `--force-vision` | `pipeline.py` | With `--vision`: ignore the PDF's text layer and OCR every page — for old scans whose embedded OCR is one block per line (paragraphs lost) or spaced digits |
 | `--no-ocr-cache` | `pipeline.py` | Ignore `sources/.ocr_cache/` and transcribe every page again; by default vision-OCR text is cached per file hash + model, so a re-ingest of an unchanged scanned PDF costs no OCR (ING-M5) |
 | `--classifier jev` | `pipeline.py` | Routes sections with one calibrated Jev `Choice` each instead of heuristics + LLM fallback (JEV-1c; beat the heuristic 13:4 on adjudicated disagreements); needs `TYPESAFE_API_KEY`, ~$0.002 per book |
 | `--judge jev` | `relabel_chunk_types.py` | Labels through TypeSafe's Jev instead of the light model: one calibrated `Choice` per passage, ~185 ms and ~$0.19 for the corpus; needs `TYPESAFE_API_KEY`. Re-freeze the golden set / baseline after applying it (labels feed the chunk-type preference boost) |
@@ -140,6 +141,10 @@ PYTHONUTF8=1 uv run python ingest_web.py
 Web ingestion records completed URLs in `sources/catalyst_progress.json` (and
 `charniga_progress.json`). Runs are safe to interrupt — a re-run resumes and
 skips what is already stored. Delete the progress file to force a full re-ingest.
+
+### Importing Kobo purchases
+
+Kobo's download button yields Adobe-DRM `.acsm` tickets, not EPUBs. `kobo_import.py check | authorize | fulfil | export | verify` drives Calibre + the DeACSM and DeDRM plugins end to end — see [KOBO-IMPORT.md](KOBO-IMPORT.md) for the plugin list and pitfalls.
 
 ### Re-tagging existing chunks
 

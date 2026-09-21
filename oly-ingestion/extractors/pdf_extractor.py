@@ -48,7 +48,7 @@ class PDFExtractor:
     """Extract text from PDFs with a three-stage fallback chain."""
 
     def __init__(self, anthropic_client=None, vision_model: str = _DEFAULT_VISION_MODEL,
-                 batch: bool = False, ocr_cache: bool = True):
+                 batch: bool = False, ocr_cache: bool = True, force_vision: bool = False):
         """
         Args:
             anthropic_client: Optional Anthropic client instance. When provided,
@@ -58,11 +58,15 @@ class PDFExtractor:
                               Batch (half price, COST-1) instead of sequential calls.
             ocr_cache:        Reuse page text from sources/.ocr_cache/<sha256>.json
                               and write new pages back (ING-M5).
+            force_vision:     Skip the text layer and OCR every page. For scans
+                              whose embedded OCR is one block per line (paragraphs
+                              lost) or full of spaced digits ("1 9 7 3").
         """
         self._client = anthropic_client
         self._vision_model = vision_model
         self._batch = batch
         self._ocr_cache = ocr_cache
+        self._force_vision = force_vision
 
     def extract(self, path: Path, max_pages: int = 0) -> list[str]:
         """Extract text from a PDF, returning a list of page texts.
@@ -73,6 +77,13 @@ class PDFExtractor:
         Args:
             max_pages: If > 0, only process the first N pages (useful for test runs).
         """
+        if self._force_vision:
+            if not self._client:
+                raise ValueError("force_vision needs an LLM client (pass --vision)")
+            logger.info("force_vision: skipping the text layer, OCR-ing every page")
+            pages = self._extract_with_vision(path, max_pages=max_pages)
+            logger.info(f"Extracted {len(pages)} pages, {sum(len(p) for p in pages):,} total characters")
+            return pages
         # Each stage is guarded so a raised exception (corrupt xref, encrypted
         # PDF, …) falls THROUGH to the next stage instead of aborting the run —
         # the chain was previously only a low-yield chain, not an error chain (I-M7).
