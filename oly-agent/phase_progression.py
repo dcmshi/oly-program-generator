@@ -101,7 +101,7 @@ def compute_load_deltas(
     if adherence_pct >= EXCELLENT_ADHERENCE_PCT and avg_make_rate >= EXCELLENT_MAKE_RATE:
         int_delta += OUTCOME_INTENSITY_BOOST_EXCELLENT
         labels.append(f"Intensity ceiling +{OUTCOME_INTENSITY_BOOST_EXCELLENT:.0f}% (excellent performance)")
-    return vol_delta, int_delta, labels
+    return round(vol_delta, 3), round(int_delta, 1), labels
 
 
 def compute_load_adjustments(

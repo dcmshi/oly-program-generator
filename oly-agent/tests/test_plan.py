@@ -389,7 +389,7 @@ def test_outcome_nudges_are_proportional_to_the_miss():
     """PLAN-2 §1.8: a small miss is a small nudge; the old flat steps are the cap."""
     from phase_progression import compute_load_adjustments, compute_load_deltas
     vol, inten, labels = compute_load_deltas(adherence_pct=67.0, avg_make_rate=0.74, avg_rpe_deviation=1.1)
-    assert -0.02 < vol < 0 and -0.5 < inten < 0
+    assert -0.02 < vol < 0 and -0.5 < inten < 0 and labels[0] == "Volume -1% (low adherence)"
     vol, inten, labels = compute_load_deltas(adherence_pct=30.0, avg_make_rate=0.40, avg_rpe_deviation=3.0)
     assert vol == -0.15 and inten == -3.0                                  # −10 % −5 % / −3 pts caps
     assert labels == compute_load_adjustments(30.0, 0.40, 3.0)             # feedback shows the same strings
