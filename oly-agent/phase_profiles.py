@@ -78,6 +78,41 @@ _LEVEL_ADJUSTMENTS = {
     "elite":        {"intensity_offset": +3, "volume_scale": 0.90},
 }
 
+# Level × phase overrides on top of the flat offsets (PLAN-2 §1.5–1.6). The
+# offsets alone gave a beginner 89 % singles in realization; the Soviet
+# textbooks now in the corpus disagree, by class:
+#   Medvedev (A Program of Multi-Year Training): beginners train the classic
+#     and special-preparatory lifts at 50–70 %, ceiling ≤ 80, "avoid heavy
+#     singles/doubles"; Class III (≈ intermediate) fundamental intensity 80 %.
+#   Vorobyev (Textbook): 1–6 reps per set for everyone past novice, 6 reps for
+#     strength/hypertrophy in beginners–intermediates; advanced/elite singles at
+#     85–95 %, speed work at 70–75 %, floor 70 %; ≤ 6 sessions/week.
+#   Laputin & Oleshko: Prilepin floors at 70 / 80 / 90 % for intermediates+.
+# `ceiling_cap` clamps the week's ceiling, `floor_min` its floor, `reps` replaces
+# the reps-per-set range, `volume_scale` multiplies the flat one. Anything not
+# listed falls through to _LEVEL_ADJUSTMENTS.
+LEVEL_PHASE_OVERRIDES: dict[str, dict[str, dict]] = {
+    "beginner": {
+        "general_prep":    {"ceiling_cap": 72, "reps": [4, 6], "volume_scale": 1.05},   # Medvedev 50–70 % fundamental band
+        "accumulation":    {"ceiling_cap": 76, "reps": [3, 6]},
+        "intensification": {"ceiling_cap": 80, "reps": [2, 4]},                          # no heavy singles/doubles
+        "realization":     {"ceiling_cap": 85, "reps": [1, 3]},                          # a beginner "peak" is a heavy triple
+    },
+    "intermediate": {
+        "accumulation":    {"floor_min": 70},                                             # Class III fundamental ≈ 80 %, Prilepin floor 70
+    },
+    "advanced": {
+        "accumulation":    {"floor_min": 70},                                             # Vorobyev: strength work never below 70 %
+        "intensification": {"ceiling_cap": 95},
+        "realization":     {"ceiling_cap": 100},
+    },
+    "elite": {
+        "accumulation":    {"floor_min": 72, "volume_scale": 1.05},                       # elite tolerate more at 70–80 %
+        "intensification": {"ceiling_cap": 96},
+        "realization":     {"ceiling_cap": 100},
+    },
+}
+
 
 def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str) -> list[dict]:
     """Build WeekTarget dicts from a phase profile.
@@ -120,21 +155,29 @@ def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str) ->
         if deload_week:
             deload_week = duration_weeks
 
-    adj = _LEVEL_ADJUSTMENTS.get(athlete_level, _LEVEL_ADJUSTMENTS["intermediate"])
+    level = athlete_level if athlete_level in _LEVEL_ADJUSTMENTS else "intermediate"
+    adj = _LEVEL_ADJUSTMENTS[level]
+    over = LEVEL_PHASE_OVERRIDES.get(level, {}).get(phase, {})
 
     targets = []
     for week_num, week_data in base_weeks:
         if week_num > duration_weeks:
             break
+        is_deload = week_num == deload_week
+        ceiling = min(week_data["intensity_ceiling"] + adj["intensity_offset"], 100)
+        floor = week_data["intensity_floor"] + adj["intensity_offset"]
+        if "ceiling_cap" in over:
+            ceiling = min(ceiling, over["ceiling_cap"])
+        if "floor_min" in over and not is_deload:
+            floor = max(floor, over["floor_min"])
+        floor = min(floor, ceiling - 4)               # keep a usable band (AGT-M1 mirrors this for cold starts)
         targets.append({
             "week_number": week_num,
-            "intensity_floor": week_data["intensity_floor"] + adj["intensity_offset"],
-            "intensity_ceiling": min(
-                week_data["intensity_ceiling"] + adj["intensity_offset"], 100
-            ),
-            "volume_modifier": week_data["volume_modifier"] * adj["volume_scale"],
-            "reps_per_set_range": week_data["reps_per_set_range"],
-            "is_deload": week_num == deload_week,
+            "intensity_floor": floor,
+            "intensity_ceiling": ceiling,
+            "volume_modifier": week_data["volume_modifier"] * adj["volume_scale"] * over.get("volume_scale", 1.0),
+            "reps_per_set_range": list(over.get("reps", week_data["reps_per_set_range"])),
+            "is_deload": is_deload,
         })
 
     return targets

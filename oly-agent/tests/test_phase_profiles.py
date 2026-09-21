@@ -335,3 +335,20 @@ def test_lift_emphasis_flips_the_light_day():
     assert [s["session_volume_share"] for s in snatch] == [s["session_volume_share"] for s in balanced]
     assert SESSION_DISTRIBUTIONS[4]["sessions"][3]["primary_movement"] == "clean"   # untouched
     assert count(get_session_templates(3, "snatch_biased"), "snatch") == 2           # 3-day: no flip
+
+
+def test_level_phase_overrides_cap_beginners_and_floor_advanced():
+    """PLAN-2 §1.5–1.6: a beginner's realization ceiling is capped (Medvedev:
+    no heavy singles/doubles) and reps widen; an advanced lifter's accumulation
+    floor never drops below 70 % (Vorobyev); intermediates keep the profile."""
+    from phase_profiles import build_weekly_targets
+    beg = build_weekly_targets("realization", 3, "beginner")
+    assert max(w["intensity_ceiling"] for w in beg) == 85
+    assert all(w["reps_per_set_range"] == [1, 3] for w in beg)
+    assert all(w["intensity_floor"] <= w["intensity_ceiling"] - 4 for w in beg)
+    adv = build_weekly_targets("accumulation", 4, "advanced")
+    assert all(w["intensity_floor"] >= 70 for w in adv if not w["is_deload"])
+    assert build_weekly_targets("accumulation", 4, "elite")[2]["intensity_ceiling"] == 83   # 80 + 3, no cap
+    mid = build_weekly_targets("intensification", 4, "intermediate")
+    assert [w["intensity_ceiling"] for w in mid] == [83, 86, 90, 93]                        # unchanged profile
+    assert build_weekly_targets("accumulation", 4, "unknown_level") == build_weekly_targets("accumulation", 4, "intermediate")
