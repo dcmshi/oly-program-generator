@@ -307,3 +307,31 @@ def main():
 
 if __name__ == "__main__":
     main()
+
+
+def test_session_layouts_cover_2_to_6_days_and_shares_sum_to_one():
+    """PLAN-2 §2.1: 2- and 6-day layouts exist (no more snapping 6 → 5); every
+    layout's volume shares sum to 1."""
+    from session_templates import SESSION_DISTRIBUTIONS, get_session_templates
+    assert set(SESSION_DISTRIBUTIONS) == {2, 3, 4, 5, 6}
+    for n, dist in SESSION_DISTRIBUTIONS.items():
+        assert len(dist["sessions"]) == n
+        assert abs(sum(s["session_volume_share"] for s in dist["sessions"]) - 1.0) < 1e-6, n
+    assert len(get_session_templates(6)) == 6
+    assert len(get_session_templates(7)) == 6            # still snaps beyond the range
+
+
+def test_lift_emphasis_flips_the_light_day():
+    """PLAN-2 §2.2: a snatch-biased athlete on 4 days gets 3 snatch-primary
+    sessions; balanced stays 2:2; the module-level layouts are not mutated."""
+    from session_templates import SESSION_DISTRIBUTIONS, get_session_templates
+    balanced = get_session_templates(4, "balanced")
+    snatch = get_session_templates(4, "snatch_biased")
+    cj = get_session_templates(4, "cj_biased")
+    count = lambda ss, m: sum(1 for s in ss if s["primary_movement"] == m)  # noqa: E731
+    assert (count(balanced, "snatch"), count(balanced, "clean")) == (2, 2)
+    assert (count(snatch, "snatch"), count(snatch, "clean")) == (3, 1)
+    assert (count(cj, "snatch"), count(cj, "clean")) == (1, 3)
+    assert [s["session_volume_share"] for s in snatch] == [s["session_volume_share"] for s in balanced]
+    assert SESSION_DISTRIBUTIONS[4]["sessions"][3]["primary_movement"] == "clean"   # untouched
+    assert count(get_session_templates(3, "snatch_biased"), "snatch") == 2           # 3-day: no flip

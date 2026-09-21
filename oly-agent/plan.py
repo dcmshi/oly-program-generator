@@ -95,7 +95,9 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
         raw_targets = _apply_outcome_adjustments(raw_targets, athlete_context.previous_program)
 
     # ── Session templates ──────────────────────────────────────
-    session_tmpl_dicts = get_session_templates(athlete_context.sessions_per_week)
+    session_tmpl_dicts = get_session_templates(
+        athlete_context.sessions_per_week, athlete_context.athlete.get("lift_emphasis")
+    )
     session_templates = [
         SessionTemplate(
             day_number=t["day_number"],

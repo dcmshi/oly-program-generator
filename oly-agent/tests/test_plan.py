@@ -83,12 +83,14 @@ def test_4_to_8_weeks_gives_intensification():
 # ── AGT-L6: stored sessions_per_week must match the template fallback ────────
 
 def test_sessions_per_week_matches_template_fallback():
-    """spw=2 falls back to the 3-day distribution — the stored program must say
-    3 days/wk (and at 1–2/wk the mismatch escalated to AGT-H1)."""
+    """spw=1 falls back to the closest layout (2-day since PLAN-2 §2.1) — the
+    stored program must say what the templates say (at 1–2/wk the mismatch
+    escalated to AGT-H1). spw=2 now has its own layout."""
     with patch("plan.fetch_all", return_value=[]):
-        p = plan(_ctx(sessions_per_week=2), None, _FakeSettings())
-    assert p.sessions_per_week == len(p.session_templates) == 3, \
-        (p.sessions_per_week, len(p.session_templates))
+        p1 = plan(_ctx(sessions_per_week=1), None, _FakeSettings())
+        p2 = plan(_ctx(sessions_per_week=2), None, _FakeSettings())
+    assert p1.sessions_per_week == len(p1.session_templates) == 2
+    assert p2.sessions_per_week == len(p2.session_templates) == 2
 
 
 # ── AGT-M1: cold-start intensity cap must clamp the floor too ────────────────
