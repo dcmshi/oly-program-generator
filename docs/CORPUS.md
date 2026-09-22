@@ -3,20 +3,20 @@
 State of the ingested source material backing retrieval. Update this file after
 any ingest, re-ingest, or bulk delete.
 
-**Totals (2026-09-21):** 6,835 chunks (6,550 live) · 4,182 principles · 732 sources · 47 templates.
+**Totals (2026-09-21, re-checked against the DB 2026-09-22):** 6,835 chunks (6,550 live, 285 quarantined) · 4,182 principles (88 marked duplicate) · 731 sources (732 until the test-fixture row 46 was deleted 2026-09-22) · 47 templates.
 There is one corpus database — the machine this repo runs on. Earlier notes about a separate
 "corpus DB machine" and a diverging "dev copy" described the same box; the runbook that was
 kept for replaying ops elsewhere is retired (`docs/DB-MACHINE-RUNBOOK.md` is history only).
-**Dev copy 2026-09-20:** 4,607 chunks · 2,234 principles · 612 sources · 39 templates —
+**Snapshot 2026-09-20:** 4,607 chunks · 2,234 principles · 612 sources · 39 templates —
 Medvedev re-chunked (613 × 324 chars → 143 × 1,430; the OCR'd session labels were being read
 as headings), `relabel_chunk_types.py` applied (`concept` 50 % → 22 % of the corpus), Takano /
 Medvedev page-fragment templates deleted. Golden set + baseline rebuilt the same day.
-**Dev copy after the book additions, 2026-09-21 01:00:** 6,835 chunks (6,550 live, 285 quarantined) ·
+**Snapshot after the book additions, 2026-09-21:** 6,835 chunks (6,550 live, 285 quarantined) ·
 4,182 principles · 732 sources · 47 templates — rows 12–27 below. Rows 19–27 went through the OCR-QA
 gate (0 unresolved pages) and the per-source Jev quarantine pass at ingest; the dedupe / relabel /
 golden-set rebuild ran afterwards (`docs/RETRIEVAL_EVAL.md`).
 
-**Dev copy after the full re-ingest, 2026-09-16:** 5,077 chunks · 2,135 principles · 612
+**Snapshot after the full re-ingest, 2026-09-16:** 5,077 chunks · 2,135 principles · 612
 sources · 49 templates. All seven PDF sources re-chunked on joined pages with
 `--contextualize` (runbook §8b), Catalyst re-crawled (428 articles → 1,055 chunks, 2.5 per
 article, was ≈ 1), Charniga ingested from the Wayback Machine (168 of 209 articles → 1,001
@@ -39,7 +39,7 @@ size.
 | 4 | Catalyst Athletics articles | Web | — (415 rows with chunks) | web (dynamic) | 1,055 (was 446) | 495 |
 | 5 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 499 | soviet | 101 (was 110; 8.9 paras/chunk) | 125 |
 | 6 | Takano — *Weightlifting Programming* | PDF | 2 | programming | 106 (was 218; 8.7 paras/chunk) | 141 |
-| 7 | Medvedev — *A Program of Multi-Year Training in Weightlifting* (1986; the `sources` row was titled *A System of…* until 2026-09-20) | PDF (vision OCR) | 501 | soviet | 613 (was 617; still 2.3 paras / 324 chars — see note) | 89 |
+| 7 | Medvedev — *A Program of Multi-Year Training in Weightlifting* (1986; the `sources` row was titled *A System of…* until 2026-09-20) | PDF (vision OCR) | 501 | soviet | 141 (+2 quarantined; was 613 × 324 chars before the 2026-09-20 session-label fix) | 188 (+18 templates) |
 | 8 | Everett — *Olympic Weightlifting for Sports* | PDF | 502 | programming | 25 (was 172; 10.5 paras/chunk) | 40 |
 | 9 | Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 504 | programming | 206 | 21 |
 | 10 | Starrett — *Becoming a Supple Leopard* | EPUB | 505 | theory_heavy | 137 | 16 |
@@ -62,19 +62,17 @@ size.
 | 27 | Kono — *Weightlifting, Olympic Style* (2010) | PDF (vision OCR, scan) | 807 | programming | 194 (+7) | 174 (+2 templates) |
 
 Takano (#6) produced 16 generic program templates in March and 18 chapter-titled ones on the
-2026-09-16 re-ingest (both sets kept for now — several windows were truncated at 4,096 output
-tokens; `create_message_growing` fixes that for the next run; review and dedupe per runbook §8b).
+2026-09-16 re-ingest; the page-fragment duplicates were deleted on 2026-09-20 and 18 remain.
 Everett *for Sports* (#8) produced 11 exercises in March; the 2026-09-16 run upserted 6 existing
 names and created none. The principle counts jumped (161 → 748) because the joined-page
 sections reach the extractor whole — Zatsiorsky alone yields 347; cross-source near-duplicates
-are expected and worth a dedupe pass (see TODO §11).
+are marked by `dedupe_principles.py` (88 as of 2026-09-21, `duplicate_of`).
 
-Medvedev (#7) did not get bigger chunks from the page-joining fix: the book is a catalogue of
-day-by-day sessions (`1. P. Cl.: 70 x 5, 80 x 2 x 2 …`), each session a paragraph group the
-sectioner keeps separate, so 639 sections → 613 chunks of ~324 chars. That is program data,
-not prose — 16 sections did route to the template parser (12 templates) — and the right fix is
-to merge consecutive session blocks into week-sized chunks in the `soviet` profile, not to
-raise the profile size (TODO §11).
+Medvedev (#7) is a catalogue of day-by-day sessions (`1. P. Cl.: 70 x 5, 80 x 2 x 2 …`). The
+OCR renders the session labels as markdown headings, which both splitters read as section
+breaks, so it came out as 613 chunks of ~324 chars even after the page-join fix. Fixed on
+2026-09-20 (`OCR_LABEL_LOOKAHEAD` + the week-boundary flush, see CLAUDE.md): 143 chunks of
+~1,430 chars, one or two log weeks each.
 
 ### Files on disk (`oly-ingestion/sources/`, gitignored)
 
@@ -102,8 +100,18 @@ for new books, and make the `--title` you pass match the `SOURCE_PROFILE_MAP` ke
 | 27 | `Tommy Kono - Weightlifting, Olympic Style (2010, Hawaii Kono Weightlifting, scan).pdf` |
 | 16–17 | `research/<Author Year - short title (journal)>.pdf|.txt` |
 
-`sources` row 53 is an empty March 2026 Laputin attempt (one failed run, no chunks) kept for
-the run history; row 499 is the live one.
+`sources` rows with no chunks, kept for the run history: 3 and 53 (March 2026 Laputin attempts;
+499 is the live one), 4 (Zatsiorsky; 51 is live), 5 (*A System of Multi-Year Training* — a
+placeholder, the book was never obtained), 6 (*Exercise Taxonomy* manual — seeds exercises, not
+chunks), and — until 2026-09-22 — 46 (`__test__ Pipeline FailTest`, a test fixture that leaked into
+this DB; deleted with its one failed run). Separately, 17 web sources own no chunks: 3 appear only in `chunk_sources` (their
+text was deduplicated against an earlier source), and 14 completed their runs without producing
+any chunks.
+
+Chunk counts for rows 1–18 are totals including quarantined rows (they were written before the
+quarantine pass existed); rows 7 and 19–27 give live chunks with the quarantined count in
+parentheses. Live counts per source: `select source_id, count(*) from knowledge_chunks where not
+quarantined group by 1`.
 
 ### Notes
 
@@ -123,10 +131,11 @@ the run history; row 499 is the live one.
 ## Planned Additions
 
 Task #23 in [../TODO-audit-2026-07-03.md](../TODO-audit-2026-07-03.md). Everything
-here was **not yet ingested** when written; rows 1–6 and 11 have since gone in (see
-*Status of rows 1–12* below). Everything needs both API keys. Ordered by ingest priority, which puts the free material first — those rows
-need no purchase decision and can go in as soon as the Catalyst re-ingest and
-migrations are done.
+here was **not yet ingested** when written. As of 2026-09-21 every row has gone in except
+row 8 (*A System of…*), the Kono *Championship Weightlifting* book (row 11 — only the free
+excerpt) and Verkhoshansky's *Special Strength Training* (row 10 — his *Programming and
+Organization of Training* went in instead); see *Status of rows 1–12* below. The table is
+kept as written, ordered by the original ingest priority (free material first).
 
 The gaps this is meant to close: concrete Soviet loading prescriptions beyond
 Medvedev, competition tapering/peaking (nothing in the corpus covers it), and
@@ -164,19 +173,31 @@ silently stall the gap it was meant to fill.
   articles, append URLs to the list and re-run; `sources/urls_progress.json` skips the rest.
 - **Add every book title to `SOURCE_PROFILE_MAP` before ingesting it** — see the
   profile section below. Rows 1–2 and 5–6 are web ingests and never consult it.
-- **Buy clean ebook text; don't OCR.** Compare the Everett/Israetel EPUBs against
-  the vision-OCR'd Laputin/Medvedev. Reserve `--vision` for scanned copies you own,
-  which is why row 11 is last among the books despite filling a real gap.
+- **Prefer clean ebook text to OCR.** Compare the Everett/Israetel EPUBs against
+  the vision-OCR'd Laputin/Medvedev. Reserve `--vision` for scanned copies you own —
+  which, since the Russian Weightlifting Library ebooks were delisted, is how Roman,
+  Vorobyev, Verkhoshansky and Kono (rows 19–21, 27) went in, all through the OCR-QA gate.
 - **Pirated PDFs are out of scope**, as are the public-domain Saxon/Sandow texts
   (wrong era to be useful here).
 - **Re-run the retrieval eval after each batch** and update
   [RETRIEVAL_EVAL.md](RETRIEVAL_EVAL.md), the Ingested Sources table above, and the
   corpus table in `README.md`.
 
-### Status of rows 1–12 (2026-09-20)
+### Status of rows 1–12 (updated 2026-09-22, checked against `sources` and `oly-ingestion/sources/`)
 
-Rows 1–6 are ingested on the dev copy (numbers in the Ingested Sources table). Rows
-7–12 all need a purchase; nothing in them has been obtained. What the sweep found:
+| Row | Status | Ingested as |
+|---|---|---|
+| 1–6 | ✅ 2026-09-16 / 09-20 | Ingested Sources #12–#16 |
+| 7 Roman | ✅ 2026-09-21 — used print scan, `--vision` | #19 (`source_id` 799) |
+| 8 Medvedev *A System of…* | **Not obtained** — `sources` row 5 is an empty March placeholder; no file on disk | — |
+| 9 Vorobyev | ✅ 2026-09-21 — *A Textbook on Weightlifting* (1978) scan, `--vision` | #21 (801) |
+| 10 Verkhoshansky | ◐ 2026-09-21 — *Programming and Organization of Training* (scan, `--force-vision`) instead of *Special Strength Training*; the latter not obtained | #20 (800) |
+| 11 Kono | ◐ *Weightlifting, Olympic Style* ✅ 2026-09-21 (scan, `--vision`); *Championship Weightlifting* only as the free Catalyst excerpt | #27 (807), #18 |
+| 12 Bompa | ✅ 2026-09-21 — Kobo EPUB (4th ed.) | #22 (802) |
+| — Charniga compilations (Kobo) | ✅ 2026-09-21 — the four still-sold Sportivny Press ebooks | #23–#26 (803–806) |
+| — Laputin clean text | Not obtained (the OCR'd `source_id=499` stays) | — |
+
+The 2026-09-20 notes below explain the routes; they predate the purchases.
 
 - **Rows 7, 8, 9 and Verkhoshansky (row 10) were one purchase — and are now delisted.**
   Sportivny Press moved the *Russian Weightlifting Library* to ebooks in 2019–2020 (Kobo,
@@ -199,9 +220,9 @@ Rows 1–6 are ingested on the dev copy (numbers in the Ingested Sources table).
   Zhekov/Lukashev compilation *Weightlifting Training and Technique* (biomechanics).
   Bompa (row 12) is on [Kobo CA](https://www.kobo.com/ca/en/ebook/periodization-of-strength-training-for-sports) as an EPUB.
 - **Row 11 (Kono)** — the free Catalyst excerpt is ingested (`sources/url_lists/extras.json`);
-  measure `fault_correction` retrieval before buying the print books.
+  *Weightlifting, Olympic Style* followed as an OCR'd scan on 2026-09-21.
 - **Row 12 (Bompa)** — bought on Kobo 2026-09-20 (4th ed. EPUB) with the four Charniga
-  compilations; imported via [KOBO-IMPORT.md](KOBO-IMPORT.md).
+  compilations; imported via [KOBO-IMPORT.md](KOBO-IMPORT.md), ingested 2026-09-21.
 
 ### Sweep 2026-09-20 — added beyond the plan
 

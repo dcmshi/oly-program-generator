@@ -2,9 +2,9 @@
 
 [![CI](https://github.com/dcmshi/oly-program-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/dcmshi/oly-program-generator/actions/workflows/ci.yml)
 
-Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on ~3,800 chunks of coaching literature across 11 sources (current counts: [docs/CORPUS.md](docs/CORPUS.md)). A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and a no-key test suite for both subsystems (`make test`).
+Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on ~6,550 live chunks of coaching literature — 18 books, 16 research papers and ~690 web articles (current counts: [docs/CORPUS.md](docs/CORPUS.md)). A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and a no-key test suite for both subsystems (`make test`).
 
-**Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · Claude (`claude-sonnet-5`) · OpenAI embeddings · Alembic · uv · Docker
+**Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · Claude (`claude-sonnet-5`) or open models via OpenRouter · OpenAI embeddings · Alembic · uv · Docker
 
 ![Dashboard](screenshots/02-dashboard.png)
 
@@ -38,7 +38,7 @@ flowchart TB
     end
 
     subgraph DB["🗄  Postgres 16 + pgvector"]
-        KC[("knowledge_chunks<br/>3,796 chunks · embeddings")]
+        KC[("knowledge_chunks<br/>6,835 chunks · embeddings")]
         PP[("programming_principles<br/>extracted if/then rules")]
         EX[("exercises · 50+<br/>substitutions · complexes")]
         PC[("prilepin_chart<br/>4 intensity zones")]
@@ -137,23 +137,37 @@ A 4-week, 4-session/week program = 16 sessions × ~1–2 LLM calls + 1 explain c
 
 Content routed before chunking — classifier sends each section to exactly one path (prose → vector store, if-then rules → principle extraction, tables → structured tables, mixed → both).
 
+Live chunks (quarantined non-content excluded) and extracted principles, 2026-09-21:
+
 | Source | Format | Chunks | Principles |
-|--------|--------|--------|------------|
-| Everett — *Olympic Weightlifting* | EPUB | 587 | 76 |
-| Zatsiorsky — *Science and Practice of Strength Training* | PDF | 430 | 7 |
-| Drechsler — *Weightlifting Encyclopedia* | PDF | 603 | 6 |
-| Catalyst Athletics articles | Web (HTML) | 446 | 22 |
-| Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 110 | 3 |
-| Medvedev — *A Program of Multi-Year Training in Weightlifting* | PDF (vision OCR) | 617 | 0 |
-| Everett — *Olympic Weightlifting for Sports* | PDF | 172 | 0 |
-| Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 206 | 21 |
-| Starrett — *Becoming a Supple Leopard* | EPUB | 137 | 16 |
-| Dan John — *Intervention* | PDF | 266 | 0 |
-| Takano — *Weightlifting Programming: A Winning Coach's Guide* | PDF | 218 | 0 |
-| **Total** | | **3,796** | **151** |
+|--------|--------|-------:|-----------:|
+| Charniga — Sportivny Press essays (Wayback) | Web | 1,196 | 344 |
+| Catalyst Athletics articles | Web | 1,052 | 495 |
+| Drechsler — *Weightlifting Encyclopedia* | PDF | 695 | 459 |
+| Everett — *Olympic Weightlifting* | EPUB | 574 | 76 |
+| Research papers — tapering, block periodization, pulling derivatives (16) | PDF / Europe PMC | 435 | 238 |
+| Stronger by Science articles | Web | 285 | 140 |
+| Zatsiorsky — *Science and Practice of Strength Training* | PDF | 273 | 347 |
+| Bompa & Buzzichelli — *Periodization of Strength Training for Sports* | EPUB | 250 | 536 |
+| Kono — *Weightlifting, Olympic Style* | PDF (vision OCR) | 194 | 174 |
+| Israetel — *Scientific Principles of Hypertrophy Training* | EPUB | 187 | 21 |
+| Roman — *The Training of the Weightlifter* | PDF (vision OCR) | 150 | 421 |
+| Medvedev — *A Program of Multi-Year Training in Weightlifting* | PDF (vision OCR) | 141 | 188 |
+| Starrett — *Becoming a Supple Leopard* | EPUB | 134 | 16 |
+| Vorobyev — *A Textbook on Weightlifting* | PDF (vision OCR) | 121 | 182 |
+| Dan John — *Intervention* | PDF | 115 | 66 |
+| Charniga — *Weightlifting Training and Biomechanics* · *A De-Masculinization of Strength* · *There Is No System* | EPUB | 270 | 26 |
+| Takano — *Weightlifting Programming: A Winning Coach's Guide* | PDF | 97 | 141 |
+| Laputin & Oleshko — *Managing the Training of Weightlifters* | PDF (vision OCR) | 97 | 125 |
+| Verkhoshansky — *Programming and Organization of Training* | PDF (vision OCR) | 89 | 31 |
+| JTS / Max Aita articles | Web | 82 | 20 |
+| Zhekov / Charniga — *Weightlifting Training and Technique* | EPUB | 81 | 86 |
+| Everett — *Olympic Weightlifting for Sports* | PDF | 25 | 40 |
+| Pendlay — beginner program | Web | 7 | 10 |
+| **Total** | | **6,550** | **4,182** |
 
 > Source ids, chunk-size profiles, and ingestion notes: [docs/CORPUS.md](docs/CORPUS.md)
-> Retrieval quality baseline scores (22 eval queries, top_k=5, min_sim=0.45): [docs/RETRIEVAL_EVAL.md](docs/RETRIEVAL_EVAL.md)
+> Retrieval quality — graded golden set (57 queries) and the regression gate: [docs/RETRIEVAL_EVAL.md](docs/RETRIEVAL_EVAL.md)
 
 ---
 
