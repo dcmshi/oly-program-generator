@@ -3,7 +3,7 @@
 State of the ingested source material backing retrieval. Update this file after
 any ingest, re-ingest, or bulk delete.
 
-**Totals (2026-09-21, re-checked against the DB 2026-09-22):** 6,835 chunks (6,550 live, 285 quarantined) · 4,182 principles (88 marked duplicate) · 731 sources (732 until the test-fixture row 46 was deleted 2026-09-22) · 47 templates.
+**Totals (2026-09-22):** 6,839 chunks (6,554 live, 285 quarantined) · 4,234 principles (88 marked duplicate) · 732 sources · 47 templates. Since 2026-09-21: test-fixture source 46 deleted, Cissik's Medvedyev summary added (#28).
 There is one corpus database — the machine this repo runs on. Earlier notes about a separate
 "corpus DB machine" and a diverging "dev copy" described the same box; the runbook that was
 kept for replaying ops elsewhere is retired (`docs/DB-MACHINE-RUNBOOK.md` is history only).
@@ -60,6 +60,7 @@ size.
 | 25 | Charniga — *There Is No System* | EPUB (Kobo) | 805 | theory_heavy | 56 (14 deduped vs the Wayback essays) | 26 (+2 templates) |
 | 26 | Charniga — *A De-Masculinization of Strength* | EPUB (Kobo) | 806 | theory_heavy | 101 | 0 |
 | 27 | Kono — *Weightlifting, Olympic Style* (2010) | PDF (vision OCR, scan) | 807 | programming | 194 (+7) | 174 (+2 templates) |
+| 28 | Cissik — blog summary of Medvedyev's *A System of Multi-Year Training* (2026), stopgap for row 8 below | Web + 7 hand-transcribed table images (`sources/url_lists/cissik_medvedyev.py`) | 808 | web (dynamic) | 4 | 52 |
 
 Takano (#6) produced 16 generic program templates in March and 18 chapter-titled ones on the
 2026-09-16 re-ingest; the page-fragment duplicates were deleted on 2026-09-20 and 18 remain.
@@ -189,7 +190,7 @@ silently stall the gap it was meant to fill.
 |---|---|---|
 | 1–6 | ✅ 2026-09-16 / 09-20 | Ingested Sources #12–#16 |
 | 7 Roman | ✅ 2026-09-21 — used print scan, `--vision` | #19 (`source_id` 799) |
-| 8 Medvedev *A System of…* | **Not obtained** — `sources` row 5 is an empty March placeholder; no file on disk | — |
+| 8 Medvedev *A System of…* | ◐ **Book not obtained** (print and ebook both unavailable 2026-09-22; `sources` row 5 is an empty placeholder). Stopgap: Cissik's summary with its tables — stages, GPP share, NL per month by class, pre-competition weekly variants, intensity-zone and exercise-category distributions | #28 (808) |
 | 9 Vorobyev | ✅ 2026-09-21 — *A Textbook on Weightlifting* (1978) scan, `--vision` | #21 (801) |
 | 10 Verkhoshansky | ◐ 2026-09-21 — *Programming and Organization of Training* (scan, `--force-vision`) instead of *Special Strength Training*; the latter not obtained | #20 (800) |
 | 11 Kono | ◐ *Weightlifting, Olympic Style* ✅ 2026-09-21 (scan, `--vision`); *Championship Weightlifting* only as the free Catalyst excerpt | #27 (807), #18 |

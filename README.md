@@ -137,7 +137,7 @@ A 4-week, 4-session/week program = 16 sessions × ~1–2 LLM calls + 1 explain c
 
 Content routed before chunking — classifier sends each section to exactly one path (prose → vector store, if-then rules → principle extraction, tables → structured tables, mixed → both).
 
-Live chunks (quarantined non-content excluded) and extracted principles, 2026-09-21:
+Live chunks (quarantined non-content excluded) and extracted principles, 2026-09-22:
 
 | Source | Format | Chunks | Principles |
 |--------|--------|-------:|-----------:|
@@ -164,7 +164,8 @@ Live chunks (quarantined non-content excluded) and extracted principles, 2026-09
 | Zhekov / Charniga — *Weightlifting Training and Technique* | EPUB | 81 | 86 |
 | Everett — *Olympic Weightlifting for Sports* | PDF | 25 | 40 |
 | Pendlay — beginner program | Web | 7 | 10 |
-| **Total** | | **6,550** | **4,182** |
+| Cissik — summary of Medvedyev's *A System of Multi-Year Training* (tables transcribed) | Web | 4 | 52 |
+| **Total** | | **6,554** | **4,234** |
 
 > Source ids, chunk-size profiles, and ingestion notes: [docs/CORPUS.md](docs/CORPUS.md)
 > Retrieval quality — graded golden set (57 queries) and the regression gate: [docs/RETRIEVAL_EVAL.md](docs/RETRIEVAL_EVAL.md)
