@@ -60,7 +60,9 @@ size.
 | 25 | Charniga — *There Is No System* | EPUB (Kobo) | 805 | theory_heavy | 56 (14 deduped vs the Wayback essays) | 26 (+2 templates) |
 | 26 | Charniga — *A De-Masculinization of Strength* | EPUB (Kobo) | 806 | theory_heavy | 101 | 0 |
 | 27 | Kono — *Weightlifting, Olympic Style* (2010) | PDF (vision OCR, scan) | 807 | programming | 194 (+7) | 174 (+2 templates) |
-| 28 | Cissik — blog summary of Medvedyev's *A System of Multi-Year Training* (2026), stopgap for row 8 below | Web + 7 hand-transcribed table images (`sources/url_lists/cissik_medvedyev.py`) | 808 | web (dynamic) | 4 | 52 |
+| 28 | Cissik — blog summary of Medvedyev's *A System of Multi-Year Training* (2026), stopgap for row 8 below | Web + 7 hand-transcribed table images (`sources/url_lists/cissik_medvedyev.py`) | 808 | web (dynamic) | 4 | 52 (14 recommendations cleared 2026-09-22 — see note) |
+
+Cissik (#28): 14 of its 52 principles had a `recommendation` number the post never states (juvenile ceiling 85 %, technique-learning ceilings 60/70/75 %, ≤ 6 sessions/week, GPP shares stored as `volume_modifier`, monthly lift counts as `total_reps_max`, the competition-week 13–16 % share as a 0.15 modifier). Their `recommendation` was set to `{}` on 2026-09-22; the rule name and `rationale` (which keeps the source's real figures) are unchanged. Supported numbers were kept (pulls ≤ 90 %, the 50–80 / 80–90 / 95 %+ zones, 850/1500 ≈ 0.57).
 
 Takano (#6) produced 16 generic program templates in March and 18 chapter-titled ones on the
 2026-09-16 re-ingest; the page-fragment duplicates were deleted on 2026-09-20 and 18 remain.
