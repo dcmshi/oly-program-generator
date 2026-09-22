@@ -145,7 +145,7 @@ file stays empty until the process exits.
 | `--vision` | `pipeline.py` | Enables the Claude vision OCR fallback for image-only PDFs (opt-in — it costs money) |
 | `--max-pages N` | `pipeline.py` | Limits extraction to the first N pages — use when testing an OCR run |
 | `--ocr-postcorrect` | `pipeline.py` | OCR-QA: pages still garbled after the multi-view check go to the light model for guarded OCR error correction (kept only if the garbled share drops and the length stays within ±10 %); off by default |
-| `--no-quarantine` | `pipeline.py` | Skip the Jev junk pass that now runs over the new source's chunks at the end of every ingest |
+| `--no-quarantine` | `pipeline.py`, `ingest_web.py` | Skip the Jev junk pass that runs over the new source's chunks at the end of every ingest (per article on the web path) |
 | `--force-vision` | `pipeline.py` | With `--vision`: ignore the PDF's text layer and OCR every page — for old scans whose embedded OCR is one block per line (paragraphs lost) or spaced digits |
 | `--no-ocr-cache` | `pipeline.py` | Ignore `sources/.ocr_cache/` and transcribe every page again; by default vision-OCR text is cached per file hash + model, so a re-ingest of an unchanged scanned PDF costs no OCR (ING-M5) |
 | `--classifier jev` | `pipeline.py` | Routes sections with one calibrated Jev `Choice` each instead of heuristics + LLM fallback (JEV-1c; beat the heuristic 13:4 on adjudicated disagreements); needs `TYPESAFE_API_KEY`, ~$0.002 per book |

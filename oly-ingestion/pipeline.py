@@ -19,10 +19,17 @@ from config import Settings
 from extractors.pdf_extractor import PDFExtractor
 from loaders.structured_loader import StructuredLoader
 from loaders.vector_loader import VectorLoader
-from processors.chunker import SemanticChunker, SourceProfile, validate_chunk
+from processors.chunker import SemanticChunker, SourceProfile
 from processors.classifier import ContentClassifier, ContentType
 from processors.principle_extractor import PrincipleExtractor
 from processors.progress import Progress, Stage, fmt_duration
+from processors.section_processor import (  # noqa: F401 — CHUNK_TYPE_KEYWORDS re-exported
+    CHUNK_TYPE_KEYWORDS,
+    SectionProcessor,
+    SectionTarget,
+    infer_chunk_type,
+    run_quarantine_pass,
+)
 
 from shared.llm import (
     create_llm_client,
@@ -75,50 +82,8 @@ PROGRAM_TEMPLATE_COLUMN_KEYS: frozenset[str] = frozenset({
     "athlete_level", "goal", "duration_weeks", "sessions_per_week",
 })
 
-CHUNK_TYPE_KEYWORDS: dict[str, list[str]] = {
-    "fault_correction": [
-        "fault", "faults", "error", "errors", "correction", "corrections",
-        "miss", "misses", "missed", "missing", "common mistake", "common mistakes",
-    ],
-    "biomechanics": [
-        "biomechanics", "biomechanical", "anatomy", "physiology", "mechanics",
-        "receiving position", "bar path", "muscle activation",
-    ],
-    "competition_strategy": [
-        # Require specific competition-context phrases — "competition" alone appears
-        # in almost every weightlifting chapter ("the competition lifts")
-        "competition preparation", "competition day", "competition strategy",
-        "meet preparation", "attempt selection", "opener", "openers", "warm-up room",
-    ],
-    "nutrition_bodyweight": [
-        "nutrition", "weight class", "body weight", "bodyweight", "diet", "making weight",
-        "hydration", "caloric",
-    ],
-    # Periodisation vocabulary is tested BEFORE recovery_adaptation: with the
-    # old order 77 of 97 chunks mentioning "accumulation" and all 32 mentioning
-    # "deload" were labelled recovery_adaptation because "adaptation"/"recovery"
-    # appears in the same passages (RAG-H2).
-    "periodization": [
-        "periodization", "periodisation", "program design", "mesocycle", "macrocycle",
-        "microcycle", "annual plan", "training block", "training cycle",
-        "accumulation", "intensification", "realization", "realisation",
-        "deload", "taper", "tapering", "peaking", "preparatory period", "competitive period",
-    ],
-    "recovery_adaptation": [
-        "recovery", "adaptation", "sleep", "rest period", "restoration",
-        "overtraining", "supercompensation",
-    ],
-    "programming_rationale": [
-        "rationale", "reasoning", "because", "in order to",
-    ],
-}
-
-# Word-boundary matchers built once from CHUNK_TYPE_KEYWORDS: substring tests
-# fired `miss` on "permission"/"mission" and `error` on "terror" (RAG-H2).
-_CHUNK_TYPE_MATCHERS: list[tuple[str, re.Pattern]] = [
-    (chunk_type, re.compile(r"\b(?:" + "|".join(re.escape(k) for k in kws) + r")\b", re.IGNORECASE))
-    for chunk_type, kws in CHUNK_TYPE_KEYWORDS.items()
-]
+# CHUNK_TYPE_KEYWORDS / infer_chunk_type moved to processors/section_processor.py
+# (I-L11); re-exported here for existing imports.
 
 
 _PROGRAM_PARSE_PROMPT = """\
@@ -300,6 +265,10 @@ class IngestionPipeline:
         self.principle_extractor = PrincipleExtractor(settings)
         self.vector_loader = VectorLoader(settings)
         self.structured_loader = StructuredLoader(settings)
+        self.sections = SectionProcessor(
+            settings, self.vector_loader, self.structured_loader, self.principle_extractor,
+            contextualize=self.contextualize, context_model=self.context_model,
+        )
 
     def ingest(self, source: SourceDocument) -> dict:
         """Full ingestion pipeline for a single source document.
@@ -328,6 +297,8 @@ class IngestionPipeline:
             "prose_chunks": 0,
             "prose_chunks_valid": 0,
             "prose_chunks_quarantined": 0,
+            "chunks_loaded": 0,
+            "chunks_skipped_dedup": 0,
             "principles": 0,
             "programs": 0,
             "exercises": 0,
@@ -451,6 +422,10 @@ class IngestionPipeline:
                             + ", ".join(f"{k}={v}" for k, v in sorted(by_type.items(), key=lambda kv: -kv[1])))
 
             pending_principles: list[tuple[int, str]] = []   # (section index, text) — batch mode
+            target = SectionTarget(source_id=source_id, title=source.title, author=source.author,
+                                   chunker=chunker, run_id=run_id)
+            def structured(sec, st):
+                return self._process_structured(sec, source, source_id, st)
 
             route_stage = Stage("3/3 Route sections", logger, f"{len(all_sections) - resume_from} to process")
             route_stage.__enter__()
@@ -463,65 +438,15 @@ class IngestionPipeline:
                 route_progress.tick(
                     i + 1,
                     f"{section.content_type.value} '{str(section.metadata.get('title', ''))[:40]}' "
-                    f"({len(section.content):,} ch) · chunks={stats.get('chunks_loaded', stats['prose_chunks'])} principles={stats['principles']} "
+                    f"({len(section.content):,} ch) · chunks={stats['chunks_loaded']} principles={stats['principles']} "
                     f"programs={stats['programs']}",
                 )
                 try:
-                    match section.content_type:
-
-                        case ContentType.PROSE:
-                            stats = self._process_prose(
-                                section, chunker, source, source_id, stats, run_id
-                            )
-
-                        case ContentType.MIXED:
-                            stats = self._process_prose(
-                                section, chunker, source, source_id, stats, run_id
-                            )
-                            if self.batch:
-                                pending_principles.append((i, section.content))
-                            else:
-                                stats["principles"] += self._extract_and_load_principles(
-                                    section.content, source, source_id
-                                )
-
-                        case ContentType.PRINCIPLE:
-                            if self.batch:
-                                pending_principles.append((i, section.content))
-                            else:
-                                stats["principles"] += self._extract_and_load_principles(
-                                    section.content, source, source_id
-                                )
-
-                        case ContentType.PROGRAM_TEMPLATE:
-                            program = self._parse_program_template(section, source, source_id)
-                            # load_program returns None on validation skip or
-                            # dedup — count only real inserts (ING-M5)
-                            if self.structured_loader.load_program(program) is not None:
-                                stats["programs"] += 1
-
-                        case ContentType.TABLE:
-                            rows = self._parse_table(section, source_id)
-                            if rows:
-                                stats["tables_parsed"] += rows
-                            else:
-                                # The classifier doesn't populate structured_data,
-                                # so most TABLE sections parse to 0 rows — chunk as
-                                # prose instead of dropping the content entirely (I-M2).
-                                logger.info(
-                                    "TABLE section had no pre-parsed rows — chunking as prose"
-                                )
-                                stats = self._process_prose(
-                                    section, chunker, source, source_id, stats, run_id
-                                )
-
-                        case ContentType.EXERCISE_DESCRIPTION:
-                            exercise = self._parse_exercise(section, source_id)
-                            # _parse_exercise returns {} when no name was found,
-                            # and load_exercise returns None on failure — count
-                            # only real inserts (audit5-M1, cf. ING-M5)
-                            if exercise and self.structured_loader.load_exercise(exercise) is not None:
-                                stats["exercises"] += 1
+                    stats = self.sections.process(
+                        section, target, stats,
+                        structured=structured,
+                        queue_principles=(lambda text, i=i: pending_principles.append((i, text))) if self.batch else None,
+                    )
 
                     # Checkpoint every 10 sections. Store the COUNT processed
                     # (i + 1), so a resume skips exactly the done sections and
@@ -562,29 +487,40 @@ class IngestionPipeline:
             )
             raise
 
-    def _extract_and_load_principles(self, text: str, source, source_id: int) -> int:
-        """Synchronous principle extraction + load for one section; returns the count."""
-        principles = self.principle_extractor.extract(
-            text=text, source_title=source.title, source_id=source_id,
-        )
-        self.structured_loader.load_principles(principles, source_id)
-        return len(principles)
+    def _process_structured(self, section, source, source_id: int, stats: dict) -> bool:
+        """The book path's structured loaders for PROGRAM_TEMPLATE / TABLE /
+        EXERCISE_DESCRIPTION sections. Returns False to send the section down
+        the prose path instead (a TABLE with no pre-parsed rows, I-M2)."""
+        match section.content_type:
+            case ContentType.PROGRAM_TEMPLATE:
+                program = self._parse_program_template(section, source, source_id)
+                # load_program returns None on validation skip or dedup —
+                # count only real inserts (ING-M5)
+                if self.structured_loader.load_program(program) is not None:
+                    stats["programs"] += 1
+                return True
+            case ContentType.TABLE:
+                rows = self._parse_table(section, source_id)
+                if rows:
+                    stats["tables_parsed"] += rows
+                    return True
+                # The classifier doesn't populate structured_data, so most
+                # TABLE sections parse to 0 rows — chunk as prose instead of
+                # dropping the content entirely (I-M2).
+                logger.info("TABLE section had no pre-parsed rows — chunking as prose")
+                return False
+            case ContentType.EXERCISE_DESCRIPTION:
+                exercise = self._parse_exercise(section, source_id)
+                # _parse_exercise returns {} when no name was found, and
+                # load_exercise returns None on failure — count only real
+                # inserts (audit5-M1, cf. ING-M5)
+                if exercise and self.structured_loader.load_exercise(exercise) is not None:
+                    stats["exercises"] += 1
+                return True
+        return False
 
     def _quarantine_source(self, source_id: int) -> int | None:
-        """Run quarantine_chunks.py over one source (JEV-1a) at the end of an
-        ingest so indexes / TOCs / reference lists never wait for a manual pass.
-        Needs TYPESAFE_API_KEY; without it the step is skipped with a warning."""
-        import os
-        if not os.environ.get("TYPESAFE_API_KEY"):
-            logger.warning("Quarantine pass skipped — TYPESAFE_API_KEY not set")
-            return None
-        try:
-            from quarantine_chunks import quarantine_source
-            with Stage("Quarantine pass", logger, f"source {source_id}, Jev junk detector"):
-                return quarantine_source(source_id, self.settings)
-        except Exception as e:                       # noqa: BLE001 — the ingest is already committed
-            logger.error(f"Quarantine pass failed for source {source_id}: {e}")
-            return None
+        return run_quarantine_pass(source_id, self.settings)
 
     def _flush_principle_batch(self, pending: list[tuple[int, str]], source, source_id: int,
                                run_id: int, resume_from: int) -> int:
@@ -651,87 +587,11 @@ class IngestionPipeline:
         except OSError:
             return None
 
-    @staticmethod
-    def _infer_chunk_type(section) -> str:
-        """Map classifier ContentType + section title/content to a chunk_type enum value.
-
-        Scans the section title AND the first 800 chars of content with
-        word-boundary matchers; first match in CHUNK_TYPE_KEYWORDS order wins.
-        (`title or content` used to skip the body whenever a title existed —
-        after RAG-H1 almost every section has one — and substring tests fired
-        on "permission"/"terror"; RAG-H2.) The label is a soft retrieval
-        preference, not a filter, so a wrong guess costs rank, not recall.
-        """
-        title = section.metadata.get("title") or ""
-        probe = f"{title}\n{section.content[:800]}"
-
-        for chunk_type, matcher in _CHUNK_TYPE_MATCHERS:
-            if matcher.search(probe):
-                return chunk_type
-
-        # ContentType.MIXED means it has both prose and rules — label accordingly
-        if section.content_type.value == "mixed":
-            return "programming_rationale"
-
-        return "concept"
+    _infer_chunk_type = staticmethod(infer_chunk_type)
 
     def _rollback_connections(self) -> None:
-        """Roll back both loader connections after a section-level error.
-
-        Keeps the pipeline alive so the next section can proceed on a clean
-        transaction state. Logs at DEBUG level if rollback itself fails.
-        """
-        try:
-            self.vector_loader.conn.rollback()
-            self.structured_loader.conn.rollback()
-        except Exception as rb_err:
-            logger.debug(f"Rollback failed (non-fatal): {rb_err}")
-
-    def _process_prose(self, section, chunker, source, source_id, stats, run_id=None):
-        """Chunk prose content, validate, tag, and load into vector store."""
-        chunks = chunker.chunk(
-            text=section.content,
-            metadata={
-                "chapter": section.metadata.get("chapter", ""),
-                "chunk_type": self._infer_chunk_type(section),
-            },
-            source_title=source.title,
-            author=source.author,
-        )
-
-        if self.contextualize and chunks:
-            from processors.contextualizer import contextualize
-            chunks = contextualize(
-                chunks, section.content, source.title,
-                self.principle_extractor._get_client(), self.context_model,
-            )
-
-        valid_chunks = []
-        for chunk in chunks:
-            if self.settings.validate_chunks:
-                result = validate_chunk(chunk)
-                if not result.is_valid:
-                    logger.warning(
-                        f"Chunk validation issues (index={result.chunk_index}): "
-                        f"{'; '.join(result.issues)}"
-                    )
-                    if self.settings.quarantine_invalid_chunks and result.severity == "error":
-                        stats["prose_chunks_quarantined"] += 1
-                        continue
-            valid_chunks.append(chunk)
-
-        loaded = self.vector_loader.load_chunks(
-            valid_chunks, source_id,
-            run_id=run_id,
-            structured_loader=self.structured_loader,
-        )
-        stats["prose_chunks"] += len(chunks)
-        stats["prose_chunks_valid"] += len(valid_chunks)
-        stats["chunks_loaded"] = stats.get("chunks_loaded", 0) + loaded
-        stats["chunks_skipped_dedup"] = (
-            stats.get("chunks_skipped_dedup", 0) + self.vector_loader.last_skipped_count
-        )
-        return stats
+        """Roll back both loader connections after a section-level error."""
+        self.sections.rollback()
 
     def _parse_program_template(self, section, source, source_id) -> dict:
         """Convert a detected program section into structured JSONB format via LLM.

@@ -105,7 +105,7 @@ the main DB machine.
 
 ### LOW
 - [x] **I-L1** continuation tolerates `MAX_EMPTY=2` prose windows before stopping. **I-L2** `load_principles` counts by rowcount. **I-L3** `apply_ocr_corrections` wired for soviet-profile sources + no-op entry removed. **I-L4** embed retry on typed OpenAI errors. **I-L5** `load_json` opens `encoding="utf-8"`. **I-L6** `_would_split_pattern` uses `finditer`. **I-L7** section-break patterns capture the full heading line. **I-L8** shared `shared.llm.parse_llm_json` replaces 3 fence-strippers. **I-L9** = A-R9 (done). **I-L10** `_CATALYST_PAGE_SIZE` constant + step-agnostic next-page detection. (Tests: `test_chunker`, `test_llm_helpers`, `test_structured_loader`, `test_ingest_web`.)
-- [~] **I-L11 — extract a shared `process_section()`** for `pipeline.py`↔`ingest_web.py`. **Deferred**: a large refactor of the core ingestion path in both entry points; full verification needs live keys/DB, so it's best done on the main DB machine alongside the re-ingest rather than blind here. (The web path skipping `validate_chunk` — the reason I-H1 went unnoticed — is noted for that work.)
+- [x] ✅ *Done 2026-09-22 — `processors/section_processor.py` (see TODO.md, Open list).* **I-L11 — extract a shared `process_section()`** for `pipeline.py`↔`ingest_web.py`. **Deferred**: a large refactor of the core ingestion path in both entry points; full verification needs live keys/DB, so it's best done on the main DB machine alongside the re-ingest rather than blind here. (The web path skipping `validate_chunk` — the reason I-H1 went unnoticed — is noted for that work.)
 
 ---
 
@@ -126,7 +126,7 @@ the main DB machine.
 
 ## DEFERRED (product decision; the "main DB machine" turned out to be this one — CORPUS-DB, 2026-09-21)
 - [x] **#6 — Catalyst corpus re-ingest** ✅ 2026-09-16 (428 articles → 1,055 chunks; `docs/CORPUS.md`). (see the Ingestion H1 follow-up above).
-- [~] **I-L11** — shared `process_section()` refactor (see Ingestion LOW above). Still deferred as of 2026-09-22; listed under *Open* at the top of `TODO.md`.
+- [x] **I-L11** — shared `process_section()` refactor ✅ 2026-09-22 (`processors/section_processor.py`).
 
 ---
 

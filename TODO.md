@@ -12,7 +12,7 @@ Every checkbox in this file is closed. What is still genuinely open lives elsewh
 - [ ] **EMBED-1 (roadmap #22)** — `text-embedding-3-large` at `embedding_dim = 1536`. The model is still `text-embedding-3-small` (no `EMBEDDING_MODEL` in `.env`). Everything it needs exists — `knowledge_chunks.embedding_model` (RAG-M8), `reembed.py`, the golden-set gate — so the work is: flip the setting, re-embed ~6.8k chunks, re-run `eval.run_eval` and keep it only if it beats `baseline.json`.
 - [ ] **CORPUS row 8** — Medvedev *A System of Multi-Year Training* was never obtained (`sources` row 5 is an empty placeholder); also unobtained: Verkhoshansky *Special Strength Training*, Kono *Championship Weightlifting*, a clean-text Laputin. Status table in `docs/CORPUS.md`.
 - [ ] **MODEL-2 revisit** — after the next full book ingest on Kimi K3, compare principle counts / condition hygiene against the Sonnet-era runs (see MODEL-2 LLM_MODEL in §12).
-- [ ] **I-L11** (`TODO-audit-2026-07-03.md`) — shared `process_section()` for `pipeline.py` ↔ `ingest_web.py`; still deferred.
+- [x] **I-L11** ✅ 2026-09-22 — `processors/section_processor.py`: one `SectionProcessor.process()` for `pipeline.py` and `ingest_web.py`. The web path now runs `validate_chunk` and the Jev quarantine pass (per article, `--no-quarantine`), and records the same `ingestion_runs.result` counters. Tests `test_section_processor.py` + 5 new in `test_ingest_web.py`.
 - [x] **Housekeeping** ✅ 2026-09-22 — `sources` row 46 (`__test__ Pipeline FailTest`, a leaked test fixture with no chunks) deleted with its one `ingestion_runs` row; 731 sources.
 - Deliberately not done (reasons in `docs/PROGRAMMING_ASSUMPTIONS.md`): PLAN-2 §1.2/1.3, §2.4, §3.1, §3.2, §3.3, §3.7, §3.9.
 

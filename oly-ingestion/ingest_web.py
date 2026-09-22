@@ -49,9 +49,15 @@ from extractors.html_extractor import block_text
 from loaders.structured_loader import StructuredLoader
 from loaders.vector_loader import VectorLoader
 from processors.chunker import SemanticChunker
-from processors.classifier import ContentClassifier, ContentType
+from processors.classifier import ContentClassifier
 from processors.principle_extractor import PrincipleExtractor
 from processors.progress import Progress
+from processors.section_processor import (
+    SectionProcessor,
+    SectionTarget,
+    new_section_stats,
+    run_quarantine_pass,
+)
 
 from shared.llm import light_model_for
 
@@ -679,7 +685,8 @@ def fetch_charniga_snapshot(original_url: str, timestamp: str, *, try_alternates
 # ── Ingestion ──────────────────────────────────────────────────
 
 def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) -> tuple[dict, bool]:
-    """Ingest a single article through chunker → classifier → vector store.
+    """Ingest a single article: classify, then route each section through the
+    shared SectionProcessor (chunk → validate → embed, principle extraction).
 
     Returns (run_stats, success). success=False on a run-level failure so the
     caller can leave the URL out of the progress file and retry it next run
@@ -716,67 +723,35 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
 
     try:
         word_count = len(text.split())
-        chunker = SemanticChunker.for_web_article(word_count)
+        target = SectionTarget(
+            source_id=source_id, title=title, author=author,
+            chunker=SemanticChunker.for_web_article(word_count), run_id=run_id,
+        )
+        # Same per-section routing as pipeline.py (I-L11), with no structured
+        # handler: web articles have no table/program/exercise loaders, so those
+        # sections are chunked as prose rather than dropped (I-M2).
+        contextualize = bool(pipeline_components.get("contextualize"))
+        processor = SectionProcessor(
+            settings, vl, sl, principle_extractor,
+            contextualize=contextualize,
+            context_model=light_model_for(settings, pipeline_components.get("context_model")) if contextualize else None,
+        )
+        stats = new_section_stats()
 
-        sections = classifier.classify_sections(text, title)
-        chunks_loaded = 0
-        chunks_skipped = 0
-        principles_count = 0
-
-        for section in sections:
+        for section in classifier.classify_sections(text, title):
             try:
-                # Web articles have no structured table/program/exercise loaders,
-                # so anything that isn't a pure PRINCIPLE section is chunked as
-                # prose — otherwise TABLE/PROGRAM/EXERCISE sections were dropped
-                # silently, losing their text (I-M2).
-                if section.content_type != ContentType.PRINCIPLE:
-                    from pipeline import IngestionPipeline
-                    chunk_type = IngestionPipeline._infer_chunk_type(section)
-                    chunks = chunker.chunk(
-                        text=section.content,
-                        metadata={"chapter": "", "chunk_type": chunk_type},
-                        source_title=title,
-                        author=author,
-                    )
-                    if pipeline_components.get("contextualize") and chunks:
-                        from processors.contextualizer import contextualize
-                        chunks = contextualize(
-                            chunks, section.content, title,
-                            principle_extractor._get_client(),
-                            light_model_for(settings, pipeline_components.get("context_model")),
-                        )
-                    loaded = vl.load_chunks(
-                        chunks, source_id,
-                        run_id=run_id,
-                        structured_loader=sl,
-                    )
-                    chunks_loaded += loaded
-                    chunks_skipped += vl.last_skipped_count
-
-                if section.content_type in (ContentType.PRINCIPLE, ContentType.MIXED):
-                    principles = principle_extractor.extract(
-                        text=section.content,
-                        source_title=title,
-                        source_id=source_id,
-                    )
-                    sl.load_principles(principles, source_id)
-                    principles_count += len(principles)
-
+                processor.process(section, target, stats)
             except Exception as e:
                 logger.error(f"Section error in '{title}': {e}")
-                try:
-                    vl.conn.rollback()
-                    sl.conn.rollback()
-                except Exception as rb_err:
-                    logger.debug(f"Rollback failed (non-fatal): {rb_err}")
+                processor.rollback()
 
-        sl.complete_run(run_id, {
-            "chunks_loaded": chunks_loaded,
-            "prose_chunks": chunks_loaded + chunks_skipped,
-            "prose_chunks_valid": chunks_loaded + chunks_skipped,
-            "chunks_skipped_dedup": chunks_skipped,
-            "principles": principles_count,
-        })
+        # Jev junk pass per article, as pipeline.py does per source (JEV-1a)
+        if pipeline_components.get("quarantine") and stats["chunks_loaded"]:
+            stats["chunks_quarantined_jev"] = run_quarantine_pass(source_id, settings)
+
+        sl.complete_run(run_id, stats)
+        chunks_loaded = stats["chunks_loaded"]
+        principles_count = stats["principles"]
 
         run_stats["articles_ingested"] += 1
         run_stats["chunks_total"] += chunks_loaded
@@ -836,6 +811,8 @@ def main():
                         help="Write an LLM retrieval-context prefix into each chunk before embedding (RAG-M3)")
     parser.add_argument("--context-model", default=None,
                         help="Model for --contextualize (default: settings.light_model)")
+    parser.add_argument("--no-quarantine", action="store_true",
+                        help="Skip the per-article Jev junk pass (needs TYPESAFE_API_KEY; skipped with a warning without it)")
     args = parser.parse_args()
 
     # ── Collect URLs (per-site) ──
@@ -903,6 +880,7 @@ def main():
         "principle_extractor": PrincipleExtractor(settings),
         "contextualize": args.contextualize,
         "context_model": light_model_for(settings, args.context_model),
+        "quarantine": not args.no_quarantine,
     }
 
     run_stats = {"articles_ingested": 0, "chunks_total": 0, "principles_total": 0}

@@ -557,3 +557,76 @@ def test_research_profile_maps_the_pritchard_sources():
                   "Short-term training cessation as a method of tapering to improve maximal strength",
                   "Higher vs lower intensity strength training taper effects on neuromuscular performance"):
         assert SemanticChunker.for_source(title).source_profile is SourceProfile.RESEARCH, title
+
+
+# ── I-L11: the web path shares pipeline.py's section routing ──────────────────
+
+_PROSE = ("The snatch pull is trained in the accumulation block with moderate loads, "
+          "because the athlete needs positional strength before speed work. ") * 12
+
+
+def _prose_section(content=_PROSE):
+    from processors.classifier import ClassifiedSection, ContentType
+    return ClassifiedSection(content=content, content_type=ContentType.PROSE, metadata={})
+
+
+def test_web_path_validates_chunks():
+    """The web path used to skip validate_chunk (the gap behind I-H1); it now
+    runs through SectionProcessor.process_prose like the book path."""
+    comps = _components()
+    comps["settings"].validate_chunks = True
+    comps["settings"].quarantine_invalid_chunks = False
+    comps["classifier"].classify_sections.return_value = [_prose_section()]
+    with patch("processors.section_processor.validate_chunk", wraps=__import__(
+            "processors.chunker", fromlist=["validate_chunk"]).validate_chunk) as vc:
+        _, ok = ingest_article(_ARTICLE, comps, _stats())
+    assert ok is True
+    assert vc.call_count >= 1
+
+
+def test_web_path_records_the_shared_stats_shape():
+    comps = _components()
+    comps["settings"].validate_chunks = False
+    comps["classifier"].classify_sections.return_value = [_prose_section()]
+    stats = _stats()
+    ingest_article(_ARTICLE, comps, stats)
+    result = comps["structured_loader"].complete_run.call_args.args[1]
+    for key in ("prose_chunks", "prose_chunks_valid", "chunks_loaded", "chunks_skipped_dedup", "principles"):
+        assert key in result, key
+    assert result["chunks_loaded"] == stats["chunks_total"] >= 1
+
+
+def test_web_path_runs_quarantine_pass_only_when_enabled():
+    for enabled, expected in ((True, 1), (False, 0)):
+        comps = _components()
+        comps["settings"].validate_chunks = False
+        comps["classifier"].classify_sections.return_value = [_prose_section()]
+        comps["quarantine"] = enabled
+        with patch("ingest_web.run_quarantine_pass", return_value=0) as q:
+            ingest_article(_ARTICLE, comps, _stats())
+        assert q.call_count == expected, enabled
+
+
+def test_web_section_error_rolls_back_and_continues():
+    """A failing section is rolled back and the next one still loads."""
+    comps = _components()
+    comps["settings"].validate_chunks = False
+    comps["vector_loader"].load_chunks.side_effect = [RuntimeError("bad"), 1]
+    comps["classifier"].classify_sections.return_value = [_prose_section(), _prose_section()]
+    _, ok = ingest_article(_ARTICLE, comps, _stats())
+    assert ok is True
+    comps["vector_loader"].conn.rollback.assert_called_once()
+    assert comps["structured_loader"].complete_run.call_args.args[1]["chunks_loaded"] == 1
+
+
+def test_principle_section_goes_to_extractor_not_vector_store():
+    from processors.classifier import ClassifiedSection, ContentType
+    comps = _components()
+    comps["principle_extractor"].extract.return_value = ["p1", "p2"]
+    comps["classifier"].classify_sections.return_value = [
+        ClassifiedSection(content="If the athlete misses, reduce 5%.", content_type=ContentType.PRINCIPLE, metadata={})
+    ]
+    stats = _stats()
+    ingest_article(_ARTICLE, comps, stats)
+    comps["vector_loader"].load_chunks.assert_not_called()
+    assert stats["principles_total"] == 2

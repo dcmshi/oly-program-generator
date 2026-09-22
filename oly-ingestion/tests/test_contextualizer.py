@@ -81,25 +81,21 @@ def test_contextualize_uses_cached_system_block_and_isolates_failures():
     assert chunks[0].raw_content in kwargs["messages"][0]["content"]
 
 
-def test_pipeline_process_prose_calls_contextualizer_only_when_enabled():
-    from pipeline import IngestionPipeline
+def test_section_processor_calls_contextualizer_only_when_enabled():
+    from processors.section_processor import SectionProcessor, SectionTarget, new_section_stats
 
     section = MagicMock(content="Body text about accumulation volume.", metadata={"chapter": "", "title": ""})
     section.content_type = MagicMock(value="prose")
-    source = MagicMock(title="T", author="A")
-    chunker = SemanticChunker()
+    target = SectionTarget(source_id=1, title="T", author="A", chunker=SemanticChunker())
 
     def run(enabled):
-        pipe = MagicMock()
-        pipe.contextualize = enabled
-        pipe.context_model = "m"
-        pipe.settings.validate_chunks = False
-        pipe.vector_loader.load_chunks.return_value = 1
-        pipe.vector_loader.last_skipped_count = 0
-        pipe._infer_chunk_type = lambda s: "concept"
+        settings = MagicMock(validate_chunks=False)
+        vl = MagicMock(last_skipped_count=0)
+        vl.load_chunks.return_value = 1
+        proc = SectionProcessor(settings, vl, MagicMock(), MagicMock(), contextualize=enabled, context_model="m")
         with patch("processors.contextualizer.contextualize") as ctx:
             ctx.side_effect = lambda chunks, *a, **k: chunks
-            IngestionPipeline._process_prose(pipe, section, chunker, source, 1, {"prose_chunks": 0, "prose_chunks_valid": 0, "prose_chunks_quarantined": 0}, None)
+            proc.process_prose(section, target, new_section_stats())
             return ctx.call_count
 
     assert run(False) == 0
