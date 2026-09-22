@@ -112,6 +112,7 @@ INGESTION_TESTS := \
 	tests/test_structured_loader_unit.py \
 	tests/test_ingest_web.py \
 	tests/test_section_processor.py \
+	tests/test_principle_audit.py \
 	tests/test_llm_helpers.py \
 	tests/test_vector_loader_units.py \
 	tests/test_page_text.py \
