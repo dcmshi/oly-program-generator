@@ -5,13 +5,23 @@ Tests for the ContentClassifier.
 Run: python -m pytest tests/test_classifier.py -v
 """
 
+import os
 import sys
 from pathlib import Path
+
+import pytest
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config import Settings
 from processors.classifier import ContentClassifier, ContentType
+
+# The _llm_classify tests call the real light model (they check its judgement,
+# which a mock can't): gated like the repo's other live-API tests. Without the
+# gate they ran — and were paid for — in every local "no-key" run, and passed
+# vacuously in CI, where the missing key makes _llm_classify return (PROSE, 0.5).
+_live_llm = pytest.mark.skipif(os.environ.get("INTEGRATION_TESTS") != "1",
+                               reason="calls the real classifier LLM — set INTEGRATION_TESTS=1")
 
 
 def make_classifier() -> ContentClassifier:
@@ -149,6 +159,7 @@ def test_signal_free_narrative_stays_confident_no_llm():
 # These passages are deliberately ambiguous so heuristics score < 0.6
 # and fall through to the LLM path.
 
+@_live_llm
 def test_llm_classifies_ambiguous_principle():
     """Short principle-like text that heuristics underscore."""
     clf = make_classifier()
@@ -167,6 +178,7 @@ def test_llm_classifies_ambiguous_principle():
     print(f"  LLM ambiguous principle: classified as {content_type.value} (conf={confidence:.2f})")
 
 
+@_live_llm
 def test_llm_classifies_prose():
     """Pure narrative text should come back as prose."""
     clf = make_classifier()
@@ -182,6 +194,7 @@ def test_llm_classifies_prose():
     print(f"  LLM prose passage: {content_type.value} (conf={confidence:.2f})")
 
 
+@_live_llm
 def test_llm_classifies_exercise_description():
     """Exercise execution description should be classified correctly."""
     clf = make_classifier()
@@ -197,6 +210,7 @@ def test_llm_classifies_exercise_description():
     print(f"  LLM exercise description: {content_type.value} (conf={confidence:.2f})")
 
 
+@_live_llm
 def test_llm_fallback_triggers_in_classify_sections():
     """A section that scores below 0.6 on heuristics should trigger LLM and return a valid type."""
     clf = make_classifier()

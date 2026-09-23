@@ -86,8 +86,8 @@ _NON_TEXT_BLOCK_TYPES = frozenset({
 _warned_unknown_pricing: set[str] = set()
 
 # ── Providers ─────────────────────────────────────────────────────────────
-# "anthropic" (default) talks to api.anthropic.com with ANTHROPIC_API_KEY.
-# "openrouter" talks to OpenRouter's Anthropic-Messages-compatible endpoint
+# "anthropic" talks to api.anthropic.com with ANTHROPIC_API_KEY.
+# "openrouter" (the default, config.DEFAULT_LLM_PROVIDER) talks to OpenRouter's Anthropic-Messages-compatible endpoint
 # with OPENROUTER_API_KEY and OpenRouter's model ids ("anthropic/claude-sonnet-5",
 # "anthropic/claude-haiku-4.5"); same SDK, same request shape. No Message
 # Batches there — `supports_batches()` is False and --batch falls back to sync.

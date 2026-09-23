@@ -145,8 +145,8 @@ class Settings:
     # ── API keys / provider ───────────────────────────────────
     openai_api_key: str = ""
     anthropic_api_key: str = ""
-    # LLM_PROVIDER: "anthropic" (default) or "openrouter" — OpenRouter's
-    # Anthropic-compatible endpoint with OPENROUTER_API_KEY; the model roles
+    # LLM_PROVIDER: "openrouter" (default, DEFAULT_LLM_PROVIDER) — OpenRouter's
+    # Anthropic-compatible endpoint with OPENROUTER_API_KEY — or "anthropic"; the model roles
     # below are rewritten to OpenRouter ids in __post_init__. LLM_BASE_URL
     # overrides the endpoint (blank = the provider's default).
     llm_provider: str = ""

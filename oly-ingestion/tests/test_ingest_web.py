@@ -630,3 +630,20 @@ def test_principle_section_goes_to_extractor_not_vector_store():
     ingest_article(_ARTICLE, comps, stats)
     comps["vector_loader"].load_chunks.assert_not_called()
     assert stats["principles_total"] == 2
+
+
+def test_web_path_runs_principle_audit_on_the_article_text():
+    from processors.classifier import ClassifiedSection, ContentType
+    comps = _components()
+    comps["principle_extractor"].extract.return_value = ["p1"]
+    comps["classifier"].classify_sections.return_value = [
+        ClassifiedSection(content="If the athlete misses, reduce 5%.", content_type=ContentType.PRINCIPLE, metadata={})
+    ]
+    comps["principle_audit"] = True
+    with patch("principle_audit.run_audit_pass", return_value={"claims": 1}) as audit:
+        ingest_article(_ARTICLE, comps, _stats())
+    assert audit.call_args.args[0] == 1 and audit.call_args.args[2] == _ARTICLE["text"]
+    comps["principle_audit"] = False
+    with patch("principle_audit.run_audit_pass") as audit:
+        ingest_article(_ARTICLE, comps, _stats())
+    audit.assert_not_called()

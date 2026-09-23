@@ -745,6 +745,11 @@ def ingest_article(article: dict, pipeline_components: dict, run_stats: dict) ->
                 logger.error(f"Section error in '{title}': {e}")
                 processor.rollback()
 
+        # PRIN-AUDIT per article, against the article text itself
+        if pipeline_components.get("principle_audit") and stats["principles"]:
+            from principle_audit import run_audit_pass
+            stats["principle_audit"] = run_audit_pass(source_id, settings, text)
+
         # Jev junk pass per article, as pipeline.py does per source (JEV-1a)
         if pipeline_components.get("quarantine") and stats["chunks_loaded"]:
             stats["chunks_quarantined_jev"] = run_quarantine_pass(source_id, settings)
@@ -811,6 +816,8 @@ def main():
                         help="Write an LLM retrieval-context prefix into each chunk before embedding (RAG-M3)")
     parser.add_argument("--context-model", default=None,
                         help="Model for --contextualize (default: settings.light_model)")
+    parser.add_argument("--no-principle-audit", action="store_true",
+                        help="Keep principle numbers the article never states (skip the PRIN-AUDIT pass)")
     parser.add_argument("--no-quarantine", action="store_true",
                         help="Skip the per-article Jev junk pass (needs TYPESAFE_API_KEY; skipped with a warning without it)")
     args = parser.parse_args()
@@ -881,6 +888,7 @@ def main():
         "contextualize": args.contextualize,
         "context_model": light_model_for(settings, args.context_model),
         "quarantine": not args.no_quarantine,
+        "principle_audit": not args.no_principle_audit,
     }
 
     run_stats = {"articles_ingested": 0, "chunks_total": 0, "principles_total": 0}

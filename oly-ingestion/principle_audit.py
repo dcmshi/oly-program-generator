@@ -215,8 +215,9 @@ def load_source_texts(cur, source_files: list[Path], only: list[int] | None = No
     cur.execute("""
         SELECT cs.source_id, string_agg(k.raw_content, E'\\n\\n')
         FROM chunk_sources cs JOIN knowledge_chunks k ON k.id = cs.chunk_id
+        WHERE %s::int[] IS NULL OR cs.source_id = ANY(%s::int[])
         GROUP BY cs.source_id
-    """)
+    """, (only, only))
     texts = {sid: txt or "" for sid, txt in cur.fetchall()}
     for sid in SOURCE_FILES:
         if only and sid not in only:
@@ -298,6 +299,74 @@ def evaluate(rows, texts: dict[int, str]):
     return stats, changes, flagged, lines
 
 
+def principle_rows(cur, source_ids: list[int] | None = None) -> list[tuple]:
+    """(id, source_id, name, recommendation, condition, model of the source's last run, source_type)."""
+    cur.execute("""
+        SELECT p.id, p.source_id, p.principle_name, p.recommendation, p.condition,
+               coalesce((SELECT r.config_snapshot->>'llm_model' FROM ingestion_runs r
+                         WHERE r.source_id = p.source_id AND r.status::text = 'completed'
+                         ORDER BY r.id DESC LIMIT 1), '?') AS model,
+               s.source_type::text
+        FROM programming_principles p JOIN sources s ON s.id = p.source_id
+        WHERE %s::int[] IS NULL OR p.source_id = ANY(%s::int[])
+        ORDER BY p.id
+    """, (source_ids, source_ids))
+    return cur.fetchall()
+
+
+def apply_changes(cur, changes: list[dict]) -> None:
+    for ch in changes:
+        cur.execute("UPDATE programming_principles SET recommendation = %s WHERE id = %s",
+                    (json.dumps(ch["after"]), ch["id"]))
+
+
+INGEST_BACKUP = Path(__file__).parent / "logs" / "prin_audit_ingest_backup.jsonl"
+
+
+def audit_source(source_id: int, settings, document_text: str = "", *, apply: bool = True,
+                 backup_path: Path = INGEST_BACKUP) -> dict:
+    """The end-of-ingest pass: audit one source's principles against its chunks,
+    its file on disk (if mapped) and `document_text` — the full text the ingest
+    just classified, which covers PRINCIPLE-only sections that were never
+    chunked — and strip unsupported recommendation keys. Each change is
+    appended to `backup_path` (JSON lines) first. Returns counts for
+    `ingestion_runs.result`."""
+    import psycopg2
+    conn = psycopg2.connect(settings.database_url)
+    try:
+        cur = conn.cursor()
+        texts = load_source_texts(cur, _source_files(), [source_id])
+        texts[source_id] = texts.get(source_id, "") + "\n\n" + document_text
+        stats, changes, _flagged, lines = evaluate(principle_rows(cur, [source_id]), texts)
+        claims = sum(s["claims"] for s in stats.values())
+        unsupported = sum(s["unsupported_claims"] for s in stats.values())
+        for line in lines:
+            logger.info(f"Principle audit: unsupported number —{line[1:]}")
+        if apply and changes:
+            backup_path.parent.mkdir(parents=True, exist_ok=True)
+            with backup_path.open("a", encoding="utf-8") as f:
+                for ch in changes:
+                    f.write(json.dumps({"source_id": source_id, **ch}) + "\n")
+            apply_changes(cur, changes)
+            conn.commit()
+        return {"claims": claims, "unsupported": unsupported, "rows_changed": len(changes) if apply else 0}
+    finally:
+        conn.close()
+
+
+def run_audit_pass(source_id: int, settings, document_text: str = "") -> dict | None:
+    """`audit_source` for an entry point: logged, never raises (the ingest is
+    already committed)."""
+    try:
+        result = audit_source(source_id, settings, document_text)
+        logger.info(f"Principle audit: source {source_id}: {result['unsupported']} of {result['claims']} "
+                    f"numeric claims not in the text, {result['rows_changed']} row(s) stripped")
+        return result
+    except Exception as e:                           # noqa: BLE001
+        logger.error(f"Principle audit failed for source {source_id}: {e}")
+        return None
+
+
 def _source_files() -> list[Path]:
     root = Path(__file__).parent / "sources"
     return [p for p in root.rglob("*") if p.suffix in (".pdf", ".epub", ".txt") and ".ocr_cache" not in p.parts]
@@ -326,19 +395,7 @@ def main() -> None:
     cur = conn.cursor()
     texts = load_source_texts(cur, _source_files(), args.source_id)
 
-    where, params = "", []
-    if args.source_id:
-        where, params = "WHERE p.source_id = ANY(%s)", [args.source_id]
-    cur.execute(f"""
-        SELECT p.id, p.source_id, p.principle_name, p.recommendation, p.condition,
-               coalesce((SELECT r.config_snapshot->>'llm_model' FROM ingestion_runs r
-                         WHERE r.source_id = p.source_id AND r.status::text = 'completed'
-                         ORDER BY r.id DESC LIMIT 1), '?') AS model,
-               s.source_type::text
-        FROM programming_principles p JOIN sources s ON s.id = p.source_id {where}
-        ORDER BY p.id
-    """, params)
-    rows = cur.fetchall()
+    rows = principle_rows(cur, args.source_id)
 
     stats, changes, flagged, lines = evaluate(rows, texts)
     if args.fetch_web:
@@ -362,9 +419,7 @@ def main() -> None:
     if args.apply and changes:
         args.backup.parent.mkdir(parents=True, exist_ok=True)
         args.backup.write_text(json.dumps(changes, indent=1), encoding="utf-8")
-        for ch in changes:
-            cur.execute("UPDATE programming_principles SET recommendation = %s WHERE id = %s",
-                        (json.dumps(ch["after"]), ch["id"]))
+        apply_changes(cur, changes)
         conn.commit()
         print(f"applied; backup of the previous values in {args.backup}")
     conn.close()

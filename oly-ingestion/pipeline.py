@@ -235,7 +235,8 @@ class IngestionPipeline:
     def __init__(self, settings: Settings, use_vision: bool = False, max_pages: int = 0,
                  contextualize: bool = False, context_model: str | None = None,
                  batch: bool = False, classifier: str = "heuristic", ocr_cache: bool = True,
-                 force_vision: bool = False, ocr_postcorrect: bool = False, quarantine: bool = True):
+                 force_vision: bool = False, ocr_postcorrect: bool = False, quarantine: bool = True,
+                 principle_audit: bool = True):
         self.settings = settings
         self.max_pages = max_pages
         # COST-1: principle extraction (the dominant ingestion spend) and vision
@@ -260,6 +261,7 @@ class IngestionPipeline:
             postcorrect_model=light_model_for(settings, None),
         )
         self.quarantine = quarantine
+        self.principle_audit = principle_audit
         self.classifier = ContentClassifier(settings, classifier=classifier)
         self.classifier_name = classifier
         self.principle_extractor = PrincipleExtractor(settings)
@@ -469,7 +471,14 @@ class IngestionPipeline:
                 )
             route_stage.__exit__(None, None, None)
 
-            # ── Step 6: Jev junk pass over this source's chunks ─
+            # ── Step 6a: strip principle numbers the text never states (PRIN-AUDIT) ─
+            # Checked against the whole document just classified, so rules from
+            # PRINCIPLE-only sections (never chunked) are judged on their text.
+            if self.principle_audit and stats["principles"]:
+                from principle_audit import run_audit_pass
+                stats["principle_audit"] = run_audit_pass(source_id, self.settings, "\n\n".join(pages))
+
+            # ── Step 6b: Jev junk pass over this source's chunks ─
             if self.quarantine and stats.get("chunks_loaded", 0):
                 stats["chunks_quarantined_jev"] = self._quarantine_source(source_id)
 
@@ -847,6 +856,8 @@ if __name__ == "__main__":
                              "guarded OCR error correction (kept only if the garbled share drops, length ±10%%)")
     parser.add_argument("--no-quarantine", action="store_true",
                         help="Skip the Jev junk pass over the new source's chunks at the end of the run")
+    parser.add_argument("--no-principle-audit", action="store_true",
+                        help="Keep principle numbers the source text never states (skip the PRIN-AUDIT pass)")
     parser.add_argument("--no-ocr-cache", action="store_true",
                         help="Ignore sources/.ocr_cache and transcribe every page again (ING-M5)")
     parser.add_argument("--classifier", choices=("heuristic", "jev"), default="heuristic",
@@ -860,7 +871,8 @@ if __name__ == "__main__":
                                  contextualize=args.contextualize, context_model=args.context_model,
                                  batch=args.batch, classifier=args.classifier, ocr_cache=not args.no_ocr_cache,
                                  force_vision=args.force_vision, ocr_postcorrect=args.ocr_postcorrect,
-                                 quarantine=not args.no_quarantine)
+                                 quarantine=not args.no_quarantine,
+                                 principle_audit=not args.no_principle_audit)
 
     doc = SourceDocument(
         path=Path(args.source),
