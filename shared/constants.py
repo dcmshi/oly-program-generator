@@ -108,8 +108,10 @@ TRAINING_PREFERENCE_OPTIONS: dict[str, tuple[str, ...]] = {
     "warmups":      ("prescribed", "own"),               # program writes 2–3 warm-up sets / athlete warms up alone
     "deload_style": ("volume", "intensity", "none"),     # last week: cut sets, cut load, or no deload week
     "max_test":     ("auto", "always", "never"),         # auto = phase profile decides
+    "volume_table": ("prilepin", "medvedev"),            # PLAN-3d: shared/volume_tables.py
 }
-TRAINING_PREFERENCE_DEFAULTS: dict[str, str] = {"warmups": "prescribed", "deload_style": "volume", "max_test": "auto"}
+TRAINING_PREFERENCE_DEFAULTS: dict[str, str] = {"warmups": "prescribed", "deload_style": "volume", "max_test": "auto",
+                                                "volume_table": "prilepin"}
 DELOAD_EVERY_WEEKS_OPTIONS: tuple[int, ...] = (3, 4, 5, 6)   # extra deload weeks inside a long block; blank = only the last week
 
 # ── Phase advancement & outcome adjustments ─────────────────────

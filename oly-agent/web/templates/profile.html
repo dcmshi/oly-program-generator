@@ -185,6 +185,13 @@
         </select>
       </div>
       <div>
+        <label class="block text-xs font-medium text-ink-sec mb-1" for="pref_volume_table">Volume table</label>
+        <select name="pref_volume_table" id="pref_volume_table" class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
+          <option value="prilepin" {% if (prefs.get('volume_table') or 'prilepin') == 'prilepin' %}selected{% endif %}>Prilepin's chart (per session)</option>
+          <option value="medvedev" {% if prefs.get('volume_table') == 'medvedev' %}selected{% endif %}>Medvedyev (monthly lifts by level)</option>
+        </select>
+      </div>
+      <div>
         <label class="block text-xs font-medium text-ink-sec mb-1" for="pref_deload_every_weeks">Extra deload every</label>
         <select name="pref_deload_every_weeks" id="pref_deload_every_weeks" class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           <option value="" {% if not prefs.get('deload_every_weeks') %}selected{% endif %}>Only at block end</option>

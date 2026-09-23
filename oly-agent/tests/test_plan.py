@@ -360,9 +360,11 @@ def test_plan_honours_requested_weeks_end_to_end():
 
 def test_training_preferences_defaults_and_validation():
     from plan import training_preferences
-    assert training_preferences({}) == {"warmups": "prescribed", "deload_style": "volume", "max_test": "auto", "deload_every_weeks": None}
+    assert training_preferences({}) == {"warmups": "prescribed", "deload_style": "volume", "max_test": "auto",
+                                       "volume_table": "prilepin", "deload_every_weeks": None}
     got = training_preferences({"exercise_preferences": {"avoid": ["x"], "prefs": {"warmups": "own", "deload_style": "bogus", "max_test": "never", "deload_every_weeks": 4}}})
-    assert got == {"warmups": "own", "deload_style": "volume", "max_test": "never", "deload_every_weeks": 4}
+    assert got == {"warmups": "own", "deload_style": "volume", "max_test": "never", "volume_table": "prilepin",
+                   "deload_every_weeks": 4}
     assert training_preferences({"exercise_preferences": {"prefs": {"deload_every_weeks": 7}}})["deload_every_weeks"] is None
 
 

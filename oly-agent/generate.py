@@ -736,6 +736,15 @@ Session note: {session_template.notes}
 Target competition lift reps this session: {session_rep_target}"""
 
 
+def _volume_table_section(week_target: WeekTarget, phase: str, prilepin_targets: dict[str, dict]) -> str:
+    """Prilepin's chart, or Medvedyev's zone distribution when the athlete
+    chose that volume table (PLAN-3d)."""
+    if getattr(week_target, "volume_table", "prilepin") == "medvedev":
+        from shared.volume_tables import medvedev_distribution_lines
+        return "## Volume Table (Medvedyev)\n" + "\n".join(medvedev_distribution_lines(phase))
+    return _prilepin_section(prilepin_targets)
+
+
 def _prilepin_section(prilepin_targets: dict[str, dict]) -> str:
     prilepin_lines = [
         f"  Zone {zone}%: optimal {data['optimal_total_reps']} reps/week "
@@ -943,7 +952,7 @@ def build_session_prompt(
                            _deload_rule(week_target, prefs["deload_style"])),
         _session_template_section(session_template, session_rep_target),
         block_section,
-        _prilepin_section(retrieval_context.prilepin_targets),
+        _volume_table_section(week_target, phase, retrieval_context.prilepin_targets),
         _already_prescribed_section(already_prescribed, week_target, cumulative_comp_reps),
         _principles_section(active_principles),
         _programming_context_section(

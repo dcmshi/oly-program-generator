@@ -68,7 +68,7 @@ ask it to.
 | — | 1.2, 1.3 | Multi-block plans stay chained generations (each re-plans on the last outcome); phase order fixed by design |
 | — | 1.7 | Thresholds are constants; per-athlete overrides not needed until a masters cohort exists |
 | ✅ | 2.4 | PLAN-3c (2026-09-22): `phase_profiles.STRENGTH_CURVE` — squat (% of the squat max) and pull (% of the lift) bands per phase + deload, each row citing its principle ids (Charniga leg-strength stages, Suchomel pulling derivatives, Roman, Vorobyev, the taper studies); on every WeekTarget, in the Program Plan prompt, validator check 13 warns outside ±5 points |
-| — | 3.1 | Prilepin remains the volume table; Roman/Medvedev alternatives are in the principle block, not the validator |
+| ✅ | 3.1 | PLAN-3d (2026-09-22): `shared/volume_tables.py` — `prefs.volume_table` = `prilepin` (default) or `medvedev` (weekly comp-lift reps from Medvedyev's monthly lift counts × his 50 % competition-lift share; his zone distribution in the prompt; Prilepin's per-set limits kept, its per-session zone caps skipped). Roman's tables are not used: their OCR is too broken to trust without a hand check |
 | ✅ | 3.2 | PLAN-3a (2026-09-22): 15 complexes (migration 0019), offered per athlete, validated by their competition-lift components (Prilepin per set on the largest component, ceiling, volume) |
 | ✅ | 3.3 | PLAN-3b (2026-09-22): the cold-start ceiling (80 % / 75 % beginner) is skipped when ASSESS finds recorded snatch and clean / C&J maxes within `COLD_START_MAX_RECENCY_DAYS` (90); duration / complexity caps and level ceilings still apply |
 | — | 3.6, 3.7, 3.9 | Fine as constants (3.6 already reads `session_duration_minutes`) |

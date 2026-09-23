@@ -764,14 +764,17 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
     week_number = week_target.week_number
     day_number = session_template.day_number
 
-    # Compute session rep target from Prilepin
-    from shared.prilepin import compute_session_rep_target
-    session_rep_target = compute_session_rep_target(
+    # Session rep target from the week's volume table (Prilepin / Medvedev — PLAN-3d)
+    from shared.volume_tables import session_rep_target as _session_rep_target
+    session_rep_target = _session_rep_target(
+        getattr(week_target, "volume_table", "prilepin"),
         intensity_floor=week_target.intensity_floor,
         intensity_ceiling=week_target.intensity_ceiling,
         session_volume_share=session_template.session_volume_share,
         volume_modifier=week_target.volume_modifier,
         sessions_per_week=len(g.program_plan.session_templates),
+        level=g.athlete_context.level,
+        phase=g.program_plan.phase,
     )
     cumulative_comp_reps = sum(week.cumulative_reps.values())
     session_principles = _session_principles(g, week_target, session_template)

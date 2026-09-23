@@ -30,7 +30,7 @@ from shared.constants import (
     TRAINING_PREFERENCE_OPTIONS,
 )
 from shared.db import fetch_all
-from shared.prilepin import compute_session_rep_target
+from shared.volume_tables import session_rep_target
 
 logger = logging.getLogger(__name__)
 
@@ -125,12 +125,15 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
     weekly_targets = []
     for t in raw_targets:
         total_reps = sum(
-            compute_session_rep_target(
+            session_rep_target(
+                prefs["volume_table"],
                 intensity_floor=t["intensity_floor"],
                 intensity_ceiling=t["intensity_ceiling"],
                 session_volume_share=s.session_volume_share,
                 volume_modifier=t["volume_modifier"],
                 sessions_per_week=len(session_templates),
+                level=athlete_context.level,
+                phase=phase,
             )
             for s in session_templates
         )
@@ -143,6 +146,7 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
             reps_per_set_range=t["reps_per_set_range"],
             is_deload=t["is_deload"],
             strength_targets=strength_targets(phase, t["is_deload"]),
+            volume_table=prefs["volume_table"],
         ))
 
     # ── Load relevant programming principles ──────────────────

@@ -525,7 +525,10 @@ def validate_session(
     warnings: list[str] = []
     _check_db_constraints(session_exercises, errors)
     comp_lift_reps = _session_comp_lift_reps(session_exercises)
-    _check_prilepin_session_volume(comp_lift_reps, errors, warnings)
+    # Prilepin's per-session zone caps belong to the Prilepin table; under the
+    # Medvedev table the weekly budget (check 2) governs volume (PLAN-3d).
+    if (week_target or {}).get("volume_table", "prilepin") == "prilepin":
+        _check_prilepin_session_volume(comp_lift_reps, errors, warnings)
     _check_weekly_rep_budget(comp_lift_reps, week_target, week_cumulative_reps, warnings)
     _check_intensity_envelope(session_exercises, week_target, errors, warnings)
     _check_reps_per_set(session_exercises, errors, warnings)

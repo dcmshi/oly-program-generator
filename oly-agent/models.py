@@ -53,6 +53,7 @@ class WeekTarget:
     is_deload: bool
     # PLAN-3c: {"squat": {floor, ceiling, reps, sources}, "pull": {...}} for this week
     strength_targets: dict | None = None
+    volume_table: str = "prilepin"      # PLAN-3d: which table sized this week's comp-lift reps
 
 
 @dataclass
