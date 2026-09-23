@@ -285,9 +285,10 @@ def retrieve(
         if athlete_context.technical_faults:
             fault_seen: set[int] = set()
             for fault in athlete_context.technical_faults:
+                fault_query = build_fault_query(fault, athlete_context.level)
                 try:
                     chunks = vector_loader.similarity_search(
-                        query=build_fault_query(fault, athlete_context.level),
+                        query=fault_query,
                         top_k=top_k,
                         preferred_chunk_types=FAULT_PREFERRED_TYPES,
                         min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
@@ -297,16 +298,20 @@ def retrieve(
                         if c.get("id") not in fault_seen:
                             fault_seen.add(c["id"])
                             # remember which fault surfaced it so the session
-                            # context can round-robin across faults (RAG-H4)
-                            fault_correction_chunks.append({**c, "fault": fault})
+                            # context can round-robin across faults (RAG-H4);
+                            # its query focuses the prompt excerpt (AUD-2)
+                            fault_correction_chunks.append(
+                                {**c, "fault": fault, "retrieval_query": fault_query}
+                            )
                 except Exception as e:
                     logger.warning(f"Vector search failed for fault '{fault}': {e}")
 
         # Strength limiter searches — pull targeted programming content per limiter
         for limiter in strength_limiters:
+            limiter_query = build_limiter_query(limiter, athlete_context.level)
             try:
                 chunks = vector_loader.similarity_search(
-                    query=build_limiter_query(limiter, athlete_context.level),
+                    query=limiter_query,
                     top_k=top_k,
                     # `methodology` dropped: the inference never assigns it (RAG-H2)
                     preferred_chunk_types=SESSION_PREFERRED_TYPES,
@@ -316,7 +321,7 @@ def retrieve(
                 for c in chunks:
                     if c.get("id") not in seen_chunk_ids:
                         seen_chunk_ids.add(c["id"])
-                        programming_rationale.append(c)
+                        programming_rationale.append({**c, "retrieval_query": limiter_query})
             except Exception as e:
                 logger.warning(f"Vector search failed for limiter '{limiter}': {e}")
     else:
