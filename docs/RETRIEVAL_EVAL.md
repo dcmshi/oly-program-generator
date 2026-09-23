@@ -24,6 +24,37 @@ grades over dense ∪ hybrid candidate pools) and `baseline.json` were built on 
 copy on 2026-09-16 after the full re-ingest — see the section below. Grades are tied to
 chunk ids, so rebuild both after any corpus change.
 
+## Embedding upgrade — 2026-09-22 (EMBED-1): `text-embedding-3-small` → `-large` @ 1536 (current `baseline.json`)
+
+All 6,839 chunks re-embedded with `text-embedding-3-large` (Matryoshka-truncated to the
+existing `vector(1536)`; ~7M tokens ≈ $0.90; `reembed.py`). To compare the two models on
+the same labels, the golden set was **extended, not rebuilt**: `build_golden --extend`
+kept the 1,140 existing grades and had the GLM judge grade only the 477 candidates `-large`
+surfaced that `-small` never had (every `-small` pool member was already graded). Both
+models were then scored on that union (the vectors were swapped through a backup table,
+`emb_backup_small_20260922`, kept for rollback):
+
+| nDCG@5 (union golden, k = 5) | `-small` | `-large` |
+|---|--:|--:|
+| hybrid (production) — all 57 | 0.664 | **0.721** |
+| · session (16) | 0.747 | 0.821 |
+| · fault (13) | 0.620 | 0.759 |
+| · limiter (6) | 0.685 | 0.786 |
+| · legacy free-form (22) | 0.623 | 0.609 |
+| dense-only — all 57 | 0.695 | **0.796** |
+
+MRR under hybrid dipped 0.980 → 0.947 (all on legacy queries); recall@5 is capped by the
+set (AUD-3) and moved 0.202 → 0.206. The similarity distributions are near-identical
+(median top-1 0.628 vs 0.641; 14 vs 15 of 855 top-15 rows below the 0.45 cutoff), so
+`VECTOR_SEARCH_MIN_SIMILARITY` is unchanged. **Under `-large`, dense-only beats hybrid
+(0.796 vs 0.721)** — the lexical leg now costs rank; re-weighting or dropping it is an
+AUD-3 decision, gated on the fixed metrics. Baseline re-frozen under `-large` hybrid:
+recall@5 0.206 · MRR 0.930 · nDCG@5 0.716 · max source share 0.572 (re-runs vary ≈ ±0.005:
+approximate HNSW + query-embedding jitter). **Rollback:** `UPDATE knowledge_chunks k SET
+embedding=b.embedding, embedding_model=b.embedding_model, embedded_at=b.embedded_at FROM
+emb_backup_small_20260922 b WHERE b.id=k.id`, set `EMBEDDING_MODEL=text-embedding-3-small`,
+restore `golden.json` / `baseline.json` from git.
+
 ## Judge study — 2026-09-21 (JUDGE-1): the grader moved from Haiku 4.5 to GLM-5.3 Flash
 
 Every production role had left Anthropic but the golden set was still graded by Claude

@@ -131,6 +131,36 @@ def test_grade_candidates_skips_a_bad_batch_and_keeps_the_rest():
     assert "ONLY the JSON array" in client.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
 
 
+def test_build_golden_extend_grades_only_new_candidates(tmp_path):
+    """--extend keeps the prior grades and grades only the pool members they
+    lack — the union pool for comparing two retrievers on the same labels."""
+    from unittest.mock import MagicMock, patch
+
+    from eval import build_golden
+
+    q = {"id": "q1", "kind": "legacy", "query": "snatch pulls", "preferred_chunk_types": []}
+    base = tmp_path / "base.json"
+    base.write_text(json.dumps({"meta": {}, "queries": [{**q, "grades": {"1": 2}, "snippets": {"1": "old"}}]}))
+    out = tmp_path / "union.json"
+    loader = MagicMock()
+    loader.similarity_search.return_value = [{"id": 1, "raw_content": "a"}, {"id": 2, "raw_content": "b"}]
+    graded_ids = []
+
+    def fake_grade(client, model, query, candidates):
+        graded_ids.extend(c["id"] for c in candidates)
+        return {c["id"]: 1 for c in candidates}
+
+    with patch("eval.queries.all_queries", return_value=[q]), \
+         patch("loaders.vector_loader.VectorLoader", return_value=loader), \
+         patch.object(build_golden, "create_llm_client", return_value=MagicMock()), \
+         patch.object(build_golden, "grade_candidates", side_effect=fake_grade):
+        assert build_golden.main(["--extend", str(base), "--out", str(out), "--model", "m"]) == 0
+    assert graded_ids == [2]                                        # 1 was already graded
+    row = json.loads(out.read_text())["queries"][0]
+    assert row["grades"] == {"1": 2, "2": 1} and row["snippets"]["1"] == "a"
+    assert json.loads(out.read_text())["meta"]["extends"] == str(base)
+
+
 # ── live gate (needs corpus DB + OPENAI_API_KEY + golden.json) ───────────────
 
 def test_live_eval_does_not_regress_baseline():

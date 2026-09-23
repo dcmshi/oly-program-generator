@@ -33,7 +33,7 @@ flowchart TB
         CLASS["Classifier<br/>heuristic + LLM fallback"]
         CHUNK["Chunker<br/>profile-aware sizing"]
         PE["Principle Extractor<br/>Claude LLM"]
-        VL["Vector Loader<br/>OpenAI text-embedding-3-small"]
+        VL["Vector Loader<br/>OpenAI text-embedding-3-large"]
         SL["Structured Loader<br/>upsert tables"]
     end
 

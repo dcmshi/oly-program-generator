@@ -1,9 +1,11 @@
 {
  "meta": {
-  "built_at": "2026-09-21T12:48:21+00:00",
+  "built_at": "2026-09-23T01:57:59+00:00",
   "model": "z-ai/glm-5.3-flash",
   "candidates_per_retriever": 15,
-  "n_queries": 57
+  "n_queries": 57,
+  "extends": "eval\\golden.json",
+  "embedding_model": "text-embedding-3-large"
  },
  "queries": [
   {
@@ -36,7 +38,15 @@
     "4687": 1,
     "7462": 1,
     "5165": 1,
-    "4674": 1
+    "4674": 1,
+    "7802": 2,
+    "10901": 1,
+    "4315": 0,
+    "4669": 1,
+    "4703": 1,
+    "7464": 1,
+    "4671": 1,
+    "4670": 1
    },
    "snippets": {
     "12830": "Younger athletes are able to cope with a higher intensity\nloading. Thus, the number of lifts with 70% and above in snatch\nexercises, indicated in table 2, can i",
@@ -60,7 +70,15 @@
     "4687": "Purpose:\n The pressing snatch balance is primarily a teaching drill to introduce the snatch balance and to help athletes develop a sense of position for the sna",
     "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u",
     "5165": "Another factor to be considered is the psychological development of the athlete, \nand this aspect can be addressed through certain components of the program des",
-    "4674": "elbows high and to the sides). Programming:\n The dip snatch can serve as a lighter snatch exercise on light training days, replacing power snatches or other han"
+    "4674": "elbows high and to the sides). Programming:\n The dip snatch can serve as a lighter snatch exercise on light training days, replacing power snatches or other han",
+    "7802": "Power snatch - 70% x 1 x 5\n\nClean pull - 80% x 3 x 3\n\nJack knife - 3 x 15\n\nreverse hyper - 3 x 10\n\nFriday\n\nBack squat - 60% x 2 x 3\n\nBent row - 3 x 5\n\nDB curl -",
+    "10901": "Snatch Push Press and Overhead Squat:\n\nThis is one of my favorite exercises to build the upper body strength and stability that is required both in the standing",
+    "4315": "For example, 5 snatch presses, 5 snatch back squat + snatch push press, 5 mid-hang muscle snatches + overhead squats. Following this series, the athlete will mo",
+    "4669": "Snatch Exercises\n\n2-Position / \n3-Position Power Snatch\n\nThe 2-position or 3-position power snatch is simply 2-3 power snatches performed from 2-3 progressive (",
+    "4703": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "7464": "Like most exercises on this list, the tall snatch can be used a few different ways, but I use it most commonly as a technique primer with sets of 2-3 reps at ab",
+    "4671": "Use 1-3 reps per set. Intensities will typically range between 70-90%. Variations:\n The block power snatch can be performed from blocks of any height to emphasi",
+    "4670": "Programming:\n When using the 2-position or 3-position snatch in a training program, it\u2019s important to note the starting positions. Intensities will typically ra"
    }
   },
   {
@@ -91,7 +109,15 @@
     "4711": 1,
     "4718": 2,
     "4752": 2,
-    "4717": 2
+    "4717": 2,
+    "4723": 2,
+    "4735": 2,
+    "4719": 2,
+    "7684": 1,
+    "4716": 1,
+    "10538": 2,
+    "4713": 2,
+    "8848": 1
    },
    "snippets": {
     "12837": "The other designations are the same\nas in table 2. -- at the beginning and end or in the middle and at the end of\nthe workout. When doing this, the amount of we",
@@ -113,7 +139,15 @@
     "4711": "Use 1-3 reps per set. Variations:\n The block clean can be performed from blocks of any height. It can also be combined in a complex with clean pulls. Block Clea",
     "4718": "The athlete can also stand on bumper plates or any other hard, flat, stable surface. Riser heights should not exceed what allows the lifter to set a proper star",
     "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
-    "4717": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should "
+    "4717": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
+    "4723": "Programming:\n Generally the clean pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best clean. As a strength exercise, it sh",
+    "4735": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4719": "Programming:\n Sets of 1-3 reps are suggested with weights anywhere from 70% to the lifter\u2019s maximum jerk. Generally this exercise should be performed following ",
+    "7684": "One may argue, why would not I simply do 5 hang cleans instead? The answer is simple: if you have troubles with your second pull, most likely the first and seco",
+    "4716": "Slower eccentric speeds in particular will increase the strengthening of pulling posture and back arch strength. Clean from Power Position\n\nThe clean from power",
+    "10538": "Week # 34\n\n# 8 - August (Tuesday)\n1.C + J, Bel. Kn.:                         70 + 2 + 1 x 2, 80 + 1 + 1 x 3\n2. P. Cl., Bel. Kn.:                       65 x 4, 7",
+    "4713": "Programming:\n The clean bench pull should be done for 2-5 reps per set anywhere from 90%-120% of the lifter\u2019s best clean depending on the lifter and how it fits",
+    "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical"
    }
   },
   {
@@ -145,7 +179,15 @@
     "4677": 2,
     "4690": 1,
     "4695": 2,
-    "7462": 2
+    "7462": 2,
+    "10901": 2,
+    "4703": 2,
+    "5171": 1,
+    "4702": 2,
+    "4697": 1,
+    "4705": 2,
+    "4681": 2,
+    "4689": 2
    },
    "snippets": {
     "12829": "2- light weight classes- 52,56,60 and 67.5kg;\nMiddle- 75 & 82.5kg; Middle-heavy- 90, 100 and 110kg; 2nd-heavy- 110kg+. 3- General number of lifts for month, all",
@@ -168,7 +210,15 @@
     "4677": "As a heavy strength exercise, it should normally be placed toward the end of a workout. Variations:\n The floating snatch deadlift on riser can be performed as a",
     "4690": "Snatch pulls can also be done with this reduced initial pull speed. Snatch Balance\n\nThe snatch balance is a dynamic snatch receiving position exercise that adds",
     "4695": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
-    "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u"
+    "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u",
+    "10901": "Snatch Push Press and Overhead Squat:\n\nThis is one of my favorite exercises to build the upper body strength and stability that is required both in the standing",
+    "4703": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "5171": "The generally best sequence for assigning the exercises in a single workout is to \nselect exercises from the various groups and order them so as to provide the ",
+    "4702": "Programming:\n Generally the snatch pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best snatch. As a strength exercise, it ",
+    "4697": "As a heavy strength exercise, it should normally be placed toward the end of a workout, and should be placed after conventional pulls unless being used primaril",
+    "4705": "Programming:\n Generally the snatch segment pull should be done for 2-5 reps per set with 2-3 second pauses and anywhere from 70%-110% of the lifter\u2019s best snatc",
+    "4681": "Another purpose is use as a lighter snatch variation (often an alternative to the power snatch) for lighter training days (weights naturally limited for most li",
+    "4689": "AKA:\n Pause power snatch. Purpose:\n The primary purpose of the segment power snatch is to reinforce certain positions during the pull and strengthen the athlete"
    }
   },
   {
@@ -199,7 +249,16 @@
     "8848": 1,
     "12405": 1,
     "4752": 2,
-    "4742": 2
+    "4742": 2,
+    "4723": 2,
+    "10564": 2,
+    "4764": 1,
+    "10538": 2,
+    "4735": 2,
+    "10566": 2,
+    "4748": 2,
+    "7802": 2,
+    "4749": 2
    },
    "snippets": {
     "12839": "and fewer lifts with 70-and-above. As in the snatch, the number\nof lifts in the jerk exercises with 70%-and-above affects the\nimprovement in the clean and jerk ",
@@ -221,7 +280,16 @@
     "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
     "12405": "Consequently, the myth that specialized training in squats to improve the results of weightlifters over the long term of training is puzzling. One logical reaso",
     "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
-    "4742": "It can be done with light weights before cleans as a technique primer, or it can be used as its own training exercise with more difficult weights (70-80% genera"
+    "4742": "It can be done with light weights before cleans as a technique primer, or it can be used as its own training exercise with more difficult weights (70-80% genera",
+    "4723": "Programming:\n Generally the clean pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best clean. As a strength exercise, it sh",
+    "10564": "Pressing exercises are not specifically mentioned, because if they are needed, they are used as a jerk variation. Complexes are a way to include a variety of di",
+    "4764": "The athlete will lower under control until the elbows are completely extended and shoulders are fully open again before beginning subsequent reps. AKA:\n Chin, p",
+    "10538": "Week # 34\n\n# 8 - August (Tuesday)\n1.C + J, Bel. Kn.:                         70 + 2 + 1 x 2, 80 + 1 + 1 x 3\n2. P. Cl., Bel. Kn.:                       65 x 4, 7",
+    "4735": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "10566": "It is easier to concentrate on the dip and drive when the weight is lighter and the movement less complicated, and an athlete who finds it difficult to push the",
+    "4748": "Maintaining the same upright posture and balance used in the dip of the jerk, the lifter will bend at the knees only with a smooth and controlled tempo and stan",
+    "7802": "Power snatch - 70% x 1 x 5\n\nClean pull - 80% x 3 x 3\n\nJack knife - 3 x 15\n\nreverse hyper - 3 x 10\n\nFriday\n\nBack squat - 60% x 2 x 3\n\nBent row - 3 x 5\n\nDB curl -",
+    "4749": "Weights can be very heavy as long as the position and balance are correct and the bar is pushed up rather than\u00a0forward. Variations:\n There are a few variations "
    }
   },
   {
@@ -254,7 +322,17 @@
     "7462": 1,
     "4687": 1,
     "10861": 1,
-    "5165": 1
+    "5165": 1,
+    "4315": 1,
+    "4703": 1,
+    "4700": 2,
+    "4674": 1,
+    "4669": 1,
+    "7464": 1,
+    "4671": 1,
+    "4691": 1,
+    "10901": 1,
+    "4707": 1
    },
    "snippets": {
     "12829": "2- light weight classes- 52,56,60 and 67.5kg;\nMiddle- 75 & 82.5kg; Middle-heavy- 90, 100 and 110kg; 2nd-heavy- 110kg+. 3- General number of lifts for month, all",
@@ -278,7 +356,17 @@
     "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u",
     "4687": "Purpose:\n The pressing snatch balance is primarily a teaching drill to introduce the snatch balance and to help athletes develop a sense of position for the sna",
     "10861": "Week 6\n\nMonday\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0 Back Squat 4\u00d74, add load from previous Monday\n\nWednesday\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0 Front squat 6\u00d72, add load from previous Wednesday\n\nSaturday\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0 Back",
-    "5165": "Another factor to be considered is the psychological development of the athlete, \nand this aspect can be addressed through certain components of the program des"
+    "5165": "Another factor to be considered is the psychological development of the athlete, \nand this aspect can be addressed through certain components of the program des",
+    "4315": "For example, 5 snatch presses, 5 snatch back squat + snatch push press, 5 mid-hang muscle snatches + overhead squats. Following this series, the athlete will mo",
+    "4703": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4700": "Programming:\n The snatch press can be done with anywhere from 3-10 reps per set. Weights should generally be such that the exercise can be performed fairly smoo",
+    "4674": "elbows high and to the sides). Programming:\n The dip snatch can serve as a lighter snatch exercise on light training days, replacing power snatches or other han",
+    "4669": "Snatch Exercises\n\n2-Position / \n3-Position Power Snatch\n\nThe 2-position or 3-position power snatch is simply 2-3 power snatches performed from 2-3 progressive (",
+    "7464": "Like most exercises on this list, the tall snatch can be used a few different ways, but I use it most commonly as a technique primer with sets of 2-3 reps at ab",
+    "4671": "Use 1-3 reps per set. Intensities will typically range between 70-90%. Variations:\n The block power snatch can be performed from blocks of any height to emphasi",
+    "4691": "It should be performed after the primary snatch work in the training session and before more basic strength work. Depending on the goal, it can be performed bef",
+    "10901": "Snatch Push Press and Overhead Squat:\n\nThis is one of my favorite exercises to build the upper body strength and stability that is required both in the standing",
+    "4707": "Purpose:\n The first reason to use a snatch with no jump is to correct a lifter who tends to roll to the balls of the feet and lift the heels too soon in the ext"
    }
   },
   {
@@ -309,7 +397,16 @@
     "4711": 2,
     "4718": 2,
     "4752": 2,
-    "4717": 2
+    "4717": 2,
+    "4723": 2,
+    "4735": 2,
+    "4719": 2,
+    "4716": 1,
+    "4713": 2,
+    "4743": 1,
+    "4722": 1,
+    "4720": 1,
+    "8848": 1
    },
    "snippets": {
     "11514": "Exercise selection typically varies with the phase of periodization. Although weightlifting pulling derivatives can\nbe implemented in all phases of training, an",
@@ -331,7 +428,16 @@
     "4711": "Use 1-3 reps per set. Variations:\n The block clean can be performed from blocks of any height. It can also be combined in a complex with clean pulls. Block Clea",
     "4718": "The athlete can also stand on bumper plates or any other hard, flat, stable surface. Riser heights should not exceed what allows the lifter to set a proper star",
     "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
-    "4717": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should "
+    "4717": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
+    "4723": "Programming:\n Generally the clean pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best clean. As a strength exercise, it sh",
+    "4735": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4719": "Programming:\n Sets of 1-3 reps are suggested with weights anywhere from 70% to the lifter\u2019s maximum jerk. Generally this exercise should be performed following ",
+    "4716": "Slower eccentric speeds in particular will increase the strengthening of pulling posture and back arch strength. Clean from Power Position\n\nThe clean from power",
+    "4713": "Programming:\n The clean bench pull should be done for 2-5 reps per set anywhere from 90%-120% of the lifter\u2019s best clean depending on the lifter and how it fits",
+    "4743": "Intensities will range from 70% and up. Tall Clean\n\nThe lifter will stand tall with a clean grip, the bar hanging at arms\u2019 length and the feet in the pulling po",
+    "4722": "In any case, the weight should not exceed what the lifter can do with reasonably proper positioning and speed in the final extension. As a strength exercise, it",
+    "4720": "The legs must remain straight once extended in the pull. Constant tension against the bar should be maintained throughout the movement, making sure the bar is m",
+    "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical"
    }
   },
   {
@@ -364,7 +470,17 @@
     "4677": 2,
     "4695": 2,
     "7462": 2,
-    "4689": 2
+    "4689": 2,
+    "10901": 2,
+    "4703": 2,
+    "4702": 2,
+    "4705": 2,
+    "4697": 2,
+    "4691": 2,
+    "4701": 2,
+    "6033": 1,
+    "4681": 2,
+    "5171": 2
    },
    "snippets": {
     "12829": "2- light weight classes- 52,56,60 and 67.5kg;\nMiddle- 75 & 82.5kg; Middle-heavy- 90, 100 and 110kg; 2nd-heavy- 110kg+. 3- General number of lifts for month, all",
@@ -388,7 +504,17 @@
     "4677": "As a heavy strength exercise, it should normally be placed toward the end of a workout. Variations:\n The floating snatch deadlift on riser can be performed as a",
     "4695": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
     "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u",
-    "4689": "AKA:\n Pause power snatch. Purpose:\n The primary purpose of the segment power snatch is to reinforce certain positions during the pull and strengthen the athlete"
+    "4689": "AKA:\n Pause power snatch. Purpose:\n The primary purpose of the segment power snatch is to reinforce certain positions during the pull and strengthen the athlete",
+    "10901": "Snatch Push Press and Overhead Squat:\n\nThis is one of my favorite exercises to build the upper body strength and stability that is required both in the standing",
+    "4703": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4702": "Programming:\n Generally the snatch pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best snatch. As a strength exercise, it ",
+    "4705": "Programming:\n Generally the snatch segment pull should be done for 2-5 reps per set with 2-3 second pauses and anywhere from 70%-110% of the lifter\u2019s best snatc",
+    "4697": "As a heavy strength exercise, it should normally be placed toward the end of a workout, and should be placed after conventional pulls unless being used primaril",
+    "4691": "It should be performed after the primary snatch work in the training session and before more basic strength work. Depending on the goal, it can be performed bef",
+    "4701": "In any case, the weight should not exceed what the lifter can do with reasonably proper positioning and speed in the final extension. As a strength exercise, it",
+    "6033": "Most variations of the snatch lifts mentioned above \nand some variations of the clean (e.g., snatches, \npower snatches, muscle snatches, snatches from \ndifferen",
+    "4681": "Another purpose is use as a lighter snatch variation (often an alternative to the power snatch) for lighter training days (weights naturally limited for most li",
+    "5171": "The generally best sequence for assigning the exercises in a single workout is to \nselect exercises from the various groups and order them so as to provide the "
    }
   },
   {
@@ -417,7 +543,18 @@
     "12403": 1,
     "8848": 1,
     "12405": 1,
-    "4752": 2
+    "4752": 2,
+    "4723": 1,
+    "10564": 2,
+    "4744": 1,
+    "4764": 0,
+    "4735": 1,
+    "4750": 1,
+    "4749": 1,
+    "4748": 2,
+    "4664": 2,
+    "4745": 2,
+    "4742": 1
    },
    "snippets": {
     "12837": "The other designations are the same\nas in table 2. -- at the beginning and end or in the middle and at the end of\nthe workout. When doing this, the amount of we",
@@ -438,7 +575,18 @@
     "12403": "It is obvious that the strength of the quadriceps is the single most important factor in the successful recovery from the clean. Consequently, squats are most e",
     "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
     "12405": "Consequently, the myth that specialized training in squats to improve the results of weightlifters over the long term of training is puzzling. One logical reaso",
-    "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba"
+    "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
+    "4723": "Programming:\n Generally the clean pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best clean. As a strength exercise, it sh",
+    "10564": "Pressing exercises are not specifically mentioned, because if they are needed, they are used as a jerk variation. Complexes are a way to include a variety of di",
+    "4744": "Jerk Exercises\n\nDrop to Split\n\nThe lifter will place the barbell behind the neck as for a back squat, being sure to use a fairly narrow grip and actively pullin",
+    "4764": "The athlete will lower under control until the elbows are completely extended and shoulders are fully open again before beginning subsequent reps. AKA:\n Chin, p",
+    "4735": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4750": "It can also be used to practice the footwork of the recovery from the split, and actively maintaining the balance and position of the bar overhead during the re",
+    "4749": "Weights can be very heavy as long as the position and balance are correct and the bar is pushed up rather than\u00a0forward. Variations:\n There are a few variations ",
+    "4748": "Maintaining the same upright posture and balance used in the dip of the jerk, the lifter will bend at the knees only with a smooth and controlled tempo and stan",
+    "4664": "Clean - 5 x 2\n\nHalting Clean Deadlift (mid-thigh) + Clean Pull - 5 x (1+2)\n\nBack Squat - 3 x 5 (lighter than Monday)\n\nBack Extensions \u2013 3 x 10\n\nAbs\n\nSaturday\n\nC",
+    "4745": "Notes:\n If the lifter is unable to front squat with a jerk rack position, he or she should get as close as possible and shift the position as he or she reaches ",
+    "4742": "It can be done with light weights before cleans as a technique primer, or it can be used as its own training exercise with more difficult weights (70-80% genera"
    }
   },
   {
@@ -470,7 +618,15 @@
     "4685": 2,
     "7462": 2,
     "4687": 2,
-    "4674": 1
+    "4674": 1,
+    "4703": 1,
+    "4669": 2,
+    "7464": 1,
+    "4315": 1,
+    "4691": 1,
+    "10901": 1,
+    "4705": 2,
+    "4707": 1
    },
    "snippets": {
     "12830": "Younger athletes are able to cope with a higher intensity\nloading. Thus, the number of lifts with 70% and above in snatch\nexercises, indicated in table 2, can i",
@@ -493,7 +649,15 @@
     "4685": "Purpose:\n The power snatch can be used to train speed, force production and aggression in both the second pull and the third pull by limiting the amount of time",
     "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u",
     "4687": "Purpose:\n The pressing snatch balance is primarily a teaching drill to introduce the snatch balance and to help athletes develop a sense of position for the sna",
-    "4674": "elbows high and to the sides). Programming:\n The dip snatch can serve as a lighter snatch exercise on light training days, replacing power snatches or other han"
+    "4674": "elbows high and to the sides). Programming:\n The dip snatch can serve as a lighter snatch exercise on light training days, replacing power snatches or other han",
+    "4703": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4669": "Snatch Exercises\n\n2-Position / \n3-Position Power Snatch\n\nThe 2-position or 3-position power snatch is simply 2-3 power snatches performed from 2-3 progressive (",
+    "7464": "Like most exercises on this list, the tall snatch can be used a few different ways, but I use it most commonly as a technique primer with sets of 2-3 reps at ab",
+    "4315": "For example, 5 snatch presses, 5 snatch back squat + snatch push press, 5 mid-hang muscle snatches + overhead squats. Following this series, the athlete will mo",
+    "4691": "It should be performed after the primary snatch work in the training session and before more basic strength work. Depending on the goal, it can be performed bef",
+    "10901": "Snatch Push Press and Overhead Squat:\n\nThis is one of my favorite exercises to build the upper body strength and stability that is required both in the standing",
+    "4705": "Programming:\n Generally the snatch segment pull should be done for 2-5 reps per set with 2-3 second pauses and anywhere from 70%-110% of the lifter\u2019s best snatc",
+    "4707": "Purpose:\n The first reason to use a snatch with no jump is to correct a lifter who tends to roll to the balls of the feet and lift the heels too soon in the ext"
    }
   },
   {
@@ -525,7 +689,14 @@
     "4718": 2,
     "4752": 2,
     "4717": 2,
-    "8848": 1
+    "8848": 1,
+    "4723": 2,
+    "4719": 2,
+    "4735": 2,
+    "4716": 1,
+    "4713": 2,
+    "6513": 1,
+    "5171": 1
    },
    "snippets": {
     "12837": "The other designations are the same\nas in table 2. -- at the beginning and end or in the middle and at the end of\nthe workout. When doing this, the amount of we",
@@ -548,7 +719,14 @@
     "4718": "The athlete can also stand on bumper plates or any other hard, flat, stable surface. Riser heights should not exceed what allows the lifter to set a proper star",
     "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
     "4717": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
-    "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical"
+    "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
+    "4723": "Programming:\n Generally the clean pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best clean. As a strength exercise, it sh",
+    "4719": "Programming:\n Sets of 1-3 reps are suggested with weights anywhere from 70% to the lifter\u2019s maximum jerk. Generally this exercise should be performed following ",
+    "4735": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4716": "Slower eccentric speeds in particular will increase the strengthening of pulling posture and back arch strength. Clean from Power Position\n\nThe clean from power",
+    "4713": "Programming:\n The clean bench pull should be done for 2-5 reps per set anywhere from 90%-120% of the lifter\u2019s best clean depending on the lifter and how it fits",
+    "6513": "The data in the table indicates that the 85% lifts are done\nmost. 85% is used 22.9% in the snatch and 18.4% of the lifts in\nthe clean and jerk. Analysis of the ",
+    "5171": "The generally best sequence for assigning the exercises in a single workout is to \nselect exercises from the various groups and order them so as to provide the "
    }
   },
   {
@@ -571,7 +749,19 @@
     "4677": 2,
     "4695": 2,
     "4689": 2,
-    "7462": 2
+    "7462": 2,
+    "4700": 2,
+    "10901": 2,
+    "4703": 2,
+    "4684": 2,
+    "12833": 1,
+    "4702": 2,
+    "4705": 2,
+    "11514": 1,
+    "4691": 1,
+    "4701": 2,
+    "4697": 2,
+    "6033": 1
    },
    "snippets": {
     "4700": "Programming:\n The snatch press can be done with anywhere from 3-10 reps per set. Weights should generally be such that the exercise can be performed fairly smoo",
@@ -595,7 +785,15 @@
     "4677": "As a heavy strength exercise, it should normally be placed toward the end of a workout. Variations:\n The floating snatch deadlift on riser can be performed as a",
     "4695": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
     "4689": "AKA:\n Pause power snatch. Purpose:\n The primary purpose of the segment power snatch is to reinforce certain positions during the pull and strengthen the athlete",
-    "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u"
+    "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u",
+    "10901": "Snatch Push Press and Overhead Squat:\n\nThis is one of my favorite exercises to build the upper body strength and stability that is required both in the standing",
+    "4703": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4702": "Programming:\n Generally the snatch pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best snatch. As a strength exercise, it ",
+    "4705": "Programming:\n Generally the snatch segment pull should be done for 2-5 reps per set with 2-3 second pauses and anywhere from 70%-110% of the lifter\u2019s best snatc",
+    "4691": "It should be performed after the primary snatch work in the training session and before more basic strength work. Depending on the goal, it can be performed bef",
+    "4701": "In any case, the weight should not exceed what the lifter can do with reasonably proper positioning and speed in the final extension. As a strength exercise, it",
+    "4697": "As a heavy strength exercise, it should normally be placed toward the end of a workout, and should be placed after conventional pulls unless being used primaril",
+    "6033": "Most variations of the snatch lifts mentioned above \nand some variations of the clean (e.g., snatches, \npower snatches, muscle snatches, snatches from \ndifferen"
    }
   },
   {
@@ -625,7 +823,17 @@
     "12403": 1,
     "8848": 1,
     "12405": 1,
-    "4752": 2
+    "4752": 2,
+    "4723": 1,
+    "4750": 2,
+    "4749": 2,
+    "4664": 2,
+    "4748": 2,
+    "4744": 1,
+    "10566": 1,
+    "4718": 2,
+    "4745": 2,
+    "4742": 1
    },
    "snippets": {
     "12837": "The other designations are the same\nas in table 2. -- at the beginning and end or in the middle and at the end of\nthe workout. When doing this, the amount of we",
@@ -646,7 +854,17 @@
     "12403": "It is obvious that the strength of the quadriceps is the single most important factor in the successful recovery from the clean. Consequently, squats are most e",
     "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
     "12405": "Consequently, the myth that specialized training in squats to improve the results of weightlifters over the long term of training is puzzling. One logical reaso",
-    "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba"
+    "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
+    "4723": "Programming:\n Generally the clean pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best clean. As a strength exercise, it sh",
+    "4750": "It can also be used to practice the footwork of the recovery from the split, and actively maintaining the balance and position of the bar overhead during the re",
+    "4749": "Weights can be very heavy as long as the position and balance are correct and the bar is pushed up rather than\u00a0forward. Variations:\n There are a few variations ",
+    "4664": "Clean - 5 x 2\n\nHalting Clean Deadlift (mid-thigh) + Clean Pull - 5 x (1+2)\n\nBack Squat - 3 x 5 (lighter than Monday)\n\nBack Extensions \u2013 3 x 10\n\nAbs\n\nSaturday\n\nC",
+    "4748": "Maintaining the same upright posture and balance used in the dip of the jerk, the lifter will bend at the knees only with a smooth and controlled tempo and stan",
+    "4744": "Jerk Exercises\n\nDrop to Split\n\nThe lifter will place the barbell behind the neck as for a back squat, being sure to use a fairly narrow grip and actively pullin",
+    "10566": "It is easier to concentrate on the dip and drive when the weight is lighter and the movement less complicated, and an athlete who finds it difficult to push the",
+    "4718": "The athlete can also stand on bumper plates or any other hard, flat, stable surface. Riser heights should not exceed what allows the lifter to set a proper star",
+    "4745": "Notes:\n If the lifter is unable to front squat with a jerk rack position, he or she should get as close as possible and shift the position as he or she reaches ",
+    "4742": "It can be done with light weights before cleans as a technique primer, or it can be used as its own training exercise with more difficult weights (70-80% genera"
    }
   },
   {
@@ -677,7 +895,16 @@
     "7790": 2,
     "12401": 1,
     "7462": 2,
-    "4687": 1
+    "4687": 1,
+    "5171": 2,
+    "4674": 2,
+    "7464": 1,
+    "4703": 1,
+    "4592": 1,
+    "12844": 2,
+    "10901": 1,
+    "4669": 1,
+    "4707": 1
    },
    "snippets": {
     "12830": "Younger athletes are able to cope with a higher intensity\nloading. Thus, the number of lifts with 70% and above in snatch\nexercises, indicated in table 2, can i",
@@ -699,7 +926,16 @@
     "7790": "Tuesday and Thursday are primarily classic lift variants and also have conditioning workouts. Saturdays are heavy snatch, clean & jerk and squat singles. The fi",
     "12401": "The Relative Value of the Back Squat in the Training of Weightlifters\n\nIntroduction\n\nThere is considerable literature devoted to the training of weightlifters w",
     "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u",
-    "4687": "Purpose:\n The pressing snatch balance is primarily a teaching drill to introduce the snatch balance and to help athletes develop a sense of position for the sna"
+    "4687": "Purpose:\n The pressing snatch balance is primarily a teaching drill to introduce the snatch balance and to help athletes develop a sense of position for the sna",
+    "5171": "The generally best sequence for assigning the exercises in a single workout is to \nselect exercises from the various groups and order them so as to provide the ",
+    "4674": "elbows high and to the sides). Programming:\n The dip snatch can serve as a lighter snatch exercise on light training days, replacing power snatches or other han",
+    "7464": "Like most exercises on this list, the tall snatch can be used a few different ways, but I use it most commonly as a technique primer with sets of 2-3 reps at ab",
+    "4703": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4592": "This training can be performed continuously throughout the entire macrocycle. Exercises and protocols can be found in resources dedicated to this subject. Shoul",
+    "12844": "In order to best prepare the organism for the forthcoming work, one often plans several lifts (6-15) of the power snatch or the power clean before the clean and",
+    "10901": "Snatch Push Press and Overhead Squat:\n\nThis is one of my favorite exercises to build the upper body strength and stability that is required both in the standing",
+    "4669": "Snatch Exercises\n\n2-Position / \n3-Position Power Snatch\n\nThe 2-position or 3-position power snatch is simply 2-3 power snatches performed from 2-3 progressive (",
+    "4707": "Purpose:\n The first reason to use a snatch with no jump is to correct a lifter who tends to roll to the balls of the feet and lift the heels too soon in the ext"
    }
   },
   {
@@ -731,7 +967,15 @@
     "4718": 2,
     "4752": 1,
     "8848": 0,
-    "4717": 2
+    "4717": 2,
+    "4735": 1,
+    "4723": 2,
+    "4719": 2,
+    "4713": 2,
+    "4716": 1,
+    "10566": 2,
+    "4743": 2,
+    "5171": 2
    },
    "snippets": {
     "12837": "The other designations are the same\nas in table 2. -- at the beginning and end or in the middle and at the end of\nthe workout. When doing this, the amount of we",
@@ -754,7 +998,15 @@
     "4718": "The athlete can also stand on bumper plates or any other hard, flat, stable surface. Riser heights should not exceed what allows the lifter to set a proper star",
     "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
     "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
-    "4717": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should "
+    "4717": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
+    "4735": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4723": "Programming:\n Generally the clean pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best clean. As a strength exercise, it sh",
+    "4719": "Programming:\n Sets of 1-3 reps are suggested with weights anywhere from 70% to the lifter\u2019s maximum jerk. Generally this exercise should be performed following ",
+    "4713": "Programming:\n The clean bench pull should be done for 2-5 reps per set anywhere from 90%-120% of the lifter\u2019s best clean depending on the lifter and how it fits",
+    "4716": "Slower eccentric speeds in particular will increase the strengthening of pulling posture and back arch strength. Clean from Power Position\n\nThe clean from power",
+    "10566": "It is easier to concentrate on the dip and drive when the weight is lighter and the movement less complicated, and an athlete who finds it difficult to push the",
+    "4743": "Intensities will range from 70% and up. Tall Clean\n\nThe lifter will stand tall with a clean grip, the bar hanging at arms\u2019 length and the feet in the pulling po",
+    "5171": "The generally best sequence for assigning the exercises in a single workout is to \nselect exercises from the various groups and order them so as to provide the "
    }
   },
   {
@@ -786,7 +1038,18 @@
     "4677": 1,
     "4690": 1,
     "4695": 2,
-    "7462": 2
+    "7462": 2,
+    "10901": 2,
+    "4703": 2,
+    "5171": 2,
+    "4315": 1,
+    "4702": 2,
+    "4705": 2,
+    "6513": 1,
+    "4697": 2,
+    "4592": 2,
+    "6033": 1,
+    "4689": 2
    },
    "snippets": {
     "4700": "Programming:\n The snatch press can be done with anywhere from 3-10 reps per set. Weights should generally be such that the exercise can be performed fairly smoo",
@@ -809,7 +1072,18 @@
     "4677": "As a heavy strength exercise, it should normally be placed toward the end of a workout. Variations:\n The floating snatch deadlift on riser can be performed as a",
     "4690": "Snatch pulls can also be done with this reduced initial pull speed. Snatch Balance\n\nThe snatch balance is a dynamic snatch receiving position exercise that adds",
     "4695": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
-    "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u"
+    "7462": "In either case, the accuracy of its performance is necessary for its effectiveness. If the movement is not essentially the same as what occurs during the pull u",
+    "10901": "Snatch Push Press and Overhead Squat:\n\nThis is one of my favorite exercises to build the upper body strength and stability that is required both in the standing",
+    "4703": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "5171": "The generally best sequence for assigning the exercises in a single workout is to \nselect exercises from the various groups and order them so as to provide the ",
+    "4315": "For example, 5 snatch presses, 5 snatch back squat + snatch push press, 5 mid-hang muscle snatches + overhead squats. Following this series, the athlete will mo",
+    "4702": "Programming:\n Generally the snatch pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best snatch. As a strength exercise, it ",
+    "4705": "Programming:\n Generally the snatch segment pull should be done for 2-5 reps per set with 2-3 second pauses and anywhere from 70%-110% of the lifter\u2019s best snatc",
+    "6513": "The data in the table indicates that the 85% lifts are done\nmost. 85% is used 22.9% in the snatch and 18.4% of the lifts in\nthe clean and jerk. Analysis of the ",
+    "4697": "As a heavy strength exercise, it should normally be placed toward the end of a workout, and should be placed after conventional pulls unless being used primaril",
+    "4592": "This training can be performed continuously throughout the entire macrocycle. Exercises and protocols can be found in resources dedicated to this subject. Shoul",
+    "6033": "Most variations of the snatch lifts mentioned above \nand some variations of the clean (e.g., snatches, \npower snatches, muscle snatches, snatches from \ndifferen",
+    "4689": "AKA:\n Pause power snatch. Purpose:\n The primary purpose of the segment power snatch is to reinforce certain positions during the pull and strengthen the athlete"
    }
   },
   {
@@ -839,7 +1113,19 @@
     "8848": 0,
     "4752": 1,
     "4738": 1,
-    "12405": 1
+    "12405": 1,
+    "10566": 2,
+    "4735": 2,
+    "4723": 2,
+    "4750": 1,
+    "10564": 2,
+    "4744": 2,
+    "4764": 0,
+    "4748": 2,
+    "4315": 1,
+    "12859": 1,
+    "12841": 0,
+    "4745": 2
    },
    "snippets": {
     "12837": "The other designations are the same\nas in table 2. -- at the beginning and end or in the middle and at the end of\nthe workout. When doing this, the amount of we",
@@ -860,7 +1146,19 @@
     "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
     "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
     "4738": "Use 3-5 reps per set generally, although the muscle clean can also be done for heavy singles and doubles. Variations:\n The muscle clean can be performed from th",
-    "12405": "Consequently, the myth that specialized training in squats to improve the results of weightlifters over the long term of training is puzzling. One logical reaso"
+    "12405": "Consequently, the myth that specialized training in squats to improve the results of weightlifters over the long term of training is puzzling. One logical reaso",
+    "10566": "It is easier to concentrate on the dip and drive when the weight is lighter and the movement less complicated, and an athlete who finds it difficult to push the",
+    "4735": "As a strength exercise, it should be placed toward the end of a workout, but because it also involves some speed and technique, it\u2019s generally best placed befor",
+    "4723": "Programming:\n Generally the clean pull-down should be done for 2-5 reps per set anywhere from 80%-110% of the lifter\u2019s best clean. As a strength exercise, it sh",
+    "4750": "It can also be used to practice the footwork of the recovery from the split, and actively maintaining the balance and position of the bar overhead during the re",
+    "10564": "Pressing exercises are not specifically mentioned, because if they are needed, they are used as a jerk variation. Complexes are a way to include a variety of di",
+    "4744": "Jerk Exercises\n\nDrop to Split\n\nThe lifter will place the barbell behind the neck as for a back squat, being sure to use a fairly narrow grip and actively pullin",
+    "4764": "The athlete will lower under control until the elbows are completely extended and shoulders are fully open again before beginning subsequent reps. AKA:\n Chin, p",
+    "4748": "Maintaining the same upright posture and balance used in the dip of the jerk, the lifter will bend at the knees only with a smooth and controlled tempo and stan",
+    "4315": "For example, 5 snatch presses, 5 snatch back squat + snatch push press, 5 mid-hang muscle snatches + overhead squats. Following this series, the athlete will mo",
+    "12859": "The training weights should be: good mornings -- approximately 25-60% (an average of 50%); hyperextensions -- 15-35% (an average of 20%) of the limit clean and ",
+    "12841": "(900)\nLight\nMiddle\nMid-Heavy and Heavy\n68 | | 31 | | 99 | 44 | 25 | 17 | 13\n| | | | | | 53 | 23 | 13 | 10\n| | | | | | 61 | 20 | 11 | 7\n\nI p., \u041a\u041c\u0421 (1200) CMS\nLig",
+    "4745": "Notes:\n If the lifter is unable to front squat with a jerk rack position, he or she should get as close as possible and shift the position as he or she reaches "
    }
   },
   {
@@ -888,7 +1186,10 @@
     "4503": 1,
     "5883": 1,
     "11897": 2,
-    "4540": 1
+    "4540": 1,
+    "4548": 1,
+    "12815": 2,
+    "7460": 1
    },
    "snippets": {
     "4508": "However, this imbalance can have a number of sources, and correction will vary depending on the cause. Often this error proves extremely difficult and frustrati",
@@ -908,7 +1209,10 @@
     "4503": "These can be used in greater quantity and with more variety in a given session than technique work that involves more focused coaching and practice of a specifi",
     "5883": "The human genius for solving problems is virtually \nlimitless, as is evidenced by the phenomenal \nachievements that have been made by humankind \nthrough the cou",
     "11897": "(b) projection of the bar is positioned ahead of the metatarsal-phalangeal joint, with a great inclination of the shins in the starting position, therefore in l",
-    "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi"
+    "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi",
+    "4548": "This keeps the bar from moving directly over the lifter and makes bailing out easier. Be sure to consider possible sources of this lack of confidence before pre",
+    "12815": "The barbell's movement in the first phase is somewhat\ndifferent than usual if the athlete slows (or accelerates) the\nlift after barbell separation. In the first",
+    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou"
    }
   },
   {
@@ -935,7 +1239,12 @@
     "7199": 1,
     "7369": 1,
     "7474": 0,
-    "5108": 0
+    "5108": 0,
+    "7306": 2,
+    "4508": 0,
+    "7215": 1,
+    "7220": 2,
+    "7200": 1
    },
    "snippets": {
     "4517": "Similarly, if the athlete is too far forward, often because the hips have started or ended up too high relative to the shoulders, he or she will have to rush to",
@@ -954,7 +1263,12 @@
     "7199": "The cause of tipping forward in squats is counterintuitive to most of us, which is why our solutions often fail completely.\n\nIt\u2019s natural to think that because ",
     "7369": "Opening the Hips Too Soon Finally, probably one of the most common problems is opening the hips prematurely in the pull. Rather than staying over the bar with t",
     "7474": "Finally is excessive or improper extension of the hips and knees. Viewing an athlete standing from the side, imagine a vertical line passing through the ankle, ",
-    "5108": "As part of the effort to maintain a proper back arch, the lats should be\nengaged, and this will help push the barbell back toward the body as the athlete extend"
+    "5108": "As part of the effort to maintain a proper back arch, the lats should be\nengaged, and this will help push the barbell back toward the body as the athlete extend",
+    "7306": "Ryan Asks: What can I do to improve on keeping my chest up and ass down on the snatch pull as the weight gets heavier? I find myself bouncing the bar a little t",
+    "4508": "However, this imbalance can have a number of sources, and correction will vary depending on the cause. Often this error proves extremely difficult and frustrati",
+    "7215": "If this problem is happening toward the end of the first pull or early in the second, it\u2019s unlikely your original starting position was the source of the proble",
+    "7220": "Use pauses in pulls and deadlifts, particularly immediately after bar separation and at the knee, ensuring correct posture is maintained. You can also add slow ",
+    "7200": "Better to take a small step back now then be stuck forever. You can also continue to squat heavy with suboptimal posture during this period\u2014just keep the volume"
    }
   },
   {
@@ -986,7 +1300,14 @@
     "7387": 1,
     "5489": 0,
     "7557": 1,
-    "8415": 0
+    "8415": 0,
+    "8053": 1,
+    "4502": 1,
+    "7507": 1,
+    "7995": 0,
+    "4504": 1,
+    "8054": 2,
+    "7273": 2
    },
    "snippets": {
     "7469": "Continue pulling the elbows up even as your turn the arms over\u2014keep tension on throughout the movement. It\u2019s common to see lifters suddenly get slack in the sys",
@@ -1010,7 +1331,14 @@
     "7387": "The speed of your break of the bar from the floor should never exceed what you can control in terms of position and balance, and should never result in the bar ",
     "5489": "The vertical dashed lines indicate 1RM loads. The increase in peak power sometimes seen at maximal loads  (see \nfigure 7.7) is also evident for peak velocity an",
     "7557": "A lot more attention tends to be paid to the third pull or turnover of the snatch than the clean, likely because the consequences of poor execution tend to be m",
-    "8415": "The 2009 world champion AN Yong \u2013 Kwan (KOR) who clean and jerk 247 in Goyang two years ago opened with 222 kg. He made a slow pull, caught the weight above par"
+    "8415": "The 2009 world champion AN Yong \u2013 Kwan (KOR) who clean and jerk 247 in Goyang two years ago opened with 222 kg. He made a slow pull, caught the weight above par",
+    "8053": "I don\u2019t know what\u2019s going on with her squat, but it sounds like she\u2019s just immobile, and it may only happen occasionally because she\u2019s not adequately warm and l",
+    "4502": "In other words, the lifter has transitioned into a legitimate training program rather than a more introductory program focused primarily on lift instruction and",
+    "7507": "Step Three: Let the athlete slowly and gradually add weight to the bar, but stay on top of them and make sure it still looks the way it\u2019s supposed to. If you se",
+    "7995": "But what I have always found to be the case when I\u2019ve made the mistake of not hammering these problems immediately and unrelentingly until they\u2019re resolved is t",
+    "4504": "Another consideration with regard to practical errors is whether or not the cause is related to position-specific strength. A perfect example of this is the ten",
+    "8054": "With specific regard to improving the speed of the snatch and clean, there are really three distinct elements to making a lift quick: the final explosive extens",
+    "7273": "In response, you try to pull the bar higher, and try to get yourself into a lower receiving position sooner, creating that separation I mentioned previously. Th"
    }
   },
   {
@@ -1037,7 +1365,14 @@
     "12290": 0,
     "4522": 0,
     "7450": 1,
-    "4397": 1
+    "4397": 1,
+    "7304": 2,
+    "7331": 2,
+    "7483": 0,
+    "4515": 0,
+    "7623": 1,
+    "7484": 0,
+    "11897": 2
    },
    "snippets": {
     "4517": "Similarly, if the athlete is too far forward, often because the hips have started or ended up too high relative to the shoulders, he or she will have to rush to",
@@ -1056,7 +1391,14 @@
     "12290": "The term \"squat\" will mean to maintain the arch in the lower back, in the same manner as in the erect position. Novices who have considerable difficulty in keep",
     "4522": "Shoulders Behind the Bar\n\nIf the shoulders are behind the bar rather than above or slightly in front of it, the bar will naturally want to swing back against th",
     "7450": "I\u2019ve written a number of times on fashionable weightlifting technique. These things become fashionable not because they\u2019re new, but because someone of often dub",
-    "4397": "Additionally, the correct motion of the third pull will prevent the bar from moving away from the body. The same internal rotation of the arms that was set in t"
+    "4397": "Additionally, the correct motion of the third pull will prevent the bar from moving away from the body. The same internal rotation of the arms that was set in t",
+    "7304": "It's a pretty common occurrence to see the attempts at correcting or preventing one problem create another. One I come across seemingly hourly is lifters lockin",
+    "7331": "Stiff Elbows\n\nFinally, in an effort to prevent bending the arms early in the pull, oftentimes lifters will lock their elbows. This makes sense, and will definit",
+    "7483": "Droopy elbows in the jerk\u2026it\u2019s often a HUGE problem with beginners.\n\nLet me describe what it is, although many of you probably already have the visual image in ",
+    "4515": "Exercises to help the lifter feel the proper degree of extension will essentially simulate that finish position, and so must be done properly. For example, if t",
+    "7623": "The exercise known to us as a snatch/clean high-pull and referred to as \u201cPracticing active drop phase\u201d in the Soviet school has long been incorporated into weig",
+    "7484": "Here are a couple of exercises I\u2019ve successfully used to fix this nightmare:\n\nDip-pause-push press- This is exactly what it sounds like. The athlete performs a ",
+    "11897": "(b) projection of the bar is positioned ahead of the metatarsal-phalangeal joint, with a great inclination of the shins in the starting position, therefore in l"
    }
   },
   {
@@ -1083,7 +1425,14 @@
     "7368": 1,
     "4510": 1,
     "6036": 2,
-    "4513": 1
+    "4513": 1,
+    "4504": 2,
+    "4511": 2,
+    "5884": 0,
+    "4508": 1,
+    "7350": 1,
+    "12602": 1,
+    "7460": 2
    },
    "snippets": {
     "4503": "These can be used in greater quantity and with more variety in a given session than technique work that involves more focused coaching and practice of a specifi",
@@ -1102,7 +1451,14 @@
     "7368": "Snatch/clean from power position and snatch/clean pull + snatch/clean can help retrain the correct balance and angle of extension. Weight Too Far Back on Heels ",
     "4510": "However, if the shoulders move or start excessively forward of the bar, the bar will swing forward unless actively controlled by the lifter. Exercises that will",
     "6036": "More lifters extend \ntoo long than fail to finish their pulls. Moreover, \npracticing a greater and longer extension than is \nused in the lift may lead to poorer",
-    "4513": "The solution is not to reduce the power of the hip extension, but to improve the precision of the bar path to reduce the rebound of the bar off the hips.\n\nIf we"
+    "4513": "The solution is not to reduce the power of the hip extension, but to improve the precision of the bar path to reduce the rebound of the bar off the hips.\n\nIf we",
+    "4504": "Another consideration with regard to practical errors is whether or not the cause is related to position-specific strength. A perfect example of this is the ten",
+    "4511": "Exercises to help correct this problem should focus primarily on the movement between the knees and the power position or extension, the maintenance of maximal ",
+    "5884": "If the legs are not strong enough to handle \nthe depth of the dip, the legs may actually give \nway, causing a loss of balance forward. The means \nfor correcting",
+    "4508": "However, this imbalance can have a number of sources, and correction will vary depending on the cause. Often this error proves extremely difficult and frustrati",
+    "7350": "Ryan Asks: What can I do to improve on keeping my chest up and ass down on the snatch pull as the weight gets heavier? I find myself bouncing the bar a little t",
+    "12602": "2. The bar is too far away from the body once the bar is in motion during the pull. 20 ABCS OF OLYMPIC LIFTING\n\nABCS OF OLYMPIC LIFTING 21\n\nToo many of us tend ",
+    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou"
    }
   },
   {
@@ -1131,7 +1487,15 @@
     "5788": 1,
     "12766": 1,
     "4532": 2,
-    "3945": 0
+    "3945": 0,
+    "8119": 1,
+    "8139": 1,
+    "7606": 2,
+    "5087": 1,
+    "7302": 2,
+    "5980": 1,
+    "4771": 2,
+    "8141": 2
    },
    "snippets": {
     "4333": "This can be a difficult problem to fix and will typically require a good deal of patience from both the coach and athlete. To combat the inability of the athlet",
@@ -1152,7 +1516,15 @@
     "5788": "For instance, when one is squatting, one \ntypically takes one or more shallow breaths before \nthe squat, then lowers the body into the squat \nposition. A partia",
     "12766": "There are two ways to avoid \"over-con-\ntracting\" the lumbar muscles:\n\n248 COACHING NOTES\n\n1. Have a balanced training program that gives your back muscles enoug",
     "4532": "Inadequate Trunk Strength\n\nBoth back and abdominal strength is critical for maintaining a rigid and properly oriented trunk in the clean. Exercises to improve b",
-    "3945": "You want to keep your shoulders back, head neutral, and wrists aligned with your elbows. After a momentary pause, straighten your arms. Although this is technic"
+    "3945": "You want to keep your shoulders back, head neutral, and wrists aligned with your elbows. After a momentary pause, straighten your arms. Although this is technic",
+    "8119": "They\u2019ve had perfect technique, lost it, and then had to fight like hell to get it perfect again. How did they do it? As I said, there\u2019s no magic formula. But I ",
+    "8139": "From your knees, place both hands on your upper back so your elbows are overhead, then lean over to place the backs of your upper arms on a bench or box. Mainta",
+    "7606": "Wayne Asks: What are some of the best exercises you prescribe your athletes to strengthen lower backs? My weak lower back is more obvious from snatching than cl",
+    "5087": "The trunk should be pressurized and braced properly for all lifts, even the lightest warm-ups\u2014like anything else, the more you do it, the better you get at it, ",
+    "7302": "Adrian Asks: I've been lifting a year and a half and have a problem setting up tight from the floor. From plates and off blocks I feel really strong but when it",
+    "5980": "exercise.\n\nThe Low Position in the Snatch\n\nPerhaps the best way to develop flexibility for the \nlow squat position of the snatch is to practice \noverhead squats",
+    "4771": "Purpose:\n The stiff-legged deadlift strengthens the back arch along with the glutes and hamstrings. It also strengthens the lats and shoulders because of the ef",
+    "8141": "This influences the foot position and leg orientation that maximizes hip range of motion. If you\u2019re squatting in a position that pushes the femurs against the p"
    }
   },
   {
@@ -1179,7 +1551,12 @@
     "7329": 1,
     "7330": 1,
     "5829": 0,
-    "4530": 2
+    "4530": 2,
+    "7273": 2,
+    "4531": 2,
+    "4532": 1,
+    "11898": 0,
+    "7297": 2
    },
    "snippets": {
     "4511": "Exercises to help correct this problem should focus primarily on the movement between the knees and the power position or extension, the maintenance of maximal ",
@@ -1198,7 +1575,12 @@
     "7329": "I\u2019m comfortable saying it\u2019s common knowledge that keeping the bar as close to the body as possible during the snatch and clean is one of the most important fact",
     "7330": "Another option is a complex of pull or deadlift + snatch or clean\u2014the pull or deadlift is more easily controlled, so you have a chance to feel the proper motion",
     "5829": "is improper timing during that stage. If the lifter \nattempts to slow or stop the pull in order to \nreposition the knees, the bar will tend to stop or \neven to ",
-    "4530": "Clean Errors\n\nThe following technical errors are specific to the clean. Some corrections will refer back to information in the previous Universal Errors chapter"
+    "4530": "Clean Errors\n\nThe following technical errors are specific to the clean. Some corrections will refer back to information in the previous Universal Errors chapter",
+    "7273": "In response, you try to pull the bar higher, and try to get yourself into a lower receiving position sooner, creating that separation I mentioned previously. Th",
+    "4531": "Exercises to help correct this problem in the clean include:\n\nClean high-pull + clean\n\nClean pull + clean\n\nDip clean\n\nClean from power position\n\nHang clean (kne",
+    "4532": "Inadequate Trunk Strength\n\nBoth back and abdominal strength is critical for maintaining a rigid and properly oriented trunk in the clean. Exercises to improve b",
+    "11898": "(10) A narrow split. Cause: The lifter is not successful in performing the drop, splitting the legs forwards-backwards, because the upward movement of the bar i",
+    "7297": "Louie Asks: As of late, I've been having issues with soft elbows in the catch when I snatch. It's almost as if the weight is crashing down on me causing me to b"
    }
   },
   {
@@ -1218,7 +1600,16 @@
     "4403": 1,
     "4510": 2,
     "4511": 2,
-    "4509": 2
+    "4509": 2,
+    "7460": 1,
+    "4514": 2,
+    "7383": 1,
+    "7456": 2,
+    "4540": 0,
+    "4516": 1,
+    "7458": 1,
+    "4588": 0,
+    "7382": 1
    },
    "snippets": {
     "4508": "However, this imbalance can have a number of sources, and correction will vary depending on the cause. Often this error proves extremely difficult and frustrati",
@@ -1238,7 +1629,11 @@
     "7382": "Does it matter when you jump in the snatch or clean? The answer is a resounding and emphatic yes! Jumping before the bar gets to the \u201cexplode\u201d position at the h",
     "7456": "One of the most frustrating technical problems as a weightlifter, and as a weightlifting coach, is the dreaded forward jump. Unfortunately, it\u2019s pretty common, ",
     "4585": "Jump Training\n\nJump training in the context of weightlifting serves three basic purposes: to improve explosiveness, speed and elasticity\u2014the ability to convert ",
-    "4588": "As heights approach maximal, athletes tend to cut the drive of the legs short in order to begin lifting the feet (much like as weights get heavier in the snatch"
+    "4588": "As heights approach maximal, athletes tend to cut the drive of the legs short in order to begin lifting the feet (much like as weights get heavier in the snatch",
+    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou",
+    "7383": "How to Fix an Early Jump\n\nPartials: Work on hip and hang snatches or snatches from blocks. Feel the weight on your entire foot before you jump. Feel the movemen",
+    "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi",
+    "4516": "A rubber mat can also be placed on the platform behind the lifter\u2019s heels during snatches or cleans or any of the related drills being used to correct the probl"
    }
   },
   {
@@ -1266,7 +1661,11 @@
     "7369": 1,
     "4585": 0,
     "4586": 0,
-    "4588": 0
+    "4588": 0,
+    "7460": 1,
+    "4540": 0,
+    "4404": 1,
+    "7382": 1
    },
    "snippets": {
     "7368": "Snatch/clean from power position and snatch/clean pull + snatch/clean can help retrain the correct balance and angle of extension. Weight Too Far Back on Heels ",
@@ -1286,7 +1685,11 @@
     "7369": "Opening the Hips Too Soon Finally, probably one of the most common problems is opening the hips prematurely in the pull. Rather than staying over the bar with t",
     "4585": "Jump Training\n\nJump training in the context of weightlifting serves three basic purposes: to improve explosiveness, speed and elasticity\u2014the ability to convert ",
     "4586": "Less advanced lifters should use 2-3 sets of 3-8 reps at lower heights 1-2 days per week, and more advanced lifters can work to as many as 4 sets of 10 reps at ",
-    "4588": "As heights approach maximal, athletes tend to cut the drive of the legs short in order to begin lifting the feet (much like as weights get heavier in the snatch"
+    "4588": "As heights approach maximal, athletes tend to cut the drive of the legs short in order to begin lifting the feet (much like as weights get heavier in the snatch",
+    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou",
+    "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi",
+    "4404": "It will be important to distinguish between the two so errors can be corrected before they become habit. Jumping Forward\n\nWhile a moderate backward jump, if all",
+    "7382": "Does it matter when you jump in the snatch or clean? The answer is a resounding and emphatic yes! Jumping before the bar gets to the \u201cexplode\u201d position at the h"
    }
   },
   {
@@ -1314,7 +1717,16 @@
     "4507": 2,
     "4398": 0,
     "11897": 1,
-    "7474": 2
+    "7474": 2,
+    "8140": 1,
+    "7369": 2,
+    "4533": 1,
+    "7350": 1,
+    "5087": 0,
+    "8141": 1,
+    "7750": 1,
+    "5086": 0,
+    "7368": 1
    },
    "snippets": {
     "5887": "is to move leg extensors concentrically and hip \nextensors isometrically during the second phase; \nhip extensors concentrically and leg extensors \neccentrically",
@@ -1334,7 +1746,16 @@
     "4507": "Universal Errors\n\nThe following are errors that may occur in either the snatch or clean and have the same basic causes in both lifts, although there may be slig",
     "4398": "Again, this extension should be passive, with the arms remaining as relaxed as possible. If the elbows are actively extended, and the arms consequently stiff, t",
     "11897": "(b) projection of the bar is positioned ahead of the metatarsal-phalangeal joint, with a great inclination of the shins in the starting position, therefore in l",
-    "7474": "Finally is excessive or improper extension of the hips and knees. Viewing an athlete standing from the side, imagine a vertical line passing through the ankle, "
+    "7474": "Finally is excessive or improper extension of the hips and knees. Viewing an athlete standing from the side, imagine a vertical line passing through the ankle, ",
+    "8140": "The butt wink\u2026 I\u2019m honestly not sure which is more worrisome to me\u2014the actual phenomenon or the commonly accepted term for it. In either case, I\u2019m going to weig",
+    "7369": "Opening the Hips Too Soon Finally, probably one of the most common problems is opening the hips prematurely in the pull. Rather than staying over the bar with t",
+    "4533": "Exercises that can help improve thoracic mobility and extension strength include:\n\nClean-grip overhead squat\n\nPress in clean (Sots press)\n\nPress behind the neck",
+    "7350": "Ryan Asks: What can I do to improve on keeping my chest up and ass down on the snatch pull as the weight gets heavier? I find myself bouncing the bar a little t",
+    "5087": "The trunk should be pressurized and braced properly for all lifts, even the lightest warm-ups\u2014like anything else, the more you do it, the better you get at it, ",
+    "8141": "This influences the foot position and leg orientation that maximizes hip range of motion. If you\u2019re squatting in a position that pushes the femurs against the p",
+    "7750": "If one of your problems with the Olympic lifts is a weak back arch, that needs to become a focus for you in just about everything you do. Some of you have becom",
+    "5086": "In the split jerk, we\u2019re looking for a solid trunk when we receive the bar\u2014the spine neutral and everything braced forcefully. It\u2019s common to instead see the lo",
+    "7368": "Snatch/clean from power position and snatch/clean pull + snatch/clean can help retrain the correct balance and angle of extension. Weight Too Far Back on Heels "
    }
   },
   {
@@ -1361,7 +1782,19 @@
     "4527": 2,
     "5871": 1,
     "5980": 2,
-    "3904": 1
+    "3904": 1,
+    "4532": 2,
+    "7548": 1,
+    "4533": 2,
+    "7425": 2,
+    "7519": 2,
+    "4333": 2,
+    "7346": 2,
+    "4529": 2,
+    "4453": 1,
+    "7460": 2,
+    "5804": 1,
+    "3903": 0
    },
    "snippets": {
     "4503": "These can be used in greater quantity and with more variety in a given session than technique work that involves more focused coaching and practice of a specifi",
@@ -1380,7 +1813,19 @@
     "4527": "Make grip width changes incrementally. Making a dramatic change is a good way to create new problems and possibly earn some new wrist and elbow\u00a0pain. If for som",
     "5871": "It will take careful observation to uncover \nminor errors in balance. Major errors are \ntelegraphed during the pull by the positioning of \nthe athlete\u2019s shoulde",
     "5980": "exercise.\n\nThe Low Position in the Snatch\n\nPerhaps the best way to develop flexibility for the \nlow squat position of the snatch is to practice \noverhead squats",
-    "3904": "In fact, what often looks like a finish position problem is more often than not a start position error. Here\u2019s an example to help illustrate this point. A while"
+    "3904": "In fact, what often looks like a finish position problem is more often than not a start position error. Here\u2019s an example to help illustrate this point. A while",
+    "4532": "Inadequate Trunk Strength\n\nBoth back and abdominal strength is critical for maintaining a rigid and properly oriented trunk in the clean. Exercises to improve b",
+    "7548": "This is what I\u2019m concentrating on now, for the first time in my career. I\u2019ve never had to think about the bottom position before because it was always natural f",
+    "4533": "Exercises that can help improve thoracic mobility and extension strength include:\n\nClean-grip overhead squat\n\nPress in clean (Sots press)\n\nPress behind the neck",
+    "7425": "Steven Asks: I'm teaching myself the snatch, with your videos and book, and have a technique question. With a stick or empty bar I receive the bar in a decent s",
+    "7519": "Ultimately, I see this problem as a symptom of being lazy and impatient in a sense. It happens when athletes are more interested in hurrying through their worko",
+    "4333": "This can be a difficult problem to fix and will typically require a good deal of patience from both the coach and athlete. To combat the inability of the athlet",
+    "7346": "Any lift you inadvertently power, squat it\u2014ideally before you even stand up, just sit into a full squat, but if you do stand before you catch yourself, do an ov",
+    "4529": "Rushing to Recover\n\nOften a rush to stand after receiving a snatch overhead will result in a miss, or a near miss with the lifter taking a few quick steps forwa",
+    "4453": "This structural collapse can very quickly exceed the athlete\u2019s ability to compensate and result in a dropped barbell or a failed recovery. The first key to prev",
+    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou",
+    "5804": "For a picture of a similar position in the \nsnatch see the photo at the beginning of Chapter 11\n\n- a world record performed by the legendary \nNorbert Schemansky",
+    "3903": "Fortunately, it\u2019s easy to perform mobilization techniques that will improve dorsiflexion. All you have to do is choose techniques that focus on the restricted a"
    }
   },
   {
@@ -1408,7 +1853,17 @@
     "7474": 1,
     "4526": 2,
     "7472": 2,
-    "9084": 1
+    "9084": 1,
+    "7277": 2,
+    "4504": 2,
+    "4538": 2,
+    "4529": 1,
+    "4502": 2,
+    "8119": 1,
+    "7886": 1,
+    "4644": 1,
+    "4643": 0,
+    "8387": 0
    },
    "snippets": {
     "4503": "These can be used in greater quantity and with more variety in a given session than technique work that involves more focused coaching and practice of a specifi",
@@ -1428,7 +1883,17 @@
     "7474": "Finally is excessive or improper extension of the hips and knees. Viewing an athlete standing from the side, imagine a vertical line passing through the ankle, ",
     "4526": "The lifter will need to focus on gripping the bar only as tightly as needed to maintain control once punching up against it. This can be practiced with any snat",
     "7472": "We\u2019ve all done it\u2014missed a snatch behind and reassured ourselves by saying a miss behind is better than a miss in front. I would agree that in some cases this i",
-    "9084": "4/ not enough time spent practicing the skills requisite to lift maximum weights on the platform; especially balance and equilibrium;\n\nFigure 2. Frequently, eve"
+    "9084": "4/ not enough time spent practicing the skills requisite to lift maximum weights on the platform; especially balance and equilibrium;\n\nFigure 2. Frequently, eve",
+    "7277": "Next, timing is critical for ensuring a maintained lockout. If your turnover in the snatch or push under in the jerk is delayed, lazy (i.e. you\u2019re not immediate",
+    "4504": "Another consideration with regard to practical errors is whether or not the cause is related to position-specific strength. A perfect example of this is the ten",
+    "4538": "Jerk Errors\n\nThe following technical errors are specific to the jerk. While there are a few problems and solutions similar to others for the snatch and clean, m",
+    "4529": "Rushing to Recover\n\nOften a rush to stand after receiving a snatch overhead will result in a miss, or a near miss with the lifter taking a few quick steps forwa",
+    "4502": "In other words, the lifter has transitioned into a legitimate training program rather than a more introductory program focused primarily on lift instruction and",
+    "8119": "They\u2019ve had perfect technique, lost it, and then had to fight like hell to get it perfect again. How did they do it? As I said, there\u2019s no magic formula. But I ",
+    "7886": "Understanding this will help your decisions. If strength is the goal, and you missed a lift like a squat or press, assuming you didn\u2019t make some kind of correct",
+    "4644": "In any training cycle, lifts will be missed. In fact, if no lifts are missed in a cycle, it\u2019s an indication that the training is too easy. This doesn\u2019t mean cyc",
+    "4643": "Collars are relatively rarely used in training, again more because of inconvenience than anything. Competition style collars are also very expensive, and as a c",
+    "8387": "He tried descending lower into the squat with his squat jerk technique but down it came in front, no lift. A number of lifters missed jerks because the barbell "
    }
   },
   {
@@ -1456,7 +1921,13 @@
     "7458": 0,
     "5834": 1,
     "4543": 2,
-    "5884": 2
+    "5884": 2,
+    "7483": 1,
+    "4509": 1,
+    "12815": 1,
+    "7350": 0,
+    "7199": 1,
+    "11898": 1
    },
    "snippets": {
     "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi",
@@ -1476,7 +1947,13 @@
     "7458": "The correction for this problem is really just re-educating the lifter on the proper starting position and then monitoring and correcting in training until it b",
     "5834": "Once the kinetic \nenergy of the plates has been absorbed, the bar will \nrelease elastic energy in order to return toa \nstraight position, driving the plates upw",
     "4543": "The ability to drive under a heavy jerk is predicated on the knowledge, both conscious and unconscious, that the athlete will be able to safely support the weig",
-    "5884": "If the legs are not strong enough to handle \nthe depth of the dip, the legs may actually give \nway, causing a loss of balance forward. The means \nfor correcting"
+    "5884": "If the legs are not strong enough to handle \nthe depth of the dip, the legs may actually give \nway, causing a loss of balance forward. The means \nfor correcting",
+    "7483": "Droopy elbows in the jerk\u2026it\u2019s often a HUGE problem with beginners.\n\nLet me describe what it is, although many of you probably already have the visual image in ",
+    "4509": "Virtual barriers can also be used, such as placing a length of tape or chalk line on the platform in front of the lifter\u2019s toes and providing the instruction to",
+    "12815": "The barbell's movement in the first phase is somewhat\ndifferent than usual if the athlete slows (or accelerates) the\nlift after barbell separation. In the first",
+    "7350": "Ryan Asks: What can I do to improve on keeping my chest up and ass down on the snatch pull as the weight gets heavier? I find myself bouncing the bar a little t",
+    "7199": "The cause of tipping forward in squats is counterintuitive to most of us, which is why our solutions often fail completely.\n\nIt\u2019s natural to think that because ",
+    "11898": "(10) A narrow split. Cause: The lifter is not successful in performing the drop, splitting the legs forwards-backwards, because the upward movement of the bar i"
    }
   },
   {
@@ -1508,7 +1985,18 @@
     "7672": 1,
     "10859": 1,
     "8848": 1,
-    "7719": 1
+    "7719": 1,
+    "10860": 2,
+    "4770": 1,
+    "10891": 2,
+    "7817": 1,
+    "10892": 2,
+    "8818": 1,
+    "10887": 1,
+    "8817": 2,
+    "10888": 2,
+    "7292": 1,
+    "10890": 2
    },
    "snippets": {
     "12855": "The amount of weight used in both the back and\nthe front squat is approximately 45-125%; in other squats -- 35-\n55% of the maximum clean and jerk. Heavyweights ",
@@ -1531,7 +2019,18 @@
     "7672": "A big chunk of the questions that I am asked are about squats. Many people are in search of the ideal squat routine and an ideal ratio of front to back squats. ",
     "10859": "Over time, the back squat will increase to 120, and the clean & jerk to 96, but biasing training towards quickly increasing the back squat will likely reduce ef",
     "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
-    "7719": "Disclaimer: The subject of this article is something I wrote about in my book Bones of Iron. Sometimes I get ideas to write about things I\u2019ve already covered, b"
+    "7719": "Disclaimer: The subject of this article is something I wrote about in my book Bones of Iron. Sometimes I get ideas to write about things I\u2019ve already covered, b",
+    "10860": "The high bar back squat is less task-specific to weightlifting than the front squat is, but it is similar enough to carry over very well to the snatch and clean",
+    "4770": "Weights can usually be 20-40% of the lifter\u2019s best back squat. Split Squat\n\nWith a barbell behind the neck as for a back squat, the lifter will step into a lung",
+    "10891": "Back Squat (first after warming up, work up to 10% more than max set for walkout holds for 15 sec) wait 90 sec then \u00a05RM, then -5&-10% for 5\n\nGoodmornings 3\u00d75\n\n",
+    "7817": "In the US, there is essentially an absence of a system. Weightlifters often arrive at the sport at later ages following other athletic careers. As a result, the",
+    "10892": "Focus on height! Zercher RDLs with 25 lbs of chains 3x5reps\n\nWeeks 12 Taper Week\n\nDay 1\n\nBack Squat -10% of best 3RM for 3\u00d73\n\nGoodmorning/Squat Combo off\n\nPlank",
+    "8818": "Avg. Wt.\n\n1st\n\n1st\n\n70/2; 75/2\n\n80/2 x 6\n\n16\n\n78.1\n\n1st\n\n2nd\n\n70/2; 75/2\n\n80/3 x 6\n\n22\n\n78.6\n\n1st\n\n3rd\n\n70/2; 75/2\n\n80/2 x 6\n\n16\n\n78.1\n\n2nd\n\n4th\n\n70/2; 75/2\n\n80",
+    "10887": "travis mash\n\nAs the Juggernaut Squatapalooza rolls on, check out the first seven parts of this series if you\u2019re just tuning in:\nPart 1:\u00a0 Setting up for a Huge S",
+    "8817": "A.A. Zeinalov, Grodno\n\nTiazhelaya Atletika\n\n1976: 29 \u2013 31\n\nTranslated by Andrew Charniga, Jr.\n\nSportivny Press\u00a9\n\n2006\n\nA weightlifter\u2019s results in the snatch an",
+    "10888": "If they don\u2019t, great. I say all of this to teach the young coaches out there the way that I have grown my melting pot. I recommend allowing your life to be one ",
+    "7292": "I know I'm not the only one who hears things like, I need to just deadlift really heavy so I can be stronger for the snatch and clean. The same people then proc",
+    "10890": "I have used this technique in two different ways. \u00a0First, I have used supramaximal holds by loading the bar to 10% above the athletes max. \u00a0The athlete will the"
    }
   },
   {
@@ -1562,7 +2061,22 @@
     "7682": 1,
     "4695": 2,
     "4717": 2,
-    "4677": 2
+    "4677": 2,
+    "7766": 2,
+    "7292": 2,
+    "4592": 1,
+    "7849": 1,
+    "12297": 1,
+    "10913": 1,
+    "7817": 1,
+    "4768": 2,
+    "11443": 1,
+    "4763": 2,
+    "5969": 1,
+    "4770": 1,
+    "10897": 1,
+    "12296": 0,
+    "4711": 2
    },
    "snippets": {
     "11514": "Exercise selection typically varies with the phase of periodization. Although weightlifting pulling derivatives can\nbe implemented in all phases of training, an",
@@ -1584,7 +2098,22 @@
     "7682": "When I had just started to work online with Western athletes and asked them to provide their training logs or at least to describe their past training experienc",
     "4695": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
     "4717": "Technically, if the arms are engaged and pulling following the extension of the body in the pull, the exercise is considered a high-pull. Notes:\n Straps should ",
-    "4677": "As a heavy strength exercise, it should normally be placed toward the end of a workout. Variations:\n The floating snatch deadlift on riser can be performed as a"
+    "4677": "As a heavy strength exercise, it should normally be placed toward the end of a workout. Variations:\n The floating snatch deadlift on riser can be performed as a",
+    "7766": "I've written about grip strength for weightlifting before, but have remained fairly vague with regard to actual training protocols. This time, I\u2019m going to give",
+    "7292": "I know I'm not the only one who hears things like, I need to just deadlift really heavy so I can be stronger for the snatch and clean. The same people then proc",
+    "4592": "This training can be performed continuously throughout the entire macrocycle. Exercises and protocols can be found in resources dedicated to this subject. Shoul",
+    "7849": "Specificity is king\u2014that will never change in regards to strength sport. However, in recent years I have consistently found myself championing the importance of",
+    "12297": "4 sets of 5 - 6 repetitions. 28. S. P.: lying face - up on a bench, holding a barbell 20 - 30% of bodyweight. Lower the barbell behind the head with the arms st",
+    "10913": "Will be a long-term developmental factor as well. Relative strength is most important for the sport of weightlifting. Meaning how much weight can you lift in co",
+    "7817": "In the US, there is essentially an absence of a system. Weightlifters often arrive at the sport at later ages following other athletic careers. As a result, the",
+    "4768": "Variations:\n The pulling-stance back squat can be performed as a pause squat, with prescribed tempos (usually slow eccentric movement), and as a 1\u00bc squat. It ca",
+    "11443": "The stage of special strength training is longer for the highly \u2013 qualified sportsman and in those sports where strength is the crucial factor for the improveme",
+    "4763": "It will also strengthen the shoulders and arms. It can serve to help develop postural strength, shoulder stability, back arch strength, upper back arch strength",
+    "5969": "Although a strong athlete may have the \npotential to move heavy weight at a relatively high \nspeed, that athlete will not be able to do so unless \nhe or she has",
+    "4770": "Weights can usually be 20-40% of the lifter\u2019s best back squat. Split Squat\n\nWith a barbell behind the neck as for a back squat, the lifter will step into a lung",
+    "10897": "Second is overhead strengthening. Getting weight over head is the final result, but your shoulder strength only improves but so much by doing the lifts. The res",
+    "12296": "With a pendular movement lift one arm forward and up and the other backward, keeping the arms straight. 2-3 sets of 6 - 8 repetitions. 9. S. P.: standing, trunk",
+    "4711": "Use 1-3 reps per set. Variations:\n The block clean can be performed from blocks of any height. It can also be combined in a complex with clean pulls. Block Clea"
    }
   },
   {
@@ -1613,7 +2142,17 @@
     "12885": 0,
     "4527": 2,
     "4764": 1,
-    "4685": 1
+    "4685": 1,
+    "10896": 2,
+    "4592": 1,
+    "4684": 1,
+    "12297": 1,
+    "4763": 0,
+    "7292": 0,
+    "11443": 1,
+    "10913": 1,
+    "7692": 1,
+    "7423": 2
    },
    "snippets": {
     "10897": "Second is overhead strengthening. Getting weight over head is the final result, but your shoulder strength only improves but so much by doing the lifts. The res",
@@ -1633,7 +2172,17 @@
     "12885": "Over a period of 4-5 years the athlete may become stronger in one of the classic exercises. For example, a 285 kg total is\n\n98. composed of a 120 kg snatch and ",
     "4527": "Make grip width changes incrementally. Making a dramatic change is a good way to create new problems and possibly earn some new wrist and elbow\u00a0pain. If for som",
     "4764": "The athlete will lower under control until the elbows are completely extended and shoulders are fully open again before beginning subsequent reps. AKA:\n Chin, p",
-    "4685": "Purpose:\n The power snatch can be used to train speed, force production and aggression in both the second pull and the third pull by limiting the amount of time"
+    "4685": "Purpose:\n The power snatch can be used to train speed, force production and aggression in both the second pull and the third pull by limiting the amount of time",
+    "10896": "1) It helps train you to have quick feet getting to your split jerk position. 2) Another benefit of this exercise is that it helps improve your balance and stab",
+    "4592": "This training can be performed continuously throughout the entire macrocycle. Exercises and protocols can be found in resources dedicated to this subject. Shoul",
+    "4684": "At more challenging weights, the muscle snatch will help strengthen the turnover of the snatch. Programming:\n The muscle snatch can be performed early in a trai",
+    "12297": "4 sets of 5 - 6 repetitions. 28. S. P.: lying face - up on a bench, holding a barbell 20 - 30% of bodyweight. Lower the barbell behind the head with the arms st",
+    "4763": "It will also strengthen the shoulders and arms. It can serve to help develop postural strength, shoulder stability, back arch strength, upper back arch strength",
+    "7292": "I know I'm not the only one who hears things like, I need to just deadlift really heavy so I can be stronger for the snatch and clean. The same people then proc",
+    "11443": "The stage of special strength training is longer for the highly \u2013 qualified sportsman and in those sports where strength is the crucial factor for the improveme",
+    "10913": "Will be a long-term developmental factor as well. Relative strength is most important for the sport of weightlifting. Meaning how much weight can you lift in co",
+    "7692": "When beginners start weightlifting, they don\u2019t know what will or will not work for them, so it is important to start them with standard technique progressions a",
+    "7423": "In those times, the only solution is to tie the arm as directly and tightly to the trunk as possible. In the overhead position, the shoulder blades should be re"
    }
   },
   {
@@ -1668,7 +2217,17 @@
     "7471": 1,
     "4759": 2,
     "4748": 2,
-    "4751": 2
+    "4751": 2,
+    "4592": 0,
+    "7849": 1,
+    "11272": 2,
+    "8940": 1,
+    "4744": 2,
+    "11275": 2,
+    "12329": 2,
+    "7766": 0,
+    "5969": 1,
+    "4747": 2
    },
    "snippets": {
     "11279": "A support reaction of 230 \u2013 245% of the weight of the barbell in the jerk proper phase of the jerk is considered to be in the optimum range. When this force app",
@@ -1694,7 +2253,17 @@
     "7471": "Like the push press, the power jerk can be used on its own as a technique or teaching exercise, or a training exercise. I personally like to use it on a second ",
     "4759": "Notes:\n If the knees rebend at all after the initial dip and drive, the lift is no longer a push press, but a push jerk. If the feet remain totally flat during ",
     "4748": "Maintaining the same upright posture and balance used in the dip of the jerk, the lifter will bend at the knees only with a smooth and controlled tempo and stan",
-    "4751": "With the trunk and upper back locked tightly, the athlete will push with the legs straight up to lift the bar off the pins and hold steady for the prescribed ti"
+    "4751": "With the trunk and upper back locked tightly, the athlete will push with the legs straight up to lift the bar off the pins and hold steady for the prescribed ti",
+    "4592": "This training can be performed continuously throughout the entire macrocycle. Exercises and protocols can be found in resources dedicated to this subject. Shoul",
+    "7849": "Specificity is king\u2014that will never change in regards to strength sport. However, in recent years I have consistently found myself championing the importance of",
+    "11272": "Therefore, one should exercise caution in the selection of assistance exercises for the jerk. An important consideration in determining the value of the assista",
+    "8940": "Assimilation of the optimum skill to jerk the very heavy weights from the chest over the long term encapsulates a diametric complexity:\n\n1/ an excessive use of ",
+    "4744": "Jerk Exercises\n\nDrop to Split\n\nThe lifter will place the barbell behind the neck as for a back squat, being sure to use a fairly narrow grip and actively pullin",
+    "11275": "Research shows that one would expect those lifters who are (relatively speaking) disproportionately \u201cweaker\u201d in the arms and shoulder girdle to be better at the",
+    "12329": "Therefore, one should exercise caution in the selection of assistance exercises for the jerk. An important consideration in determining the value of the assista",
+    "7766": "I've written about grip strength for weightlifting before, but have remained fairly vague with regard to actual training protocols. This time, I\u2019m going to give",
+    "5969": "Although a strong athlete may have the \npotential to move heavy weight at a relatively high \nspeed, that athlete will not be able to do so unless \nhe or she has",
+    "4747": "It can also be a substitute for the jerk during periods of injury or pain in the wrists, shoulders or elbows that prevent jerking from the front. Some lifters w"
    }
   },
   {
@@ -1727,7 +2296,19 @@
     "4711": 1,
     "4719": 1,
     "8848": 1,
-    "4741": 2
+    "4741": 2,
+    "7292": 2,
+    "4663": 0,
+    "10913": 1,
+    "10912": 0,
+    "7692": 1,
+    "4713": 2,
+    "11443": 1,
+    "7531": 1,
+    "4712": 2,
+    "7830": 1,
+    "4737": 2,
+    "4724": 2
    },
    "snippets": {
     "5168": "It is a very \nlarge menu, however. Since most workouts will normally not consist of more than 5 or 6 \nexercises, it is obvious that most of the 100 exercises wi",
@@ -1751,7 +2332,19 @@
     "4711": "Use 1-3 reps per set. Variations:\n The block clean can be performed from blocks of any height. It can also be combined in a complex with clean pulls. Block Clea",
     "4719": "Programming:\n Sets of 1-3 reps are suggested with weights anywhere from 70% to the lifter\u2019s maximum jerk. Generally this exercise should be performed following ",
     "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
-    "4741": "After the final pause position, the lifter will complete the power clean as usual directly from the final pause position (no countermovement). AKA:\n Pause power"
+    "4741": "After the final pause position, the lifter will complete the power clean as usual directly from the final pause position (no countermovement). AKA:\n Pause power",
+    "7292": "I know I'm not the only one who hears things like, I need to just deadlift really heavy so I can be stronger for the snatch and clean. The same people then proc",
+    "4663": "Program\n Beginner Template\n\nThe following template is intended for beginning lifters with a reasonable foundation of general athleticism\u2014that is, not in need of",
+    "10913": "Will be a long-term developmental factor as well. Relative strength is most important for the sport of weightlifting. Meaning how much weight can you lift in co",
+    "10912": "This kind of info can give me an idea of how competitive and focused they can be. It can also lead me to what pushes them or what may turn them off. Overall, a ",
+    "7692": "When beginners start weightlifting, they don\u2019t know what will or will not work for them, so it is important to start them with standard technique progressions a",
+    "4713": "Programming:\n The clean bench pull should be done for 2-5 reps per set anywhere from 90%-120% of the lifter\u2019s best clean depending on the lifter and how it fits",
+    "11443": "The stage of special strength training is longer for the highly \u2013 qualified sportsman and in those sports where strength is the crucial factor for the improveme",
+    "7531": "You can build up the volume at 70kg, i.e. do more doubles, then triples, more sets, etc., doing some singles at 75kg whenever you\u2019re feeling good. As your consi",
+    "4712": "Programming:\n Use 3-5 reps per set, typically around 90-120% of the lifter\u2019s best clean. For the heaviest overloading, weights may be as heavy as 130% or more o",
+    "7830": "2. Snatch: work gradually up from very light triples to 3-10 sets of doubles at the maximum weight for the day.\n\n3. Clean & Jerk: Work gradually up from light d",
+    "4737": "It will also help improve the pull under the bar due to the limited ability of the athlete to accelerate and elevate the bar first. Programming:\n Hip clean reps",
+    "4724": "Slower eccentric speeds in particular will increase the strengthening of pulling posture and back arch strength. The lift can also be done without allowing the "
    }
   },
   {
@@ -1782,7 +2375,15 @@
     "4709": 1,
     "4704": 2,
     "4715": 2,
-    "4693": 2
+    "4693": 2,
+    "4770": 2,
+    "12297": 1,
+    "10912": 1,
+    "5867": 1,
+    "5891": 1,
+    "10897": 2,
+    "10922": 1,
+    "6145": 1
    },
    "snippets": {
     "7292": "I know I'm not the only one who hears things like, I need to just deadlift really heavy so I can be stronger for the snatch and clean. The same people then proc",
@@ -1804,7 +2405,15 @@
     "4709": "Clean Exercises\n\n2-Position / \n3-Position Clean\n\nThe 2-position or 3-position clean is simply 2-3 cleans performed from 2-3 progressive (increasing or decreasin",
     "4704": "Pauses in the overhead position, typically of 2-3 seconds, can also be used. Snatch Segment Deadlift\n\nThe snatch segment deadlift is a pull variation that inclu",
     "4715": "In any case, the weight should not exceed what the lifter can do with reasonably proper positioning\u2014if being used for posture, position and balance training, we",
-    "4693": "In any case, the weight should not exceed what the lifter can do with reasonably proper positioning\u2014if being used for posture, position and balance training, we"
+    "4693": "In any case, the weight should not exceed what the lifter can do with reasonably proper positioning\u2014if being used for posture, position and balance training, we",
+    "4770": "Weights can usually be 20-40% of the lifter\u2019s best back squat. Split Squat\n\nWith a barbell behind the neck as for a back squat, the lifter will step into a lung",
+    "12297": "4 sets of 5 - 6 repetitions. 28. S. P.: lying face - up on a bench, holding a barbell 20 - 30% of bodyweight. Lower the barbell behind the head with the arms st",
+    "10912": "This kind of info can give me an idea of how competitive and focused they can be. It can also lead me to what pushes them or what may turn them off. Overall, a ",
+    "5867": "Once the lifter has gone past the early stages of \nlearning, with its frequent need for \nexperimentation and correction, singles emerge as \nthe preferred method",
+    "5891": "Merely learning the technique of the Olympic lifts \nwith light to moderate weights will lead to an \nimprovement in an athlete\u2019s strength, power and \nflexibility",
+    "10897": "Second is overhead strengthening. Getting weight over head is the final result, but your shoulder strength only improves but so much by doing the lifts. The res",
+    "10922": "I think the biggest area that people overlook is that you always need to be getting stronger to be a better weightlifter, that\u2019s obvious. You need to lift bigge",
+    "6145": "Third, strong beginners are not in condition to\n\nlift heavy weights in the classic lifts. They would be \nmaking a mistake to attempt it\u2014even if they had \nthe te"
    }
   },
   {
@@ -1834,7 +2443,15 @@
     "10772": 0,
     "12041": 1,
     "10748": 0,
-    "4711": 0
+    "4711": 0,
+    "10770": 1,
+    "4576": 1,
+    "7596": 2,
+    "3794": 2,
+    "4617": 2,
+    "4620": 2,
+    "12042": 2,
+    "3795": 1
    },
    "snippets": {
     "10615": "Absolute strength levels may drop depending on how this block is arranged and how long it lasts (which is fine). Total volume should be of primary importance he",
@@ -1855,7 +2472,15 @@
     "10772": "If it goes well, you could just stick with a strategy of running rotating body part specialization cycles. But, you could also use this as a strategy for gradua",
     "12041": "4\n\nManipulation of Training Variables\n\nTo create successful strength training programs, coaches and athletes manipulate several training variables, mainly volum",
     "10748": "Overall, I don\u2019t think we can fully rule out the possibility that high volumes are primarily effective if used for just a handful of muscle groups, because ther",
-    "4711": "Use 1-3 reps per set. Variations:\n The block clean can be performed from blocks of any height. It can also be combined in a complex with clean pulls. Block Clea"
+    "4711": "Use 1-3 reps per set. Variations:\n The block clean can be performed from blocks of any height. It can also be combined in a complex with clean pulls. Block Clea",
+    "10770": "I\u2019d also generally recommend training most muscle groups 2-3 days per week. If you only train a muscle once per week, I suspect that hammering a muscle with 20-",
+    "4576": "If another compound set were to follow, we would restart the numbering with the letter B\n to describe the new\u00a0group. Volume\n\nVolume & training load (sometimes c",
+    "7596": "Intensity & Volume\n\nNext we need to figure out how to distribute all the work among our chosen days. If you\u2019re training 3 days/week, you can skip this section\u2014a",
+    "3794": "For example, you might have high bar squats in the 5-10 rep range in all three mesocycles during this progression. In the first meso, it might be high bar squat",
+    "4617": "This is not necessarily problematic (only if not planned or managed properly to an extent that allows overtraining rather than progress), and in fact is the int",
+    "4620": "Similarly, squatting in early preparation mesocycles may employ more back squats than front squats and include variations like pause squats, parallel squats or ",
+    "12042": "Later, the volume per session can be increased, if necessary. For example, suppose that your objective is to increase strength training from three to four train",
+    "3795": "The second mesocycle might be run with 3x and 4x per week for slower and faster-recovering muscles respectively, and the last one with 4x and 5x per week. By th"
    }
   },
   {
@@ -1894,7 +2519,14 @@
     "4689": 1,
     "4681": 1,
     "4673": 1,
-    "4683": 1
+    "4683": 1,
+    "7463": 1,
+    "7220": 0,
+    "4700": 0,
+    "10904": 1,
+    "4509": 2,
+    "13035": 0,
+    "4670": 1
    },
    "snippets": {
     "7472": "We\u2019ve all done it\u2014missed a snatch behind and reassured ourselves by saying a miss behind is better than a miss in front. I would agree that in some cases this i",
@@ -1924,7 +2556,14 @@
     "4689": "AKA:\n Pause power snatch. Purpose:\n The primary purpose of the segment power snatch is to reinforce certain positions during the pull and strengthen the athlete",
     "4681": "Another purpose is use as a lighter snatch variation (often an alternative to the power snatch) for lighter training days (weights naturally limited for most li",
     "4673": "Clean-Grip Snatch\n\nThe clean-grip snatch is a fairly obscure exercise, but it can be useful and even fun when implemented appropriately. Exactly as the name imp",
-    "4683": "AKA:\n Snatch from hip. Notes:\n Typically hip snatches are done with a countermovement; that is, the lifter moves into the hang position and then immediately sna"
+    "4683": "AKA:\n Snatch from hip. Notes:\n Typically hip snatches are done with a countermovement; that is, the lifter moves into the hang position and then immediately sna",
+    "7463": "Do it without straps (as I prefer) and it\u2019s also a serious grip strengthener. Video demo and more info on the dip snatch\n\nTall Snatch\n\nFinally, the tall snatch ",
+    "7220": "Use pauses in pulls and deadlifts, particularly immediately after bar separation and at the knee, ensuring correct posture is maintained. You can also add slow ",
+    "4700": "Programming:\n The snatch press can be done with anywhere from 3-10 reps per set. Weights should generally be such that the exercise can be performed fairly smoo",
+    "10904": "Quinn Henoch\n\nPower Snatch:\n\nWhen performing a power snatch, the lifter will receive the bar with the hips above 90 degrees of flexion. This differs from a full",
+    "4509": "Virtual barriers can also be used, such as placing a length of tape or chalk line on the platform in front of the lifter\u2019s toes and providing the instruction to",
+    "13035": "The premature switching to heavier weights has a noticeable adverse effect on technique. Premature competition also has an adverse impact on technique. Multiple",
+    "4670": "Programming:\n When using the 2-position or 3-position snatch in a training program, it\u2019s important to note the starting positions. Intensities will typically ra"
    }
   },
   {
@@ -1955,7 +2594,15 @@
     "7322": 0,
     "10772": 0,
     "10748": 0,
-    "12042": 1
+    "12042": 1,
+    "6511": 2,
+    "4611": 2,
+    "7918": 1,
+    "12641": 2,
+    "12638": 2,
+    "4609": 0,
+    "10574": 1,
+    "11015": 1
    },
    "snippets": {
     "5181": "Another effective distribution of the weekly volumes might be 35%, 22%, 28%, \n15% or even 35%, 15%, 28%, 22%. These sequences can be adjusted by the coach as is",
@@ -1977,7 +2624,15 @@
     "7322": "Dynamic starts in the snatch and clean are used by the majority of elite weightlifters, and for good reason. However, like many things done by elite athletes, i",
     "10772": "If it goes well, you could just stick with a strategy of running rotating body part specialization cycles. But, you could also use this as a strategy for gradua",
     "10748": "Overall, I don\u2019t think we can fully rule out the possibility that high volumes are primarily effective if used for just a handful of muscle groups, because ther",
-    "12042": "Later, the volume per session can be increased, if necessary. For example, suppose that your objective is to increase strength training from three to four train"
+    "12042": "Later, the volume per session can be increased, if necessary. For example, suppose that your objective is to increase strength training from three to four train",
+    "6511": "Good mornings, pressing exercises, squats with heavy weights, etc. are excluded during this period. With the reduction of the strength exercises, training basic",
+    "4611": "In the period between this test and the competition, average intensity and volume will be reduced. Intensity of squats and pulls in particular will need to be r",
+    "7918": "You might get away with it, but there\u2019s a very good chance you won\u2019t. I generally think there are a lot of lifters out there who do too much work during meet we",
+    "12641": "of movement will not be affected and you\ncan pull it to the required height without\nworking on your nervous energy. In the\nfinal two weeks, you should perform a",
+    "12638": "THE FINAL TWO\nWEEKS OF\nTRAINING\nBEFORE A\nCOMPETITION\n\nYour performance in a competition is\nthe culmination of hard training over a\nperiod of weeks or even month",
+    "4609": "Preparation\n\nAKA Preparatory, Accumulation, Extensification, Strength & Power Development\n\nThe need for strength increases is in a sense infinite, as this is ov",
+    "10574": "While tapering strategies vary based on the lifter, certain principles consistently emerge from research and practice.\n\nTapering is one of the most critical yet",
+    "11015": "Effective tapering strategies will allow an athlete to express competitive performance\n\nenhancements from training, while poor tapering strategies may hinder pe"
    }
   },
   {
@@ -2003,7 +2658,18 @@
     "5860": 1,
     "5842": 1,
     "5852": 1,
-    "11872": 1
+    "11872": 1,
+    "7530": 1,
+    "7692": 2,
+    "5855": 1,
+    "6143": 2,
+    "10912": 2,
+    "4286": 1,
+    "7796": 1,
+    "8072": 1,
+    "8073": 2,
+    "6417": 1,
+    "4281": 1
    },
    "snippets": {
     "8022": "Weightlifting technique can really be as complicated or simple as you want to make it. You could easily spend the rest of your life researching, experimenting, ",
@@ -2020,7 +2686,18 @@
     "5860": "Some other things that should be taught to the \nbeginning lifters are the basics of gym safety and \netiquette. For example, a lifter should never stand \nin fron",
     "5842": "Skill Transfer\n\nWhen practice at one skill leads to better \nperformance in another, it is called a positive \ntransfer. When practice of one skill leads to poore",
     "5852": "The power clean is learned in the following \nsequence: the power clean from mid-thigh; power \nclean from knee level; power clean from mid-shin \nlevel; and, fina",
-    "11872": "General Bases of Technique\n\nThe sporting results of a weightlifter depend on physical, tech-\nnical, psychological, theoretical and tactical preparation.\n\nTechni"
+    "11872": "General Bases of Technique\n\nThe sporting results of a weightlifter depend on physical, tech-\nnical, psychological, theoretical and tactical preparation.\n\nTechni",
+    "7530": "Dan Asks: I\u2019m learning lifts for the first time after 20 years of martial arts, and PTing. My approach at the moment is technique, technique, technique \u2013 then w",
+    "7692": "When beginners start weightlifting, they don\u2019t know what will or will not work for them, so it is important to start them with standard technique progressions a",
+    "5855": "For example, it is true that it is easier for many \nathletes to learn the power snatch and/or power \nclean than the squat snatch or clean. The former \nare simpl",
+    "6143": "One is that the athlete learning \ntechnique can use very light weights initially, \nthereby keeping bodily fatigue to a minimum while\n\nstill improving motor skil",
+    "10912": "This kind of info can give me an idea of how competitive and focused they can be. It can also lead me to what pushes them or what may turn them off. Overall, a ",
+    "4286": "Further, this approach often falls very short when teaching adults, who not only do not pick up motor skills as quickly and easily as their young counterparts, ",
+    "7796": "This is when we now have to add strength to motor patterns. We may use a halting snatch deadlift just as we did previously, but drop the snatch and increase the",
+    "8072": "Learning proper weightlifting technique is an important subject for so many athletes these days. Not only are many people involved in learning the snatch and cl",
+    "8073": "If these weights can be lifted without employing sound technique, then technique has not been sufficiently mastered. In other words the technique must be effici",
+    "6417": "or do only some aspects of the movement) while \nfocusing on what he or she is feeling. (Asking for \nsome explanation of what is being felt or \nexperienced tends",
+    "4281": "Learning & Teaching the Lifts\n\nThere is no single perfect learning progression for the snatch and clean & jerk. Different approaches are rooted in technical sty"
    }
   },
   {
@@ -2053,7 +2730,10 @@
     "4752": 0,
     "4742": 0,
     "12405": 2,
-    "4738": 0
+    "4738": 0,
+    "10859": 2,
+    "7744": 2,
+    "9007": 2
    },
    "snippets": {
     "8846": "Frolov \u2018s (2) findings are what one would anticipate considering the physiology involved. According to Lukashev (18), \u201cOne\u2019s results in the snatch depend to gre",
@@ -2077,7 +2757,10 @@
     "4752": "This will limit the weight that can be used somewhat, and the lift can then more accurately be called a drop to split. Pause Jerk\n\nThe lifter will secure the ba",
     "4742": "It can be done with light weights before cleans as a technique primer, or it can be used as its own training exercise with more difficult weights (70-80% genera",
     "12405": "Consequently, the myth that specialized training in squats to improve the results of weightlifters over the long term of training is puzzling. One logical reaso",
-    "4738": "Use 3-5 reps per set generally, although the muscle clean can also be done for heavy singles and doubles. Variations:\n The muscle clean can be performed from th"
+    "4738": "Use 3-5 reps per set generally, although the muscle clean can also be done for heavy singles and doubles. Variations:\n The muscle clean can be performed from th",
+    "10859": "Over time, the back squat will increase to 120, and the clean & jerk to 96, but biasing training towards quickly increasing the back squat will likely reduce ef",
+    "7744": "The athlete has poor snatch bottom position mobility\n\n3. The athlete\u2019s bodyweight is high for his/her height\n\n4. The athlete is less explosive than strong\n\n5. T",
+    "9007": "Table 1. Assessment tables for determining a weightlifter\u2019s technical efficiency relative to strength realization. (LI, 2016; translation of Andrew Charniga www"
    }
   },
   {
@@ -2115,7 +2798,15 @@
     "4753": 1,
     "7471": 1,
     "4759": 1,
-    "7686": 1
+    "7686": 1,
+    "7483": 1,
+    "7527": 1,
+    "4544": 1,
+    "4543": 1,
+    "4540": 1,
+    "12419": 0,
+    "4541": 1,
+    "9200": 0
    },
    "snippets": {
     "7567": "Gerasimos Asks: Hello i want to ask a question about jerk training. When a lifter has a weak jerk (strength or technique) is better to perform jerk and assistan",
@@ -2144,7 +2835,15 @@
     "4753": "A common complex is power jerk + split jerk to improve the orientation of the dip and/or drive for the split jerk for lifters who tend to shift forward. Variati",
     "7471": "Like the push press, the power jerk can be used on its own as a technique or teaching exercise, or a training exercise. I personally like to use it on a second ",
     "4759": "Notes:\n If the knees rebend at all after the initial dip and drive, the lift is no longer a push press, but a push jerk. If the feet remain totally flat during ",
-    "7686": "When Should I Press? There are basically three dimensions in which we should find a place for pressing exercises. First, it is a macrocycle. You would want your"
+    "7686": "When Should I Press? There are basically three dimensions in which we should find a place for pressing exercises. First, it is a macrocycle. You would want your",
+    "7483": "Droopy elbows in the jerk\u2026it\u2019s often a HUGE problem with beginners.\n\nLet me describe what it is, although many of you probably already have the visual image in ",
+    "7527": "When people see the jerk being performed, their first thought is that the arms are ramming the bar overhead. Actually, the power of the legs is the main factor ",
+    "4544": "This will cause the bar to slide forward and down, pulling the lifter forward and usually softening the upper back. The lifter needs to maintain the jerk rack p",
+    "4543": "The ability to drive under a heavy jerk is predicated on the knowledge, both conscious and unconscious, that the athlete will be able to safely support the weig",
+    "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi",
+    "12419": "Note: Shins shift from a slight forward lean to vertical as the athlete loses balance. Charniga photos. / The jerk from the chest;\n\nResearch has shown the light",
+    "4541": "Exercises to work on the proper upper body movement include:\n\nPress\n\nPush press\n\nPush press + jerk\n\nPower jerk + jerk\n\nJerk behind the neck + jerk\n\nExercises to",
+    "9200": "The first repetition involves lifting without fixing the weight; which sidesteps the complex task of balancing the system in the squat position. The second repe"
    }
   },
   {
@@ -2180,7 +2879,13 @@
     "4740": 0,
     "4715": 0,
     "4731": 0,
-    "7560": 2
+    "7560": 2,
+    "3951": 0,
+    "7372": 1,
+    "7258": 1,
+    "4441": 0,
+    "8138": 2,
+    "7303": 1
    },
    "snippets": {
     "11502": "As previously mentioned, weightlifting movements are\noften implemented because of their similarities to sport\nactivities (e.g., sprinting and jumping) [3]. More",
@@ -2207,7 +2912,13 @@
     "4740": "Variations:\n The press in clean can be started from the top down (i.e. the athlete will sit into the squat with the bar already overhead and then lower and pres",
     "4715": "In any case, the weight should not exceed what the lifter can do with reasonably proper positioning\u2014if being used for posture, position and balance training, we",
     "4731": "In any case, the weight should not exceed what the lifter can do with reasonably proper positioning and speed in the final extension and maintenance of the prop",
-    "7560": "Muscle Clean\n\nThe muscle clean is a simple way to teach and practice the upper body movement of the clean turnover. Watch that you or your athletes don\u2019t overlo"
+    "7560": "Muscle Clean\n\nThe muscle clean is a simple way to teach and practice the upper body movement of the clean turnover. Watch that you or your athletes don\u2019t overlo",
+    "3951": "If you want to pick something up off the ground and receive it onto your shoulders, you need a model for learning and teaching that skill. The clean is the form",
+    "7372": "It may help to put your hands behind your head, or reach the arms forward and then lift them up as high as possible as you extend. For general T-spine mobility,",
+    "7258": "In fact, more often what this attempt to receive so low does is encourage the athlete to cut the extension short and rush under the bar, resulting in a failure ",
+    "4441": "The athlete\u2019s head should be upright and the eyes focused straight ahead or slightly\u00a0above. Essentially the only difference in the clean starting position relat",
+    "8138": "Most of you have discovered that a solid overhead position for the snatch and jerk requires good thoracic spine mobility to create a platform for shoulder mobil",
+    "7303": "Good morning squats may also help\u2014arch the back completely, bend into the good morning, and then slowly sit the hips down into the squat position, fighting to m"
    }
   },
   {
@@ -2240,7 +2951,11 @@
     "3729": 1,
     "3757": 1,
     "3832": 2,
-    "3749": 2
+    "3749": 2,
+    "4582": 2,
+    "12612": 1,
+    "12613": 2,
+    "3758": 1
    },
    "snippets": {
     "3746": "Because you\u2019ve done such low volumes of training during the recovery session(s), just going to the planned volume in the next stimulative session might be a bit",
@@ -2264,7 +2979,11 @@
     "3729": "On the other hand, if you\u2019re under-performing, especially in sequence (so that it\u2019s not likely to be a fluke), excessive fatigue is likely present and will prev",
     "3757": "Figure 4.3: Muscle Growth Versus Recovery Time Courses\n\nThe first set of curves show idealized recovery-adaptation, where muscle growth completes at the same ti",
     "3832": "Fatigue Management\n\nBecause fatigue is accumulated along with adaptation, in order to make continued hypertrophy progress, planned and autoregulated strategies ",
-    "3749": "Employing Pre-Planned and Autoregulated Fatigue Management\n\nThe above list of fatigue management strategies can be applied in a pre-planned or autoregulated man"
+    "3749": "Employing Pre-Planned and Autoregulated Fatigue Management\n\nThe above list of fatigue management strategies can be applied in a pre-planned or autoregulated man",
+    "4582": "Within a microcycle, a lifter will not achieve complete recovery between training sessions, but this is not the goal. An entire training cycle will involve the ",
+    "12612": "In the business world you'll hear the expression, \"Work hard and you'll suc-\n\nceed.\" The saying should be \"Work intelli- gently (smart) and you'll succeed.\"\n\nTH",
+    "12613": "Drawing on my own experiences when I was in my teens, I could push myself almost every other workout, but when I was in my early twenties, I was generally able ",
+    "3758": "What this dynamic reinforces is that there is likely a range of training magnitudes (per session) that produce the best relationships of growth to fatigue, and "
    }
   },
   {
@@ -2294,7 +3013,11 @@
     "12654": 0,
     "6359": 0,
     "6360": 0,
-    "6358": 0
+    "6358": 0,
+    "7913": 2,
+    "12655": 2,
+    "4834": 2,
+    "7940": 1
    },
    "snippets": {
     "4832": "If the weight is already beyond what the athlete can reasonably take more than once, the weight may need to be dropped and then the athlete will work back up. O",
@@ -2315,7 +3038,11 @@
     "12654": "When a national or international contest ends, I try to get a copy of the scorekeepers' results sheet so I can review the contest at my leisure and recreate the",
     "6359": "One minute (sixty seconds) is allowed for an \nathlete to make his or her attempt with a weight \nonce he or she is called by the speaker to the bar. \nThis call d",
     "6360": "When more that one athlete is attempting the \nsame weight, the second rule of ordering comes into \nplay. The second rule, calling by attempt number, \nrequires s",
-    "6358": "The\n\nmarshals use competitor cards in their work. These\n\ncards resemble index cards. They have the athlete's \nname on them (and generally the athlete's body\n\nwe"
+    "6358": "The\n\nmarshals use competitor cards in their work. These\n\ncards resemble index cards. They have the athlete's \nname on them (and generally the athlete's body\n\nwe",
+    "7913": "We posted an article last week about how to handle the final week leading into a weightlifting competition, and it generated some questions about how to choose ",
+    "12655": "When you take your final attempt, that is when there should be a 50-50 chance of succeeding. A good coach is someone who has been working with you and knows you",
+    "4834": "Ultimately, an athlete only needs to make one snatch and one clean & jerk to win; this is certainly a riskier strategy, but has the potential to pay off more. T",
+    "7940": "One of the most common questions I get through the various media through which I\u2019m connected interminably to the weightlifting world is how to properly warm-up "
    }
   },
   {
@@ -2347,7 +3074,16 @@
     "8282": 1,
     "12298": 0,
     "12868": 1,
-    "12882": 1
+    "12882": 1,
+    "10912": 2,
+    "10913": 2,
+    "4612": 1,
+    "6090": 2,
+    "5151": 1,
+    "10420": 2,
+    "13036": 2,
+    "12880": 2,
+    "12299": 1
    },
    "snippets": {
     "10416": "The results of these two studies demonstrate the\neffectiveness of employing different starting conditions for the execution of the\nweightlifting exercises. The ",
@@ -2370,7 +3106,16 @@
     "8282": "515\n\n532.5\n\n547.5\n\n537.5\n\n580\n\n580\n\n602.5\n\n585\n\n620\n\n640\n\nNotations: ANT \u2013 anticipated 1st place result competition; Actual \u2013 actual 1st place result of competi",
     "12298": "It is important to select those static exercises for the junior lifter which contribute to strengthening the muscles involved in performing the competition and ",
     "12868": "When one is using the data for planning weightlifters' achievements over a multi-year period of training, one needs to bear in mind, that one lifter's continuou",
-    "12882": "It is necessary to determine the biathlon results the athlete should achieve for the year in the future weight class he will compete in (which conforms to his h"
+    "12882": "It is necessary to determine the biathlon results the athlete should achieve for the year in the future weight class he will compete in (which conforms to his h",
+    "10912": "This kind of info can give me an idea of how competitive and focused they can be. It can also lead me to what pushes them or what may turn them off. Overall, a ",
+    "10913": "Will be a long-term developmental factor as well. Relative strength is most important for the sport of weightlifting. Meaning how much weight can you lift in co",
+    "4612": "Athletes will be maximally capable of learning lift technique at younger ages (10-14); it\u2019s critical whenever possible to exploit this natural ability. Transiti",
+    "6090": "first half of the year and can only withstand \nIn his book Weightlifting And Age, L.S. Dvorkin \nsmaller loads during the second half.) GPP \nhas made recommendat",
+    "5151": "These types of jumping \nactivities can be done with both feet, and when the athlete becomes stronger they can be \nperformed on a single leg with a partner runni",
+    "10420": "At the end of the first twelve week cycle, the first control competitions take place in order to assess the assimilation of the snatch and the clean and jerk te",
+    "13036": "The methods of the weightlifters speed-strength training\n\nThe growth of achievements is conditioned first and foremost by strength development, especially the a",
+    "12880": "Here is another example: one can do five snatch pulls with 80 kg and 110 kg. The average weight for the 10 lifts (with a snatch of 100 kg) would conform to the ",
+    "12299": "Static Leg - Press: Lie on the back with the legs straight or knees flexed to an angle of 90 - 110\u00b0, the feet are supporting a barbell 70- 80% of the best back "
    }
   },
   {
@@ -2398,7 +3143,15 @@
     "12904": 1,
     "4622": 2,
     "6105": 1,
-    "12116": 0
+    "12116": 0,
+    "7710": 2,
+    "6142": 1,
+    "7792": 1,
+    "7790": 1,
+    "5169": 1,
+    "5190": 1,
+    "5744": 0,
+    "8919": 0
    },
    "snippets": {
     "3816": "At three sessions per week, beginners should be training virtually every muscle in every session. (Though this might change for training 4-5 times per week, as ",
@@ -2417,7 +3170,22 @@
     "12904": "In this instance, the loading is: 1st week -- 446, 2nd -- 297, 3rd -- 528 and 4th -- 397 lifts. One can employ variant 2 (28, 33, 36 and 13%) in the competition",
     "4622": "Generally, days of higher intensity should coincide with days of higher volume in a microcycle to create an alternation of greater or lesser burdening\u00a0overall. ",
     "6105": "There are a number of \npsychological and cultural reasons to adhere to a \nweekly schedule, and many athletes prefer a \nweekly schedule. For example, athletes wh",
-    "12116": "8\n\nAnatomical Adaptation\n\nHave you ever watched how homes are built? From the foundation up to the roof? Do you know that the solidity of the foundation dictate"
+    "12116": "8\n\nAnatomical Adaptation\n\nHave you ever watched how homes are built? From the foundation up to the roof? Do you know that the solidity of the foundation dictate",
+    "7710": "You\u2019re using a workload that your body just won\u2019t acclimate to, so changes are needed. Likewise, if you\u2019re making progress and your body feels sore-and-beat-up-",
+    "6142": "i.e., each rep that is done should be performed \nsmoothly and without assistance.) The use of a \nsingle set (after one or two warm-up sets) that \nentails a mode",
+    "7792": "Front squat \u2013 10x3\n\nClean pull \u2013 3x3\n\nClean deadlift \u2013 3x3\n\nDay 3\n\nSnatch \u2013 heavy single\n\nCJ \u2013 heavy single\n\nOverhead squat \u2013 heavy single\n\nBack squat \u2013 heavy s",
+    "5179": "The training \nprogramming for these athletes has to be geared much more toward strengthening than \nthat employed for less talented individuals. Most of the work",
+    "11924": "At\n\neffect, are performed at the end of a training session. working out strength-stamina and exercises with advantageous local\nExercises of a comparatively slow",
+    "10462": "Week # 2\n\n# 1 - January (Tuesday)\n1. P. Sn.:                              70 x 5 x 3\n2. Pr. B. N., Sn. Gr.:                  4 x 4\n3. Sn. Pu.:                  ",
+    "12069": "The approach can be chosen to suit the needs of different classifications of athletes. For example, young athletes have difficulty tolerating a high number of s",
+    "7789": "One of the most common type of emails I get involve questions regarding how to modify the Catalyst daily workouts or other programs to be fewer days/week. This ",
+    "10511": "Week # 5\n\n# 1 - January (Tuesday)\n1. P. Sn. + Ov. Sq.:\t\t\t\t60 + 3 + 2, 70 + 3 + 2 x 4\n2. Sn. Pu., Bel. Kn.:\t\t\t\t80 x 3 x 4\n3. Sn. Pu.:\t\t\t\t\t100 x 2 x 6\n4. P. Cl. +",
+    "10567": "In this example, our lifter felt great during warmups, started high, and added weight each set right up to a PR, did a great first rep with 101, then barely mis",
+    "7790": "Tuesday and Thursday are primarily classic lift variants and also have conditioning workouts. Saturdays are heavy snatch, clean & jerk and squat singles. The fi",
+    "5169": "A Class 2 weightlifter is able to perform training sessions with both a classic \nsnatch and a power clean in combination or a power snatch and classic clean & j",
+    "5190": "Class 2 training is much more in line with classic program planning since the \nexercise selection is somewhat more limited. The technique of the lifts has been ",
+    "5744": "Weightlifting is truly one of the greatest sports \never conceived by the mind of man or woman. It is \nmy profound hope that this book will help to make \nsomeone",
+    "8919": "Two lifters stood out; from the many competitors who seemed to be stamped from the same mold. The two lifters who both placed 2nd in their respective weight cla"
    }
   },
   {
@@ -2446,7 +3214,19 @@
     "10950": 1,
     "10636": 1,
     "10642": 1,
-    "6577": 0
+    "6577": 0,
+    "4574": 0,
+    "8522": 1,
+    "5425": 1,
+    "12822": 1,
+    "5940": 1,
+    "11921": 1,
+    "6133": 1,
+    "11922": 1,
+    "4572": 1,
+    "5952": 1,
+    "8521": 1,
+    "12128": 0
    },
    "snippets": {
     "10640": "I won\u2019t spend a ton of time hashing out long-winded examples of each of the four points because they are pretty self-explanatory, so quick explanations should s",
@@ -2466,7 +3246,19 @@
     "10950": "Training intensity is the load or weight lifted. In this chapter, relative intensity, or\n\npercentage of one repetition maximum (1RM) lifted will be the focus. T",
     "10636": "People are starting to favor autoregulated load prescriptions now that the limitations of the classic percentage-based loading charts are well known. However, a",
     "10642": "Overall, various load prescription strategies are valid, and you don\u2019t have to use only one. The appropriate strategy (or strategies) is one that the lifter has",
-    "6577": "The critical days had a negative influence\non sport results and were a factor in the occurance of sport\ninjuries. In order to use biological rhythms for managin"
+    "6577": "The critical days had a negative influence\non sport results and were a factor in the occurance of sport\ninjuries. In order to use biological rhythms for managin",
+    "4574": "This is the basis for the classic 5x5 and 6x6 strength programming\u2014it\u2019s an attempt to balance strength and mass\u00a0gains. There are two types of muscular hypertrop",
+    "8522": "3 to 4 repetitions per set (with 75 to 80%) should form the core of the year round training in the fundamental exercises. This method is varied with 1 to 2 (85 ",
+    "5425": "In untrained individuals, the measured strength \nlevels fall when resistance is below 20% of their Fmm. \nIn athletes accustomed to great muscular efforts, \nthis",
+    "12822": "Besides this, one must constantly strive to develop great strength and speed of lifting -- so, it is necessary to constantly depart from the 80-95% range. Then ",
+    "5940": "a competitive weightlifter must have the ability to \nperform maximum efforts over a period of hours \n(during much of which the athlete may be resting \nand handl",
+    "11921": "stages of study), but skill in a large part depends on the number on the repetition of exercises. But the high growth of the strength out the essence of the mat",
+    "6133": "The most important of \nthese factors are the number of reps per set, the \nrest between sets, the nature of the exercise and \nthe proximity of the load to the at",
+    "11922": "Further increase of the number of repetitions (more\nand, naturally, by the growth of the capacity of the musculature for\nby Berger, can be explained by the hype",
+    "4572": "Waves\n In some cases, intensity may be prescribed in repeated series of ascending weights. Rather than a uniform weight across the total number of sets, or asce",
+    "5952": "There is a virtually unlimited number of possible \nset, rep and intensity patterns that can be \nperformed in a given workout. However, some \npopular general pat",
+    "8521": "It is necessary to point out something about the back squat. This exercise performed in the 50 to 80% zones practically does not lose its effectiveness with the",
+    "12128": "Table 9.1\u2005\u2005\u2005\u2005Training Parameters for the Hypertrophy Phase\n\nDuration of hypertrophy phase\n\n6-8 weeks\n\nLoad\n\n60%-80% of 1RM\n\nNumber of exercises\n\n6-9\n\nNumber of "
    }
   },
   {
@@ -2498,7 +3290,13 @@
     "4577": 0,
     "11916": 0,
     "6101": 0,
-    "10772": 1
+    "10772": 1,
+    "3850": 1,
+    "10960": 1,
+    "12331": 0,
+    "4771": 0,
+    "6058": 1,
+    "6109": 1
    },
    "snippets": {
     "7819": "Lighter work such as back extensions or reverse hyperextensions can be performed more frequently and in between heavy training sessions because it won\u2019t have so",
@@ -2521,7 +3319,13 @@
     "4577": "(Note that adequate recovery does not mean complete recovery; an athlete will not recover completely during a given training cycle, because that entire cycle is",
     "11916": "scheme first the to according load the divide to preferable\nmost is It. 59). Diag, 3 (Scheme 24-25% week fourth, 37-38% week\nthird, 24-25% week second, and 12-1",
     "6101": "While coaches have had success with these and \nother loading patterns, considerable judgment is \nrequired in order to select the proper loading\n\npatterns for in",
-    "10772": "If it goes well, you could just stick with a strategy of running rotating body part specialization cycles. But, you could also use this as a strategy for gradua"
+    "10772": "If it goes well, you could just stick with a strategy of running rotating body part specialization cycles. But, you could also use this as a strategy for gradua",
+    "3850": "As previously mentioned, the weight training volume landmarks being used will likely be adjusted down slightly from baseline physique training but adjusted up s",
+    "10960": "for 10-weeks with low volume, moderate volume or high volume. All groups trained\n\nwith the same relative intensity. The moderate volume group showed significant",
+    "12331": "Even before the press was eliminated and subsequent to its elimination, considerable discussion and some experimental research was devoted to determining the ap",
+    "4771": "Purpose:\n The stiff-legged deadlift strengthens the back arch along with the glutes and hamstrings. It also strengthens the lats and shoulders because of the ef",
+    "6058": "However, \nmuch of this strengthening occurs in positions that \nare unlike those assumed when the lifter is \nperforming the classical lifts. Consequently, the \nc",
+    "6109": "If an athlete successfully handled an average of \n1500 lifts a month in 1993, his or her load might be \nincreased by 10% to 15% in 1994 (e.g., to 1700 \nreps). S"
    }
   },
   {
@@ -2553,7 +3357,16 @@
     "4610": 1,
     "12895": 0,
     "12916": 1,
-    "12874": 1
+    "12874": 1,
+    "4590": 1,
+    "7654": 2,
+    "7656": 2,
+    "7655": 2,
+    "4611": 0,
+    "4612": 0,
+    "4609": 1,
+    "4597": 1,
+    "4596": 0
    },
    "snippets": {
     "7615": "Two-handed barbell in jerk or snatch grip with or without weights hanging on bands or chains to increase instability, single arm dumbbell or kettlebell (standar",
@@ -2576,7 +3389,16 @@
     "4610": "The last preparation mesocycle in a macrocycle can be considered somewhat transitional in a sense, as it will bridge the least specific mesocycles with the most",
     "12895": "Consequently, the number of lifts of submaximum and maximum weights should be optimal for each athlete at each stage of his training. Significantly exceeding th",
     "12916": "If you look at table 20, you can see that these figures are: 5 more lifts in the snatch exercises, 3 in cleans, 3 in jerks and 5 more lifts in squats. This is n",
-    "12874": "It is appropriate to divide the next four-months of training\ninto two training cycles, each of which includes preparatory and\ncompetition months. The athlete en"
+    "12874": "It is appropriate to divide the next four-months of training\ninto two training cycles, each of which includes preparatory and\ncompetition months. The athlete en",
+    "4590": "Accessory Work\n\nAccessory work includes anything outside of weightlifting specific training; this generally means trunk strength and stability (abs and back), b",
+    "7654": "Pretty commonly we get questions about incorporating bodybuilding work into weightlifting training programs\u2014whether or not it\u2019s necessary or beneficial, and if ",
+    "7656": "And finally, limited ranges of motion can encourage tendinitis. Train a strong, complete lockout\n\nTempo\n\nBodybuilders will often also use slow tempos to create ",
+    "7655": "This means making sure you have a sensible training program to begin with that you can then add beach work to with minimal modifications if any. If you have to ",
+    "4611": "In the period between this test and the competition, average intensity and volume will be reduced. Intensity of squats and pulls in particular will need to be r",
+    "4612": "Athletes will be maximally capable of learning lift technique at younger ages (10-14); it\u2019s critical whenever possible to exploit this natural ability. Transiti",
+    "4609": "Preparation\n\nAKA Preparatory, Accumulation, Extensification, Strength & Power Development\n\nThe need for strength increases is in a sense infinite, as this is ov",
+    "4597": "This is the minimum snatch, clean & jerk or squat weight the athlete can lift any given day. The secondary goal behind increasing the maximum lifts is to increa",
+    "4596": "Shifting among iterations is a simple way to achieve variation in a system of limited variables. All of the following examples are presented as single daily tra"
    }
   },
   {
@@ -2611,7 +3433,18 @@
     "8848": 0,
     "6043": 1,
     "4767": 0,
-    "4669": 0
+    "4669": 0,
+    "7347": 1,
+    "7618": 1,
+    "7548": 1,
+    "4533": 2,
+    "7517": 1,
+    "7519": 2,
+    "7303": 2,
+    "10930": 1,
+    "7258": 1,
+    "4532": 1,
+    "5096": 0
    },
    "snippets": {
     "7559": "Lastly, the turnover should always be completed as soon as possible; that is, the lifter should attempt to secure the bar in the rack position in as high of a s",
@@ -2637,7 +3470,18 @@
     "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
     "6043": "Effectiveness: Front squatting is a highly \neffective method of strengthening the legs for the \nrecovery from the clean and can also be used to \ncondition them ",
     "4767": "Volume and frequency should be prescribed accordingly. Purpose:\n Parallel squats help develop strength in the most mechanically disadvantaged position in the sq",
-    "4669": "Snatch Exercises\n\n2-Position / \n3-Position Power Snatch\n\nThe 2-position or 3-position power snatch is simply 2-3 power snatches performed from 2-3 progressive ("
+    "4669": "Snatch Exercises\n\n2-Position / \n3-Position Power Snatch\n\nThe 2-position or 3-position power snatch is simply 2-3 power snatches performed from 2-3 progressive (",
+    "7347": "Start with developing an overhead squat that exceeds your best snatch and power snatch and that you can hold in the bottom for 3 seconds without dying. Once tha",
+    "7618": "Based on your clean and power clean problem, I have to assume there is a dearth of squatting in your training, suggesting your squat movement and bottom positio",
+    "7548": "This is what I\u2019m concentrating on now, for the first time in my career. I\u2019ve never had to think about the bottom position before because it was always natural f",
+    "4533": "Exercises that can help improve thoracic mobility and extension strength include:\n\nClean-grip overhead squat\n\nPress in clean (Sots press)\n\nPress behind the neck",
+    "7517": "With the Olympic lifts, it\u2019s easy to wander a little too far down the rabbit hole and find yourself lost amid overwhelming detail. There are times when such det",
+    "7519": "Ultimately, I see this problem as a symptom of being lazy and impatient in a sense. It happens when athletes are more interested in hurrying through their worko",
+    "7303": "Good morning squats may also help\u2014arch the back completely, bend into the good morning, and then slowly sit the hips down into the squat position, fighting to m",
+    "10930": "#3-Move the Hips Down\n\nFocusing on moving your hips down into the squat position to catch the bar will position you in the strongest and most stable place to re",
+    "7258": "In fact, more often what this attempt to receive so low does is encourage the athlete to cut the extension short and rush under the bar, resulting in a failure ",
+    "4532": "Inadequate Trunk Strength\n\nBoth back and abdominal strength is critical for maintaining a rigid and properly oriented trunk in the clean. Exercises to improve b",
+    "5096": "However, it\u2019s recommended that\nthe complete text be read and understood eventually, as it will add important details to\nthe basics presented in the summary boxe"
    }
   },
   {
@@ -2673,7 +3517,17 @@
     "4674": 1,
     "4690": 1,
     "4689": 0,
-    "4709": 0
+    "4709": 0,
+    "8184": 2,
+    "8219": 2,
+    "10899": 2,
+    "5115": 1,
+    "5119": 2,
+    "7358": 1,
+    "8138": 2,
+    "10897": 1,
+    "5980": 2,
+    "4704": 0
    },
    "snippets": {
     "8185": "I combine the two here because there is a lot of overlap, especially in the way we train them. First, we do things with snatches and jerks like hold the bar ove",
@@ -2700,7 +3554,17 @@
     "4674": "elbows high and to the sides). Programming:\n The dip snatch can serve as a lighter snatch exercise on light training days, replacing power snatches or other han",
     "4690": "Snatch pulls can also be done with this reduced initial pull speed. Snatch Balance\n\nThe snatch balance is a dynamic snatch receiving position exercise that adds",
     "4689": "AKA:\n Pause power snatch. Purpose:\n The primary purpose of the segment power snatch is to reinforce certain positions during the pull and strengthen the athlete",
-    "4709": "Clean Exercises\n\n2-Position / \n3-Position Clean\n\nThe 2-position or 3-position clean is simply 2-3 cleans performed from 2-3 progressive (increasing or decreasin"
+    "4709": "Clean Exercises\n\n2-Position / \n3-Position Clean\n\nThe 2-position or 3-position clean is simply 2-3 cleans performed from 2-3 progressive (increasing or decreasin",
+    "8184": "She will sometimes do this while holding a plate in each hand with her arms out in a 90/90 orientation (upper arm 90 degrees from the body, and elbows bent to 9",
+    "8219": "Ankle flexibility is usually a limiting factor in a full-depth Olympic squat for individuals of any height. Add several inches of leg length to the equation, an",
+    "10899": "Unfortunately, the number one thing that coaches do when an athlete can\u2019t perform the overhead squat, is throw a bunch of stretches at them without any further ",
+    "5115": "The goal for the coach and athlete is to address flexibility as needed with as little\ntime commitment as possible. Limiting the time commitment means both keepi",
+    "5119": "A plyo box or similar can be used for the toes as\nneeded to account for height. This will allow the athlete to hang most of his or her\nbodyweight, but the conta",
+    "7358": "There are also certain \u201cnever do\u201d rules you need to follow to make sure that these methods are effective and safe:\n\nNever stretch your back before the training ",
+    "8138": "Most of you have discovered that a solid overhead position for the snatch and jerk requires good thoracic spine mobility to create a platform for shoulder mobil",
+    "10897": "Second is overhead strengthening. Getting weight over head is the final result, but your shoulder strength only improves but so much by doing the lifts. The res",
+    "5980": "exercise.\n\nThe Low Position in the Snatch\n\nPerhaps the best way to develop flexibility for the \nlow squat position of the snatch is to practice \noverhead squats",
+    "4704": "Pauses in the overhead position, typically of 2-3 seconds, can also be used. Snatch Segment Deadlift\n\nThe snatch segment deadlift is a pull variation that inclu"
    }
   },
   {
@@ -2734,7 +3598,16 @@
     "4766": 0,
     "3934": 1,
     "3985": 2,
-    "12354": 1
+    "12354": 1,
+    "8219": 2,
+    "8218": 1,
+    "8764": 1,
+    "7279": 2,
+    "3916": 0,
+    "8226": 1,
+    "7283": 2,
+    "7303": 0,
+    "8140": 0
    },
    "snippets": {
     "7583": "The squat is foundational to the Olympic lifts as a position, a movement and a strength exercise. Without a well-developed and consistent squat, neither pulling",
@@ -2759,7 +3632,16 @@
     "4766": "All reps on one leg can be performed before switching to the other leg, or legs can be alternated. AKA:\n Barbell lunge. Notes:\n Many athletes try to load lunges",
     "3934": "Doing so gives you plenty of time to effect change within the context of movement, and, more important, it is manageable over the long haul. Make Mobility Reali",
     "3985": "IMPROVES:\n\nSliding surfaces around the ankle\n\nAchilles and ankle pain\n\nPin the ball on an area of tacked-down tissue\u2014focusing your attention on your ankle bone,",
-    "12354": "However, it was difficult to rest the front foot flat on the floor with the shin tilted way forward. (see figure of Plukfelder snatch) Nevertheless, the ankle j"
+    "12354": "However, it was difficult to rest the front foot flat on the floor with the shin tilted way forward. (see figure of Plukfelder snatch) Nevertheless, the ankle j",
+    "8219": "Ankle flexibility is usually a limiting factor in a full-depth Olympic squat for individuals of any height. Add several inches of leg length to the equation, an",
+    "8218": "When someone is genuinely inflexible, even the best stretches can be out of reach, which makes the process that much more difficult. Do some dynamic range of mo",
+    "8764": "This elastic, dynamic exercise compliments the demands of dynamic sport considerably more than any bodybuilding/powerlifting exercise or technique. The carry ov",
+    "7279": "Christopher Asks: What to do if my butt/hip shoots back in back squat, front squat and clean?\n\nThere are a couple possibilities here: your hips are really shoot",
+    "3916": "You should be able to identify the universal shapes of stability (body archetypes). You should be able to incorporate transferable, full-range strength and cond",
+    "8226": "The mini-band squat is simply an unloaded squat with a short elastic band wrapped around your legs just below the knees. Don't just push the knees out - push ou",
+    "7283": "Ideally you don\u2019t hold the bottom of your cleans\u2014but if the problem is severe enough, you may need to. Finally, footwork drills and supplemental exercises that ",
+    "7303": "Good morning squats may also help\u2014arch the back completely, bend into the good morning, and then slowly sit the hips down into the squat position, fighting to m",
+    "8140": "The butt wink\u2026 I\u2019m honestly not sure which is more worrisome to me\u2014the actual phenomenon or the commonly accepted term for it. In either case, I\u2019m going to weig"
    }
   },
   {
@@ -2791,7 +3673,17 @@
     "5150": 2,
     "6087": 1,
     "4610": 0,
-    "6076": 1
+    "6076": 1,
+    "7632": 2,
+    "10442": 2,
+    "7633": 2,
+    "10444": 1,
+    "10897": 1,
+    "5151": 2,
+    "12195": 1,
+    "10447": 1,
+    "4609": 1,
+    "4592": 1
    },
    "snippets": {
     "12890": "An example of the improvement in a middleweight's (height -- 168 cm) results is shown in table 12. A Class I athlete plans for results of 130 kg in the snatch a",
@@ -2814,7 +3706,17 @@
     "5150": "In Bulgaria and the rest of the Eastern bloc, young prodigies were enrolled in \nsport schools where they spent their mornings in classroom activities, and their",
     "6087": "sal \ncea Sa \n2 eS aa a\n\nDuring this stage the coach is also trying to develop \nthe athlete's love for the sport, a love that will be \nneeded to see the lifter t",
     "4610": "The last preparation mesocycle in a macrocycle can be considered somewhat transitional in a sense, as it will bridge the least specific mesocycles with the most",
-    "6076": "A long term view can also serve as a powerful \nanalytical tool for determining training \neffectiveness, because some of the effects of \ntraining are cumulative "
+    "6076": "A long term view can also serve as a powerful \nanalytical tool for determining training \neffectiveness, because some of the effects of \ntraining are cumulative ",
+    "7632": "In addition, the beginning of each training cycle will contain more GPP, which will be reduced as the cycle progresses toward a competition and specificity to t",
+    "10442": "Since the track and field workouts (there are 56 sessions in the June - August\nperiod) are a significant loading on the musculature of the lower extremitis; we ",
+    "7633": "Don\u2019t get excited and start spending an hour each day on this kind of training in addition to all of the more specific training you\u2019re doing\u2014dose appropriately.",
+    "10444": "22. Discus (1.5 kg) throw (no less than 80%) from a standstill; number of\ntimes. 23. Movement and sport games (in minutes). 24. Cross country running 2 - 2.5 km",
+    "10897": "Second is overhead strengthening. Getting weight over head is the final result, but your shoulder strength only improves but so much by doing the lifts. The res",
+    "5151": "These types of jumping \nactivities can be done with both feet, and when the athlete becomes stronger they can be \nperformed on a single leg with a partner runni",
+    "12195": "The more intensive the training and the more competitions athletes are exposed to, the greater their fatigue will be. Under such conditions, they would have dif",
+    "10447": "In the preparatory stages (each three - week training block #1,2,8,9) the total\nvolume averages 956 lifts; of which, 726 are in fundamental exercises and 230 (2",
+    "4609": "Preparation\n\nAKA Preparatory, Accumulation, Extensification, Strength & Power Development\n\nThe need for strength increases is in a sense infinite, as this is ov",
+    "4592": "This training can be performed continuously throughout the entire macrocycle. Exercises and protocols can be found in resources dedicated to this subject. Shoul"
    }
   },
   {
@@ -2848,7 +3750,14 @@
     "6101": 1,
     "12043": 0,
     "11914": 0,
-    "10775": 1
+    "10775": 1,
+    "7615": 2,
+    "5285": 1,
+    "7773": 2,
+    "4592": 1,
+    "7633": 2,
+    "7776": 1,
+    "7654": 0
    },
    "snippets": {
     "5286": "A bag of salt or sand weighing 50 pounds is an amazing eyeopener in carries. Go to a warehouse home supply place and get \na wheelbarrow shell (just that green p",
@@ -2873,7 +3782,14 @@
     "6101": "While coaches have had success with these and \nother loading patterns, considerable judgment is \nrequired in order to select the proper loading\n\npatterns for in",
     "12043": "A supermaximum load exceeds one\u2019s maximum strength (1RM). In most cases, loads between 100% and 120% of 1RM can be used by applying the eccentric (yielding to t",
     "11914": "In the snatch pull he lifted 110 kgms\nFor example, a lifter lifted in the snatch 100 kgms for 5 sets\n\nVolume of load is usually expressed in kilos or tons. lift",
-    "10775": "A previous study found that progressing load lifted or reps led to similar increases in strength and muscle size. A new study made the same comparison, but did "
+    "10775": "A previous study found that progressing load lifted or reps led to similar increases in strength and muscle size. A new study made the same comparison, but did ",
+    "7615": "Two-handed barbell in jerk or snatch grip with or without weights hanging on bands or chains to increase instability, single arm dumbbell or kettlebell (standar",
+    "5285": "What\u2019s the Order of Learning?\n\nLet\u2019s review the order of learning\u2014\n\nPatterning\n\nGrinding\nSymmetry\n\nDynamic\n\nPattern\nGrind\nSymmetry\nDynamic\n\nLOADED\nCARRY\n\nFarmer",
+    "7773": "So, this is a circumlocutory way of saying: Yes, you need to do metCons if your intention is to compete in the CF games. The workouts I post on the website are ",
+    "4592": "This training can be performed continuously throughout the entire macrocycle. Exercises and protocols can be found in resources dedicated to this subject. Shoul",
+    "7633": "Don\u2019t get excited and start spending an hour each day on this kind of training in addition to all of the more specific training you\u2019re doing\u2014dose appropriately.",
+    "7776": "Obviously, CrossFit is the center of all this. I don\u2019t know if CrossFit became popular because people want to multi-task, or if people want to multi-task becaus",
+    "7654": "Pretty commonly we get questions about incorporating bodybuilding work into weightlifting training programs\u2014whether or not it\u2019s necessary or beneficial, and if "
    }
   },
   {
@@ -2902,7 +3818,13 @@
     "10641": 1,
     "10610": 2,
     "3749": 1,
-    "12758": 0
+    "12758": 0,
+    "10619": 1,
+    "11532": 1,
+    "11544": 1,
+    "10608": 1,
+    "10617": 2,
+    "3840": 0
    },
    "snippets": {
     "10620": "This is where Mike Tuchscherer comes in. For those who don\u2019t know, Mike is an IPF champion and one of the most respected modern powerlifting coaches, having wor",
@@ -2922,7 +3844,13 @@
     "10641": "Autoregulation is beneficial much of the time, and some studies report that velocity-based (11) or RIR-based training (12) leads to greater increases in strengt",
     "10610": "9\n\n1 repetition remaining\n\n8.5\n\n1-2 repetitions remaining\n\n8\n\n2 repetitions remaining\n\n7.5\n\n2-3 repetitions remaining\n\n7\n\n3 repetitions remaining\n\n5-6\n\n4-6 repe",
     "3749": "Employing Pre-Planned and Autoregulated Fatigue Management\n\nThe above list of fatigue management strategies can be applied in a pre-planned or autoregulated man",
-    "12758": "TRAINING\nPHILOSOPHY\n\n1. Don't use a lifting belt if possible. If\nyou have to use one, use it when you\nreally have to. By foregoing the belt:\n\na. You learn to ke"
+    "12758": "TRAINING\nPHILOSOPHY\n\n1. Don't use a lifting belt if possible. If\nyou have to use one, use it when you\nreally have to. By foregoing the belt:\n\na. You learn to ke",
+    "10619": "As a brief introduction, RPE was introduced by Gunnar Borg nearly 50 years ago as a way to quantify perceived exertion during exercise. He initially created a 6",
+    "11532": "Although traditionally viewed from a physiological adaptation perspective, changing loads every set also provides a \npotential benefit to skill acquisition (e.g",
+    "11544": "RPE/repetitions in reserve) and process-focused resistance \ntraining methods. For example, if a novice athlete required \ntechnique stabilization, measures of bi",
+    "10608": "Using APRE to progress weekly training load is a form of autoregulation in that you are using the previous week\u2019s performance to dictate load for the current we",
+    "10617": "What exactly is autoregulation? This article by Eric Helms cuts through the misconceptions and discusses implementation of autoregulation and RPE.\n\nNote from Gr",
+    "3840": "While understanding what is optimal is a good idea for anyone interested in hypertrophy, the average person has less-than-optimal time for training. The bad new"
    }
   },
   {
@@ -2954,7 +3882,14 @@
     "12265": 0,
     "9188": 0,
     "12234": 0,
-    "12273": 0
+    "12273": 0,
+    "12267": 0,
+    "12314": 0,
+    "11488": 0,
+    "8872": 0,
+    "12318": 0,
+    "4276": 0,
+    "8834": 0
    },
    "snippets": {
     "6059": "The torso is held parallel to \nthe ground or somewhat more upright, and the legs \nare nearly straight. The lifter then grasps a \ndumbbell that has been placed d",
@@ -2977,7 +3912,14 @@
     "12265": "The graphs presented in figure 75 of the vertical and horizontal support reactions of an athlete who has high results in the snatch; whereas the graphs in figur",
     "9188": "Performing warmups in this manner, forces/teaches the lifter to relax muscles to reach a low squat position; all the more so; because with the unloaded bar. Wit",
     "12234": "Biomechanics of the Weightlifting Exercises Ilya Pavlovich Zhekov\n\nFizkultura i Sport, Publishers, Moscow 1976\n(excerpts)\n\nOptimization of the Pull with the \"Sq",
-    "12273": "The speed of the lift decreases more for the taller athlete. ______________\n\n1\n\nThe barbell velocity for the final acceleration V3 is 1.31 \u00b1 0.16 m/s; and natur"
+    "12273": "The speed of the lift decreases more for the taller athlete. ______________\n\n1\n\nThe barbell velocity for the final acceleration V3 is 1.31 \u00b1 0.16 m/s; and natur",
+    "12267": "The vertical speed of the shoulder girdle is transferred to the barbell through the arms, which are at an angle to the vertical, prior to the \"explosion\". It is",
+    "12314": "The left foot is raised from the platform before the right, because it has to be moved further away from the center line of the body. The foot re - arranged bac",
+    "11488": "Barbell bend varies in the starting position of the jerk from the chest. A bow in the barbell at the start means the barbell has to first straighten as the half",
+    "8872": "The left foot is raised from the platform before the right, because it has to be moved further away from the center line of the body. The foot re \u2013 arranged bac",
+    "12318": "Power, Equilibrium and the Struggle with Horizontal Gravity\n\n\"The majority of weightlifters are usually good at the clean; however, many experience difficulty i",
+    "4276": "As predicted by the law of reciprocal actions, this application of force to the bar without pressure against the platform will result in both the barbell contin",
+    "8834": "Fixing the barbell on straight arms in the jerk is made more difficult than it should be by pressing up on the barbell. Likewise fixing the barbell at arms leng"
    }
   },
   {
@@ -3008,7 +3950,13 @@
     "10861": 1,
     "4767": 1,
     "4762": 1,
-    "10860": 1
+    "10860": 1,
+    "8819": 2,
+    "6513": 1,
+    "4770": 1,
+    "12859": 1,
+    "7701": 1,
+    "8848": 0
    },
    "snippets": {
     "12855": "The amount of weight used in both the back and\nthe front squat is approximately 45-125%; in other squats -- 35-\n55% of the maximum clean and jerk. Heavyweights ",
@@ -3030,7 +3978,13 @@
     "10861": "Week 6\n\nMonday\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0 Back Squat 4\u00d74, add load from previous Monday\n\nWednesday\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0 Front squat 6\u00d72, add load from previous Wednesday\n\nSaturday\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0\u00a0 Back",
     "4767": "Volume and frequency should be prescribed accordingly. Purpose:\n Parallel squats help develop strength in the most mechanically disadvantaged position in the sq",
     "4762": "General Exercises\n\n1\u00bc Squat\n\nThe 1\u00bc squat is a variation of either the back squat or front squat that focuses on the bottom of the movement. The lifter will per",
-    "10860": "The high bar back squat is less task-specific to weightlifting than the front squat is, but it is similar enough to carry over very well to the snatch and clean"
+    "10860": "The high bar back squat is less task-specific to weightlifting than the front squat is, but it is similar enough to carry over very well to the snatch and clean",
+    "8819": "Avg. Wt.\n\n4th\n\n10th\n\n70/2; 75/2\n\n85/5 x 5\n\n29\n\n83.3\n\n4th\n\n11th\n\n70/2; 75/2\n\n80/2 x 6\n\n16\n\n78.1\n\n4th\n\n12th\n\n70/2; 75/2\n\n90/4 x 4\n\n20\n\n86.5\n\n5th\n\n13th\n\n70/2; 75/2",
+    "6513": "The data in the table indicates that the 85% lifts are done\nmost. 85% is used 22.9% in the snatch and 18.4% of the lifts in\nthe clean and jerk. Analysis of the ",
+    "4770": "Weights can usually be 20-40% of the lifter\u2019s best back squat. Split Squat\n\nWith a barbell behind the neck as for a back squat, the lifter will step into a lung",
+    "12859": "The training weights should be: good mornings -- approximately 25-60% (an average of 50%); hyperextensions -- 15-35% (an average of 20%) of the limit clean and ",
+    "7701": "If you\u2019re a beginning to intermediate lifter and are using a percentage-based program, remember that those prescriptions are adjustable. This is especially impo",
+    "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical"
    }
   }
  ]

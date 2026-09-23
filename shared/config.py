@@ -188,7 +188,8 @@ class Settings:
         self.embedding_provider = (self.embedding_provider or os.getenv("EMBEDDING_PROVIDER", "openai")).strip().lower()
         if self.embedding_provider not in ("openai", "openai_compat", "local"):
             raise ValueError(f"EMBEDDING_PROVIDER must be openai, openai_compat or local, got {self.embedding_provider!r}")
-        _default_embedding = {"openai": "text-embedding-3-small", "local": "Qwen/Qwen3-Embedding-0.6B"}.get(self.embedding_provider, "")
+        _default_embedding = {"openai": "text-embedding-3-large",   # EMBED-1, 2026-09-22
+                               "local": "Qwen/Qwen3-Embedding-0.6B"}.get(self.embedding_provider, "")
         self.embedding_model = self.embedding_model or os.getenv("EMBEDDING_MODEL", _default_embedding)
         self.embedding_base_url = self.embedding_base_url or os.getenv("EMBEDDING_BASE_URL", "")
         self.embedding_api_key = self.embedding_api_key or os.getenv("EMBEDDING_API_KEY", "")

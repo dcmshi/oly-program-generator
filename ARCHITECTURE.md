@@ -34,7 +34,7 @@ flowchart TB
 
     subgraph ext["External APIs"]
         Anthropic["☁ Anthropic<br/>claude-sonnet-5"]
-        OpenAI["☁ OpenAI<br/>text-embedding-3-small"]
+        OpenAI["☁ OpenAI<br/>text-embedding-3-large"]
     end
 
     Browser <-->|HTTP| App
@@ -135,7 +135,7 @@ flowchart LR
         EX[("exercises · templates<br/>prilepin_chart")]
     end
 
-    OAI["OpenAI<br/>text-embedding-3-small"]
+    OAI["OpenAI<br/>text-embedding-3-large"]
 
     PDF --> PE --> CLASS
     EPUB --> EE --> CLASS

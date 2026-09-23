@@ -11,6 +11,7 @@ golden.json; run_eval.py then scores any retriever change against them.
     PYTHONUTF8=1 uv run python -m eval.build_golden --dry-run        # queries + pool sizes, no LLM
     PYTHONUTF8=1 uv run python -m eval.build_golden --limit 5        # smoke test
     PYTHONUTF8=1 uv run python -m eval.build_golden [--model z-ai/glm-5.3-flash]   # default: settings.judge_model
+    PYTHONUTF8=1 uv run python -m eval.build_golden --extend eval/golden.json --out eval/golden_union.json   # grade only new candidates
 
 Cost: ~70 queries × ~30 candidates × ~400 tokens ≈ 1M input tokens — about a
 dollar on a Haiku-class model. Skim the output (grades are stored next to a
@@ -170,6 +171,9 @@ def main(argv=None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="print queries + pool sizes; no LLM calls")
     parser.add_argument("--limit", type=int, default=0, help="only the first N queries (smoke test)")
     parser.add_argument("--model", default=None, help="grading model (default: settings.judge_model — JUDGE_MODEL in .env)")
+    parser.add_argument("--extend", type=Path, default=None,
+                        help="keep this golden set's grades and grade only the candidates it lacks — the union "
+                             "pool for comparing two retrievers (e.g. embedding models) on the same labels")
     args = parser.parse_args(argv)
 
     from eval.queries import all_queries
@@ -187,18 +191,26 @@ def main(argv=None) -> int:
         client = create_llm_client(settings)
     model = args.model or settings.judge_model or light_model_for(settings, None)
 
+    base = {}
+    if args.extend:
+        base = {q["id"]: q for q in json.loads(args.extend.read_text(encoding="utf-8"))["queries"]}
+
     graded = []
     try:
         for q in queries:
             pool = candidate_pool(loader, q)
+            prior = base.get(q["id"], {})
+            new = [c for c in pool if str(c["id"]) not in prior.get("grades", {})]
             if args.dry_run:
-                print(f"{q['id']:44s} pool={len(pool):3d}  {q['query'][:70]}")
+                print(f"{q['id']:44s} pool={len(pool):3d} ungraded={len(new):3d}  {q['query'][:60]}")
                 continue
-            grades = grade_candidates(client, model, q["query"], pool)
+            grades = {**prior.get("grades", {}),
+                      **{str(cid): g for cid, g in grade_candidates(client, model, q["query"], new).items()}}
             graded.append({
                 **{k: q[k] for k in ("id", "kind", "query", "preferred_chunk_types")},
-                "grades": {str(cid): g for cid, g in grades.items()},
-                "snippets": {str(c["id"]): str(c.get("raw_content", ""))[:160] for c in pool},
+                "grades": grades,
+                "snippets": {**prior.get("snippets", {}),
+                             **{str(c["id"]): str(c.get("raw_content", ""))[:160] for c in pool}},
             })
             n2 = sum(1 for g in grades.values() if g == 2)
             print(f"{q['id']:44s} pool={len(pool):3d} graded={len(grades):3d} grade2={n2:2d}")
@@ -210,7 +222,8 @@ def main(argv=None) -> int:
         return 0
     out = {
         "meta": {"built_at": datetime.now(UTC).isoformat(timespec="seconds"), "model": model,
-                 "candidates_per_retriever": CANDIDATES_PER_RETRIEVER, "n_queries": len(graded)},
+                 "candidates_per_retriever": CANDIDATES_PER_RETRIEVER, "n_queries": len(graded),
+                 **({"extends": str(args.extend), "embedding_model": settings.embedding_model} if args.extend else {})},
         "queries": graded,
     }
     args.out.write_text(json.dumps(out, indent=1), encoding="utf-8")
