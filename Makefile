@@ -100,7 +100,10 @@ AGENT_TESTS := \
 	tests/test_model_baseline.py \
 	tests/test_import_program_csv.py \
 	tests/test_excerpt.py \
-	tests/test_demographics.py
+	tests/test_demographics.py \
+	tests/test_feedback.py \
+	tests/test_log_commands.py \
+	tests/test_eval_cli.py
 
 INGESTION_TESTS := \
 	tests/test_chunker.py \
@@ -111,7 +114,9 @@ INGESTION_TESTS := \
 	tests/test_html_extractor.py \
 	tests/test_parse_exercise.py \
 	tests/test_pipeline_unit.py \
+	tests/test_pipeline_ingest.py \
 	tests/test_structured_loader_unit.py \
+	tests/test_structured_loader_rows.py \
 	tests/test_ingest_web.py \
 	tests/test_section_processor.py \
 	tests/test_principle_audit.py \
@@ -128,7 +133,8 @@ INGESTION_TESTS := \
 	tests/test_principle_schema.py \
 	tests/test_schema_enums.py \
 	tests/test_quarantine_chunks.py \
-	tests/test_dedupe_principles.py
+	tests/test_dedupe_principles.py \
+	tests/test_ingestion_scripts.py
 
 test: test-agent test-ingestion
 
