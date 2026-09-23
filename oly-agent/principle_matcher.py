@@ -28,10 +28,20 @@ Semantics:
 - keys outside the extraction schema (schema drift, RAG-L9) are ignored so those
   rules keep today's behaviour rather than vanishing;
 - `None`/missing condition → always applies.
+
+Ranking (AUD-1): with a session ``query``, the kept rules are ordered by
+``priority + PRINCIPLE_RELEVANCE_WEIGHT × overlap`` — overlap is the number of
+distinct query terms (lowercased, stop-worded, crudely de-pluralised) found in
+the principle's name, rationale and recommended/avoided exercise names — ties by
+id, and at most ``MAX_PRINCIPLES_PER_CATEGORY`` of one category are taken. No
+embeddings: it runs per session with no API call.
 """
 
 import logging
 import operator
+import re
+
+from shared.constants import MAX_PRINCIPLES_PER_CATEGORY, PRINCIPLE_RELEVANCE_WEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -132,8 +142,84 @@ def build_session_state(athlete_context, plan, week_number: int, session_templat
     }
 
 
-def select_principles(candidates: list[dict], state: dict, limit: int | None = None) -> list[dict]:
-    """Principles whose condition holds for ``state``, highest priority first."""
+# Words from `retrieve.build_session_query`'s template and plain English that
+# say nothing about which rule applies ("session", "phase", "athlete", "with").
+_STOPWORDS: frozenset[str] = frozenset({
+    "a", "an", "and", "are", "as", "at", "be", "by", "for", "from", "in", "into",
+    "is", "it", "of", "on", "or", "the", "to", "with", "without", "during", "no",
+    "not", "this", "that", "their", "your", "should", "can", "will", "than",
+    "session", "support", "phase", "athlete", "addressing", "focus", "work",
+    "week", "training", "program", "exercise",
+})
+_WORD_RE = re.compile(r"[a-z][a-z'&-]*")
+
+
+def _stem(word: str) -> str:
+    if len(word) > 4 and word.endswith(("ches", "shes", "sses", "xes")):
+        return word[:-2]
+    if len(word) > 3 and word.endswith("s") and not word.endswith("ss"):
+        return word[:-1]
+    return word
+
+
+def query_terms(text: str | None) -> set[str]:
+    """Lowercased, stop-worded, de-pluralised terms of ``text`` (hyphens split)."""
+    if not text:
+        return set()
+    terms = set()
+    for raw in _WORD_RE.findall(text.lower().replace("_", " ")):
+        for word in re.split(r"[-&']", raw):
+            if len(word) > 2 and word not in _STOPWORDS:
+                terms.add(_stem(word))
+    return terms
+
+
+def _principle_terms(p: dict) -> set[str]:
+    rec = p.get("recommendation")
+    names: list[str] = []
+    if isinstance(rec, dict):
+        for key in ("prefer_exercises", "avoid_exercises"):
+            vals = rec.get(key)
+            if isinstance(vals, list):
+                names.extend(str(v) for v in vals)
+    return query_terms(" ".join([p.get("principle_name") or "", p.get("rationale") or "", *names]))
+
+
+def relevance_overlap(p: dict, terms: set[str]) -> int:
+    """How many distinct session-query terms the principle mentions."""
+    return len(terms & _principle_terms(p)) if terms else 0
+
+
+def select_principles(
+    candidates: list[dict],
+    state: dict,
+    limit: int | None = None,
+    query: str | None = None,
+) -> list[dict]:
+    """Principles whose condition holds for ``state``, best first.
+
+    Without ``query``: priority order (ties by id). With it: priority +
+    PRINCIPLE_RELEVANCE_WEIGHT × overlap with the session query. Either way at
+    most MAX_PRINCIPLES_PER_CATEGORY per category (rows without a category are
+    uncapped), then ``limit``.
+    """
+    terms = query_terms(query)
     kept = [p for p in candidates if condition_matches(p.get("condition"), state)]
-    kept.sort(key=lambda p: -(p.get("priority") or 0))
-    return kept[:limit] if limit else kept
+
+    def score(p: dict) -> float:
+        return (p.get("priority") or 0) + PRINCIPLE_RELEVANCE_WEIGHT * relevance_overlap(p, terms)
+
+    kept.sort(key=lambda p: (-score(p), p.get("id") or 0))
+
+    chosen: list[dict] = []
+    per_category: dict[str, int] = {}
+    for p in kept:
+        cat = p.get("category")
+        if cat:
+            if per_category.get(cat, 0) >= MAX_PRINCIPLES_PER_CATEGORY:
+                continue
+            per_category[cat] = per_category.get(cat, 0) + 1
+        chosen.append(p)
+        if limit and len(chosen) >= limit:
+            break
+    return chosen

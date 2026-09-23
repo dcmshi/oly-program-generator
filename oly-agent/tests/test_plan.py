@@ -431,4 +431,38 @@ def test_load_principles_sql_matches_array_phases_and_caps_candidates():
 
     assert "condition->'phase' @> to_jsonb(%s::text)" in captured["sql"]
     assert "condition->>'phase' =" not in captured["sql"]
-    assert captured["params"] == ("intensification", "advanced", MAX_PRINCIPLE_CANDIDATES)
+    assert captured["params"][1:] == ("intensification", "advanced", MAX_PRINCIPLE_CANDIDATES)
+
+
+def test_load_principles_sql_filters_categories_empty_recs_and_orders_deterministically():
+    """AUD-1: technique/recovery rules with empty recommendations filled every
+    prompt slot under `ORDER BY priority DESC` (no tiebreak). The candidate SQL
+    keeps programming categories only (enum compared as text), drops NULL / `{}`
+    / all-empty recommendations, keeps the duplicate filter, joins the source
+    title and orders by priority then id."""
+    from plan import _load_principles
+
+    from shared.constants import MAX_PRINCIPLE_CANDIDATES, PROMPT_PRINCIPLE_CATEGORIES
+
+    captured = {}
+
+    def fake_fetch_all(conn, sql, params):
+        captured["sql"], captured["params"] = sql, params
+        return []
+
+    with patch("plan.fetch_all", side_effect=fake_fetch_all):
+        _load_principles(None, "accumulation", "intermediate")
+
+    sql = " ".join(captured["sql"].split())
+    assert "p.duplicate_of IS NULL" in sql
+    assert "p.category::text = ANY(%s)" in sql
+    assert "p.recommendation IS NOT NULL" in sql
+    assert "jsonb_each(p.recommendation)" in sql and "'{}'::jsonb" in sql and "'[]'::jsonb" in sql
+    assert "LEFT JOIN sources s ON s.id = p.source_id" in sql and "s.title AS source_title" in sql
+    assert "ORDER BY p.priority DESC, p.id LIMIT %s" in sql
+    categories = captured["params"][0]
+    assert list(categories) == list(PROMPT_PRINCIPLE_CATEGORIES)
+    assert "technique" not in categories and "recovery" not in categories
+    assert captured["params"][-1] == MAX_PRINCIPLE_CANDIDATES
+    # One %s per param, in order: categories, phase, level, limit.
+    assert sql.count("%s") == len(captured["params"]) == 4

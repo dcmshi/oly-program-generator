@@ -25,12 +25,12 @@ from models import AthleteContext, ProgramPlan, SessionTemplate
 from phase_profiles import PHASE_PROFILES
 from plan import plan
 from principle_matcher import build_session_state, select_principles
-from retrieve import retrieve, retrieve_session_context
+from retrieve import build_session_query, retrieve, retrieve_session_context
 from validate import validate_session
 from weight_resolver import apply_projected_maxes, attach_source_chunk_ids, resolve_exercise_ids, resolve_weights
 
 from shared.config import Settings
-from shared.constants import MAX_CONTEXT_CHUNKS, MIN_SESSION_DURATION_MINUTES
+from shared.constants import MAX_CONTEXT_CHUNKS, MAX_PRINCIPLES_IN_PROMPT, MIN_SESSION_DURATION_MINUTES
 from shared.db import execute, execute_returning, fetch_all, get_connection
 from shared.formulas import estimate_session_minutes, round_kg
 from shared.llm import create_llm_client, estimate_cost
@@ -203,8 +203,13 @@ def run(
                 session_state = build_session_state(
                     athlete_context, program_plan, week_number, session_template
                 )
+                # AUD-1: ranked by overlap with this session's retrieval query
+                # and capped per category; limited to what the prompt shows so
+                # the validator enforces exactly the rules the model saw.
                 session_principles = select_principles(
-                    retrieval_context.active_principles, session_state
+                    retrieval_context.active_principles, session_state,
+                    limit=MAX_PRINCIPLES_IN_PROMPT,
+                    query=build_session_query(athlete_context, program_plan, session_template, week_target),
                 )
 
                 # Per-session knowledge context (RAG-H4): this template's own

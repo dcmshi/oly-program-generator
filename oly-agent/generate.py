@@ -40,6 +40,7 @@ from shared.constants import (
     MAX_RECENT_LOGS_IN_PROMPT,
     MAX_TEMPLATE_CHARS_IN_PROMPT,
     MAX_TEMPLATES_IN_PROMPT,
+    PRINCIPLE_RATIONALE_PROMPT_CHARS,
     PROMPT_CACHE_MIN_CHARS,
     PROMPT_LENGTH_WARN_CHARS,
     PROMPT_STATIC_DYNAMIC_MARKER,
@@ -423,6 +424,34 @@ def _exercise_line(e: dict, athlete_faults: set) -> str:
     return line
 
 
+def _truncate_at_word(text: str, max_chars: int) -> str:
+    text = " ".join(text.split())
+    if len(text) <= max_chars:
+        return text
+    cut = text[: max_chars - 1]
+    if " " in cut:
+        cut = cut.rsplit(" ", 1)[0]
+    return cut.rstrip(" ,;:.-—") + "…"
+
+
+def format_principle_line(p: dict) -> str:
+    """`[id] name — <recommendation json> — <rationale, cut at a word> (<source>)` (AUD-1).
+
+    The rationale says why the rule holds and the source says whose rule it is;
+    the bare `[id] name: {json}` line gave the model neither.
+    """
+    rec = p.get("recommendation") or {}
+    rec_str = json.dumps(rec) if isinstance(rec, dict) else str(rec)
+    line = f"  [{p['id']}] {p['principle_name']} — {rec_str}"
+    rationale = (p.get("rationale") or "").strip()
+    if rationale:
+        line += f" — {_truncate_at_word(rationale, PRINCIPLE_RATIONALE_PROMPT_CHARS)}"
+    source = (p.get("source_title") or "").strip()
+    if source:
+        line += f" ({source})"
+    return line
+
+
 def build_session_prompt(
     athlete_context: AthleteContext,
     week_target: WeekTarget,
@@ -582,11 +611,7 @@ def build_session_prompt(
     substitutions_block = "\n".join(sub_lines) if sub_lines else "  None"
 
     # ── Principles ────────────────────────────────────────────
-    principle_lines = []
-    for p in active_principles[:MAX_PRINCIPLES_IN_PROMPT]:
-        rec = p.get("recommendation", {})
-        rec_str = json.dumps(rec) if isinstance(rec, dict) else str(rec)
-        principle_lines.append(f"  [{p['id']}] {p['principle_name']}: {rec_str}")
+    principle_lines = [format_principle_line(p) for p in active_principles[:MAX_PRINCIPLES_IN_PROMPT]]
     principles_block = "\n".join(principle_lines) if principle_lines else "  None"
 
     # ── Programming context (retrieved chunks) ─────────────────
