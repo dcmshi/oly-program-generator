@@ -38,10 +38,26 @@ _PLACEHOLDER_SECRET_KEYS = frozenset({"change_me_to_a_random_64_char_hex_string"
 # + one Everett window Sonnet 5 extracted principles with no parse errors at
 # −45% cost and −60% latency, folding 4.6's near-duplicate rules into fewer,
 # broader ones (13+12 → 7+6). Sonnet 5 is also $2/$10 vs 4.6's $3/$15.
+#
+# These are the defaults under LLM_PROVIDER=anthropic.
 DEFAULT_LLM_MODEL = "claude-sonnet-5"
 DEFAULT_LIGHT_MODEL = "claude-haiku-4-5-20251001"
 DEFAULT_GENERATION_MODEL = "claude-sonnet-5"
 DEFAULT_GENERATION_THINKING = "disabled"
+
+# OpenRouter is the default provider since 2026-09-22 (MODEL-2 revisit), and
+# under it the roles default to the open models the dev .env had run since
+# 2026-09-20. Principle extraction on 8 fixed number-dense windows
+# (principle_model_compare): Kimi K3 5.6 % of numeric claims unsupported by the
+# window, Sonnet 5 4.5 % (and one refusal, on Vorobyev), Sonnet 4.6 11.5 %; at
+# $0.12 / $0.20 / $0.28. Kimi's random empty replies are retried
+# (PRINCIPLE_EMPTY_RETRIES). The light role (labels, context, relabel) is
+# DeepSeek V4.1 Flash; the golden-set judge is GLM-5.3 Flash (JUDGE-1).
+DEFAULT_LLM_PROVIDER = "openrouter"
+DEFAULT_OPENROUTER_LLM_MODEL = "moonshotai/kimi-k3"
+DEFAULT_OPENROUTER_LIGHT_MODEL = "deepseek/deepseek-v4.1-flash"
+DEFAULT_OPENROUTER_JUDGE_MODEL = "z-ai/glm-5.3-flash"
+DEFAULT_OPENROUTER_GENERATION_MODEL = "moonshotai/kimi-k3"
 
 
 @dataclass
@@ -179,7 +195,7 @@ class Settings:
         if self.embedding_provider == "openai_compat" and not (self.embedding_model and self.embedding_base_url):
             raise ValueError("EMBEDDING_PROVIDER=openai_compat needs EMBEDDING_MODEL and EMBEDDING_BASE_URL")
         self.anthropic_api_key = self.anthropic_api_key or os.getenv("ANTHROPIC_API_KEY", "")
-        self.llm_provider = (self.llm_provider or os.getenv("LLM_PROVIDER", "anthropic")).strip().lower()
+        self.llm_provider = (self.llm_provider or os.getenv("LLM_PROVIDER", DEFAULT_LLM_PROVIDER)).strip().lower()
         self.openrouter_api_key = self.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
         self.llm_base_url = self.llm_base_url or os.getenv("LLM_BASE_URL", "")
         if self.llm_provider not in ("anthropic", "openrouter"):
@@ -195,13 +211,20 @@ class Settings:
 
         self.redis_url = self.redis_url or os.getenv("REDIS_URL", "")
 
-        # Model roles: explicit arg > env > default (see the field comments)
-        self.llm_model = self.llm_model or os.getenv("LLM_MODEL", DEFAULT_LLM_MODEL)
-        self.light_model = self.light_model or os.getenv("LIGHT_MODEL", DEFAULT_LIGHT_MODEL)
+        # Model roles: explicit arg > env > default (see the field comments).
+        # The defaults depend on the provider: the open models only exist on
+        # OpenRouter, so LLM_PROVIDER=anthropic keeps the Claude defaults.
+        claude = self.llm_provider == "anthropic"
+        default_llm = DEFAULT_LLM_MODEL if claude else DEFAULT_OPENROUTER_LLM_MODEL
+        default_gen = DEFAULT_GENERATION_MODEL if claude else DEFAULT_OPENROUTER_GENERATION_MODEL
+        self.llm_model = self.llm_model or os.getenv("LLM_MODEL", default_llm)
+        self.light_model = self.light_model or os.getenv(
+            "LIGHT_MODEL", DEFAULT_LIGHT_MODEL if claude else DEFAULT_OPENROUTER_LIGHT_MODEL)
         self.template_model = self.template_model or os.getenv("TEMPLATE_MODEL", "") or self.llm_model
-        self.judge_model = self.judge_model or os.getenv("JUDGE_MODEL", "") or self.light_model
-        self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", DEFAULT_GENERATION_MODEL)
-        self.explanation_model = self.explanation_model or os.getenv("EXPLANATION_MODEL", DEFAULT_GENERATION_MODEL)
+        self.judge_model = (self.judge_model or os.getenv("JUDGE_MODEL", "")
+                            or (self.light_model if claude else DEFAULT_OPENROUTER_JUDGE_MODEL))
+        self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", default_gen)
+        self.explanation_model = self.explanation_model or os.getenv("EXPLANATION_MODEL", default_gen)
         self.generation_thinking = (self.generation_thinking
                                     or os.getenv("GENERATION_THINKING", DEFAULT_GENERATION_THINKING))
         self.generation_effort = self.generation_effort or os.getenv("GENERATION_EFFORT", "")

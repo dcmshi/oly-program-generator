@@ -140,7 +140,7 @@ def test_model_roles_resolve_arg_env_default():
 
     saved = {k: os.environ.pop(k, None) for k in ("LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL", "JUDGE_MODEL")}
     try:
-        s = Settings()
+        s = Settings()                          # conftest pins LLM_PROVIDER=anthropic → the Claude defaults
         assert s.llm_model == DEFAULT_LLM_MODEL == "claude-sonnet-5"      # MODEL-1b (2026-09-20)
         assert s.light_model == DEFAULT_LIGHT_MODEL == "claude-haiku-4-5-20251001"
         assert s.judge_model == s.light_model                              # JUDGE-1: blank judge = light model
@@ -217,14 +217,23 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
                                                   "LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
     try:
         s = Settings()
+        # OpenRouter is the default provider (2026-09-22), with the open-model roles
+        assert s.llm_provider == "openrouter" and not supports_batches(s)
+        assert s.llm_model == s.template_model == s.generation_model == s.explanation_model == "moonshotai/kimi-k3"
+        assert s.light_model == "deepseek/deepseek-v4.1-flash" and s.judge_model == "z-ai/glm-5.3-flash"
+
+        os.environ["LLM_PROVIDER"] = "anthropic"
+        s = Settings()
         assert s.llm_provider == "anthropic" and supports_batches(s)
-        assert s.llm_model == "claude-sonnet-5"
+        assert s.llm_model == "claude-sonnet-5" and s.judge_model == s.light_model   # Claude defaults kept
 
         os.environ["LLM_PROVIDER"] = "openrouter"
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
+        os.environ["LLM_MODEL"] = "claude-sonnet-5"
+        os.environ["LIGHT_MODEL"] = "claude-haiku-4-5-20251001"
+        os.environ["GENERATION_MODEL"] = os.environ["EXPLANATION_MODEL"] = "claude-sonnet-5"
         s = Settings()
-        assert s.llm_provider == "openrouter" and not supports_batches(s)
-        assert s.llm_model == "anthropic/claude-sonnet-5"
+        assert s.llm_model == "anthropic/claude-sonnet-5"             # Claude ids rewritten to OpenRouter's
         assert s.light_model == "anthropic/claude-haiku-4.5"          # dated snapshot dropped, dotted minor
         assert s.generation_model == s.explanation_model == "anthropic/claude-sonnet-5"
         assert s.template_model == s.llm_model                      # blank TEMPLATE_MODEL follows LLM_MODEL

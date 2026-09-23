@@ -240,6 +240,14 @@ JUNK_QUARANTINE_THRESHOLD: float = 0.7
 PRINCIPLE_DUPLICATE_MIN_COSINE: float = 0.70
 PRINCIPLE_DUPLICATE_THRESHOLD: float = 0.7
 
+# Principle extraction: a window at least this long that comes back with
+# `{"principles": []}` is re-asked up to this many times. Kimi K3 returned an
+# empty list at random on 2 of 5 identical calls for one Charniga window
+# (7–10 principles otherwise; principle_model_compare, 2026-09-22); an empty
+# reply is ~12 output tokens, so the retries cost almost nothing.
+PRINCIPLE_EMPTY_RETRY_MIN_CHARS: int = 2_000
+PRINCIPLE_EMPTY_RETRIES: int = 2
+
 # ── Jev section classifier (JEV-1c) ────────────────────────────────
 # pipeline.py --classifier jev takes Jev's content-type Choice for a section
 # when its calibrated confidence reaches this; below it the heuristic stands.

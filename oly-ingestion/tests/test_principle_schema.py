@@ -94,3 +94,37 @@ def test_parse_response_coerces_out_of_enum_category_and_rule_type():
     out = PrincipleExtractor._parse_response(msg, "Bompa")
     assert len(out) == 1
     assert out[0].category == "periodization" and out[0].rule_type == "hard_constraint"
+
+
+def _reply(items):
+    message = MagicMock()
+    message.content = [MagicMock(text=json.dumps({"principles": items}))]
+    return message
+
+
+_ITEM = {"principle_name": "Taper rule", "category": "peaking", "rule_type": "guideline", "condition": {},
+         "recommendation": {}, "rationale": "r", "priority": 5}
+
+
+def test_empty_reply_for_a_real_window_is_re_asked():
+    """Kimi K3 returned {"principles": []} at random for a window that yields
+    rules on the next call (2026-09-22) — an empty reply is retried."""
+    from shared.constants import PRINCIPLE_EMPTY_RETRY_MIN_CHARS
+    extractor = PrincipleExtractor(MagicMock(llm_model="moonshotai/kimi-k3", llm_max_tokens=100))
+    extractor._client = MagicMock()
+    with patch("processors.principle_extractor.create_message_growing",
+               side_effect=[_reply([]), _reply([_ITEM])]) as call:
+        out = extractor._extract_window("x" * PRINCIPLE_EMPTY_RETRY_MIN_CHARS, "Book")
+    assert len(out) == 1 and call.call_count == 2
+
+
+def test_empty_reply_retries_are_bounded_and_short_text_is_not_retried():
+    from shared.constants import PRINCIPLE_EMPTY_RETRIES, PRINCIPLE_EMPTY_RETRY_MIN_CHARS
+    extractor = PrincipleExtractor(MagicMock(llm_model="moonshotai/kimi-k3", llm_max_tokens=100))
+    extractor._client = MagicMock()
+    with patch("processors.principle_extractor.create_message_growing", return_value=_reply([])) as call:
+        assert extractor._extract_window("x" * PRINCIPLE_EMPTY_RETRY_MIN_CHARS, "Book") == []
+    assert call.call_count == PRINCIPLE_EMPTY_RETRIES + 1
+    with patch("processors.principle_extractor.create_message_growing", return_value=_reply([])) as call:
+        assert extractor._extract_window("short", "Book") == []
+    assert call.call_count == 1

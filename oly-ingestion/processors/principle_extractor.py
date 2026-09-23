@@ -13,6 +13,7 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
+from shared.constants import PRINCIPLE_EMPTY_RETRIES, PRINCIPLE_EMPTY_RETRY_MIN_CHARS
 from shared.llm import (
     BatchRequestFailed,
     create_llm_client,
@@ -332,15 +333,28 @@ class PrincipleExtractor:
         )
 
     def _extract_window(self, text: str, source_title: str) -> list[ExtractedPrinciple]:
-        """Extract principles from a single window of text."""
+        """Extract principles from a single window of text.
+
+        An empty list for a window of real size is re-asked up to
+        PRINCIPLE_EMPTY_RETRIES times: some models return `{"principles": []}`
+        at random for text that yields rules on the next call.
+        """
         try:
             client = self._get_client()
-            message = create_message_growing(
-                client,
-                label=f"Principle extraction '{source_title}'",
-                **self._request_params(text, source_title),
-            )
-            return self._parse_response(message, source_title)
+            retries = PRINCIPLE_EMPTY_RETRIES if len(text) >= PRINCIPLE_EMPTY_RETRY_MIN_CHARS else 0
+            for attempt in range(retries + 1):
+                message = create_message_growing(
+                    client,
+                    label=f"Principle extraction '{source_title}'",
+                    **self._request_params(text, source_title),
+                )
+                principles = self._parse_response(message, source_title)
+                if principles:
+                    return principles
+                if attempt < retries:
+                    logger.info(f"Principle extraction: empty reply for a {len(text):,}-char window of "
+                                f"'{source_title}' — re-asking ({attempt + 1}/{retries})")
+            return []
         except Exception as e:
             logger.warning(f"Principle extraction failed for '{source_title}': {e}")
             return []
