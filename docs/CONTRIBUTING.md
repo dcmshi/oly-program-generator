@@ -114,59 +114,16 @@ On Windows, `$(date +%Y%m%d)` works in Git Bash. Use a literal date in CMD/Power
 
 ## Test Coverage
 
-Generated with `coverage.py 7.13.5` against no-API-key tests only.
-
-### Run commands
+Coverage is measured over the no-key, no-DB suites, the same ones `make test` runs. Generate a fresh report instead of trusting a number written down here, because per-module figures change with every commit:
 
 ```bash
-# oly-ingestion
-cd oly-ingestion
-PYTHONUTF8=1 uv run coverage run -m pytest tests/test_chunker.py tests/test_classifier.py tests/test_pdf_extractor.py tests/test_epub_extractor.py tests/test_retag_chunks.py tests/test_html_extractor.py tests/test_pipeline_unit.py tests/test_structured_loader_unit.py -q
-PYTHONUTF8=1 uv run coverage report
-
-# oly-agent
-cd oly-agent
-PYTHONUTF8=1 uv run coverage run -m pytest tests/test_validate.py tests/test_phase_profiles.py tests/test_weight_resolver.py tests/test_generate_utils.py tests/test_assess.py tests/test_plan.py tests/test_retrieve.py tests/test_explain.py tests/test_orchestrator.py -q
-PYTHONUTF8=1 uv run coverage report
+make coverage             # both subsystems
+make coverage-agent       # oly-agent only
+make coverage-ingestion   # oly-ingestion only
 ```
 
-> Modules excluded from totals (require live DB / API keys): `pipeline.py`, `ingest_web.py`, `loaders/vector_loader.py`, `loaders/structured_loader.py` (main paths), `processors/principle_extractor.py`, `feedback.py`, `log.py`, `setup_auth.py`.
+Each target runs `coverage run -m pytest` over that subsystem's list in the root `Makefile` (`AGENT_TESTS` / `INGESTION_TESTS`, which is the canonical list of suites that need no DB or keys) and then prints `coverage report` with the missing lines. Scope is set by each subsystem's `.coveragerc`: the source is the subsystem directory, and `tests/` and the venv are omitted. `oly-agent` also omits `web/` (the router tests exercise it, but it is not counted). `shared/` is outside both sources.
 
-### Current coverage — 2026-03-19
+Low coverage is expected for code that only runs against a live DB, a paid API or the network: the main paths of `pipeline.py` and `ingest_web.py`, `loaders/vector_loader.py`, `processors/principle_extractor.py`, and the CLI entry points `feedback.py`, `log.py` and `setup_auth.py`. The DB- and key-backed suites that cover them are listed in [SETUP.md → Running Tests](SETUP.md#running-tests).
 
-**oly-ingestion (44%)**
-
-| Module | Cover |
-|--------|------:|
-| `config.py` | 100% |
-| `extractors/epub_extractor.py` | 100% |
-| `retag_chunks.py` | 100% |
-| `processors/classifier.py` | 92% |
-| `processors/chunker.py` | 89% |
-| `extractors/html_extractor.py` | 89% |
-| `extractors/pdf_extractor.py` | 65% |
-| `loaders/structured_loader.py` | 24% *(validation guard; main paths need DB)* |
-| `pipeline.py` | 31% *(_parse_program_template; main path needs DB + key)* |
-| `processors/principle_extractor.py` | 28% *(needs key)* |
-| `loaders/vector_loader.py` | 12% *(needs DB + key)* |
-| `ingest_web.py` | 0% *(needs network)* |
-
-**oly-agent (64%)**
-
-| Module | Cover |
-|--------|------:|
-| `models.py`, `weight_resolver.py`, `explain.py`, `session_templates.py` | 100% |
-| `assess.py` | 98% |
-| `validate.py` | 99% |
-| `plan.py` | 97% |
-| `phase_profiles.py` | 97% |
-| `retrieve.py` | 96% |
-| `generate.py` | 88% |
-| `orchestrator.py` | 82% |
-| `feedback.py`, `log.py`, `setup_auth.py` | 0% *(need DB or are CLI entry points)* |
-
-### Notes
-
-- `ocr_corrections.py` (0%) is a pure data dict — no logic to test; intentionally excluded.
-- `feedback.py`, `log.py`, `setup_auth.py` require live DB or are CLI entry points; covered by manual / integration testing.
-- The two integration-gated tests (`test_vision_ocr_requires_anthropic_client`, `test_integration_retag_dry_run_does_not_modify_db`) show as pytest FAILED unless `INTEGRATION_TESTS=1` is set — this is expected; they use a custom `_Skip` pattern rather than `pytest.mark.skip`.
+Integration-gated tests inside otherwise-mocked files, such as the live vision-OCR test in `test_pdf_extractor.py` and the live-DB test in `test_retag_chunks.py`, call `pytest.skip` through `_integration_only()`. They are reported as **SKIPPED** unless `INTEGRATION_TESTS=1` is set.
