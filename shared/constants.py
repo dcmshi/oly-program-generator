@@ -286,3 +286,11 @@ OCR_REQUEST_ATTEMPTS: int = 4
 # raise it only if the log shows no 429 retries.
 OCR_CONCURRENCY: int = 4
 CONTEXTUALIZE_CONCURRENCY: int = 6
+# Program generation (AUD-4): week 1 runs first, then weeks 2..N run this many
+# at a time (days in order within a week, one psycopg2 connection per worker).
+# 1 = fully sequential. Four matches OCR_CONCURRENCY's per-key headroom on
+# OpenRouter; a 48-session block drops from ~13 min of LLM time to ~5.
+GENERATION_WEEK_CONCURRENCY: int = 4
+# Week 1's same-day session, summarised into later weeks' prompts as the
+# block's template (exercise names, sets x reps @ %), capped at this length.
+BLOCK_TEMPLATE_MAX_CHARS: int = 400

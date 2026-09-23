@@ -684,3 +684,184 @@ def test_orchestrator_builds_labelled_retrieval_set_for_generate_and_trace():
     ]
     attach_ctx = mocks["attach_source_chunk_ids"].call_args.args[1]
     assert attach_ctx["context_chunks"] == chunks
+
+
+# ── AUD-4: concurrent weeks + the week-1 block template ──────────────────────
+
+import threading  # noqa: E402
+
+
+def _multi_week_plan(weeks=3, days=2):
+    return ProgramPlan(
+        phase="accumulation", duration_weeks=weeks, sessions_per_week=days, deload_week=None,
+        weekly_targets=[_week_target(w) for w in range(1, weeks + 1)],
+        session_templates=[_session_template(d) for d in range(1, days + 1)],
+        active_principles=[], supporting_chunks=[],
+    )
+
+
+def _gen_side_effect(record=None, barrier_weeks=(), barrier=None):
+    """generate_session_with_retries stand-in: a fresh result per call, the call
+    recorded as (week, day, conn, thread); weeks in `barrier_weeks` wait on
+    `barrier` in their first session, which only passes when they overlap."""
+    lock = threading.Lock()
+
+    def _fake(**kw):
+        with lock:
+            if record is not None:
+                record.append((kw["week_number"], kw["day_number"], kw["conn"], threading.get_ident()))
+        if barrier is not None and kw["week_number"] in barrier_weeks and kw["day_number"] == 1:
+            barrier.wait()
+        return _generation_result()
+    return _fake
+
+
+def _session_insert_slots(mocks):
+    """(week, day) of every program_sessions INSERT, in execution order."""
+    return [
+        (c.args[2][1], c.args[2][2]) for c in mocks["execute_returning"].call_args_list
+        if "program_sessions" in c.args[1]
+    ]
+
+
+def test_week_concurrency_1_reproduces_sequential_order():
+    """concurrency=1: every session on the main thread and the main connection,
+    in (week, day) order, one connection opened in total."""
+    calls = []
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(3, 2)})
+        mocks["generate"].side_effect = _gen_side_effect(calls)
+        assert run(1, _settings(), week_concurrency=1) == 42
+    slots = [(w, d) for w in (1, 2, 3) for d in (1, 2)]
+    assert [(w, d) for w, d, _, _ in calls] == slots
+    assert all(conn is mocks["conn"] for _, _, conn, _ in calls)
+    assert {t for _, _, _, t in calls} == {threading.get_ident()}
+    assert mocks["get_connection"].call_count == 1
+    assert _session_insert_slots(mocks) == slots
+
+
+def test_concurrent_weeks_use_per_thread_connections_and_keep_db_order():
+    """concurrency>1: week 1 first on the main connection, weeks 2..4 overlap on
+    worker threads with their own connections (committed + closed), every
+    session is generated, and session rows are still inserted by (week, day)."""
+    calls = []
+    opened = []
+
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(4, 2)})
+        main_conn = mocks["conn"]
+
+        def _connect(_url):
+            c = main_conn if not opened else MagicMock(name=f"worker_conn_{len(opened)}")
+            opened.append(c)
+            return c
+        mocks["get_connection"].side_effect = _connect
+        barrier = threading.Barrier(3, timeout=10)   # weeks 2, 3, 4 must be in flight together
+        mocks["generate"].side_effect = _gen_side_effect(calls, barrier_weeks=(2, 3, 4), barrier=barrier)
+        assert run(1, _settings(), week_concurrency=4) == 42
+
+    slots = [(w, d) for w in (1, 2, 3, 4) for d in (1, 2)]
+    assert sorted((w, d) for w, d, _, _ in calls) == slots
+    assert [(w, d) for w, d, _, _ in calls[:2]] == [(1, 1), (1, 2)]      # week 1 first, alone
+    assert all(conn is main_conn for w, _, conn, _ in calls if w == 1)
+    by_week = {w: {id(conn) for ww, _, conn, _ in calls if ww == w} for w in (2, 3, 4)}
+    assert all(len(v) == 1 for v in by_week.values()), "one connection per week"
+    worker_conns = opened[1:]
+    assert len(worker_conns) == 3
+    assert set().union(*by_week.values()) == {id(c) for c in worker_conns}
+    assert threading.get_ident() not in {t for w, _, _, t in calls if w > 1}
+    for c in worker_conns:
+        c.commit.assert_called()
+        c.close.assert_called_once()
+    assert _session_insert_slots(mocks) == slots                         # main conn, (week, day) order
+    mocks["explain"].assert_called_once()
+    sessions = mocks["explain"].call_args.kwargs["program_sessions"]
+    assert [(s["week"], s["day"]) for s in sessions] == slots
+    assert all(s["session_id"] == 42 for s in sessions)
+
+
+def test_concurrent_weeks_never_exceed_the_cost_limit():
+    """Each session costs 0.01 and the limit is 0.035: the sequential guard
+    admits exactly 4 sessions (it stops once spent > limit). Concurrent weeks
+    must admit no more — in-flight sessions count against the limit."""
+    for concurrency in (1, 4):
+        settings = _settings()
+        settings.cost_limit_per_program = 0.035
+        with ExitStack() as stack:
+            mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(4, 2)})
+            mocks["generate"].side_effect = _gen_side_effect()
+            assert run(1, settings, week_concurrency=concurrency) == 42
+        assert mocks["generate"].call_count == 4, (concurrency, mocks["generate"].call_count)
+        mocks["explain"].assert_not_called()
+        rationale = [c.args[2][0] for c in mocks["execute"].call_args_list
+                     if len(c.args) >= 3 and "rationale" in c.args[1]]
+        assert rationale and rationale[-1].startswith("# Generation Aborted — Cost Limit")
+        assert "4 of 8 sessions" in rationale[-1]
+
+
+def test_concurrent_weeks_worker_error_fails_the_run():
+    """An exception in a worker week propagates like the sequential path: the
+    run returns None and the main connection is rolled back."""
+    def _fake(**kw):
+        if kw["week_number"] == 3:
+            raise RuntimeError("LLM down")
+        return _generation_result()
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(4, 2)})
+        mocks["generate"].side_effect = _fake
+        assert run(1, _settings(), week_concurrency=4) is None
+    mocks["conn"].rollback.assert_called()
+
+
+def test_week1_block_template_reaches_later_weeks_only():
+    """Weeks 2..N get week 1's same-day session as block_template; week 1 gets none."""
+    for concurrency in (1, 4):
+        with ExitStack() as stack:
+            mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(3, 2)})
+            mocks["generate"].side_effect = _gen_side_effect()
+            run(1, _settings(), week_concurrency=concurrency)
+        by_slot = {
+            (c.kwargs["week_number"], c.kwargs["session_template"].day_number): c.kwargs.get("block_template")
+            for c in mocks["build_session_prompt"].call_args_list
+        }
+        assert by_slot[(1, 1)] is None and by_slot[(1, 2)] is None
+        for w in (2, 3):
+            for d in (1, 2):
+                assert by_slot[(w, d)] == "Snatch 4x3 @ 75%"
+
+
+def test_summarize_block_template_merges_and_caps():
+    from orchestrator import summarize_block_template
+    exs = [
+        {"exercise_order": 1, "exercise_name": "Snatch", "sets": 2, "reps": 3, "intensity_pct": 55.0},
+        {"exercise_order": 2, "exercise_name": "Snatch", "sets": 5, "reps": 2, "intensity_pct": 75.5},
+        {"exercise_order": 3, "exercise_name": "Plank", "sets": 3, "reps": 1, "intensity_pct": None},
+    ]
+    assert summarize_block_template(exs) == "Snatch 2x3 @ 55%, 5x2 @ 75.5%; Plank 3x1"
+    assert summarize_block_template([]) is None
+    long = [{"exercise_order": i, "exercise_name": f"Exercise number {i}", "sets": 3, "reps": 5,
+             "intensity_pct": 70} for i in range(40)]
+    text = summarize_block_template(long)
+    assert len(text) <= 400 and text.endswith(" …") and "Exercise number 0 3x5 @ 70%" in text
+
+
+def test_block_template_section_renders_below_the_static_marker():
+    from generate import build_session_prompt
+
+    from shared.constants import PROMPT_STATIC_DYNAMIC_MARKER
+    retrieval = _retrieval_context()
+    retrieval.available_exercises = [{"name": "Snatch", "id": 1, "movement_family": "snatch"}]
+    kwargs = dict(
+        athlete_context=_athlete_context(), week_target=_week_target(2),
+        session_template=_session_template(1), retrieval_context=retrieval,
+        week_number=2, duration_weeks=4, already_prescribed=[], session_rep_target=15,
+        cumulative_comp_reps=0, context_chunks=[],
+    )
+    with_anchor = build_session_prompt(**kwargs, block_template="Snatch 4x3 @ 75%")
+    without = build_session_prompt(**kwargs)
+    marker = with_anchor.index(PROMPT_STATIC_DYNAMIC_MARKER)
+    assert with_anchor.index("## Block Template (Week 1, Day 1)") > marker
+    assert "Week 1 prescribed this day as: Snatch 4x3 @ 75%" in with_anchor
+    assert "Block Template" not in without
+    # the static prefix is untouched, so the prompt cache still hits
+    assert with_anchor[:marker] == without[:without.index(PROMPT_STATIC_DYNAMIC_MARKER)]

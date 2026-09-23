@@ -422,6 +422,23 @@ def _exercise_line(e: dict, athlete_faults: set) -> str:
     return line
 
 
+def _block_template_section(block_template: str | None, day_number: int) -> str:
+    """The "week 1, this day" continuity section (AUD-4), or "" when absent.
+
+    Week N is generated without week N−1 (weeks run concurrently), so the
+    anchor is week 1 — see orchestrator.run for the trade-off."""
+    if not block_template:
+        return ""
+    return (
+        f"\n## Block Template (Week 1, Day {day_number})\n"
+        f"Week 1 prescribed this day as: {block_template}\n"
+        "This is the block's template for this day: keep the same exercise selection and order "
+        "(same variants — do not swap e.g. Jerk for Push Jerk) and progress sets, reps and % to this "
+        "week's targets. Change an exercise only when this week's Program Plan requires it "
+        "(deload, intensity band, rep limits).\n"
+    )
+
+
 def build_session_prompt(
     athlete_context: AthleteContext,
     week_target: WeekTarget,
@@ -437,8 +454,15 @@ def build_session_prompt(
     sessions_per_week: int | None = None,
     active_principles: list[dict] | None = None,
     context_chunks: list[dict] | None = None,
+    block_template: str | None = None,
 ) -> str:
     """Assemble the full prompt for one session generation call.
+
+    block_template is week 1's same-day session in compact form
+    (``orchestrator.summarize_block_template``), passed for weeks 2..N so
+    exercise selection stays consistent across the block (AUD-4). It is
+    week/session-level text, so it renders below PROMPT_STATIC_DYNAMIC_MARKER;
+    None (week 1) omits the section.
 
     sessions_per_week is the PLAN's actual day count — the template
     distribution may have fallen back to a different frequency than the
@@ -797,7 +821,7 @@ Primary movement: {session_template.primary_movement}
 Supporting work: {', '.join(session_template.secondary_movements)}
 Session note: {session_template.notes}
 Target competition lift reps this session: {session_rep_target}
-
+{_block_template_section(block_template, session_template.day_number)}
 ## Prilepin's Chart Reference
 {prilepin_block}
 
