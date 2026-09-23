@@ -28,6 +28,14 @@ VECTOR_SEARCH_MIN_SIMILARITY: float = 0.45  # drop chunks below this cosine simi
 SNIPPET_MAX_CHARS: int = 1500        # max chars of a knowledge chunk shown in prompt
 # 600 showed ~15% of a 2-5k-char chunk — the preamble and topic sentence, while
 # the prescription sits in the tail (RAG-H4). Retrieval unit ≈ display unit now.
+# Most chunks are still longer than that (median ≈ 3.8k chars), so the prompt
+# shows a query-focused excerpt (shared/excerpt.focused_excerpt, AUD-2): the
+# sentences / lines that share the most query terms, their neighbours and the
+# chunk's heading, in order, with skipped stretches marked.
+EXCERPT_MAX_PIECE_CHARS: int = 400     # longer sentences / lines are cut at whitespace
+EXCERPT_HEADING_MAX_CHARS: int = 160   # a first line this short without end punctuation is a heading
+EXCERPT_MIN_TERM_CHARS: int = 3        # shorter tokens are not query terms
+EXCERPT_GAP_MARKER: str = " … "        # joins non-adjacent excerpt pieces
 MAX_PRINCIPLES_IN_PROMPT: int = 8   # max active principles sent to LLM
 MAX_RECENT_LOGS_IN_PROMPT: int = 10  # recent training entries shown in prompt
 # Previous Program block (DOG-1e): most-used exercises and last-week top sets

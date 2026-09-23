@@ -45,6 +45,7 @@ from shared.constants import (
     PROMPT_STATIC_DYNAMIC_MARKER,
     SNIPPET_MAX_CHARS,
 )
+from shared.excerpt import focused_excerpt
 from shared.exercise_mapping import is_accessory
 from shared.llm import (
     create_message_with_retries,
@@ -610,14 +611,16 @@ def build_session_prompt(
             if len(all_context_chunks) >= MAX_CONTEXT_CHUNKS:
                 break
 
-    # Labelled [C1]…[Cn] so the model can cite what it used; SNIPPET_MAX_CHARS
-    # now shows the bulk of a chunk rather than its first 600 chars.
+    # Labelled [C1]…[Cn] so the model can cite what it used. A chunk longer
+    # than SNIPPET_MAX_CHARS is shown as a query-focused excerpt (AUD-2): the
+    # part that matches the query that retrieved it — a fault / limiter chunk's
+    # own query, else the session query — not just its first 1,500 chars.
     chunk_lines = []
     for i, c in enumerate(all_context_chunks, 1):
-        text = c.get("raw_content", c.get("content", ""))
-        excerpt = text[:SNIPPET_MAX_CHARS]
-        ellipsis = "..." if len(text) > SNIPPET_MAX_CHARS else ""
-        chunk_lines.append(f"  [C{i}|{c.get('chunk_type', '?')}] {excerpt}{ellipsis}")
+        text = c.get("raw_content") or c.get("content") or ""
+        query = c.get("retrieval_query") or c.get("session_query") or ""
+        excerpt = focused_excerpt(text, query, SNIPPET_MAX_CHARS)
+        chunk_lines.append(f"  [C{i}|{c.get('chunk_type', '?')}] {excerpt}")
     # Retrieved text is data, not instructions: it comes from scraped web pages,
     # Wayback captures and OCR'd scans, any of which could carry directives.
     # Delimit it and say so once; the catalogue check and validation bound the
