@@ -467,3 +467,20 @@ def test_infer_chunk_type_periodization_before_recovery():
 def test_infer_chunk_type_recovery_still_reachable():
     s = _section("Sleep and restoration between sessions determine how quickly fatigue clears.")
     assert IngestionPipeline._infer_chunk_type(s) == "recovery_adaptation"
+
+
+def test_select_chunker_mapped_title_wins_over_article_sizing():
+    """Papers are ingested with --type article; a SOURCE_PROFILE_MAP title must
+    still get its mapped profile (research), not web dynamic sizing."""
+    from types import SimpleNamespace
+
+    from processors.chunker import SourceProfile
+
+    long_pages = ["word " * 5000]
+    paper = SimpleNamespace(title="Tapering and Peaking in the Weight Lifting Sports: A Systematic Review",
+                            doc_type="article")
+    assert IngestionPipeline._select_chunker(paper, long_pages).source_profile is SourceProfile.RESEARCH
+    web = SimpleNamespace(title="Some Unmapped Article", doc_type="article")
+    assert IngestionPipeline._select_chunker(web, long_pages).source_profile is SourceProfile.THEORY_HEAVY
+    book = SimpleNamespace(title="Some Unmapped Book", doc_type="book")
+    assert IngestionPipeline._select_chunker(book, long_pages).source_profile is SourceProfile.PROGRAMMING_FOCUSED

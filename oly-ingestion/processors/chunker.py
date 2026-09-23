@@ -111,6 +111,19 @@ SOURCE_PROFILE_MAP = {
     "Training for Muscular Strength": SourceProfile.RESEARCH,
     "Periodization and Block Periodization in Sports": SourceProfile.RESEARCH,
     "The training process: Planning for strength": SourceProfile.RESEARCH,
+    # AUD-5 open-access additions (2026-09-22)
+    "Integrating Deloading into Strength and Physique Sports": SourceProfile.RESEARCH,
+    "Deloading Practices in Strength and Physique Sports": SourceProfile.RESEARCH,
+    "Gaining more from doing less": SourceProfile.RESEARCH,
+    "The Sleep and Recovery Practices of Athletes": SourceProfile.RESEARCH,
+    "Upper Extremity Weightlifting Injury Surveillance": SourceProfile.RESEARCH,
+    "Health challenges and acute sports injuries restrict weightlifting": SourceProfile.RESEARCH,
+    "Repetitions in Reserve-Based Rating of Perceived Exertion": SourceProfile.RESEARCH,
+    "Injuries in weightlifting and powerlifting": SourceProfile.RESEARCH,
+    "menstrual cycle phase on acute strength performance": SourceProfile.RESEARCH,
+    "Compatibility of Concurrent Aerobic and Strength Training": SourceProfile.RESEARCH,
+    "Position Stand: protein and exercise": SourceProfile.RESEARCH,
+    "position stand: caffeine and exercise performance": SourceProfile.RESEARCH,
 }
 
 
@@ -567,15 +580,20 @@ class SemanticChunker:
         self.chunk_overlap = chunk_overlap_override or profile["chunk_overlap"]
         self.source_profile = source_profile
 
+    @staticmethod
+    def mapped_profile(source_title: str) -> "SourceProfile | None":
+        """The SOURCE_PROFILE_MAP profile for a title (substring match), or None."""
+        for key, profile in SOURCE_PROFILE_MAP.items():
+            if key.lower() in (source_title or "").lower():
+                return profile
+        return None
+
     @classmethod
     def for_source(cls, source_title: str) -> "SemanticChunker":
         """Factory: select the right chunking profile for a known source."""
         # Try prefix matching for sources where the title in the map
         # is a prefix of the actual title.
-        for key, profile in SOURCE_PROFILE_MAP.items():
-            if key.lower() in source_title.lower():
-                return cls(source_profile=profile)
-        return cls(source_profile=SourceProfile.PROGRAMMING_FOCUSED)
+        return cls(source_profile=cls.mapped_profile(source_title) or SourceProfile.PROGRAMMING_FOCUSED)
 
     @classmethod
     def for_web_article(cls, article_word_count: int) -> "SemanticChunker":

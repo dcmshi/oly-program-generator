@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-Postgres 16 + pgvector. **21 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0017_ingestion_run_result`.
+Postgres 16 + pgvector. **21 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0018_embedding_default_large` (0018 only moves the `knowledge_chunks.embedding_model` default to `text-embedding-3-large`).
 
 **The Alembic migrations are the source of truth.** This page summarises them; where it and a migration disagree, the migration wins (`cd oly-agent && uv run alembic history`). The root-level `schema.sql`, `athlete_schema.sql`, `auth_migration.sql` and `oly-ingestion/schema.sql` predate Alembic and are not applied by `make migrate`.
 

@@ -384,11 +384,7 @@ class IngestionPipeline:
             )
 
             # ── Step 4: Select chunker profile ────────────────
-            if source.doc_type == "article":
-                word_count = sum(len(p.split()) for p in pages)
-                chunker = SemanticChunker.for_web_article(word_count)
-            else:
-                chunker = SemanticChunker.for_source(source.title)
+            chunker = self._select_chunker(source, pages)
             logger.info(
                 f"Using chunk profile: {chunker.source_profile.value} "
                 f"(size={chunker.chunk_size}, overlap={chunker.chunk_overlap})"
@@ -566,6 +562,19 @@ class IngestionPipeline:
                 logger.error(f"Error loading principles for section {idx}: {e}")
                 self._rollback_connections()
         return total
+
+    @staticmethod
+    def _select_chunker(source, pages: list[str]) -> SemanticChunker:
+        """The chunk profile for a source. A title in SOURCE_PROFILE_MAP wins for
+        every type: papers are ingested with --type article and used to get web
+        sizing, never the `research` profile they are mapped to. Unmapped
+        articles keep dynamic sizing; everything else falls back to for_source."""
+        mapped = SemanticChunker.mapped_profile(source.title)
+        if mapped is not None:
+            return SemanticChunker(source_profile=mapped)
+        if source.doc_type == "article":
+            return SemanticChunker.for_web_article(sum(len(p.split()) for p in pages))
+        return SemanticChunker.for_source(source.title)
 
     @staticmethod
     def _prepare_pdf_pages(pages: list[str]) -> list[str]:
