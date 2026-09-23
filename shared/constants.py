@@ -186,6 +186,11 @@ PROMPT_PRINCIPLE_CATEGORIES: tuple[str, ...] = (
 # ties by id, and takes at most this many principles of one category.
 PRINCIPLE_RELEVANCE_WEIGHT: float = 1.0
 MAX_PRINCIPLES_PER_CATEGORY: int = 3
+# A first program (no previous program) caps the ceiling at 80 % (75 % beginner)
+# unless the athlete has *recorded* snatch and clean / C&J maxes this recent —
+# then the maxes are trustworthy and the cap only held a tested lifter back
+# (PLAN-3b, assumption 3.3). Level ceilings (LEVEL_PHASE_OVERRIDES) still apply.
+COLD_START_MAX_RECENCY_DAYS: int = 90
 # The condition vocabulary has no injury key, so an injury / rehab rule reads as
 # unconditional: program 32 (2026-09-22) showed "[235] Emphasize heavy pulls
 # during knee injury recovery — avoid full clean, full snatch, squats" in 10

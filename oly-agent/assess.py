@@ -18,8 +18,9 @@ from demographics import age_band, age_from_dob
 from models import AthleteContext
 from weight_resolver import build_maxes_dict
 
-from shared.constants import MAX_PREVIOUS_PROGRAM_EXERCISES, MAX_PREVIOUS_PROGRAM_TOP_SETS
+from shared.constants import COLD_START_MAX_RECENCY_DAYS, MAX_PREVIOUS_PROGRAM_EXERCISES, MAX_PREVIOUS_PROGRAM_TOP_SETS
 from shared.db import fetch_all, fetch_one
+from shared.exercise_mapping import to_intensity_ref
 from shared.formulas import round_kg
 from shared.timeutil import today_in_tz
 
@@ -170,9 +171,29 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         sessions_per_week=athlete.get("sessions_per_week") or 4,
         weeks_to_competition=weeks_to_competition,
         recorded_maxes=recorded_maxes,
+        recent_tested_maxes=has_recent_tested_maxes(max_rows, today_in_tz(athlete.get("timezone"))),
         **athlete_demographics(athlete),
     )
 
+
+
+def has_recent_tested_maxes(max_rows: list[dict], today: date,
+                            days: int = COLD_START_MAX_RECENCY_DAYS) -> bool:
+    """True when the athlete has a recorded snatch max AND a clean or C&J max
+    dated within `days` of today (PLAN-3b) — the maxes a first program's
+    weights come from are then tested, not guessed."""
+    recent: set[str] = set()
+    for r in max_rows or []:
+        achieved = r.get("date_achieved")
+        if isinstance(achieved, str):
+            try:
+                achieved = date.fromisoformat(achieved[:10])
+            except ValueError:
+                continue
+        if achieved is None or (today - achieved).days > days:
+            continue
+        recent.add(to_intensity_ref(r.get("name") or ""))
+    return "snatch" in recent and bool(recent & {"clean_and_jerk", "clean"})
 
 def athlete_demographics(athlete: dict, today: date | None = None) -> dict:
     """AthleteContext demographic fields from an athletes row (AUD-5).

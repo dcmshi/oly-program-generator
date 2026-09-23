@@ -70,7 +70,8 @@ ask it to.
 | — | 2.4 | Strength-work curve: needs its own profile table (Bompa MxS / Roman squat tables) — next candidate |
 | — | 3.1 | Prilepin remains the volume table; Roman/Medvedev alternatives are in the principle block, not the validator |
 | ✅ | 3.2 | PLAN-3a (2026-09-22): 15 complexes (migration 0019), offered per athlete, validated by their competition-lift components (Prilepin per set on the largest component, ceiling, volume) |
-| — | 3.3, 3.6, 3.7, 3.9 | Fine as constants (3.6 already reads `session_duration_minutes`) |
+| ✅ | 3.3 | PLAN-3b (2026-09-22): the cold-start ceiling (80 % / 75 % beginner) is skipped when ASSESS finds recorded snatch and clean / C&J maxes within `COLD_START_MAX_RECENCY_DAYS` (90); duration / complexity caps and level ceilings still apply |
+| — | 3.6, 3.7, 3.9 | Fine as constants (3.6 already reads `session_duration_minutes`) |
 
 ## Suggested order
 

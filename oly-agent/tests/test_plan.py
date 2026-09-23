@@ -466,3 +466,38 @@ def test_load_principles_sql_filters_categories_empty_recs_and_orders_determinis
     assert captured["params"][-1] == MAX_PRINCIPLE_CANDIDATES
     # One %s per param, in order: categories, phase, level, limit.
     assert sql.count("%s") == len(captured["params"]) == 4
+
+
+# ── PLAN-3b: recently tested maxes skip the cold-start ceiling ───────────────
+
+def test_cold_start_ceiling_skipped_with_recently_tested_maxes():
+    # a meet in 2 weeks → realization, whose ceilings run above the 80 % cap
+    capped = _ctx(previous_program=None, level="intermediate", weeks_to_competition=2)
+    with patch("plan.fetch_all", return_value=[]):
+        before = plan(capped, None, _FakeSettings())
+    assert max(wt.intensity_ceiling for wt in before.weekly_targets) <= 80.0
+    ctx = _ctx(previous_program=None, level="intermediate", weeks_to_competition=2)
+    ctx.recent_tested_maxes = True
+    with patch("plan.fetch_all", return_value=[]):
+        result = plan(ctx, None, _FakeSettings())
+    assert result.intensity_ceiling_override is None
+    assert max(wt.intensity_ceiling for wt in result.weekly_targets) > 80.0
+    assert result.duration_weeks <= 4 and result.max_complexity == 3       # the other caps still apply
+
+
+def test_has_recent_tested_maxes():
+    from datetime import date
+
+    from assess import has_recent_tested_maxes
+
+    today = date(2026, 9, 22)
+    sn = {"name": "Snatch", "date_achieved": date(2026, 8, 1)}
+    cj = {"name": "Clean & Jerk", "date_achieved": "2026-07-01"}
+    old_cl = {"name": "Clean", "date_achieved": date(2026, 1, 1)}
+    assert has_recent_tested_maxes([sn, cj], today)
+    assert has_recent_tested_maxes([sn, {"name": "Clean", "date_achieved": date(2026, 9, 1)}], today)
+    assert not has_recent_tested_maxes([sn], today)                        # no clean / C&J
+    assert not has_recent_tested_maxes([sn, old_cl], today)                # clean too old
+    assert not has_recent_tested_maxes([{**sn, "date_achieved": None}, cj], today)
+    assert not has_recent_tested_maxes([{**sn, "date_achieved": "bad"}, cj], today)
+    assert has_recent_tested_maxes([sn, cj], today, days=60) is False     # the C&J is 83 days old

@@ -68,8 +68,11 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
     intensity_ceiling_override = None
     max_complexity = 5
     if athlete_context.previous_program is None:
-        ceiling_cap = 80.0 if athlete_context.level != "beginner" else 75.0
-        intensity_ceiling_override = ceiling_cap
+        # Recently tested maxes make the loads trustworthy: skip the ceiling
+        # cap, keep the duration / complexity caps (PLAN-3b, assumption 3.3).
+        tested = getattr(athlete_context, "recent_tested_maxes", False)
+        ceiling_cap = 100.0 if tested else (80.0 if athlete_context.level != "beginner" else 75.0)
+        intensity_ceiling_override = None if tested else ceiling_cap
         # Cap the duration, then REBUILD from the profile so its own shortening
         # convention applies (drop early ramp-up weeks, KEEP peak + deload).
         # Slicing raw_targets[:duration_weeks] kept the early ramp and discarded
@@ -91,7 +94,7 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
         ]
         max_complexity = 2 if athlete_context.level == "beginner" else 3
         logger.info(
-            f"Cold start: intensity cap={ceiling_cap}%, "
+            f"Cold start: intensity cap={'none (recently tested maxes)' if tested else f'{ceiling_cap}%'}, "
             f"duration={duration_weeks} wks, max_complexity={max_complexity}"
         )
     else:

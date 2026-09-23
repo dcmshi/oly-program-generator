@@ -36,6 +36,9 @@ class AthleteContext:
     age_band: str | None = None         # youth / junior / senior / masters
     bodyweight_kg: float | None = None
     weight_class: str | None = None     # IWF class label, e.g. "89", "+109"
+    # PLAN-3b: recorded (not estimated) snatch and clean / C&J maxes within
+    # COLD_START_MAX_RECENCY_DAYS — a first program then skips the cold-start ceiling.
+    recent_tested_maxes: bool = False
 
 
 @dataclass
