@@ -52,6 +52,8 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))  # repo root for shared.*
 
+from shared.constants import SCAN_TEXT_MIN_CHARS_PER_PAGE  # noqa: E402 — after the sys.path setup
+
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
@@ -159,29 +161,91 @@ def strip_unsupported(recommendation: dict, unsupported: list[Claim]) -> dict:
 
 # ── Source text ───────────────────────────────────────────────────────────
 
-# source_id → file-name prefix under sources/ (docs/CORPUS.md "Files on disk").
-# Explicit rather than fuzzy: title matching paired Bompa with two research
-# papers and the never-obtained *A System of…* row with the *Program of…* scan.
-SOURCE_FILES: dict[int, str] = {
-    2: "Bob Takano - ", 51: "Vladimir Zatsiorsky", 52: "Arthur Drechsler - ",
-    499: "N.P. Laputin", 501: "A.S. Medvedev - A Program", 502: "Greg Everett - Olympic Weightlifting for Sports",
-    504: "Mike Israetel - ", 505: "Kelly Starrett - ", 506: "Dan John - ",
-    507: "Greg Everett - Olympic Weightlifting_ A Complete Guide",
-    742: "Pritchard 2017 - ", 743: "Pritchard 2018 - ", 744: "Pritchard 2019 - ", 745: "Winwood 2026 - ",
-    746: "Travis 2021 - ", 747: "Hornsby 2017 - ", 748: "Suarez 2019 - ", 749: "Huebner 2022 - ",
-    750: "Soriano 2019 - ", 751: "Stavropoulos 2025 - ", 752: "Huebner 2019 - ", 794: "Suchomel 2015 - ",
-    795: "Suchomel 2021 - ", 796: "Stone 2021 - ", 797: "DeWeese 2015 - The training process part 1",
-    798: "DeWeese 2015 - The training process part 2",
-    799: "R.A. Roman - ", 800: "Y.V. Verkhoshansky - ", 801: "A.N. Vorobyev - ", 802: "Tudor Bompa",
-    803: "Ilya Zhekov", 804: "Andrew Charniga - Weightlifting Training and Biomechanics",
-    805: "Andrew Charniga - There Is No System", 806: "Andrew Charniga - A De-Masculinization",
-    807: "Tommy Kono - ",
+# (sources.title, sources.author) → file-name prefix under sources/
+# (docs/CORPUS.md "Files on disk"). Keyed by title, not id, because a re-ingest
+# renumbers the source; resolved to ids at runtime (`resolve_source_files`).
+# author None = any author; it is given where the title repeats in `sources`
+# (three Laputin rows plus a Charniga web article of that title, two Zatsiorsky
+# rows). Explicit rather than fuzzy: title matching paired Bompa with two
+# research papers and the never-obtained *A System of…* row with the
+# *Program of…* scan.
+SOURCE_FILES: dict[tuple[str, str | None], str] = {
+    ("Weightlifting Programming: A Winning Coach's Guide", None): "Bob Takano - ",
+    ("Science and Practice of Strength Training", "Vladimir M. Zatsiorsky"): "Vladimir Zatsiorsky",
+    ("The Weightlifting Encyclopedia: A Guide to World Class Performance", None): "Arthur Drechsler - ",
+    ("Managing the Training of Weightlifters", "N.P. Laputin, V.G. Oleshko"): "N.P. Laputin",
+    ("A Program of Multi-Year Training in Weightlifting", None): "A.S. Medvedev - A Program",
+    ("Olympic Weightlifting for Sports", None): "Greg Everett - Olympic Weightlifting for Sports",
+    ("Scientific Principles of Hypertrophy Training", None): "Mike Israetel - ",
+    ("Becoming a Supple Leopard", None): "Kelly Starrett - ",
+    ("Intervention", None): "Dan John - ",
+    ("Olympic Weightlifting: A Complete Guide for Athletes and Coaches", None):
+        "Greg Everett - Olympic Weightlifting_ A Complete Guide",
+    ("Tapering Strategies to Enhance Maximal Strength", None): "Pritchard 2017 - ",
+    ("Short-term training cessation as a method of tapering to improve maximal strength", None): "Pritchard 2018 - ",
+    ("Higher vs lower intensity strength training taper effects on neuromuscular performance", None):
+        "Pritchard 2019 - ",
+    ("Tapering and Peaking in the Weight Lifting Sports: A Systematic Review of Athletes' Self-Reported "
+     "Strategies", None): "Winwood 2026 - ",
+    ("Skeletal Muscle Adaptations and Performance Outcomes Following a Step and Exponential Taper in "
+     "Strength Athletes", None): "Travis 2021 - ",
+    ("Maximum Strength, Rate of Force Development, Jump Height, and Peak Power Alterations in Weightlifters "
+     "across Five Months of Training", None): "Hornsby 2017 - ",
+    ("Phase-Specific Changes in Rate of Force Development and Muscle Morphology Throughout a Block "
+     "Periodized Training Cycle in Weightlifters", None): "Suarez 2019 - ",
+    ("How Do Master Weightlifters Train? A Transnational Study of Weightlifting Training Practices and "
+     "Concurrent Training", None): "Huebner 2022 - ",
+    ("Weightlifting Overhead Pressing Derivatives: A Review of the Literature", None): "Soriano 2019 - ",
+    ("Effects of Priming with Light vs. Heavy Loads on Weightlifting Performance", None): "Stavropoulos 2025 - ",
+    ("Performance Development From Youth to Senior and Age of Peak Performance in Olympic Weightlifting", None):
+        "Huebner 2019 - ",
+    ("Weightlifting Pulling Derivatives: Rationale for Implementation and Application", None): "Suchomel 2015 - ",
+    ("Training for Muscular Strength: Methods for Monitoring and Adjusting Training Intensity", None):
+        "Suchomel 2021 - ",
+    ("Periodization and Block Periodization in Sports: Emphasis on Strength-Power Training - A Provocative "
+     "and Challenging Narrative", None): "Stone 2021 - ",
+    ("The training process: Planning for strength-power training in track and field. Part 1: Theoretical "
+     "aspects", None): "DeWeese 2015 - The training process part 1",
+    ("The training process: Planning for strength-power training in track and field. Part 2: Practical and "
+     "applied aspects", None): "DeWeese 2015 - The training process part 2",
+    ("The Training of the Weightlifter", None): "R.A. Roman - ",
+    ("Programming and Organization of Training", None): "Y.V. Verkhoshansky - ",
+    ("A Textbook on Weightlifting", None): "A.N. Vorobyev - ",
+    ("Periodization of Strength Training for Sports", None): "Tudor Bompa",
+    ("Weightlifting Training and Technique", None): "Ilya Zhekov",
+    ("Weightlifting Training and Biomechanics", None): "Andrew Charniga - Weightlifting Training and Biomechanics",
+    ("There Is No System", None): "Andrew Charniga - There Is No System",
+    ("A De-Masculinization of Strength", None): "Andrew Charniga - A De-Masculinization",
+    ("Weightlifting, Olympic Style", None): "Tommy Kono - ",
 }
 
 
-def match_source_files(source_id: int, files: list[Path]) -> list[Path]:
+def resolve_source_ids(cur, keys) -> dict[tuple[str, str | None], list[int]]:
+    """{(title, author) key: [matching sources.id, ascending]} — a key whose
+    author is None matches every row with that title. Keys with no row map to
+    []. One query."""
+    keys = list(keys)
+    cur.execute("SELECT id, title, author FROM sources WHERE title = ANY(%s) ORDER BY id",
+                (sorted({t for t, _a in keys}),))
+    rows = cur.fetchall()
+    return {(t, a): [sid for sid, title, author in rows if title == t and (a is None or author == a)]
+            for t, a in keys}
+
+
+def resolve_source_files(cur, only: list[int] | None = None) -> dict[int, str]:
+    """{sources.id: file-name prefix} for every SOURCE_FILES entry present in
+    the database (limited to `only` when given). An entry matching several rows
+    (an old run kept beside a re-ingest) maps all of them."""
+    out: dict[int, str] = {}
+    for key, ids in resolve_source_ids(cur, SOURCE_FILES).items():
+        for sid in ids:
+            if not only or sid in only:
+                out[sid] = SOURCE_FILES[key]
+    return out
+
+
+def match_source_files(prefix: str, files: list[Path]) -> list[Path]:
     """The files on disk for a source (every file whose name starts with its prefix)."""
-    prefix = SOURCE_FILES.get(source_id)
     return [f for f in files if prefix and f.name.startswith(prefix)]
 
 
@@ -198,7 +262,7 @@ def file_text(path: Path) -> str:
         with fitz.open(path) as doc:
             text = "\n\n".join(page.get_text() for page in doc)
             n_pages = doc.page_count
-        if len(text.strip()) < 10 * max(1, n_pages):     # < 10 chars/page: a scan — use the OCR cache
+        if len(text.strip()) < SCAN_TEXT_MIN_CHARS_PER_PAGE * max(1, n_pages):   # a scan — use the OCR cache
             from extractors.ocr_cache import CACHE_DIRNAME, file_sha256
             cache = path.parent / CACHE_DIRNAME / f"{file_sha256(path)}.json"
             if not cache.exists():
@@ -210,8 +274,9 @@ def file_text(path: Path) -> str:
     return ""
 
 
-def load_source_texts(cur, source_files: list[Path], only: list[int] | None = None) -> dict[int, str]:
-    """{source_id: all its chunk text + matched file text}."""
+def load_source_texts(cur, source_files: list[Path] | None, only: list[int] | None = None) -> dict[int, str]:
+    """{source_id: all its chunk text + matched file text}. `source_files` None
+    or empty skips the file side entirely (no id resolution, no file reads)."""
     cur.execute("""
         SELECT cs.source_id, string_agg(k.raw_content, E'\\n\\n')
         FROM chunk_sources cs JOIN knowledge_chunks k ON k.id = cs.chunk_id
@@ -219,14 +284,18 @@ def load_source_texts(cur, source_files: list[Path], only: list[int] | None = No
         GROUP BY cs.source_id
     """, (only, only))
     texts = {sid: txt or "" for sid, txt in cur.fetchall()}
-    for sid in SOURCE_FILES:
-        if only and sid not in only:
-            continue
-        for f in match_source_files(sid, source_files):
-            try:
-                texts[sid] = texts.get(sid, "") + "\n\n" + file_text(f)
-            except Exception as e:                       # noqa: BLE001 — audit, keep going
-                logger.warning(f"Could not read {f.name}: {e}")
+    if not source_files:
+        return texts
+    read: dict[Path, str] = {}                           # one read per file, even when two rows share it
+    for sid, prefix in resolve_source_files(cur, only).items():
+        for f in match_source_files(prefix, source_files):
+            if f not in read:
+                try:
+                    read[f] = file_text(f)
+                except Exception as e:                   # noqa: BLE001 — audit, keep going
+                    logger.warning(f"Could not read {f.name}: {e}")
+                    read[f] = ""
+            texts[sid] = texts.get(sid, "") + "\n\n" + read[f]
     return texts
 
 
@@ -325,17 +394,19 @@ INGEST_BACKUP = Path(__file__).parent / "logs" / "prin_audit_ingest_backup.jsonl
 
 def audit_source(source_id: int, settings, document_text: str = "", *, apply: bool = True,
                  backup_path: Path = INGEST_BACKUP) -> dict:
-    """The end-of-ingest pass: audit one source's principles against its chunks,
-    its file on disk (if mapped) and `document_text` — the full text the ingest
-    just classified, which covers PRINCIPLE-only sections that were never
-    chunked — and strip unsupported recommendation keys. Each change is
-    appended to `backup_path` (JSON lines) first. Returns counts for
-    `ingestion_runs.result`."""
+    """The end-of-ingest pass: audit one source's principles against its chunks
+    and `document_text` — the full text the ingest just classified, which
+    covers PRINCIPLE-only sections that were never chunked — and strip
+    unsupported recommendation keys. Only without `document_text` does it
+    fall back to the source's file on disk (if mapped); with it, `sources/` is
+    neither scanned nor re-extracted. Each change is appended to `backup_path`
+    (JSON lines) first. Returns counts for `ingestion_runs.result`."""
     import psycopg2
     conn = psycopg2.connect(settings.database_url)
     try:
         cur = conn.cursor()
-        texts = load_source_texts(cur, _source_files(), [source_id])
+        files = None if document_text.strip() else source_files()
+        texts = load_source_texts(cur, files, [source_id])
         texts[source_id] = texts.get(source_id, "") + "\n\n" + document_text
         stats, changes, _flagged, lines = evaluate(principle_rows(cur, [source_id]), texts)
         claims = sum(s["claims"] for s in stats.values())
@@ -367,7 +438,8 @@ def run_audit_pass(source_id: int, settings, document_text: str = "") -> dict | 
         return None
 
 
-def _source_files() -> list[Path]:
+def source_files() -> list[Path]:
+    """Every book / paper file under sources/ (PDF, EPUB, TXT; not the OCR cache)."""
     root = Path(__file__).parent / "sources"
     return [p for p in root.rglob("*") if p.suffix in (".pdf", ".epub", ".txt") and ".ocr_cache" not in p.parts]
 
@@ -393,7 +465,7 @@ def main() -> None:
     settings = Settings()
     conn = psycopg2.connect(settings.database_url)
     cur = conn.cursor()
-    texts = load_source_texts(cur, _source_files(), args.source_id)
+    texts = load_source_texts(cur, source_files(), args.source_id)
 
     rows = principle_rows(cur, args.source_id)
 

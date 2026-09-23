@@ -24,6 +24,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 from shared.constants import (
     OCR_CONCURRENCY,
     OCR_GARBLED_RATIO_MAX,
+    OCR_POSTCORRECT_MAX_TOKENS,
     OCR_REQUEST_ATTEMPTS,
     OCR_REQUEST_TIMEOUT_S,
     OCR_SECOND_VIEW_DPI,
@@ -49,20 +50,20 @@ _VISION_BATCH_SIZE = 5
 # old 4096, truncating (and losing) the tail pages of the batch.
 _VISION_MAX_TOKENS = 8192
 
-_DEFAULT_VISION_MODEL = "claude-sonnet-5"
-
-
 class PDFExtractor:
     """Extract text from PDFs with a three-stage fallback chain."""
 
-    def __init__(self, anthropic_client=None, vision_model: str = _DEFAULT_VISION_MODEL,
+    def __init__(self, anthropic_client=None, *, vision_model: str,
                  batch: bool = False, ocr_cache: bool = True, force_vision: bool = False,
                  ocr_postcorrect: bool = False, postcorrect_model: str | None = None):
         """
         Args:
             anthropic_client: Optional Anthropic client instance. When provided,
                               used as a last-resort OCR fallback for image-only PDFs.
-            vision_model:     Model id for vision OCR (threaded from settings).
+            vision_model:     Model id for vision OCR — required, pass
+                              `settings.llm_model` (no hard-coded default: a
+                              Claude id is wrong under the OpenRouter provider,
+                              and it also keys the OCR cache).
             batch:            Send every page group of the document as one Message
                               Batch (half price, COST-1) instead of sequential calls.
             ocr_cache:        Reuse page text from sources/.ocr_cache/<sha256>.json
@@ -426,7 +427,7 @@ class PDFExtractor:
         model = self._postcorrect_model or self._vision_model
         try:
             response = self._client.messages.create(
-                model=model, max_tokens=4096,
+                model=model, max_tokens=OCR_POSTCORRECT_MAX_TOKENS,
                 **thinking_kwargs(model, "disabled"),
                 messages=[{"role": "user", "content": (
                     "The text below is OCR output from a scanned book page and contains recognition errors. "

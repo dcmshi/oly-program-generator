@@ -523,6 +523,63 @@ def test_fetch_generic_article_keeps_the_body_and_drops_the_chrome(monkeypatch):
     assert article["author"] == "Greg Nuckols"
 
 
+def test_fetch_generic_article_parses_given_html_without_fetching(monkeypatch):
+    """`html=` (cissik_medvedyev.py's pre-patched page) is parsed as-is: no
+    request is made, and the result matches a fetched page's."""
+    import ingest_web as mod
+
+    def no_fetch(*a, **k):
+        raise AssertionError("fetch_generic_article fetched despite html=")
+
+    monkeypatch.setattr(mod, "_get_with_retry", no_fetch)
+    article, permanent = mod.fetch_generic_article("https://example.com/x/", "A. Author", html=_wp_page(30).decode())
+    assert article is not None and not permanent
+    assert article["author"] == "A. Author"
+    assert article["title"] == "Tapering and Peaking: Why and How"
+    assert article["text"].startswith("Paragraph 0:")
+    # a short page is still a permanent skip
+    article, permanent = mod.fetch_generic_article("https://example.com/y/", html=_wp_page(3).decode())
+    assert article is None and permanent is True
+
+
+def test_main_unhandled_error_rolls_back_both_loaders_and_logs_failures(monkeypatch, tmp_path, caplog):
+    """An exception escaping ingest_article (audit3-M1 path in main) rolls back
+    both loader connections through the shared helper; a rollback that itself
+    fails is logged, not swallowed, and the other loader is still rolled back."""
+    import logging
+
+    import ingest_web as mod
+
+    url_file = tmp_path / "list.json"
+    url_file.write_text('{"author": "X", "urls": ["https://example.com/a/"]}', encoding="utf-8")
+    loaders = {}
+
+    def make(name, fail):
+        m = MagicMock()
+        if fail:
+            m.conn.rollback.side_effect = RuntimeError(f"{name} conn gone")
+        loaders[name] = m
+        return lambda settings: m
+
+    monkeypatch.setattr(mod, "StructuredLoader", make("structured", True))
+    monkeypatch.setattr(mod, "VectorLoader", make("vector", False))
+    monkeypatch.setattr(mod, "ContentClassifier", lambda s: MagicMock())
+    monkeypatch.setattr(mod, "PrincipleExtractor", lambda s: MagicMock())
+    monkeypatch.setattr(mod, "Settings", lambda: MagicMock())
+    monkeypatch.setattr(mod, "fetch_generic_article", lambda url, meta: ({"url": url, "text": "t"}, False))
+    monkeypatch.setattr(mod, "ingest_article", MagicMock(side_effect=RuntimeError("boom")))
+    monkeypatch.setattr(mod, "save_progress", lambda *a, **k: None)
+    monkeypatch.setattr(mod, "load_progress", lambda *a, **k: set())
+    monkeypatch.setattr(mod.time, "sleep", lambda s: None)
+    monkeypatch.setattr(sys, "argv", ["ingest_web.py", "--site", "urls", "--url-file", str(url_file), "--delay", "0"])
+    with caplog.at_level(logging.WARNING):
+        mod.main()
+    loaders["structured"].conn.rollback.assert_called_once()
+    loaders["vector"].conn.rollback.assert_called_once()
+    assert "structured conn gone" in caplog.text
+    assert "URL stays pending" in caplog.text
+
+
 def test_fetch_generic_article_skips_video_landing_pages(monkeypatch):
     """A page whose body is a blurb plus teaser cards is under GENERIC_MIN_WORDS
     and a permanent skip — JTS's video posts must not become 300-word sources."""

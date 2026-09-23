@@ -338,3 +338,18 @@ AGE_BAND_QUERY_QUALIFIERS: dict[str, str] = {
 SEX_QUERY_QUALIFIERS: dict[str, str] = {
     "female": "female athlete",
 }
+
+# ── Ingestion request budgets and heuristics (AUD-6) ─────────────────
+# Output budget for the classifier's LLM fallback: one schema-constrained
+# {content_type, confidence, reason} label.
+CLASSIFIER_LLM_MAX_TOKENS: int = 128
+# relabel_chunk_types.py: one reply labels a group of chunks (index → type).
+RELABEL_MAX_TOKENS: int = 1024
+# --ocr-postcorrect: one page of corrected text (a dense page is ~2k chars).
+OCR_POSTCORRECT_MAX_TOKENS: int = 4096
+# infer_chunk_type scans the section title plus this many leading content
+# characters for chunk-type keywords (RAG-H2).
+CHUNK_TYPE_PROBE_CHARS: int = 800
+# principle_audit.file_text: a PDF whose text layer averages fewer characters
+# per page than this is a scan — its text comes from the OCR cache instead.
+SCAN_TEXT_MIN_CHARS_PER_PAGE: int = 10
