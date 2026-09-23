@@ -56,6 +56,7 @@ from processors.section_processor import (
     SectionProcessor,
     SectionTarget,
     new_section_stats,
+    rollback_loaders,
     run_quarantine_pass,
 )
 
@@ -404,18 +405,24 @@ def load_url_list(path: Path) -> list[tuple[str, str]]:
     return out
 
 
-def fetch_generic_article(url: str, author: str = "") -> tuple[dict | None, bool]:
+def fetch_generic_article(url: str, author: str = "", html: str | None = None) -> tuple[dict | None, bool]:
     """Fetch one article from an arbitrary (WordPress-style) site.
 
     Same (article, permanent_skip) contract as fetch_article. The body is the
     largest of the usual containers after navigation, widgets, share bars and
     comment blocks are removed; a page under GENERIC_MIN_WORDS (a video or
     podcast landing page) is a permanent skip.
+
+    `html`, when given, is parsed instead of fetching `url` (which is then only
+    the article's URL) — for callers that pre-process the page, e.g.
+    `sources/url_lists/cissik_medvedyev.py` swapping table images for text.
     """
-    resp, permanent = _get_with_retry(url, timeout=30)
-    if resp is None:
-        return None, permanent
-    soup = BeautifulSoup(resp.text, "lxml")
+    if html is None:
+        resp, permanent = _get_with_retry(url, timeout=30)
+        if resp is None:
+            return None, permanent
+        html = resp.text
+    soup = BeautifulSoup(html, "lxml")
 
     title = ""
     h1 = soup.find("h1")
@@ -929,11 +936,7 @@ def main():
             run_stats, ok = ingest_article(article, components, run_stats)
         except Exception as e:
             logger.error(f"Unhandled error ingesting {url}: {e} — URL stays pending")
-            for comp_key in ("structured_loader", "vector_loader"):
-                try:
-                    components[comp_key].conn.rollback()
-                except Exception:
-                    pass
+            rollback_loaders(components["structured_loader"], components["vector_loader"])
             time.sleep(args.delay)
             continue
 

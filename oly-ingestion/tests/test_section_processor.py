@@ -110,6 +110,28 @@ def test_rollback_resets_both_connections():
     proc.structured_loader.conn.rollback.assert_called_once()
 
 
+def test_rollback_failure_is_logged_and_the_other_loader_still_rolls_back(caplog):
+    """A dead vector connection used to skip the structured rollback and log at
+    DEBUG; each loader is now rolled back on its own and a failure is a WARNING."""
+    import logging
+
+    proc = _processor()
+    proc.vector_loader.conn.rollback.side_effect = RuntimeError("connection already closed")
+    with caplog.at_level(logging.WARNING, logger="processors.section_processor"):
+        proc.rollback()
+    proc.structured_loader.conn.rollback.assert_called_once()
+    assert "connection already closed" in caplog.text
+
+
+def test_infer_chunk_type_probes_only_the_head_of_the_content():
+    """Keywords past CHUNK_TYPE_PROBE_CHARS don't label the section."""
+    from shared.constants import CHUNK_TYPE_PROBE_CHARS
+
+    pad = "x " * CHUNK_TYPE_PROBE_CHARS
+    assert infer_chunk_type(_section(ContentType.PROSE, "A deload week. " + pad)) == "periodization"
+    assert infer_chunk_type(_section(ContentType.PROSE, pad + " A deload week.")) != "periodization"
+
+
 def test_pipeline_keeps_its_chunk_type_alias():
     from pipeline import CHUNK_TYPE_KEYWORDS, IngestionPipeline
     from processors import section_processor

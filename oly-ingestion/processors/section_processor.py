@@ -30,6 +30,7 @@ from dataclasses import dataclass
 from processors.chunker import SemanticChunker, validate_chunk
 from processors.classifier import ClassifiedSection, ContentType
 from processors.progress import Stage
+from shared.constants import CHUNK_TYPE_PROBE_CHARS
 
 logger = logging.getLogger(__name__)
 
@@ -86,7 +87,7 @@ STRUCTURED_TYPES = frozenset({
 def infer_chunk_type(section) -> str:
     """Map classifier ContentType + section title/content to a chunk_type enum value.
 
-    Scans the section title AND the first 800 chars of content with
+    Scans the section title AND the first CHUNK_TYPE_PROBE_CHARS chars of content with
     word-boundary matchers; first match in CHUNK_TYPE_KEYWORDS order wins.
     (`title or content` used to skip the body whenever a title existed —
     after RAG-H1 almost every section has one — and substring tests fired
@@ -94,7 +95,7 @@ def infer_chunk_type(section) -> str:
     preference, not a filter, so a wrong guess costs rank, not recall.
     """
     title = section.metadata.get("title") or ""
-    probe = f"{title}\n{section.content[:800]}"
+    probe = f"{title}\n{section.content[:CHUNK_TYPE_PROBE_CHARS]}"
 
     for chunk_type, matcher in _CHUNK_TYPE_MATCHERS:
         if matcher.search(probe):
@@ -226,12 +227,21 @@ class SectionProcessor:
     def rollback(self) -> None:
         """Roll back both loader connections after a section-level error, so the
         next section starts on a clean transaction ("transaction is aborted"
-        otherwise). Logs at DEBUG if the rollback itself fails."""
+        otherwise). See `rollback_loaders`."""
+        rollback_loaders(self.vector_loader, self.structured_loader)
+
+
+def rollback_loaders(*loaders) -> None:
+    """Roll back each loader's connection independently after an error, so the
+    next unit of work starts on a clean transaction. A rollback that itself
+    fails (connection already gone) is logged at WARNING and the remaining
+    loaders are still rolled back — never raises. Shared by
+    `SectionProcessor.rollback` and `ingest_web.main`'s unhandled-error path."""
+    for loader in loaders:
         try:
-            self.vector_loader.conn.rollback()
-            self.structured_loader.conn.rollback()
-        except Exception as rb_err:
-            logger.debug(f"Rollback failed (non-fatal): {rb_err}")
+            loader.conn.rollback()
+        except Exception as rb_err:                  # noqa: BLE001 — best effort, logged
+            logger.warning(f"Rollback of {type(loader).__name__} connection failed (non-fatal): {rb_err}")
 
 
 def run_quarantine_pass(source_id: int, settings) -> int | None:

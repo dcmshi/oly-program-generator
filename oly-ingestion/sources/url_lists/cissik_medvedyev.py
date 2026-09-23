@@ -83,13 +83,7 @@ def patched_html() -> str:
 
 
 def build_article() -> dict:
-    html = patched_html()
-    orig = w._get_with_retry              # serve the patched page to the normal extractor
-    w._get_with_retry = lambda url, timeout=30, params=None, attempts=3: (type("R", (), {"text": html})(), False)
-    try:
-        article, _ = w.fetch_generic_article(URL, AUTHOR)
-    finally:
-        w._get_with_retry = orig
+    article, _ = w.fetch_generic_article(URL, AUTHOR, html=patched_html())   # the normal extractor, on the patched page
     assert article is not None
     article["title"] = "A System of Multi-Year Training in Weightlifting (Medvedyev) — John Cissik's summary"
     for rows in TABLES.values():
