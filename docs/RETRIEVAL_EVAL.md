@@ -11,8 +11,9 @@ cd oly-agent
 PYTHONUTF8=1 uv run python -m eval.build_golden --dry-run      # 57 queries: 35 production-shaped + 22 legacy
 PYTHONUTF8=1 uv run python -m eval.build_golden                # LLM grades dense ∪ hybrid candidates 0/1/2 → eval/golden.json (~$1, Haiku-class)
 PYTHONUTF8=1 uv run python -m eval.run_eval --update-baseline  # freeze eval/baseline.json
-PYTHONUTF8=1 uv run python -m eval.run_eval                    # recall@5 / MRR / nDCG@5 / source share; exit 1 on regression
+PYTHONUTF8=1 uv run python -m eval.run_eval                    # gate: nDCG@5 + normalised recall@5; exit 1 on regression
 PYTHONUTF8=1 uv run python -m eval.run_eval --dense-only       # ablation
+PYTHONUTF8=1 uv run python -m eval.context_diversity 29        # what generation received: slots, distinct chunks, source share
 INTEGRATION_TESTS=1 uv run pytest tests/test_eval_harness.py   # the same gate as a test
 ```
 
@@ -23,6 +24,67 @@ exactly what generation receives. **Status:** `golden.json` (57 queries, Haiku 4
 grades over dense ∪ hybrid candidate pools) and `baseline.json` were built on the dev
 copy on 2026-09-16 after the full re-ingest — see the section below. Grades are tied to
 chunk ids, so rebuild both after any corpus change.
+
+## The gate since 2026-09-22 (AUD-3): nDCG@5 + normalised recall; composed-context diversity
+
+**Why the gate moved.** The union-graded golden set (57 queries) holds **23.7 relevant
+chunks per query** (grade ≥ 1; 10.3 at grade 2), and 56 of 57 queries have ≥ 5 of them.
+With `k = 5`, plain recall@5 = hits / relevant is capped at 5 / 23.7 ≈ 0.21 whatever the
+ranking does: it read 0.206 hybrid and 0.213 dense-only, although dense-only is clearly the
+better ranker. hit@5 is 1.0 on every query and MRR is 0.93–0.97, so neither of them
+registers a change either. Only nDCG@5 moved.
+
+**What is gated now** (`run_eval.GATED_METRICS`, `REGRESSION_TOLERANCE = 0.02` absolute):
+
+- `ndcg_at_k`: graded nDCG@5, unchanged.
+- `nrecall_at_k`: **grade-2 recall normalised by min(k, relevant)**
+  (`metrics.recall_at_k_normalized`). A top 5 made entirely of directly useful chunks scores
+  1.0. The grade-2 set averages 10.3 and is under 5 on only 6 queries, so the metric
+  still has range.
+
+Reported but **not gated** (`INFORMATIONAL_METRICS`, kept for continuity with the older
+tables below): recall@5, MRR, hit@5, max source share, and `nrecall_g1_at_k`, the same
+normalisation over grade ≥ 1. The grade ≥ 1 variant saturates like MRR (0.90 hybrid, 0.93
+dense). When relevant ≥ k it is simply precision@5, and nearly every candidate the judge
+saw is at least partially relevant. A baseline frozen before a gated metric existed is
+skipped on that metric rather than failed. `--update-baseline` now also records the gate
+(`"gate": {gated_metrics, tolerance, top_k, hybrid}`).
+
+Re-frozen 2026-09-22 on the same golden set and embeddings (`-large`). The old metrics
+reproduce the EMBED-1 freeze to the decimal:
+
+| | nDCG@5 | nrecall@5 (g2) | nrecall@5 (g≥1) | recall@5 | MRR | src share |
+|---|--:|--:|--:|--:|--:|--:|
+| **hybrid, baseline.json** | **0.716** | **0.530** | 0.902 | 0.206 | 0.930 | 0.572 |
+| · session (16) | 0.810 | 0.613 | 0.988 | 0.178 | 1.000 | 0.675 |
+| · fault (13) | 0.757 | 0.615 | 0.892 | 0.232 | 0.923 | 0.569 |
+| · limiter (6) | 0.786 | 0.567 | 1.000 | 0.181 | 1.000 | 0.467 |
+| · legacy (22) | 0.605 | 0.411 | 0.818 | 0.218 | 0.864 | 0.527 |
+| dense-only (ablation) | 0.796 | 0.644 | 0.930 | 0.213 | 0.974 | 0.488 |
+| · session (16) | 0.908 | 0.825 | 1.000 | 0.180 | 1.000 | 0.538 |
+
+Going from hybrid to dense-only moves the new metric by **+0.114** (session queries
++0.21) and plain recall@5 by +0.007. That gap is the resolution the old gate lacked, and
+the reranker / fusion-weight work in AUD-3 is judged on it.
+
+**Composed-context diversity (`eval/context_diversity.py`).** The golden set scores one
+query at a time, so it cannot see that a whole program is fed the same few chunks. The
+script reads `generation_log.retrieval_set` for a program (read-only; one attempt per
+(week, day), the last successful one) and reports the number of slots, the distinct
+chunks and distinct-chunk ratio, the largest share of slots filled from one source, and
+the chunks shown in ≥ 50 % of sessions (`REPEAT_SESSION_FRACTION`). These are the
+**"before" numbers for the context-diversity fix**, measured 2026-09-22:
+
+| Program | sessions | slots | distinct chunks | distinct ratio | sources | max source share | chunks in ≥ 50 % of sessions |
+|---|--:|--:|--:|--:|--:|--:|---|
+| 29 (advanced, 2026-09-21) | 24 | 96 | 13 | 0.135 | 8 | 0.688 (Everett, 66 slots) | 4534 + 4533 (Everett `fault_correction`), as C1/C2 in 24/24 |
+| 12 (2026-09-16) | 16 | 64 | 10 | 0.156 | 4 | 0.844 (Everett, 54 slots) | 4534 + 4533, as C1/C2 in 16/16 |
+
+Program 23 was also requested but has no rows: it no longer exists, and 12 and 29 are the
+only programs with logged retrieval sets. In both programs the fault-first
+composition puts the same two Everett fault chunks in C1–C2 of every session, which is half
+of every context. The fix should raise the distinct ratio and cut the repeat list without
+lowering the gated retrieval metrics.
 
 ## Embedding upgrade — 2026-09-22 (EMBED-1): `text-embedding-3-small` → `-large` @ 1536 (current `baseline.json`)
 
