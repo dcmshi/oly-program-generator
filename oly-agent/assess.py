@@ -157,6 +157,7 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         f"weeks_to_comp={weeks_to_competition}"
     )
 
+    today = today_in_tz(athlete.get("timezone"))   # one "today" for age and max recency
     return AthleteContext(
         athlete=athlete,
         level=athlete["level"],
@@ -171,8 +172,8 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         sessions_per_week=athlete.get("sessions_per_week") or 4,
         weeks_to_competition=weeks_to_competition,
         recorded_maxes=recorded_maxes,
-        recent_tested_maxes=has_recent_tested_maxes(max_rows, today_in_tz(athlete.get("timezone"))),
-        **athlete_demographics(athlete),
+        recent_tested_maxes=has_recent_tested_maxes(max_rows, today),
+        **athlete_demographics(athlete, today),
     )
 
 
