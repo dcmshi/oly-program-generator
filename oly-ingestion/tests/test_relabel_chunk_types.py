@@ -119,6 +119,7 @@ def test_relabel_batch_mode_submits_one_message_batch(monkeypatch):
 
     assert list(captured) == ["0", "2"]
     assert captured["0"]["model"] == "claude-haiku-4-5"
+    assert captured["0"]["max_tokens"] == mod.RELABEL_MAX_TOKENS
     assert transitions == {("concept", "periodization"): 1, ("concept", "biomechanics"): 1}
     assert cur.execute.call_count == 1 + 2          # the SELECT + two UPDATEs
 

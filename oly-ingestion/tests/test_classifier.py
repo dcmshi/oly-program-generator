@@ -344,6 +344,8 @@ def test_llm_classify_uses_the_light_model():
     assert call.call_args.kwargs["model"] == clf.settings.light_model
     assert clf.settings.light_model != clf.settings.llm_model
     assert "thinking" not in call.call_args.kwargs      # Haiku 4.5 has no thinking field
+    from shared.constants import CLASSIFIER_LLM_MAX_TOKENS
+    assert call.call_args.kwargs["max_tokens"] == CLASSIFIER_LLM_MAX_TOKENS
 
 
 def test_jev_classifier_overrides_heuristic_when_confident():

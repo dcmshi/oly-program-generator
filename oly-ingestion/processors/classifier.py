@@ -21,7 +21,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.sectioning import MARKDOWN_HEADING_RE_SRC, merge_small_sections, split_oversized_sections
-from shared.constants import JEV_CLASSIFY_MIN_CONFIDENCE
+from shared.constants import CLASSIFIER_LLM_MAX_TOKENS, JEV_CLASSIFY_MIN_CONFIDENCE
 from shared.llm import (
     create_llm_client,
     create_message_with_retries,
@@ -347,7 +347,7 @@ Respond with JSON only, no other text:
             message = create_message_with_retries(
                 client,
                 model=model,
-                max_tokens=128,
+                max_tokens=CLASSIFIER_LLM_MAX_TOKENS,
                 messages=[{"role": "user", "content": prompt}],
                 **json_schema_kwargs(self._CLASSIFY_SCHEMA, thinking_kwargs(model, "disabled")),
             )

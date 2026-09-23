@@ -34,6 +34,7 @@ import psycopg2
 sys.path.insert(0, str(Path(__file__).parent))
 from config import Settings
 
+from shared.constants import RELABEL_MAX_TOKENS
 from shared.llm import (
     BatchRequestFailed,
     create_llm_client,
@@ -208,7 +209,7 @@ def relabel(
     def _params(start: int) -> dict:
         batch = rows[start:start + batch_size]
         prompt = build_prompt([(i, text) for i, (_id, _t, text) in enumerate(batch, start=1)])
-        return dict(model=model, max_tokens=1024, messages=[{"role": "user", "content": prompt}],
+        return dict(model=model, max_tokens=RELABEL_MAX_TOKENS, messages=[{"role": "user", "content": prompt}],
                     **json_schema_kwargs(RELABEL_SCHEMA))
 
     # COST-1: one Message Batch for the whole corpus at half price, instead of
