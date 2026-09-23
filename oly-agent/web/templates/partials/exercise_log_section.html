@@ -120,7 +120,7 @@
                     class="text-xs bg-paper-200 hover:bg-paper-400 px-2.5 py-1.5 rounded-md">
               {{ ex.exercise_order }}. {{ ex.exercise_name }}
               {% if ex.absolute_weight_kg %}@{{ ex.absolute_weight_kg }}kg{% endif %}
-              · {{ ex.sets }}×{{ ex.reps }}
+              · {{ ex | prescription }}
             </button>
             {% endfor %}
           </div>

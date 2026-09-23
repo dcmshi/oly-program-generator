@@ -818,6 +818,7 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
             fault_exercise_names=g.fault_exercise_names,
             retrieval_set=_retrieval_set(session_chunks),
             week_already_prescribed=week.already_prescribed,
+            available_complexes=getattr(g.retrieval_context, "available_complexes", None),
         )
     except BaseException:
         g.spend.abandon()
@@ -1030,8 +1031,9 @@ def _save_session(
                 (session_id, exercise_order, exercise_id, exercise_name,
                  sets, reps, intensity_pct, intensity_reference, absolute_weight_kg,
                  rpe_target, rest_seconds, is_max_attempt,
-                 selection_rationale, source_principle_ids, source_chunk_ids)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
+                 selection_rationale, source_principle_ids, source_chunk_ids,
+                 complex_id, notes)
+            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
             """,
             (
                 session_id,
@@ -1049,6 +1051,8 @@ def _save_session(
                 ex.get("selection_rationale"),
                 ex.get("source_principle_ids") or [],
                 ex.get("source_chunk_ids") or [],
+                ex.get("complex_id"),
+                ex.get("notes"),
             ),
         )
 

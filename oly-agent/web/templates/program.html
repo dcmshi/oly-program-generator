@@ -222,7 +222,7 @@
                 <span class="ml-1.5 inline-block text-xs font-medium px-1.5 py-0.5 rounded bg-blue-50 text-blue-700 border border-blue-100">Warmup</span>
                 {% endif %}
               </td>
-              <td class="py-1.5 pr-3 text-right text-ink-sec">{{ ex.sets }}×{{ ex.reps }}</td>
+              <td class="py-1.5 pr-3 text-right text-ink-sec">{{ ex | prescription }}</td>
               <td class="py-1.5 pr-3 text-right font-medium">
                 {%- if ex.absolute_weight_kg is not none %}{{ ex.absolute_weight_kg | fmt_weight }}
                 {%- elif ex.intensity_reference == 'bodyweight' %}<span class="text-ink-muted" title="Bodyweight">BW</span>

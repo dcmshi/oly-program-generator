@@ -384,6 +384,46 @@ def fetch_fault_chunks(vector_loader, faults: list[str], level: str, top_k: int,
     return out
 
 
+
+def _fetch_complexes(conn, max_complexity: int) -> list[dict]:
+    """exercise_complexes rows at or below the plan's complexity cap (PLAN-3a).
+    A missing table / column (a DB before migration 0019) means no complexes."""
+    try:
+        return fetch_all(
+            conn,
+            """
+            SELECT id, name, exercises_ordered, total_reps_per_set, intensity_reference,
+                   typical_intensity_low, typical_intensity_high, complexity_level,
+                   movement_family::text AS movement_family, primary_purpose
+            FROM exercise_complexes
+            WHERE complexity_level <= %s
+            ORDER BY movement_family, complexity_level, name
+            """,
+            (max_complexity,),
+        ) or []
+    except Exception as e:                               # noqa: BLE001 — optional catalogue
+        logger.warning(f"Complexes unavailable ({e}) — generating without them")
+        try:
+            conn.rollback()
+        except Exception:                                # noqa: BLE001
+            pass
+        return []
+
+
+def select_available_complexes(complexes: list[dict], available_exercises: list[dict],
+                               avoid: list[str] | None) -> list[dict]:
+    """Complexes whose every component is in this athlete's catalogue and none is
+    on the avoid list — a complex must not smuggle in an excluded lift."""
+    names = {str(e["name"]).lower() for e in available_exercises}
+    avoided = {str(a).lower().replace("_", " ") for a in (avoid or [])}
+    out = []
+    for cx in complexes:
+        comps = [str(c.get("exercise_name") or "").lower() for c in (cx.get("exercises_ordered") or [])]
+        if comps and all(c in names for c in comps) and not any(c in avoided for c in comps):
+            out.append(cx)
+    return out
+
+
 def retrieve(
     athlete_context: AthleteContext,
     plan: ProgramPlan,
@@ -511,6 +551,11 @@ def retrieve(
         (plan.max_complexity,),
     )
 
+    available_complexes = select_available_complexes(
+        _fetch_complexes(conn, plan.max_complexity), available_exercises,
+        (athlete_context.athlete.get("exercise_preferences") or {}).get("avoid", []),
+    )
+
     # ── Substitutions (for injured athletes) ──────────────────
     available_substitutions: dict[str, list] = {}
     if athlete_context.injuries:
@@ -560,4 +605,5 @@ def retrieve(
         active_principles=plan.active_principles,
         prilepin_targets=prilepin_targets,
         available_exercises=available_exercises,
+        available_complexes=available_complexes,
     )

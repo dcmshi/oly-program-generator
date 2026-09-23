@@ -69,7 +69,7 @@ ask it to.
 | — | 1.7 | Thresholds are constants; per-athlete overrides not needed until a masters cohort exists |
 | — | 2.4 | Strength-work curve: needs its own profile table (Bompa MxS / Roman squat tables) — next candidate |
 | — | 3.1 | Prilepin remains the volume table; Roman/Medvedev alternatives are in the principle block, not the validator |
-| — | 3.2 | No complexes in the exercise catalogue yet; revisit when they are added |
+| ✅ | 3.2 | PLAN-3a (2026-09-22): 15 complexes (migration 0019), offered per athlete, validated by their competition-lift components (Prilepin per set on the largest component, ceiling, volume) |
 | — | 3.3, 3.6, 3.7, 3.9 | Fine as constants (3.6 already reads `session_duration_minutes`) |
 
 ## Suggested order

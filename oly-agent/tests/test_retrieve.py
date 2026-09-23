@@ -180,8 +180,8 @@ def test_injuries_trigger_substitution_lookup():
         "substitute_name": "Hang Clean", "primary_purpose": "Reduce knee stress",
         "substitution_context": "injury_modification", "notes": "",
     }
-    # fetch_all calls: template_references, available_exercises, substitutions
-    with patch("retrieve.fetch_all", side_effect=[[], [], [sub_row]]):
+    # fetch_all calls: template_references, available_exercises, complexes, substitutions
+    with patch("retrieve.fetch_all", side_effect=[[], [], [], [sub_row]]):
         result = retrieve(_ctx(injuries=["knee"]), _plan(), conn=None, vector_loader=None)
     assert "Clean & Jerk" in result.available_substitutions
     assert result.available_substitutions["Clean & Jerk"][0]["substitute_name"] == "Hang Clean"

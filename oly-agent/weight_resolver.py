@@ -57,6 +57,8 @@ def resolve_exercise_ids(
         exercise_lookup = {name.lower(): id for id, name in rows}
     """
     for ex in session_exercises:
+        if ex.get("complex_id"):
+            continue                    # a complex is an exercise_complexes row (PLAN-3a)
         name = ex.get("exercise_name", "")
         ex_id = exercise_lookup.get(name.lower())
         if ex_id:

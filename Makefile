@@ -103,7 +103,8 @@ AGENT_TESTS := \
 	tests/test_demographics.py \
 	tests/test_feedback.py \
 	tests/test_log_commands.py \
-	tests/test_eval_cli.py
+	tests/test_eval_cli.py \
+	tests/test_complexes.py
 
 INGESTION_TESTS := \
 	tests/test_chunker.py \

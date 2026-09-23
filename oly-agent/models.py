@@ -91,6 +91,7 @@ class RetrievalContext:
     active_principles: list[dict]               # programming_principles constraints
     prilepin_targets: dict[str, dict]           # zone_key -> Prilepin data
     available_exercises: list[dict]             # exercises rows the LLM can select from
+    available_complexes: list[dict] = field(default_factory=list)  # exercise_complexes rows offered (PLAN-3a)
 
 
 @dataclass

@@ -24,6 +24,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from complexes import comp_reps_per_set, counts_as_competition_lift, reps_for_prilepin
 from models import ValidationResult
 
 from shared.constants import (
@@ -147,7 +148,8 @@ def _session_comp_lift_reps(session_exercises: list[dict]) -> dict[str, int]:
     """Working competition-lift reps per Prilepin zone for this session."""
     comp_lift_reps: dict[str, int] = {}
     for ex in session_exercises:
-        if not is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference")):
+        # a complex counts by its competition-lift components (PLAN-3a)
+        if not counts_as_competition_lift(ex):
             continue
         pct = _numeric_pct(ex)
         if not pct:
@@ -163,7 +165,7 @@ def _session_comp_lift_reps(session_exercises: list[dict]) -> dict[str, int]:
         if zone is None:
             continue
         try:
-            total = int(ex.get("sets") or 0) * int(ex.get("reps") or 0)
+            total = int(ex.get("sets") or 0) * comp_reps_per_set(ex)
         except (TypeError, ValueError):
             continue  # Check 0 already errored on the malformed field
         comp_lift_reps[zone] = comp_lift_reps.get(zone, 0) + total
@@ -237,7 +239,7 @@ def _check_intensity_envelope(session_exercises: list[dict], week_target: dict,
         pct = _numeric_pct(ex)
         if pct is None:
             continue
-        comp_lift = is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference"))
+        comp_lift = counts_as_competition_lift(ex)
         if pct > intensity_ceiling:
             if comp_lift:
                 errors.append(
@@ -265,10 +267,12 @@ def _check_reps_per_set(session_exercises: list[dict], errors: list[str], warnin
     heavy squat triple is normal programming and must not trip it.
     """
     for ex in session_exercises:
-        if not is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference")):
+        if not counts_as_competition_lift(ex):
             continue
         pct = _numeric_pct(ex) or 0
-        reps = ex.get("reps") or 0
+        # a complex: the largest competition-lift component (the Snatch ×1 in
+        # Snatch + OHS 1+2), not the complex's 3 total reps (PLAN-3a)
+        reps = reps_for_prilepin(ex)
         if pct >= 90 and reps > 2:
             errors.append(
                 f"{ex.get('exercise_name')}: {reps} reps at {pct}% — "
@@ -305,7 +309,7 @@ def _check_principles(session_exercises: list[dict], active_principles: list[dic
         # schema never produces that key, so it was dead code — AUD-1.)
         if rec.get("competition_lifts_first") and session_exercises:
             first = session_exercises[0]
-            if not is_competition_lift(first.get("exercise_name"), first.get("intensity_reference")):
+            if not counts_as_competition_lift(first):
                 warnings.append(
                     f"First exercise is '{first.get('exercise_name')}', "
                     f"but principle requires competition lifts first"

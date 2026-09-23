@@ -11,6 +11,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from complexes import prescription_label
 from fastapi import FastAPI, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
@@ -282,6 +283,7 @@ templates.env.filters["reps_list"]        = _reps_list
 templates.env.filters["status_color"]     = _status_color
 templates.env.filters["phase_color"]      = _phase_color
 templates.env.filters["parse_rationale"]  = _parse_rationale
+templates.env.filters["prescription"]     = prescription_label   # "4×(1+2)" for complexes (PLAN-3a)
 
 # Canonical option vocabularies as template globals so setup and profile can
 # never drift apart again (WEB-M3). Values come from web/options.py.

@@ -156,7 +156,7 @@ async def get_program_weeks(conn, program_id: int) -> list[dict]:
             """
             SELECT session_id, exercise_order, exercise_name, sets, reps,
                    intensity_pct, intensity_reference, absolute_weight_kg,
-                   rest_seconds, rpe_target, selection_rationale
+                   rest_seconds, rpe_target, selection_rationale, complex_id, notes
             FROM session_exercises
             WHERE session_id = ANY($1::int[])
             ORDER BY session_id, exercise_order

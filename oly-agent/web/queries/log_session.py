@@ -73,7 +73,7 @@ async def get_session_with_exercises(conn, session_id: int) -> dict | None:
         conn,
         """
         SELECT id, exercise_order, exercise_name, sets, reps,
-               intensity_pct, absolute_weight_kg, rest_seconds, rpe_target
+               intensity_pct, absolute_weight_kg, rest_seconds, rpe_target, complex_id, notes
         FROM session_exercises
         WHERE session_id = $1
         ORDER BY exercise_order

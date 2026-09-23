@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from complexes import annotate_complexes, complex_line
 from models import (
     AthleteContext,
     GenerationResult,
@@ -644,6 +645,19 @@ def _available_exercises_section(available_exercises: list[dict], technical_faul
     return "## Available Exercises\n" + "\n".join(ex_lines)
 
 
+def _available_complexes_section(complexes: list[dict] | None) -> str:
+    """Complexes the model may prescribe (PLAN-3a), or "" when there are none —
+    program-level, so part of the cached static prefix."""
+    if not complexes:
+        return ""
+    lines = [
+        "  A complex is several lifts done back to back as ONE set. Prescribe it like an exercise:",
+        "  exercise_name = the complex name exactly, sets = number of complexes, reps = the complex's",
+        "  total (listed), intensity_pct = % of the listed max, loaded for the hardest component.",
+    ] + [complex_line(c) for c in complexes]
+    return "## Available Complexes\n" + "\n".join(lines)
+
+
 def _fault_correction_section(technical_faults: list[str], fault_exercises: dict[str, list[dict]]) -> str:
     """Grouped by fault so the LLM sees explicit "For fault X: Exercise A, B"
     mappings rather than a flat list that requires inference."""
@@ -899,7 +913,7 @@ def build_session_prompt(
     has_blocks = "blocks" in (athlete_context.athlete.get("available_equipment") or [])
     display_maxes = effective_maxes if effective_maxes is not None else athlete_context.maxes
 
-    static = "\n\n".join([
+    static = "\n\n".join(s for s in [
         _rules_section(prefs["warmups"], has_blocks),
         _athlete_profile_section(athlete_context, sessions_per_week),
         _maxes_section(display_maxes, _projected_lifts(athlete_context, effective_maxes)),
@@ -907,10 +921,11 @@ def build_session_prompt(
         _previous_program_section(athlete_context.previous_program),
         _recent_training_section(athlete_context.recent_logs),
         _available_exercises_section(retrieval_context.available_exercises, athlete_context.technical_faults),
+        _available_complexes_section(getattr(retrieval_context, "available_complexes", None)),
         _fault_correction_section(athlete_context.technical_faults, retrieval_context.fault_exercises),
         _avoid_section(athlete_context.athlete),
         _substitutions_section(retrieval_context.available_substitutions),
-    ])
+    ] if s)
     block_section = _block_template_section(block_template, session_template.day_number).strip("\n")
     dynamic = "\n\n".join(s for s in [
         _program_plan_body(phase, week_number, duration_weeks, week_target,
@@ -980,6 +995,7 @@ def generate_session_with_retries(
     fault_exercise_names: list[str] | None = None,
     retrieval_set: list[dict] | None = None,
     week_already_prescribed: list[dict] | None = None,
+    available_complexes: list[dict] | None = None,
 ) -> GenerationResult:
     """Generate one session with parse + validation retries.
 
@@ -1111,7 +1127,8 @@ def generate_session_with_retries(
             continue
 
         # ── Validate exercise names ───────────────────────────
-        name_errors = validate_exercise_names(exercises, available_exercise_names)
+        name_errors = validate_exercise_names(
+            exercises, list(available_exercise_names) + [c["name"] for c in (available_complexes or [])])
         if name_errors:
             logger.warning(f"  Exercise name errors (attempt {attempt}): {name_errors}")
             _log(
@@ -1128,6 +1145,11 @@ def generate_session_with_retries(
             )
             time.sleep(settings.retry_delay_seconds)
             continue
+
+        # Complexes carry their definition from here on (PLAN-3a): reps = the
+        # complex total, complex_id, scheme note — the validator judges them
+        # by their competition-lift components.
+        exercises = annotate_complexes(exercises, available_complexes)
 
         # ── Step 5 validation ─────────────────────────────────
         last_validation = validate_session(
