@@ -19,31 +19,21 @@ from session_templates import SESSION_DISTRIBUTIONS, get_session_templates
 # ── Helpers ───────────────────────────────────────────────────
 
 def assert_eq(label, actual, expected):
-    ok = actual == expected
-    if not ok:
-        return False, f"expected {expected!r}, got {actual!r}"
-    return True, ""
+    assert actual == expected, f"{label}: expected {expected!r}, got {actual!r}"
 
 
 def assert_true(label, condition, msg=""):
-    if not condition:
-        return False, msg or "assertion failed"
-    return True, ""
+    assert condition, f"{label}: {msg or 'assertion failed'}"
 
 
 # ── Tests ─────────────────────────────────────────────────────
 
 def test_default_duration_week_count():
     """Each phase returns the correct default number of weeks."""
-    results = []
     for phase, profile in PHASE_PROFILES.items():
         n = profile["default_weeks"]
         targets = build_weekly_targets(phase, n, "intermediate")
-        results.append(assert_eq(f"{phase} week count", len(targets), n))
-    failures = [m for ok, m in results if not ok]
-    if failures:
-        return False, "; ".join(failures)
-    return True, ""
+        assert_eq(f"{phase} week count", len(targets), n)
 
 
 def test_week_numbers_sequential():
@@ -51,7 +41,7 @@ def test_week_numbers_sequential():
     targets = build_weekly_targets("accumulation", 4, "intermediate")
     nums = [t["week_number"] for t in targets]
     expected = list(range(1, len(targets) + 1))
-    return assert_eq("week numbers sequential", nums, expected)
+    assert_eq("week numbers sequential", nums, expected)
 
 
 def test_deload_week_flagged():
@@ -64,17 +54,16 @@ def test_deload_week_flagged():
         targets = build_weekly_targets(phase, n, "intermediate")
         deload_targets = [t for t in targets if t["is_deload"]]
         if len(deload_targets) != 1:
-            return False, f"{phase}: expected 1 deload week, got {len(deload_targets)}"
+            raise AssertionError(f"{phase}: expected 1 deload week, got {len(deload_targets)}")
         if deload_targets[0]["week_number"] != n:
-            return False, f"{phase}: deload should be last week"
-    return True, ""
+            raise AssertionError(f"{phase}: deload should be last week")
 
 
 def test_intensification_no_deload():
     """Intensification has no deload week."""
     targets = build_weekly_targets("intensification", 4, "intermediate")
     deload = [t for t in targets if t["is_deload"]]
-    return assert_eq("intensification no deload", deload, [])
+    assert_eq("intensification no deload", deload, [])
 
 
 def test_extended_no_deload_phase_stays_deload_free():
@@ -82,7 +71,7 @@ def test_extended_no_deload_phase_stays_deload_free():
     fabricate a deload flag on the new last week."""
     targets = build_weekly_targets("intensification", 6, "intermediate")
     deload = [t for t in targets if t["is_deload"]]
-    return assert_eq("extended intensification no fabricated deload", deload, [])
+    assert_eq("extended intensification no fabricated deload", deload, [])
 
 
 def test_intensity_ceiling_never_exceeds_100():
@@ -93,8 +82,7 @@ def test_intensity_ceiling_never_exceeds_100():
             targets = build_weekly_targets(phase, n, level)
             for t in targets:
                 if t["intensity_ceiling"] > 100:
-                    return False, f"{phase}/{level} W{t['week_number']}: ceiling={t['intensity_ceiling']}"
-    return True, ""
+                    raise AssertionError(f"{phase}/{level} W{t['week_number']}: ceiling={t['intensity_ceiling']}")
 
 
 def test_floor_always_below_ceiling():
@@ -104,11 +92,10 @@ def test_floor_always_below_ceiling():
         targets = build_weekly_targets(phase, n, "intermediate")
         for t in targets:
             if t["intensity_floor"] >= t["intensity_ceiling"]:
-                return False, (
+                raise AssertionError(
                     f"{phase} W{t['week_number']}: "
                     f"floor={t['intensity_floor']} >= ceiling={t['intensity_ceiling']}"
                 )
-    return True, ""
 
 
 def test_level_beginner_lower_intensity():
@@ -119,8 +106,7 @@ def test_level_beginner_lower_intensity():
         begin = build_weekly_targets(phase, n, "beginner")
         for i, e in zip(inter, begin, strict=True):
             if e["intensity_ceiling"] >= i["intensity_ceiling"]:
-                return False, f"{phase} W{i['week_number']}: beginner ceiling not lower than intermediate"
-    return True, ""
+                raise AssertionError(f"{phase} W{i['week_number']}: beginner ceiling not lower than intermediate")
 
 
 def test_level_elite_higher_intensity():
@@ -132,8 +118,7 @@ def test_level_elite_higher_intensity():
         for i, e in zip(inter, elite, strict=True):
             # Elite ceiling >= intermediate ceiling (may be equal at cap of 100)
             if e["intensity_ceiling"] < i["intensity_ceiling"]:
-                return False, f"{phase} W{i['week_number']}: elite ceiling lower than intermediate"
-    return True, ""
+                raise AssertionError(f"{phase} W{i['week_number']}: elite ceiling lower than intermediate")
 
 
 def test_volume_modifier_positive():
@@ -144,8 +129,7 @@ def test_volume_modifier_positive():
             targets = build_weekly_targets(phase, n, level)
             for t in targets:
                 if t["volume_modifier"] <= 0:
-                    return False, f"{phase}/{level} W{t['week_number']}: volume_modifier={t['volume_modifier']}"
-    return True, ""
+                    raise AssertionError(f"{phase}/{level} W{t['week_number']}: volume_modifier={t['volume_modifier']}")
 
 
 def test_extended_duration_adds_weeks():
@@ -154,27 +138,27 @@ def test_extended_duration_adds_weeks():
     default_n = profile["default_weeks"]  # 4
     extended_n = default_n + 2            # 6
     targets = build_weekly_targets("accumulation", extended_n, "intermediate")
-    return assert_eq("extended week count", len(targets), extended_n)
+    assert_eq("extended week count", len(targets), extended_n)
 
 
 def test_extended_duration_deload_last():
     """When extended, deload is still the final week."""
     targets = build_weekly_targets("accumulation", 6, "intermediate")
     last = targets[-1]
-    return assert_true("deload is last", last["is_deload"], f"last week is_deload={last['is_deload']}")
+    assert_true("deload is last", last["is_deload"], f"last week is_deload={last['is_deload']}")
 
 
 def test_shortened_duration_correct_count():
     """Requesting fewer weeks than default trims correctly."""
     targets = build_weekly_targets("accumulation", 3, "intermediate")
-    return assert_eq("shortened week count", len(targets), 3)
+    assert_eq("shortened week count", len(targets), 3)
 
 
 def test_shortened_duration_deload_last():
     """Even when shortened, the last week is the deload."""
     targets = build_weekly_targets("general_prep", 3, "intermediate")
     last = targets[-1]
-    return assert_true("deload last after trim", last["is_deload"])
+    assert_true("deload last after trim", last["is_deload"])
 
 
 def test_reps_per_set_range_is_pair():
@@ -185,8 +169,7 @@ def test_reps_per_set_range_is_pair():
         for t in targets:
             r = t["reps_per_set_range"]
             if len(r) != 2 or r[0] > r[1]:
-                return False, f"{phase} W{t['week_number']}: bad reps_per_set_range {r}"
-    return True, ""
+                raise AssertionError(f"{phase} W{t['week_number']}: bad reps_per_set_range {r}")
 
 
 def test_realization_high_intensity():
@@ -194,7 +177,7 @@ def test_realization_high_intensity():
     targets = build_weekly_targets("realization", 3, "intermediate")
     # Week 2 is the peak
     peak = targets[1]
-    return assert_true(
+    assert_true(
         "realization peak ≥ 90%",
         peak["intensity_ceiling"] >= 90,
         f"peak ceiling={peak['intensity_ceiling']}"
@@ -206,31 +189,31 @@ def test_realization_high_intensity():
 def test_get_session_templates_exact_3():
     """sessions_per_week=3 returns 3-day templates directly (no fallback)."""
     templates = get_session_templates(3)
-    return assert_eq("3-day template count", len(templates), 3)
+    assert_eq("3-day template count", len(templates), 3)
 
 
 def test_get_session_templates_exact_4():
     """sessions_per_week=4 returns 4-day templates directly (no fallback)."""
     templates = get_session_templates(4)
-    return assert_eq("4-day template count", len(templates), 4)
+    assert_eq("4-day template count", len(templates), 4)
 
 
 def test_get_session_templates_exact_5():
     """sessions_per_week=5 returns 5-day templates directly (no fallback)."""
     templates = get_session_templates(5)
-    return assert_eq("5-day template count", len(templates), 5)
+    assert_eq("5-day template count", len(templates), 5)
 
 
 def test_get_session_templates_fallback_below_minimum():
-    """sessions_per_week=1 is below all keys — falls back to 3 (closest)."""
+    """sessions_per_week=1 is below all keys — falls back to 2 (closest, PLAN-2 layouts)."""
     templates = get_session_templates(1)
-    return assert_eq("fallback-to-3 count", len(templates), 3)
+    assert_eq("fallback-to-2 count", len(templates), 2)
 
 
 def test_get_session_templates_fallback_above_maximum():
-    """sessions_per_week=6 is above all keys — falls back to 5 (closest)."""
-    templates = get_session_templates(6)
-    return assert_eq("fallback-to-5 count", len(templates), 5)
+    """sessions_per_week=7 is above all keys — falls back to 6 (closest, PLAN-2 layouts)."""
+    templates = get_session_templates(7)
+    assert_eq("fallback-to-6 count", len(templates), 6)
 
 
 def test_get_session_templates_all_have_required_keys():
@@ -242,8 +225,7 @@ def test_get_session_templates_all_have_required_keys():
                 if key not in tmpl:
                     failures.append(f"{n}-day template missing key '{key}'")
     if failures:
-        return False, "; ".join(failures)
-    return True, ""
+        raise AssertionError("; ".join(failures))
 
 
 # ── Runner ────────────────────────────────────────────────────
@@ -269,8 +251,8 @@ TESTS = [
     ("get_session_templates: exact match 3", test_get_session_templates_exact_3),
     ("get_session_templates: exact match 4", test_get_session_templates_exact_4),
     ("get_session_templates: exact match 5", test_get_session_templates_exact_5),
-    ("get_session_templates: fallback to 3 when sessions=1", test_get_session_templates_fallback_below_minimum),
-    ("get_session_templates: fallback to 5 when sessions=6", test_get_session_templates_fallback_above_maximum),
+    ("get_session_templates: fallback to 2 when sessions=1", test_get_session_templates_fallback_below_minimum),
+    ("get_session_templates: fallback to 6 when sessions=7", test_get_session_templates_fallback_above_maximum),
     ("get_session_templates: all templates have required keys", test_get_session_templates_all_have_required_keys),
 ]
 
@@ -280,7 +262,8 @@ def main():
     results = []
     for name, fn in TESTS:
         try:
-            ok, msg = fn()
+            fn()
+            ok, msg = True, ""
             results.append((name, ok, msg))
             if not ok:
                 failures.append(name)

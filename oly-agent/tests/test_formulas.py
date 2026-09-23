@@ -80,7 +80,6 @@ def test_session_rep_target_is_one_prilepin_optimal_per_session():
     assert sum(deload) < sum(targets) and all(t >= 3 for t in deload)
     # the old single-session semantics remain the default for lone callers
     assert compute_session_rep_target(70, 80, 0.30, 1.0) == 5
-    return True, ""
 
 
 def test_plan_weekly_budget_scales_with_frequency():
@@ -96,7 +95,6 @@ def test_plan_weekly_budget_scales_with_frequency():
     w3 = next(w for w in three.weekly_targets if not w.is_deload)
     assert 50 <= w4.total_competition_lift_reps <= 100, w4
     assert w3.total_competition_lift_reps < w4.total_competition_lift_reps
-    return True, ""
 
 
 if __name__ == "__main__":

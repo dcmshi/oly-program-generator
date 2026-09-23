@@ -108,7 +108,6 @@ def test_prompt_handles_null_exercise_preferences():
     athlete.athlete["exercise_preferences"] = None  # simulate SQL NULL
     prompt = _make_prompt(athlete)  # must not raise
     assert "## Exercises to Avoid\nnone" in prompt
-    return True, ""
 
 
 def test_remaining_budget_is_weekly_not_session():
@@ -128,7 +127,6 @@ def test_remaining_budget_is_weekly_not_session():
     assert "Remaining weekly rep budget: 8" in prompt
     assert "Remaining session rep budget" not in prompt  # old label is gone
     assert "Target competition lift reps this session: 6" in prompt  # session target still shown
-    return True, ""
 
 
 # ── AGT-L1: numeric-as-string LLM fields coerced at parse time ────────────────
@@ -143,14 +141,12 @@ def test_parse_coerces_numeric_strings():
     assert ex["intensity_pct"] == 75.5 and isinstance(ex["intensity_pct"], float)
     assert isinstance(ex["exercise_order"], int)
     assert isinstance(ex["rest_seconds"], int)
-    return True, ""
 
 
 def test_parse_unparseable_numeric_becomes_none():
     raw = '[{"exercise_name": "Snatch", "sets": "four", "reps": 3}]'
     ex = parse_llm_response(raw)[0]
     assert ex["sets"] is None, "garbage numerics must become None so validation flags them"
-    return True, ""
 
 
 def test_parse_sanitizes_source_principle_ids():
@@ -181,7 +177,6 @@ def test_parse_bools_and_fractional_ints_become_none():
     assert ex["reps"] is None, ex["reps"]
     assert ex["intensity_pct"] is None, ex["intensity_pct"]
     assert ex["rpe_target"] == 7.5
-    return True, ""
 
 
 # ── AGT-L2: malformed outcome_summary must not abort the prompt build ────────
@@ -195,7 +190,6 @@ def test_prompt_tolerates_malformed_outcome_summary():
     })
     prompt = _make_prompt(athlete)  # must not raise
     assert "## Previous Program" in prompt
-    return True, ""
 
 
 # ── AGT-L8: blank exercise_name must not suggest the entire catalogue ────────
@@ -204,7 +198,6 @@ def test_validate_blank_name_no_suggestions():
     errors = validate_exercise_names([{"exercise_name": None}], ["Snatch", "Back Squat"])
     assert len(errors) == 1
     assert "Did you mean" not in errors[0], errors[0]
-    return True, ""
 
 
 # ── audit2-L4: prompt states the ACTUAL program frequency ─────────────────────
@@ -225,7 +218,6 @@ def test_prompt_shows_plan_sessions_per_week():
     )
     assert "Sessions/week: 3" in prompt
     assert "Sessions/week: 2" not in prompt
-    return True, ""
 
 
 VALID_EXERCISE = {
@@ -252,7 +244,6 @@ def test_parse_plain_json_array():
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
     assert result[0]["exercise_name"] == "Snatch"
-    return True, ""
 
 
 def test_parse_json_with_markdown_fences():
@@ -260,7 +251,6 @@ def test_parse_json_with_markdown_fences():
     raw = f"```json\n{json.dumps([VALID_EXERCISE])}\n```"
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
-    return True, ""
 
 
 def test_parse_json_with_plain_fences():
@@ -268,7 +258,6 @@ def test_parse_json_with_plain_fences():
     raw = f"```\n{json.dumps([VALID_EXERCISE])}\n```"
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
-    return True, ""
 
 
 def test_parse_json_array_embedded_in_text():
@@ -276,7 +265,6 @@ def test_parse_json_array_embedded_in_text():
     raw = f"Here is the session:\n{json.dumps([VALID_EXERCISE])}\nEnd."
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
-    return True, ""
 
 
 def test_parse_single_object_wrapped_in_list():
@@ -285,7 +273,6 @@ def test_parse_single_object_wrapped_in_list():
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
     assert result[0]["exercise_name"] == "Snatch"
-    return True, ""
 
 
 def test_parse_schema_object_wrapper():
@@ -295,7 +282,6 @@ def test_parse_schema_object_wrapper():
     result = parse_llm_response(raw)
     assert [e["exercise_name"] for e in result] == ["Snatch", "Clean"]
     assert parse_llm_response(json.dumps({"exercises": []})) == []
-    return True, ""
 
 
 def test_session_schema_requires_every_prompted_field():
@@ -310,7 +296,6 @@ def test_session_schema_requires_every_prompted_field():
     assert item["properties"]["intensity_pct"]["type"] == ["number", "null"]
     prompt = _make_prompt()
     assert '{"exercises": [...]}' in prompt and "JSON array" not in prompt
-    return True, ""
 
 
 def test_parse_multiple_exercises():
@@ -320,23 +305,21 @@ def test_parse_multiple_exercises():
     raw = json.dumps(exercises)
     result = parse_llm_response(raw)
     assert len(result) == 5
-    return True, ""
 
 
 def test_parse_invalid_json_raises():
     """Completely invalid JSON raises ValueError."""
     try:
         parse_llm_response("This is not JSON at all.")
-        return False, "Expected ValueError, got none"
+        raise AssertionError("Expected ValueError, got none")
     except ValueError:
-        return True, ""
+        pass
 
 
 def test_parse_empty_array():
     """Empty JSON array returns empty list."""
     result = parse_llm_response("[]")
     assert result == []
-    return True, ""
 
 
 def test_parse_preserves_all_fields():
@@ -345,7 +328,6 @@ def test_parse_preserves_all_fields():
     result = parse_llm_response(raw)
     for key in VALID_EXERCISE:
         assert key in result[0], f"Missing field: {key}"
-    return True, ""
 
 
 # ── validate_exercise_names ───────────────────────────────────
@@ -355,7 +337,6 @@ def test_validate_all_valid_names():
     exercises = [{"exercise_name": name} for name in AVAILABLE]
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert errors == [], errors
-    return True, ""
 
 
 def test_validate_unknown_name_returns_error():
@@ -364,7 +345,6 @@ def test_validate_unknown_name_returns_error():
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert len(errors) == 1
     assert "Log Press" in errors[0]
-    return True, ""
 
 
 def test_validate_close_match_suggests_alternative():
@@ -373,7 +353,6 @@ def test_validate_close_match_suggests_alternative():
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert len(errors) == 1
     assert "Snatch" in errors[0], errors[0]  # suggestion included
-    return True, ""
 
 
 def test_validate_case_insensitive():
@@ -381,7 +360,6 @@ def test_validate_case_insensitive():
     exercises = [{"exercise_name": "snatch"}]
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert errors == [], f"Expected no errors (case-insensitive match), got: {errors}"
-    return True, ""
 
 
 def test_validate_multiple_invalid():
@@ -393,14 +371,12 @@ def test_validate_multiple_invalid():
     ]
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert len(errors) == 2, errors
-    return True, ""
 
 
 def test_validate_empty_list():
     """Empty exercise list → no errors."""
     errors = validate_exercise_names([], AVAILABLE)
     assert errors == []
-    return True, ""
 
 
 # ── build_session_prompt: recent_logs ────────────────────────
@@ -409,14 +385,12 @@ def test_recent_logs_section_present():
     """## Recent Training section always appears in the prompt."""
     prompt = _make_prompt()
     assert "## Recent Training" in prompt
-    return True, ""
 
 
 def test_recent_logs_empty_shows_fallback():
     """No logs → fallback message, not a crash or blank section."""
     prompt = _make_prompt(_make_athlete(recent_logs=[]))
     assert "No recent sessions logged" in prompt
-    return True, ""
 
 
 def test_recent_logs_entries_formatted():
@@ -431,7 +405,6 @@ def test_recent_logs_entries_formatted():
     assert "88.0kg" in prompt
     assert "RPE 8.0" in prompt
     assert "make 90%" in prompt
-    return True, ""
 
 
 def test_recent_logs_missing_rpe_and_make_rate_ok():
@@ -444,7 +417,6 @@ def test_recent_logs_missing_rpe_and_make_rate_ok():
     assert "Back Squat" in prompt
     assert "RPE None" not in prompt
     assert "make None" not in prompt
-    return True, ""
 
 
 def test_recent_logs_capped_at_max():
@@ -458,7 +430,6 @@ def test_recent_logs_capped_at_max():
     # The exercise beyond the cap should not appear
     assert f"Exercise {MAX_RECENT_LOGS_IN_PROMPT}" not in prompt
     assert f"Exercise {MAX_RECENT_LOGS_IN_PROMPT - 1}" in prompt
-    return True, ""
 
 
 # ── build_session_prompt: template_references ─────────────────
@@ -467,14 +438,12 @@ def test_template_references_section_present():
     """## Similar Program Templates section always appears in the prompt."""
     prompt = _make_prompt()
     assert "## Similar Program Templates" in prompt
-    return True, ""
 
 
 def test_template_references_empty_shows_fallback():
     """No templates → fallback message, not blank."""
     prompt = _make_prompt(retrieval=_make_retrieval(template_references=[]))
     assert "none matched" in prompt
-    return True, ""
 
 
 def test_template_references_shows_name_and_notes():
@@ -488,7 +457,6 @@ def test_template_references_shows_name_and_notes():
     assert "High volume classical lifts" in prompt
     # program_structure JSON should not be dumped into the prompt
     assert '"volume"' not in prompt
-    return True, ""
 
 
 def test_template_references_capped_at_two():
@@ -500,7 +468,6 @@ def test_template_references_capped_at_two():
     assert "Template 0" in prompt
     assert "Template 1" in prompt
     assert "Template 2" not in prompt
-    return True, ""
 
 
 # ── build_session_prompt: make_rate_by_lift directive ─────────
@@ -515,7 +482,6 @@ def test_weak_lift_directive_appears_below_threshold():
     prompt = _make_prompt(_make_athlete(previous_program=prog))
     assert "clean and jerk make rate was below 75%" in prompt
     assert "reduce intensity" in prompt
-    return True, ""
 
 
 def test_no_directive_when_all_lifts_above_threshold():
@@ -527,7 +493,6 @@ def test_no_directive_when_all_lifts_above_threshold():
                 "make_rate_trend": "stable", "maxes_delta": {}, "athlete_feedback": None}}
     prompt = _make_prompt(_make_athlete(previous_program=prog))
     assert "reduce intensity on those lifts" not in prompt
-    return True, ""
 
 
 def test_no_directive_when_no_previous_program():
@@ -535,7 +500,6 @@ def test_no_directive_when_no_previous_program():
     prompt = _make_prompt(_make_athlete(previous_program=None))
     assert "first program" in prompt
     assert "reduce intensity on those lifts" not in prompt
-    return True, ""
 
 
 def test_multiple_weak_lifts_all_named():
@@ -549,7 +513,6 @@ def test_multiple_weak_lifts_all_named():
     assert "snatch" in prompt
     assert "clean and jerk" in prompt
     assert "reduce intensity on those lifts" in prompt
-    return True, ""
 
 
 # ── build_session_prompt: fault_correction_chunks in context ──
@@ -563,7 +526,6 @@ def test_fault_correction_chunks_appear_in_context_block():
     prompt = _make_prompt(_make_athlete(faults=["forward_lean"]), retrieval)
     assert "Forward lean fix" in prompt
     assert "## Programming Context" in prompt
-    return True, ""
 
 
 def test_fault_correction_chunks_prioritized_before_rationale():
@@ -574,7 +536,6 @@ def test_fault_correction_chunks_prioritized_before_rationale():
     )
     prompt = _make_prompt(_make_athlete(faults=["forward_lean"]), retrieval)
     assert prompt.index("FAULT_TEXT_UNIQUE") < prompt.index("RATIONALE_TEXT_UNIQUE")
-    return True, ""
 
 
 def test_context_block_capped_at_four_chunks():
@@ -589,7 +550,6 @@ def test_context_block_capped_at_four_chunks():
     context_section = prompt[context_start:context_end]
     chunk_count = context_section.count("  [")
     assert chunk_count <= 4, f"Expected ≤ 4 chunks in context block, got {chunk_count}"
-    return True, ""
 
 
 def test_no_fault_correction_when_no_faults():
@@ -601,7 +561,6 @@ def test_no_fault_correction_when_no_faults():
     prompt = _make_prompt(_make_athlete(faults=None), retrieval)
     assert "FAULT_ONLY_TEXT" not in prompt
     assert "RATIONALE_TEXT" in prompt
-    return True, ""
 
 
 def test_context_deduplicates_by_chunk_id():
@@ -613,7 +572,6 @@ def test_context_deduplicates_by_chunk_id():
     )
     prompt = _make_prompt(_make_athlete(faults=["forward_lean"]), retrieval)
     assert prompt.count("SHARED_CONTENT") == 1
-    return True, ""
 
 
 # ── build_session_prompt: fault cross-reference (Group C) ────
@@ -639,7 +597,6 @@ def test_fault_block_groups_by_fault():
     prompt = _make_prompt(_make_athlete(faults=["forward_miss"]), retrieval)
     assert "'forward_miss':" in prompt
     assert "Snatch Balance" in prompt
-    return True, ""
 
 
 def test_fault_block_no_exercises_fallback_message():
@@ -649,7 +606,6 @@ def test_fault_block_no_exercises_fallback_message():
     # fault_exercises is empty so fault_block = "  None"
     assert "Fault Correction Exercises" in prompt
     assert "None" in prompt
-    return True, ""
 
 
 def test_fault_block_multiple_faults_each_listed():
@@ -665,7 +621,6 @@ def test_fault_block_multiple_faults_each_listed():
     prompt = _make_prompt(_make_athlete(faults=["forward_miss", "early_arm_bend"]), retrieval)
     assert "'forward_miss':" in prompt
     assert "'early_arm_bend':" in prompt
-    return True, ""
 
 
 def test_fault_block_exercise_not_shown_under_wrong_fault():
@@ -687,7 +642,6 @@ def test_fault_block_exercise_not_shown_under_wrong_fault():
     arm_line_end = prompt.index("\n", arm_idx)
     arm_line = prompt[arm_idx:arm_line_end]
     assert "Snatch Balance" not in arm_line
-    return True, ""
 
 
 def test_fault_block_header_updated():
@@ -695,7 +649,6 @@ def test_fault_block_header_updated():
     prompt = _make_prompt()
     assert "Fault Correction Exercises" in prompt
     assert "Exercises to Emphasize" not in prompt
-    return True, ""
 
 
 # ── build_session_prompt: lift ratios (Group C) ───────────────
@@ -727,7 +680,6 @@ def test_lift_ratios_section_present():
     """Lift ratios section appears in prompt."""
     prompt = _make_prompt()
     assert "Lift Ratios" in prompt
-    return True, ""
 
 
 def test_lift_ratios_computed_correctly():
@@ -737,7 +689,6 @@ def test_lift_ratios_computed_correctly():
     prompt = _make_prompt(athlete)
     assert "Sn/C&J" in prompt
     assert "80%" in prompt
-    return True, ""
 
 
 def test_lift_ratios_below_target_flags_structural_work():
@@ -746,7 +697,6 @@ def test_lift_ratios_below_target_flags_structural_work():
     athlete = _make_athlete_with_maxes({"snatch": 60.0, "clean_and_jerk": 100.0})
     prompt = _make_prompt(athlete)
     assert "below target" in prompt
-    return True, ""
 
 
 def test_lift_ratios_missing_max_skipped():
@@ -757,7 +707,6 @@ def test_lift_ratios_missing_max_skipped():
     # Section should exist but Sn/C&J line should not appear
     assert "Lift Ratios" in prompt
     assert "Sn/C&J" not in prompt
-    return True, ""
 
 
 def test_lift_ratios_fallback_when_no_maxes():
@@ -765,7 +714,6 @@ def test_lift_ratios_fallback_when_no_maxes():
     athlete = _make_athlete_with_maxes({})
     prompt = _make_prompt(athlete)
     assert "insufficient maxes" in prompt
-    return True, ""
 
 
 # ── T4: parse_llm_response fallback branches (lines 69-70, 75-80) ─────────────
@@ -777,7 +725,6 @@ def test_parse_object_after_prose_hits_object_branch():
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
     assert result[0]["exercise_name"] == "Snatch"
-    return True, ""
 
 
 def test_parse_invalid_array_falls_through_to_object_branch():
@@ -787,16 +734,15 @@ def test_parse_invalid_array_falls_through_to_object_branch():
     raw = f"[not valid json] {json.dumps(ex)}"
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
-    return True, ""
 
 
 def test_parse_invalid_object_raises_value_error():
     """Invalid JSON in both array and object branches raises ValueError (line 80 hit)."""
     try:
         parse_llm_response("[invalid array] {invalid object}")
-        return False, "Expected ValueError was not raised"
+        raise AssertionError("Expected ValueError was not raised")
     except ValueError:
-        return True, ""
+        pass
 
 
 # ── T5: generate_session_with_retries retry paths (lines 495-622) ─────────────
@@ -863,7 +809,6 @@ def test_generate_session_success_first_attempt():
     result = _call_generate(llm)
     assert result.status == "success"
     assert result.attempt_number == 1
-    return True, ""
 
 
 def test_generate_session_parse_error_retries():
@@ -878,7 +823,6 @@ def test_generate_session_parse_error_retries():
     assert result.attempt_number == 2
     second_call_prompt = llm.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
     assert "not valid JSON" in second_call_prompt
-    return True, ""
 
 
 def test_generate_session_name_error_retries():
@@ -893,7 +837,6 @@ def test_generate_session_name_error_retries():
     assert result.status == "success"
     second_call_prompt = llm.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
     assert "Log Press" in second_call_prompt
-    return True, ""
 
 
 def test_generate_session_all_retries_exhausted():
@@ -903,7 +846,6 @@ def test_generate_session_all_retries_exhausted():
     result = _call_generate(llm, _make_settings(retries=1, parse_retries=1))
     assert result.status == "failed"
     assert result.exercises is None
-    return True, ""
 
 
 # ── A-M7: malformed-but-parseable output triggers retry, not a crash ──────────
@@ -915,18 +857,18 @@ def test_parse_list_of_strings_raises():
     raw = json.dumps(["Snatch 5x2 @ 75%", "Back Squat 5x5"])
     try:
         parse_llm_response(raw)
-        return False, "Expected ValueError for list-of-strings"
+        raise AssertionError("Expected ValueError for list-of-strings")
     except ValueError:
-        return True, ""
+        pass
 
 
 def test_parse_list_of_scalars_raises():
     """A list of non-dict scalars (numbers) is also rejected."""
     try:
         parse_llm_response("[1, 2, 3]")
-        return False, "Expected ValueError for list-of-scalars"
+        raise AssertionError("Expected ValueError for list-of-scalars")
     except ValueError:
-        return True, ""
+        pass
 
 
 def test_validate_null_exercise_name_no_crash():
@@ -934,7 +876,6 @@ def test_validate_null_exercise_name_no_crash():
     it should surface an 'unknown exercise' error instead."""
     errors = validate_exercise_names([{"exercise_name": None}], AVAILABLE)
     assert len(errors) == 1, errors
-    return True, ""
 
 
 def test_generate_session_list_of_strings_retries():
@@ -948,7 +889,6 @@ def test_generate_session_list_of_strings_retries():
     result = _call_generate(llm)
     assert result.status == "success"
     assert result.attempt_number == 2
-    return True, ""
 
 
 # ── A-M2: cost guard must count every retry's tokens ──────────────────────────
@@ -966,7 +906,6 @@ def test_generate_tokens_accumulate_across_retries():
     assert result.status == "success"
     assert result.input_tokens == 200, result.input_tokens   # 2 × 100
     assert result.output_tokens == 100, result.output_tokens  # 2 × 50
-    return True, ""
 
 
 def test_generate_failed_reports_accumulated_tokens():
@@ -978,7 +917,6 @@ def test_generate_failed_reports_accumulated_tokens():
     assert result.status == "failed"
     assert result.input_tokens == 200, result.input_tokens   # 2 × 100, not 0
     assert result.output_tokens == 100, result.output_tokens  # 2 × 50, not 0
-    return True, ""
 
 
 # ── Runner ────────────────────────────────────────────────────
@@ -1072,7 +1010,8 @@ def main():
     results = []
     for name, fn in TESTS:
         try:
-            ok, msg = fn()
+            fn()
+            ok, msg = True, ""
             results.append((name, ok, msg))
             if not ok:
                 failures.append(name)
@@ -1127,7 +1066,6 @@ def test_generate_drops_temperature_and_reads_text_blocks_on_sonnet_5():
     assert kwargs["output_config"]["effort"] == "low"
     assert kwargs["output_config"]["format"] == {"type": "json_schema", "schema": SESSION_SCHEMA}
     assert result.cache_read_tokens == 900 and result.input_tokens == 100
-    return True, ""
 
 
 def test_generate_keeps_temperature_and_omits_thinking_on_sonnet_4_6():
@@ -1141,7 +1079,6 @@ def test_generate_keeps_temperature_and_omits_thinking_on_sonnet_4_6():
     assert "thinking" not in kwargs
     assert set(kwargs["output_config"]) == {"format"}       # schema only, no effort on 4.6
     assert result.cache_read_tokens == 0   # MagicMock usage has no int cache fields
-    return True, ""
 
 
 def test_generation_log_prices_at_the_logged_model():
@@ -1152,7 +1089,6 @@ def test_generation_log_prices_at_the_logged_model():
     _log_generation(conn, 1, 1, 1, 1, "claude-sonnet-5", "p", "r", None, 1_000_000, 0, "success")
     params = cursor.execute.call_args.args[1]
     assert abs(params[10] - 2.0) < 1e-9        # $2/MTok input on Sonnet 5 (was $3 flat)
-    return True, ""
 
 
 # ── DOG-1: recent logs are summarised per (date, exercise), not shown raw ─────
@@ -1181,7 +1117,6 @@ def test_recent_logs_collapse_a_warmup_ramp_to_its_top_set():
     ]
     assert summarize_recent_logs([]) == []
     assert len(summarize_recent_logs(ramp + cj + older, limit=2)) == 2
-    return True, ""
 
 
 def test_recent_logs_prompt_block_uses_the_summary():
@@ -1195,7 +1130,6 @@ def test_recent_logs_prompt_block_uses_the_summary():
     block = prompt.split("## Recent Training (last 14 days)")[1].split("## ")[0]
     assert block.count("Snatch") == 1 and "top 88.0kg × 7 sets" in block and "RPE 8.0" in block
     assert "make 95%" in block
-    return True, ""
 
 
 # ── MODEL-1: stop_reason == max_tokens grows the budget instead of re-sending ─
@@ -1230,7 +1164,6 @@ def test_generate_grows_max_tokens_when_output_is_truncated():
     assert result.output_tokens == 4096 + 50          # both attempts are paid
     logged = conn.cursor.return_value.__enter__.return_value.execute.call_args_list[0].args[1]
     assert logged[11] == "parse_error" and "truncated at max_tokens=4096" in logged[13]
-    return True, ""
 
 
 def test_generate_max_tokens_growth_stops_at_the_ceiling():
@@ -1253,7 +1186,6 @@ def test_generate_max_tokens_growth_stops_at_the_ceiling():
     assert result.status == "failed"
     budgets = [c.kwargs["max_tokens"] for c in llm.messages.create.call_args_list]
     assert budgets == [LLM_MAX_TOKENS_CEILING // 2] + [LLM_MAX_TOKENS_CEILING] * 3
-    return True, ""
 
 # ── DOG-1e: Previous Program block shows the block's structure ───────────────
 
@@ -1282,7 +1214,6 @@ def test_previous_program_block_renders_structure():
     block = prompt.split("## Previous Program")[1].split("## ")[0]
     assert "Phase: general_prep (11 weeks)" in block and "Structure: Deficit Cycle" in block
     assert block.index("Structure:") < block.index("Adherence:")
-    return True, ""
 
 
 if __name__ == "__main__":
@@ -1532,7 +1463,6 @@ def test_exercise_line_is_compact_and_lists_only_the_athletes_faults():
               "typical_sets_low": 3, "typical_sets_high": 3, "typical_reps_low": 5, "typical_reps_high": 5,
               "typical_intensity_low": None, "typical_intensity_high": None, "faults_addressed": None}
     assert _exercise_line(single, set()) == "  Box Jump [plyometric, c1] 3x5"
-    return True, ""
 
 
 def test_available_exercises_block_uses_the_compact_lines():
@@ -1546,7 +1476,6 @@ def test_available_exercises_block_uses_the_compact_lines():
     block = prompt.split("## Available Exercises")[1].split("## ")[0]
     assert "  Snatch [snatch, c1] 4-6x1-3 @70-100% | for: slow_turnover" in block
     assert "typical:" not in block and "(complexity" not in block
-    return True, ""
 
 
 # ── RAG-L3: static-first prompt + cached prefix ──────────────────────────────
@@ -1658,3 +1587,255 @@ def test_prompt_warmup_and_deload_rules_follow_preferences():
     )
     assert "warms up on their own" in own and "Include 2-3 warmup sets" not in own
     assert "intensity deload" in own
+
+
+
+# ── AUD-6: golden prompts pin build_session_prompt byte for byte ─────────────
+# The fixtures were written from the pre-refactor builder; a change to the prompt
+# text must regenerate them on purpose (`_write_golden_prompts()`), never drift.
+
+_GOLDEN_DIR = Path(__file__).parent / "fixtures"
+
+
+def _golden_rich_prompt():
+    """Every optional section populated: faults, fault exercises, substitutions,
+    projected maxes, previous program (weak lift, deltas, notes, structure),
+    recent logs, templates, principles, long context chunks, saturated
+    accessories, a block template, an intensity deload and 'own' warm-ups."""
+    athlete = AthleteContext(
+        athlete={
+            "name": "Golden Athlete", "level": "advanced", "sessions_per_week": 5,
+            "session_duration_minutes": 100, "lift_emphasis": "snatch_biased",
+            "strength_limiters": ["pull_strength", "squat_strength"],
+            "competition_experience": "national",
+            "exercise_preferences": {"avoid": ["Behind the Neck Jerk"],
+                                     "prefs": {"warmups": "own", "deload_style": "intensity"}},
+            "available_equipment": ["barbell", "rack", "blocks"],
+        },
+        level="advanced",
+        maxes={"snatch": 110.0, "clean_and_jerk": 140.0, "back_squat": 190.0, "clean_pull": 160.0},
+        active_goal=None,
+        previous_program={
+            "phase": "accumulation", "duration_weeks": 5,
+            "outcome_summary": {"adherence_pct": 88.0, "avg_make_rate": 0.81,
+                                "make_rate_by_lift": {"snatch": 0.7, "clean_and_jerk": 0.9},
+                                "avg_rpe_deviation": 0.4, "rpe_trend": "ascending",
+                                "make_rate_trend": "stable", "maxes_delta": {"snatch": 2.5},
+                                "athlete_feedback": "Knees ached in week 3."},
+            "structure": {"cycles": [{"label": "Volume", "weeks": [1, 3]}, {"label": "Deload", "weeks": [5, 5]}],
+                          "most_used": [{"exercise_name": "Snatch", "sessions": 9}],
+                          "last_week_top_sets": [{"exercise_name": "Snatch", "intensity_pct": 80,
+                                                  "absolute_weight_kg": 88}]},
+        },
+        recent_logs=[
+            {"log_date": "2026-09-10", "exercise_name": "Snatch", "weight_kg": 85, "sets_completed": 3,
+             "rpe": 8, "make_rate": 0.9},
+            {"log_date": "2026-09-10", "exercise_name": "Snatch", "weight_kg": 60, "sets_completed": 2},
+            {"log_date": "2026-09-09", "exercise_name": "Back Squat", "weight_kg": None, "sets_completed": 4},
+        ],
+        technical_faults=["early_arm_bend", "slow_turnover"],
+        injuries=["left wrist"],
+        sessions_per_week=5,
+        weeks_to_competition=None,
+    )
+    retrieval = RetrievalContext(
+        fault_exercises={"snatch": [
+            {"name": "Snatch Pull", "primary_purpose": "Pull strength. Also posture.",
+             "faults_addressed": ["early_arm_bend"]},
+        ]},
+        template_references=[
+            {"name": "Golden Block", "notes": "n", "program_structure": {"weeks": [
+                {"week_number": 2, "sessions": [{"day": "Mon", "exercises": [
+                    {"name": "Snatch", "sets": 5, "reps": 2, "intensity_pct": 78}]}]}]}},
+            {"name": "Notes Only", "notes": "Classic three-week wave", "program_structure": None},
+        ],
+        programming_rationale=[],
+        fault_correction_chunks=[],
+        available_substitutions={"Jerk": [{"substitute_name": "Push Press", "notes": "wrist friendly"}]},
+        active_principles=[],
+        prilepin_targets={"70-80": {"optimal_total_reps": 18, "total_reps_range_low": 12,
+                                    "total_reps_range_high": 24, "reps_per_set_low": 3, "reps_per_set_high": 6}},
+        available_exercises=[
+            {"name": "Snatch", "movement_family": "snatch", "complexity_level": 3,
+             "typical_sets_low": 4, "typical_sets_high": 6, "typical_reps_low": 1, "typical_reps_high": 3,
+             "typical_intensity_low": 70, "typical_intensity_high": 95, "faults_addressed": ["slow_turnover"]},
+            {"name": "Back Extension", "movement_family": "accessory", "complexity_level": 1,
+             "faults_addressed": []},
+        ],
+    )
+    principles = [
+        {"id": 11, "principle_name": "Volume first", "recommendation": {"volume": "high"},
+         "rationale": "Accumulation builds work capacity " * 20, "source_title": "Golden Book"},
+        {"id": 12, "principle_name": "Text rule", "recommendation": "keep it simple"},
+    ]
+    long_text = ("Early arm bend robs the second pull. " * 30) + ("Turnover speed matters under the bar. " * 30)
+    chunks = [
+        {"id": 1, "chunk_type": "fault_correction", "raw_content": long_text, "retrieval_query": "early arm bend"},
+        {"id": 2, "chunk_type": "periodization", "content": "Short periodization note.", "session_query": "snatch"},
+        {"id": 3, "raw_content": ""},
+    ]
+    already = [
+        {"day_number": d, "exercise_name": "Back Extension", "sets": 3, "reps": 10,
+         "intensity_pct": None, "intensity_reference": "bodyweight"} for d in (1, 2)
+    ] + [{"day_number": 2, "exercise_name": "Snatch", "sets": 5, "reps": 2, "intensity_pct": 75}]
+    return build_session_prompt(
+        athlete, WeekTarget(5, 0.6, 65.0, 73.0, 30, [2, 3], True),
+        SessionTemplate(3, "Snatch Variations", "snatch", ["pull", "squat"], 0.2, notes="light day"),
+        retrieval, week_number=5, duration_weeks=5, already_prescribed=already,
+        session_rep_target=8, cumulative_comp_reps=10,
+        effective_maxes={"snatch": 115.0, "clean_and_jerk": 140.0, "back_squat": 190.0, "clean_pull": 160.0},
+        phase="realization", sessions_per_week=4, active_principles=principles,
+        context_chunks=chunks, block_template="Snatch 5x2 @75%; Snatch Pull 4x3 @95%",
+    )
+
+
+def _golden_minimal_prompt():
+    """The fallback paths: no faults, no previous program, no logs, no
+    templates/principles/substitutions, program-level context composition
+    (context_chunks=None), prescribed warm-ups, a volume deload and no blocks."""
+    retrieval = _make_retrieval(
+        programming_rationale=[_chunk(5, "periodization", "Rationale one."), _chunk(6, "concept", "Rationale two.")],
+        fault_correction_chunks=[_chunk(9, "fault_correction", "Never shown: athlete has no faults.")],
+    )
+    athlete = _make_athlete()
+    athlete.athlete["exercise_preferences"] = None
+    athlete.maxes = {"snatch": 100.0}
+    return build_session_prompt(
+        athlete, WeekTarget(4, 0.6, 60.0, 70.0, 10, [1, 3], True),
+        SessionTemplate(1, "Snatch + Squat", "snatch", [], 0.30), retrieval,
+        week_number=4, duration_weeks=4, already_prescribed=[], session_rep_target=4,
+        cumulative_comp_reps=0,
+    )
+
+
+def _golden_faults_fallback_prompt():
+    """Faults + the program-level context fallback (fault chunks first), no
+    fault exercises retrieved for one fault, non-deload week."""
+    retrieval = _make_retrieval(
+        programming_rationale=[_chunk(5, "periodization", "Rationale one.")],
+        fault_correction_chunks=[_chunk(9, "fault_correction", "Fix the arm bend."),
+                                 _chunk(5, "periodization", "Rationale one.")],
+        fault_exercises={"snatch": [{"name": "Snatch Pull", "faults_addressed": ["early_arm_bend"]}]},
+    )
+    athlete = _make_athlete(faults=["early_arm_bend", "hips_rise_first"])
+    athlete.maxes = {"snatch": 100.0, "clean_and_jerk": 150.0, "back_squat": 140.0}
+    return _make_prompt(athlete, retrieval)
+
+
+_GOLDEN_PROMPTS = {
+    "rich": _golden_rich_prompt,
+    "minimal": _golden_minimal_prompt,
+    "faults_fallback": _golden_faults_fallback_prompt,
+}
+
+
+def _write_golden_prompts():
+    """Regenerate the fixtures — only when a prompt change is intended."""
+    _GOLDEN_DIR.mkdir(exist_ok=True)
+    for name, build in _GOLDEN_PROMPTS.items():
+        (_GOLDEN_DIR / f"prompt_golden_{name}.txt").write_text(build(), encoding="utf-8", newline="\n")
+
+
+def test_session_prompt_matches_the_golden_fixtures_byte_for_byte():
+    from generate import split_prompt_for_caching
+
+    for name, build in _GOLDEN_PROMPTS.items():
+        # universal-newline read: a CRLF checkout still compares equal
+        expected = (_GOLDEN_DIR / f"prompt_golden_{name}.txt").read_text(encoding="utf-8")
+        prompt = build()
+        assert prompt == expected, name
+        assert split_prompt_for_caching(prompt) == split_prompt_for_caching(expected), name
+
+
+# ── AUD-6: per-attempt cache-aware cost + validation warnings in generation_log ─
+
+def test_log_generation_prices_cache_tokens():
+    from generate import _log_generation
+
+    from shared.llm import estimate_cost
+    conn = MagicMock()
+    cursor = conn.cursor.return_value.__enter__.return_value
+    _log_generation(conn, 1, 1, 1, 1, "claude-sonnet-5", "p", "r", None, 1_000, 500, "success",
+                    cache_read_tokens=1_000_000, cache_creation_tokens=200_000)
+    cost = cursor.execute.call_args.args[1][10]
+    expected = estimate_cost(1_000, 500, "claude-sonnet-5", cache_read_tokens=1_000_000, cache_creation_tokens=200_000)
+    assert abs(cost - expected) < 1e-12
+    assert cost > estimate_cost(1_000, 500, "claude-sonnet-5") + 0.5   # 1M cached reads ≈ $0.20, 200k writes ≈ $0.50
+
+
+def test_log_generation_stores_warnings_beside_the_parsed_exercises():
+    from generate import _log_generation
+    conn = MagicMock()
+    cursor = conn.cursor.return_value.__enter__.return_value
+    exercises = [{"exercise_name": "Snatch"}]
+    _log_generation(conn, 1, 1, 1, 1, "m", "p", "r", exercises, 10, 5, "success",
+                    validation_warnings=["Estimated duration 95 min exceeds available 90 min"])
+    params = cursor.execute.call_args.args[1]
+    assert json.loads(params[7]) == {"exercises": exercises,
+                                     "_validation_warnings": ["Estimated duration 95 min exceeds available 90 min"]}
+    assert params[12] is None                       # validation_errors untouched
+    _log_generation(conn, 1, 1, 1, 1, "m", "p", "r", exercises, 10, 5, "validation_error", validation_errors=["x"])
+    assert json.loads(cursor.execute.call_args.args[1][7])["_validation_warnings"] is None   # Step 5 didn't run
+    _log_generation(conn, 1, 1, 1, 1, "m", "p", "r", None, 10, 5, "parse_error")
+    assert cursor.execute.call_args.args[1][7] is None
+
+
+def test_generate_logs_each_attempts_cache_tokens_and_warnings():
+    """Attempt 1 fails validation (cache write), attempt 2 succeeds (cache read):
+    each row carries its own attempt's cache tokens and warnings."""
+    from unittest.mock import patch
+
+    reply = [MagicMock(text='{"exercises": [{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, "reps": 2, '
+                            '"intensity_pct": 75, "intensity_reference": "snatch", "rest_seconds": 120, '
+                            '"rpe_target": 7.5, "selection_rationale": "x", "source_principle_ids": []}]}')]
+    client = MagicMock()
+    client.messages.create.side_effect = [
+        MagicMock(content=reply, stop_reason="end_turn", usage=SimpleNamespace(
+            input_tokens=100, output_tokens=50, cache_read_input_tokens=0, cache_creation_input_tokens=4_000)),
+        MagicMock(content=reply, stop_reason="end_turn", usage=SimpleNamespace(
+            input_tokens=120, output_tokens=60, cache_read_input_tokens=4_000, cache_creation_input_tokens=0)),
+    ]
+    settings = MagicMock(max_generation_retries=2, max_parse_retries=1, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    invalid = MagicMock(is_valid=False, errors=["too heavy"], warnings=["w1"])
+    valid = MagicMock(is_valid=True, errors=[], warnings=["w2"])
+    with patch("generate._log_generation") as log, patch("generate.validate_session", side_effect=[invalid, valid]):
+        result = generate_session_with_retries("p", client, settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1, MagicMock())
+    assert result.status == "success"
+    assert result.cache_read_tokens == 4_000 and result.cache_creation_tokens == 4_000
+    rows = [(c.args[11], c.kwargs["cache_read_tokens"], c.kwargs["cache_creation_tokens"],
+             c.kwargs.get("validation_warnings")) for c in log.call_args_list]
+    assert rows == [("validation_error", 0, 4_000, ["w1"]), ("success", 4_000, 0, ["w2"])]
+
+
+def test_generate_api_error_row_has_no_cache_tokens():
+    from unittest.mock import patch
+
+    client = MagicMock()
+    ok = [MagicMock(text='{"exercises": [{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, "reps": 2, '
+                         '"intensity_pct": 75, "intensity_reference": "snatch", "rest_seconds": 120, '
+                         '"rpe_target": 7.5, "selection_rationale": "x", "source_principle_ids": []}]}')]
+    client.messages.create.return_value = MagicMock(content=ok, stop_reason="end_turn", usage=SimpleNamespace(
+        input_tokens=1, output_tokens=1, cache_read_input_tokens=7, cache_creation_input_tokens=9))
+    settings = MagicMock(max_generation_retries=1, max_parse_retries=1, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    with patch("generate._log_generation") as log, \
+         patch("generate.create_message_with_retries", side_effect=[RuntimeError("down"), client.messages.create()]), \
+         patch("generate.validate_session", return_value=MagicMock(is_valid=True, errors=[], warnings=[])):
+        generate_session_with_retries("p", client, settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1, MagicMock())
+    first, second = log.call_args_list
+    assert (first.args[11], first.kwargs["cache_read_tokens"], first.kwargs["cache_creation_tokens"]) == ("failed", 0, 0)
+    assert (second.kwargs["cache_read_tokens"], second.kwargs["cache_creation_tokens"]) == (7, 9)
+
+
+def test_large_prompt_warns(caplog):
+    import logging
+
+    from generate import _warn_if_prompt_large
+
+    from shared.constants import PROMPT_LENGTH_WARN_CHARS
+    with caplog.at_level(logging.WARNING, logger="generate"):
+        _warn_if_prompt_large("x" * PROMPT_LENGTH_WARN_CHARS, 1, 1)
+        assert not caplog.records
+        _warn_if_prompt_large("x" * (PROMPT_LENGTH_WARN_CHARS + 1), 1, 1)
+    assert "Prompt is large" in caplog.records[-1].getMessage()

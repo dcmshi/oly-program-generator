@@ -865,3 +865,89 @@ def test_block_template_section_renders_below_the_static_marker():
     assert "Block Template" not in without
     # the static prefix is untouched, so the prompt cache still hits
     assert with_anchor[:marker] == without[:without.index(PROMPT_STATIC_DYNAMIC_MARKER)]
+
+
+# ── AUD-6: helpers extracted from run() ──────────────────────────────────────
+
+def _generation_run(plan_=None, **overrides):
+    from orchestrator import _GenerationRun, _SpendGuard
+    kwargs = dict(
+        settings=_settings(), program_id=42, athlete_context=_athlete_context(),
+        program_plan=plan_ or _multi_week_plan(), retrieval_context=_retrieval_context(),
+        effective_maxes={"snatch": 100.0}, exercise_lookup={}, llm_client=MagicMock(),
+        vector_loader=None, deadline=None, cost_limit=1.0, spend=_SpendGuard(1.0),
+    )
+    kwargs.update(overrides)
+    return _GenerationRun(**kwargs)
+
+
+def test_generation_run_derives_exercise_and_fault_names():
+    g = _generation_run()
+    assert g.available_exercise_names == ["Snatch"] and g.fault_exercise_names is None
+    retrieval = _retrieval_context()
+    retrieval.fault_exercises = {"snatch": [{"name": "Snatch Pull"}], "clean": [{"name": "Clean Pull"}]}
+    assert _generation_run(retrieval_context=retrieval).fault_exercise_names == ["Snatch Pull", "Clean Pull"]
+
+
+def test_schedule_weeks_keeps_the_first_n_sessions_in_week_day_order():
+    from orchestrator import _schedule_weeks
+    p = _multi_week_plan(weeks=3, days=2)
+    assert [(wt.week_number, n) for wt, n in _schedule_weeks(p, None)] == [(1, 2), (2, 2), (3, 2)]
+    assert [(wt.week_number, n) for wt, n in _schedule_weeks(p, 3)] == [(1, 2), (2, 1)]
+    assert _schedule_weeks(p, 0) == []
+
+
+def test_abort_reason_names_the_earliest_stop_point():
+    from orchestrator import _abort_reason, _WeekOutcome
+    done = _WeekOutcome(1)
+    later = _WeekOutcome(3, abort=("cost", 3, 1))
+    earlier = _WeekOutcome(2, abort=("cost", 2, 2))
+    assert _abort_reason([done], 4, 8, 1.0, 0.5) is None
+    reason = _abort_reason([done, later, earlier], 5, 8, 1.0, 1.25)
+    assert reason.startswith("# Generation Aborted — Cost Limit\nStopped before W2D2")
+    assert "$1.00 reached (spent $1.2500). 5 of 8 sessions" in reason
+    deadline = _abort_reason([_WeekOutcome(2, abort=("deadline", 2, 1))], 2, 8, 1.0, 0.1)
+    assert deadline.startswith("# Generation Aborted — Time Limit\nStopped before W2D1")
+
+
+def test_prefix_rationale_warnings_puts_the_failed_warning_first():
+    from orchestrator import _prefix_rationale_warnings
+    assert _prefix_rationale_warnings("R", None, 8, 8, []) == "R"
+    out = _prefix_rationale_warnings("R", 3, 3, 8, ["W1D2"])
+    assert out.startswith("# Generation Warning\n1 session(s) could not be generated and were stored empty: W1D2.")
+    assert "# Partial Program — Session Cap\nGeneration was capped at 3 session(s)" in out
+    assert out.index("# Generation Warning") < out.index("# Partial Program") and out.endswith("\n\nR")
+
+
+def test_add_max_test_session_saves_on_the_peak_week_after_the_last_day():
+    from orchestrator import _add_max_test_session
+    ctx = _athlete_context()
+    ctx.athlete["exercise_preferences"] = {"prefs": {"max_test": "always"}}
+    sessions: list[dict] = []
+    with patch("orchestrator._save_session", return_value=99) as save:
+        _add_max_test_session(MagicMock(), 42, ctx, _multi_week_plan(weeks=3, days=2), {"snatch": 1}, sessions)
+    assert save.call_args.args[1:4] == (42, 3, 3)
+    assert [(s["week"], s["day"], s["session_id"]) for s in sessions] == [(3, 3, 99)]
+    assert sessions[0]["exercises"][0]["exercise_id"] == 1
+    ctx.athlete["exercise_preferences"] = {"prefs": {"max_test": "never"}}
+    with patch("orchestrator._save_session") as save:
+        _add_max_test_session(MagicMock(), 42, ctx, _multi_week_plan(), {}, sessions)
+    save.assert_not_called()
+
+
+def test_concurrent_save_failure_stops_every_week():
+    """A failed INSERT on the main thread must set the stop flag before the pool
+    joins its workers, then propagate."""
+    from orchestrator import _run_weeks_concurrently, _WeekOutcome
+    g = _generation_run()
+    out = _WeekOutcome(2, sessions=[{"week": 2, "day": 1, "exercises": []}], templates=[_session_template(1)])
+    with patch("orchestrator.retrieve_session_context", return_value=[]), \
+         patch("orchestrator._week_worker", return_value=out), \
+         patch("orchestrator._save_session", side_effect=RuntimeError("insert failed")):
+        try:
+            _run_weeks_concurrently(g, MagicMock(), [(_week_target(2), 2), (_week_target(3), 2)], {}, 2)
+        except RuntimeError as e:
+            assert "insert failed" in str(e)
+        else:
+            raise AssertionError("expected the save error to propagate")
+    assert g.spend.stopped()

@@ -77,7 +77,6 @@ def test_prilepin_within_range():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
     assert not result.warnings, result.warnings
-    return True, ""
 
 
 def test_prilepin_warning_above_range():
@@ -86,7 +85,6 @@ def test_prilepin_warning_above_range():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, "Should still be valid (warning only)"
     assert any("Prilepin" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_prilepin_error_above_hard_cap():
@@ -95,7 +93,6 @@ def test_prilepin_error_above_hard_cap():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "Should be invalid"
     assert any("excessive" in e.lower() for e in result.errors), result.errors
-    return True, ""
 
 
 def test_prilepin_non_comp_lift_not_counted():
@@ -104,14 +101,12 @@ def test_prilepin_non_comp_lift_not_counted():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
     assert not any("Prilepin" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_prilepin_session_comp_reps_accumulated():
     exercises = [_ex("Snatch", 3, 3, 75)]  # 9 reps
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.session_comp_reps.get("70-80") == 9, result.session_comp_reps
-    return True, ""
 
 
 # ── Check 2: Intensity envelope ───────────────────────────────
@@ -121,14 +116,12 @@ def test_intensity_above_ceiling_error():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "Should be invalid"
     assert any("ceiling" in e.lower() for e in result.errors), result.errors
-    return True, ""
 
 
 def test_intensity_at_ceiling_ok():
     exercises = [_ex("Snatch", 3, 2, 80)]  # exactly at ceiling
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not any("ceiling" in e.lower() for e in result.errors), result.errors
-    return True, ""
 
 
 def test_intensity_below_floor_comp_lift_warning():
@@ -136,7 +129,6 @@ def test_intensity_below_floor_comp_lift_warning():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, "Should still be valid (warning only)"
     assert any("below week floor" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_intensity_below_floor_non_comp_lift_no_warning():
@@ -144,7 +136,6 @@ def test_intensity_below_floor_non_comp_lift_no_warning():
     exercises = [_ex("Romanian Deadlift", 3, 5, 65, ref="back_squat")]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not any("floor" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_no_intensity_pct_skipped():
@@ -154,7 +145,6 @@ def test_no_intensity_pct_skipped():
                   "intensity_reference": None, "rest_seconds": 90}]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
-    return True, ""
 
 
 def test_supramaximal_pull_allowed_above_ceiling():
@@ -164,7 +154,6 @@ def test_supramaximal_pull_allowed_above_ceiling():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
     assert not any("ceiling" in e.lower() for e in result.errors), result.errors
-    return True, ""
 
 
 def test_non_comp_lift_absurd_intensity_errors():
@@ -175,7 +164,6 @@ def test_non_comp_lift_absurd_intensity_errors():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "intensity above the DB cap must error"
     assert any("120" in e for e in result.errors), result.errors
-    return True, ""
 
 
 # ── Check 3: Reps per set ─────────────────────────────────────
@@ -187,7 +175,6 @@ def test_reps_above_90_limit_error():
     result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "Should be invalid"
     assert any("max 2 reps" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_reps_at_90_limit_ok():
@@ -195,7 +182,6 @@ def test_reps_at_90_limit_ok():
     exercises = [_ex("Snatch", 4, 2, 92)]  # 2 reps at 92% — OK
     result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
     assert not any("max 2 reps" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_reps_above_80_limit_warning():
@@ -203,7 +189,6 @@ def test_reps_above_80_limit_warning():
     wt = dict(WEEK_TARGET, intensity_ceiling=85)
     result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
     assert any("max 4 reps" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_reps_at_80_limit_ok():
@@ -211,7 +196,6 @@ def test_reps_at_80_limit_ok():
     wt = dict(WEEK_TARGET, intensity_ceiling=85)
     result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
     assert not any("max 4 reps" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 # ── Check 4: Avoid list ───────────────────────────────────────
@@ -222,7 +206,6 @@ def test_avoid_list_blocks_exercise():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     assert not result.is_valid
     assert any("avoid" in e.lower() for e in result.errors), result.errors
-    return True, ""
 
 
 def test_avoid_list_case_insensitive():
@@ -230,14 +213,12 @@ def test_avoid_list_case_insensitive():
     exercises = [_ex("Back Squat", 4, 4, 75, ref="back_squat")]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     assert not result.is_valid
-    return True, ""
 
 
 def test_avoid_list_empty_no_errors():
     exercises = [_ex("Snatch", 4, 3, 75)]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not any("avoid" in e.lower() for e in result.errors)
-    return True, ""
 
 
 # ── Check 5: Principles ───────────────────────────────────────
@@ -253,7 +234,6 @@ def test_principle_max_exercises_key_is_not_enforced():
     exercises = [_ex(f"Exercise {i}", 3, 3, 75, order=i) for i in range(1, 7)]
     result = validate_session(exercises, WEEK_TARGET, principles, ATHLETE)
     assert not any("max 4" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_principle_comp_lift_first_warning():
@@ -268,7 +248,6 @@ def test_principle_comp_lift_first_warning():
     ]
     result = validate_session(exercises, WEEK_TARGET, principles, ATHLETE)
     assert any("competition lifts first" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_principle_comp_lift_first_ok():
@@ -283,7 +262,6 @@ def test_principle_comp_lift_first_ok():
     ]
     result = validate_session(exercises, WEEK_TARGET, principles, ATHLETE)
     assert not any("competition lifts first" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_principle_text_recommendation_skipped():
@@ -292,7 +270,6 @@ def test_principle_text_recommendation_skipped():
     exercises = [_ex("Snatch", 4, 3, 75)]
     result = validate_session(exercises, WEEK_TARGET, principles, ATHLETE)
     assert result.is_valid
-    return True, ""
 
 
 # ── Check 6: Duration ─────────────────────────────────────────
@@ -304,7 +281,6 @@ def test_duration_warning_when_too_long():
     athlete = dict(ATHLETE, session_duration_minutes=60)
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     assert any("duration" in w.lower() or "min" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_duration_no_warning_within_limit():
@@ -312,7 +288,6 @@ def test_duration_no_warning_within_limit():
     exercises = [_ex(f"Snatch {i}", 4, 3, 75, order=i) for i in range(1, 5)]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not any("duration" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 # ── Check 7: RPE vs intensity ─────────────────────────────────
@@ -325,7 +300,6 @@ def test_rpe_too_low_above_90_warning():
                   "rpe_target": 7.0}]  # RPE 7.0 at 92% — should warn
     result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
     assert any("RPE" in w and "8.0" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_rpe_ok_at_90_pct():
@@ -336,7 +310,6 @@ def test_rpe_ok_at_90_pct():
                   "rpe_target": 8.5}]  # RPE 8.5 at 92% — fine
     result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
     assert not any("RPE" in w and "8.0" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_rpe_too_low_80_to_90_warning():
@@ -347,7 +320,6 @@ def test_rpe_too_low_80_to_90_warning():
     wt = dict(WEEK_TARGET, intensity_ceiling=85)
     result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
     assert any("RPE" in w and "7.0" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_rpe_none_skipped():
@@ -359,7 +331,6 @@ def test_rpe_none_skipped():
     wt = dict(WEEK_TARGET, intensity_ceiling=95)
     result = validate_session(exercises, wt, PRINCIPLES, ATHLETE)
     assert not any("RPE" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 # ── Check 8: Fault-correction exercise coverage ───────────────
@@ -371,7 +342,6 @@ def test_fault_coverage_warning_when_no_fault_exercise():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete,
                               fault_exercise_names=fault_names)
     assert any("fault" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_fault_coverage_ok_when_fault_exercise_prescribed():
@@ -385,7 +355,6 @@ def test_fault_coverage_ok_when_fault_exercise_prescribed():
                               fault_exercise_names=fault_names)
     assert not any("fault" in w.lower() and "no fault-correction" in w.lower()
                    for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_fault_coverage_skipped_when_no_faults():
@@ -395,7 +364,6 @@ def test_fault_coverage_skipped_when_no_faults():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete,
                               fault_exercise_names=["snatch balance"])
     assert not any("fault" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_fault_coverage_skipped_when_fault_names_none():
@@ -405,7 +373,6 @@ def test_fault_coverage_skipped_when_fault_names_none():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete,
                               fault_exercise_names=None)
     assert not any("no fault-correction" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 # ── Check 9: Strength limiter coverage ───────────────────────
@@ -415,7 +382,6 @@ def test_strength_limiter_not_addressed_warning():
     exercises = [_ex("Snatch", 4, 3, 75), _ex("Clean & Jerk", 3, 2, 78)]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     assert any("squat_limited" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_strength_limiter_addressed_no_warning():
@@ -426,7 +392,6 @@ def test_strength_limiter_addressed_no_warning():
     ]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     assert not any("squat_limited" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_pull_limiter_addressed_by_deadlift():
@@ -437,7 +402,6 @@ def test_pull_limiter_addressed_by_deadlift():
     ]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     assert not any("pull_limited" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_multiple_limiters_each_checked():
@@ -446,7 +410,6 @@ def test_multiple_limiters_each_checked():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     limiter_warnings = [w for w in result.warnings if "limited" in w]
     assert len(limiter_warnings) == 2, f"Expected 2 limiter warnings, got: {result.warnings}"
-    return True, ""
 
 
 def test_no_strength_limiters_no_warning():
@@ -454,7 +417,6 @@ def test_no_strength_limiters_no_warning():
     exercises = [_ex("Snatch", 4, 3, 75)]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     assert not any("limiter" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_unknown_limiter_skipped_gracefully():
@@ -463,7 +425,6 @@ def test_unknown_limiter_skipped_gracefully():
     exercises = [_ex("Snatch", 4, 3, 75)]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, athlete)
     assert result.is_valid, result.errors
-    return True, ""
 
 
 # ── Integration: clean session ────────────────────────────────
@@ -477,7 +438,6 @@ def test_valid_session_no_errors():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
     assert not result.errors
-    return True, ""
 
 
 def test_valid_session_with_warmup_sets():
@@ -490,7 +450,6 @@ def test_valid_session_with_warmup_sets():
     ]
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
-    return True, ""
 
 
 # ── Empty session guard ───────────────────────────────────────
@@ -500,7 +459,6 @@ def test_empty_session_is_invalid():
     assert not result.is_valid, "Empty session should be invalid"
     assert result.errors, "Empty session should have at least one error"
     assert "no exercises" in result.errors[0].lower(), result.errors
-    return True, ""
 
 
 # ── T3: deload / dataclass / comp-lift-null-pct (new coverage) ────────────────
@@ -512,7 +470,6 @@ def test_deload_week_sub55_no_prilepin_error():
     result = validate_session(exercises, deload_target, PRINCIPLES, ATHLETE)
     assert not any("Prilepin" in e for e in result.errors), result.errors
     assert not any("Prilepin" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_week_target_dataclass_converted():
@@ -530,7 +487,6 @@ def test_week_target_dataclass_converted():
     # Must not raise AttributeError — dataclass is converted to dict internally
     result = validate_session(exercises, week_target_dc, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
-    return True, ""
 
 
 def test_comp_lift_null_pct_skipped_in_prilepin():
@@ -543,7 +499,6 @@ def test_comp_lift_null_pct_skipped_in_prilepin():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not any("Prilepin" in e for e in result.errors), result.errors
     assert result.session_comp_reps == {}, result.session_comp_reps
-    return True, ""
 
 
 # ── Check 0: DB-constraint mirror (AGT-M4) ────────────────────
@@ -553,7 +508,6 @@ def test_null_sets_is_error():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "null sets must fail validation, not the DB INSERT"
     assert any("sets" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_zero_reps_is_error():
@@ -561,7 +515,6 @@ def test_zero_reps_is_error():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "zero reps must fail validation"
     assert any("reps" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_non_comp_intensity_above_120_is_error():
@@ -571,7 +524,6 @@ def test_non_comp_intensity_above_120_is_error():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "intensity > 120 violates the DB CHECK"
     assert any("120" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_supramax_under_120_still_allowed():
@@ -579,7 +531,6 @@ def test_supramax_under_120_still_allowed():
     ex = _ex("Snatch Pull", 3, 2, 110, ref="snatch_pull")
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
-    return True, ""
 
 
 def test_duplicate_exercise_order_is_error():
@@ -590,7 +541,6 @@ def test_duplicate_exercise_order_is_error():
     result = validate_session(exs, WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "duplicate order violates UNIQUE(session_id, exercise_order)"
     assert any("exercise_order" in e for e in result.errors), result.errors
-    return True, ""
 
 
 # ── AGT-L9: Check 0 must mirror the remaining column bounds ──────────────────
@@ -603,7 +553,6 @@ def test_rpe_target_over_column_range_is_error():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "rpe_target 100 does not fit NUMERIC(3,1)"
     assert any("rpe_target" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_normal_rpe_target_still_valid():
@@ -611,7 +560,6 @@ def test_normal_rpe_target_still_valid():
     ex["rpe_target"] = 9.5
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert result.is_valid, result.errors
-    return True, ""
 
 
 def test_overlong_intensity_reference_is_error():
@@ -619,7 +567,6 @@ def test_overlong_intensity_reference_is_error():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "intensity_reference is VARCHAR(100)"
     assert any("intensity_reference" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_overlong_exercise_name_is_error():
@@ -627,7 +574,6 @@ def test_overlong_exercise_name_is_error():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid, "exercise_name is VARCHAR(200)"
     assert any("exercise_name" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_blank_exercise_name_is_error():
@@ -640,7 +586,6 @@ def test_blank_exercise_name_is_error():
     ex2 = _ex(None, 3, 3, 75)
     result2 = validate_session([ex2], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result2.is_valid, "null exercise_name must fail validation"
-    return True, ""
 
 
 # ── audit2 M1/L3: exercise_order NOT NULL mirror + non-numeric pct safety ─────
@@ -654,7 +599,6 @@ def test_missing_exercise_order_is_error():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid
     assert any("exercise_order" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_null_exercise_order_is_error():
@@ -663,7 +607,6 @@ def test_null_exercise_order_is_error():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)
     assert not result.is_valid
     assert any("exercise_order" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_non_numeric_pct_returns_error_not_crash():
@@ -673,7 +616,6 @@ def test_non_numeric_pct_returns_error_not_crash():
     result = validate_session([ex], WEEK_TARGET, PRINCIPLES, ATHLETE)  # must not raise
     assert not result.is_valid
     assert any("not numeric" in e for e in result.errors), result.errors
-    return True, ""
 
 
 # ── audit2-L2: warmup reps must not count toward Prilepin/working volume ─────
@@ -692,7 +634,6 @@ def test_warmup_reps_excluded_from_volume_accounting():
     assert "55-65" not in result.session_comp_reps, result.session_comp_reps
     # 12 prior + 6 working = 18 ≤ 18×1.25 — no budget warning
     assert not any("budget" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_light_working_sets_61_to_65_still_count():
@@ -705,7 +646,6 @@ def test_light_working_sets_61_to_65_still_count():
     assert result.session_comp_reps.get("55-65") == 120, result.session_comp_reps
     assert not result.is_valid, "120 reps in the 55-65 zone must blow the Prilepin hard cap"
     assert any("excessive" in e.lower() for e in result.errors), result.errors
-    return True, ""
 
 
 # ── Weekly rep budget (AGT-L3) ────────────────────────────────
@@ -717,7 +657,6 @@ def test_weekly_budget_overshoot_warns():
                               week_cumulative_reps={"70-80": 15})
     assert result.is_valid, result.errors
     assert any("budget" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 def test_weekly_budget_within_tolerance_no_warning():
@@ -725,7 +664,6 @@ def test_weekly_budget_within_tolerance_no_warning():
     result = validate_session(exercises, WEEK_TARGET, PRINCIPLES, ATHLETE,
                               week_cumulative_reps={"70-80": 9})
     assert not any("budget" in w.lower() for w in result.warnings), result.warnings
-    return True, ""
 
 
 # ── Runner ────────────────────────────────────────────────────
@@ -800,7 +738,8 @@ def main():
     results = []
     for name, fn in TESTS:
         try:
-            ok, msg = fn()
+            fn()
+            ok, msg = True, ""
             results.append((name, ok, msg))
             if not ok:
                 failures.append(name)
@@ -841,7 +780,6 @@ def test_pull_referencing_clean_max_is_not_a_competition_lift():
     assert not is_competition_lift("Clean Pull", "clean_pull")       # own max — never was
     assert not is_competition_lift("Back Squat", "back_squat")
     assert is_competition_lift(None, "snatch")                       # no name → decided by the reference
-    return True, ""
 
 
 def test_pull_at_90_pct_of_clean_takes_triples_and_sits_above_ceiling():
@@ -861,7 +799,6 @@ def test_pull_at_90_pct_of_clean_takes_triples_and_sits_above_ceiling():
     assert not any("ceiling" in e or "max 2 reps" in e for e in result.errors), result.errors
     # and the pulls do not count as competition-lift volume either
     assert sum(result.session_comp_reps.values()) == 6, result.session_comp_reps
-    return True, ""
 
 
 def test_comp_lift_variant_still_bound_by_ceiling_and_reps_cap():
@@ -874,7 +811,6 @@ def test_comp_lift_variant_still_bound_by_ceiling_and_reps_cap():
     assert any("exceeds week ceiling" in e for e in result.errors), result.errors
     result = validate_session(exercises[:1], wt, PRINCIPLES, ATHLETE)
     assert any("max 2 reps" in e for e in result.errors), result.errors
-    return True, ""
 
 
 def test_comp_lift_first_principle_sees_through_a_borrowed_max():
@@ -882,7 +818,6 @@ def test_comp_lift_first_principle_sees_through_a_borrowed_max():
     exercises = [_ex("Snatch Pull", 3, 3, 80, ref="snatch", order=1), _ex("Snatch", 3, 2, 75, order=2)]
     result = validate_session(exercises, WEEK_TARGET, [principle], ATHLETE)
     assert any("competition lifts first" in w for w in result.warnings), result.warnings
-    return True, ""
 
 
 if __name__ == "__main__":
@@ -927,3 +862,78 @@ def test_warmup_variant_before_working_sets_is_fine_but_after_warns():
     bad = [ex("Snatch", 1, 75, "snatch", 6, 3), ex("Muscle Snatch", 2, 45, "snatch")]
     r = validate_session(bad, week, [], {"exercise_preferences": {}})
     assert r.is_valid and any("Muscle Snatch" in w and "warm-up set ordered after" in w for w in r.warnings)
+
+
+# ── AUD-6: every check fires, in check order ─────────────────────────────────
+
+def _everything_wrong_scenario():
+    """validate_session kwargs where (nearly) every numbered check fires, plus a
+    variant whose malformed fields hit the tolerant branches."""
+    def ex(name, order, sets, reps, pct, ref, rpe=None):
+        return {"exercise_name": name, "exercise_order": order, "sets": sets, "reps": reps,
+                "intensity_pct": pct, "intensity_reference": ref, "rpe_target": rpe}
+    session = [
+        ex("Back Extension", 1, 3, 10, None, "bodyweight", 7),
+        ex("Snatch", 2, 6, 5, 85, "snatch", 6.5),
+        ex("Snatch", 3, 2, 3, 58, "snatch"),
+        ex("Clean & Jerk", 3, 3, 3, 95, "clean_and_jerk", "hard"),
+        ex("Clean Pull", 5, None, 3, 125, "clean_pull", 9),
+        ex("Behind the Neck Jerk", 6, 1, 1, "heavy", "x" * 120, 11),
+        ex("", None, 0, 2, 50, "snatch"),
+    ]
+    athlete = {"exercise_preferences": {"avoid": ["Behind the Neck Jerk"]}, "session_duration_minutes": 20,
+               "technical_faults": ["early_arm_bend"], "strength_limiters": ["squat_limited", "made_up"]}
+    week = {"intensity_ceiling": 90, "intensity_floor": 75, "total_competition_lift_reps": 20}
+    principles = [{"recommendation": {"competition_lifts_first": True}}, {"recommendation": "text only"},
+                  {"recommendation": None}]
+    prior = [{"exercise_name": "Back Extension"}, {"exercise_name": "Back Extension"}]
+    tolerant = [ex("Snatch", 1, 3, 2, 40, "snatch", "n/a"), ex("Snatch", 2, None, 2, 70, "snatch", 7)]
+    return {
+        "everything": dict(session_exercises=session, week_target=week, active_principles=principles,
+                           athlete=athlete, week_cumulative_reps={"80-90": 15},
+                           fault_exercise_names=["Snatch Pull"], week_already_prescribed=prior),
+        "tolerant": dict(session_exercises=tolerant, week_target={"intensity_ceiling": 90},
+                         active_principles=[], athlete={}),
+    }
+
+
+def test_every_check_reports_in_check_order():
+    """AUD-6 split validate_session into one function per check; the errors and
+    warnings must come out exactly as the monolith produced them (pinned from
+    the pre-split version)."""
+    r = validate_session(**_everything_wrong_scenario()["everything"])
+    assert not r.is_valid
+    assert r.errors == [
+        "Clean & Jerk: rpe_target 'hard' is not numeric",
+        "duplicate exercise_order 3 — orders must be unique within the session",
+        "Clean Pull: sets must be an integer >= 1 (got None)",
+        "Clean Pull: intensity_pct 125 outside the storable range (0, 120] — use null for unloaded work",
+        "Behind the Neck Jerk: intensity_reference is 120 chars, max 100",
+        "Behind the Neck Jerk: intensity_pct 'heavy' is not numeric",
+        "exercise_name is required (NOT NULL) — got an empty value",
+        "exercise: sets must be an integer >= 1 (got 0)",
+        "exercise: exercise_order must be an integer >= 1 (got None)",
+        "Clean & Jerk at 95.0% exceeds week ceiling 90%",
+        "Clean & Jerk: 3 reps at 95.0% — Prilepin allows max 2 reps/set above 90%",
+        "Behind the Neck Jerk is in athlete's avoid list",
+    ]
+    assert r.warnings == [
+        "Prilepin: 30 reps in 80-90% zone exceeds Prilepin range max 20 (optimal 15)",
+        "Weekly comp-lift volume 54 reps exceeds the week's budget of 20 by more than 25%",
+        "Clean Pull at 125.0% is unusually high for a non-competition lift (supramaximal work expected up to ~120%)",
+        "Snatch: 5 reps at 85.0% — Prilepin suggests max 4 reps/set in 80-90% zone",
+        "First exercise is 'Back Extension', but principle requires competition lifts first",
+        "Snatch: warm-up set ordered after the snatch family's first working set (order 3 > 2)",
+        "Back Extension: already prescribed in 2 sessions this week (max 2 for an accessory)",
+        "Estimated duration 30 min exceeds available 20 min",
+        "Snatch at 85.0% has RPE target 6.5 — intensity 80–90% typically warrants RPE 7.0+",
+        "Athlete has technical faults (early_arm_bend) but no fault-correction exercises were selected this session",
+        "Strength limiter 'squat_limited' not addressed — consider adding squat-focused work",
+    ]
+    assert r.session_comp_reps == {"80-90": 30, "90-100": 9}
+
+
+def test_malformed_fields_do_not_crash_the_later_checks():
+    r = validate_session(**_everything_wrong_scenario()["tolerant"])
+    assert r.errors == ["Snatch: rpe_target 'n/a' is not numeric", "Snatch: sets must be an integer >= 1 (got None)"]
+    assert r.warnings == [] and r.session_comp_reps == {"70-80": 0}
