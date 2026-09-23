@@ -99,7 +99,8 @@ AGENT_TESTS := \
 	tests/test_eval_harness.py \
 	tests/test_model_baseline.py \
 	tests/test_import_program_csv.py \
-	tests/test_excerpt.py
+	tests/test_excerpt.py \
+	tests/test_demographics.py
 
 INGESTION_TESTS := \
 	tests/test_chunker.py \

@@ -316,3 +316,25 @@ GENERATION_WEEK_CONCURRENCY: int = 4
 # Week 1's same-day session, summarised into later weeks' prompts as the
 # block's template (exercise names, sets x reps @ %), capped at this length.
 BLOCK_TEMPLATE_MAX_CHARS: int = 400
+
+# ── Athlete demographics (AUD-5) ─────────────────────────────────────
+# Age bands for the prompt and the session query, as (upper-exclusive age,
+# band); an age at or above the last bound is AGE_BAND_MASTERS. Aligned with
+# IWF categories (youth 13–17, junior to 20, Masters age groups from 35) and
+# the corpus' own vocabulary ("Junior Weightlifting", "Youth to Senior").
+AGE_BANDS: tuple[tuple[int, str], ...] = (
+    (18, "youth"),
+    (21, "junior"),
+    (35, "senior"),
+)
+AGE_BAND_MASTERS: str = "masters"
+# Only these change what a session should retrieve. Senior / junior / male /
+# unknown athletes keep today's query byte-identical, so the golden eval set
+# stays valid for them.
+AGE_BAND_QUERY_QUALIFIERS: dict[str, str] = {
+    "youth": "youth athlete",
+    "masters": "masters athlete",
+}
+SEX_QUERY_QUALIFIERS: dict[str, str] = {
+    "female": "female athlete",
+}
