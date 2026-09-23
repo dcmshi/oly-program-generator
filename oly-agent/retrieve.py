@@ -50,7 +50,9 @@ def build_session_query(
 ) -> str:
     """The retrieval query for ONE session: movement, supporting work, phase,
     intensity band (rounded to INTENSITY_BAND_WIDTH_PCT so weeks in the same band
-    share a cache entry), level, deload flag, faults, emphasis and limiters."""
+    share a cache entry), level, sex / age-band qualifier (female, youth,
+    masters only), deload flag, faults, emphasis and limiters."""
+    from demographics import query_qualifiers
     lo = int(week_target.intensity_floor // INTENSITY_BAND_WIDTH_PCT * INTENSITY_BAND_WIDTH_PCT)
     hi = int(-(-week_target.intensity_ceiling // INTENSITY_BAND_WIDTH_PCT) * INTENSITY_BAND_WIDTH_PCT)
     secondary = ", ".join(_humanize(m) for m in session_template.secondary_movements) or "no supporting work"
@@ -60,6 +62,9 @@ def build_session_query(
         f"during the {_humanize(plan.phase)} phase at {lo}-{hi}% intensity",
         f"{athlete_context.level} athlete",
     ]
+    # AUD-5: "female athlete" / "youth athlete" / "masters athlete" only — a
+    # senior, junior, male or unknown athlete's query is unchanged.
+    parts.extend(query_qualifiers(athlete_context))
     if week_target.is_deload:
         parts.append("deload week")
     if athlete_context.technical_faults:

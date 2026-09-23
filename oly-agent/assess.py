@@ -14,12 +14,14 @@ from pathlib import Path
 # Make shared/ importable when running from oly-agent/ or the repo root
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from demographics import age_band, age_from_dob
 from models import AthleteContext
 from weight_resolver import build_maxes_dict
 
 from shared.constants import MAX_PREVIOUS_PROGRAM_EXERCISES, MAX_PREVIOUS_PROGRAM_TOP_SETS
 from shared.db import fetch_all, fetch_one
 from shared.formulas import round_kg
+from shared.timeutil import today_in_tz
 
 logger = logging.getLogger(__name__)
 
@@ -168,7 +170,27 @@ def assess(athlete_id: int, conn) -> AthleteContext:
         sessions_per_week=athlete.get("sessions_per_week") or 4,
         weeks_to_competition=weeks_to_competition,
         recorded_maxes=recorded_maxes,
+        **athlete_demographics(athlete),
     )
+
+
+def athlete_demographics(athlete: dict, today: date | None = None) -> dict:
+    """AthleteContext demographic fields from an athletes row (AUD-5).
+
+    Age comes from ``date_of_birth`` in the athlete's timezone — the ``age``
+    column is retired and never read. Blank fields map to None.
+    """
+    if today is None:
+        today = today_in_tz(athlete.get("timezone"))
+    age = age_from_dob(athlete.get("date_of_birth"), today)
+    bodyweight = athlete.get("bodyweight_kg")
+    return {
+        "biological_sex": athlete.get("biological_sex") or None,
+        "age_years": age,
+        "age_band": age_band(age),
+        "bodyweight_kg": float(bodyweight) if bodyweight is not None else None,
+        "weight_class": athlete.get("weight_class") or None,
+    }
 
 
 def summarize_program_structure(conn, program_id: int) -> dict:

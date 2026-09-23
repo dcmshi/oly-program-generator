@@ -28,6 +28,14 @@ class AthleteContext:
     # progress (audit5-L3). Defaults to None; the orchestrator falls back to
     # `maxes` for any caller that didn't populate it.
     recorded_maxes: dict[str, float] | None = None
+    # Demographics (AUD-5), None when the profile leaves them blank. age_years
+    # is computed from athletes.date_of_birth (never the retired `age` column)
+    # in the athlete's timezone; age_band comes from AGE_BANDS.
+    biological_sex: str | None = None   # "male" / "female"
+    age_years: int | None = None
+    age_band: str | None = None         # youth / junior / senior / masters
+    bodyweight_kg: float | None = None
+    weight_class: str | None = None     # IWF class label, e.g. "89", "+109"
 
 
 @dataclass

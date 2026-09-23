@@ -539,6 +539,10 @@ def build_session_prompt(
         ", ".join(athlete_context.athlete.get("strength_limiters") or []) or "none identified"
     )
     competition_experience = athlete_context.athlete.get("competition_experience") or "none"
+    # AUD-5: sex / age band / bodyweight / class — program-level, so static prefix.
+    from demographics import demographics_line
+    demographics = demographics_line(athlete_context)
+    demographics_line_str = f"\n{demographics}" if demographics else ""
     available_equipment = athlete_context.athlete.get("available_equipment") or []
     has_blocks = "blocks" in available_equipment
 
@@ -802,7 +806,7 @@ You MUST NOT:
 
 ## Athlete Profile
 Name: {athlete_context.athlete['name']}
-Level: {athlete_context.level}
+Level: {athlete_context.level}{demographics_line_str}
 Sessions/week: {sessions_per_week or athlete_context.sessions_per_week}
 Session duration: {athlete_context.athlete.get('session_duration_minutes', DEFAULT_SESSION_DURATION_MINUTES)} min
 Lift emphasis: {lift_emphasis} (snatch_biased = more snatch volume/variants; cj_biased = more C&J volume/variants; balanced = equal)
