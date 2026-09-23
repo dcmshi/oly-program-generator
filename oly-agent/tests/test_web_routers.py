@@ -1174,6 +1174,7 @@ def test_generate_page_resumes_polling_for_an_inflight_job():
     """Polling only lived in the swapped partial, so navigating away from
     /generate and back while a job ran showed no sign of it."""
     with patch("web.queries.program.get_all_programs", return_value=[]), \
+         patch("web.queries.program.get_macrocycle_view", return_value=None), \
          patch("web.jobs.get_inflight_job_id", return_value="abc123"):
         r = _client.get("/generate")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
@@ -1183,6 +1184,7 @@ def test_generate_page_resumes_polling_for_an_inflight_job():
 
 def test_generate_page_idle_when_nothing_is_running():
     with patch("web.queries.program.get_all_programs", return_value=[]), \
+         patch("web.queries.program.get_macrocycle_view", return_value=None), \
          patch("web.jobs.get_inflight_job_id", return_value=None):
         r = _client.get("/generate")
     assert r.status_code == 200

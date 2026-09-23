@@ -202,6 +202,55 @@ async def complete_program(conn, program_id: int, athlete_id: int) -> dict:
     return outcome
 
 
+async def advance_macrocycle(program_id: int, outcome) -> dict | None:
+    """Re-flow the completed program's macrocycle (PLAN-3e) on a psycopg2
+    connection, like complete_program. Returns macrocycle.reflow_after_completion's
+    dict, or None when the program is not a macrocycle block."""
+    from macrocycle import reflow_after_completion
+    from web.deps import get_settings
+
+    from shared.db import get_connection
+
+    sync_conn = get_connection(get_settings().database_url)
+    try:
+        info = reflow_after_completion(sync_conn, program_id, outcome)
+        sync_conn.commit()
+    finally:
+        sync_conn.close()
+    return info
+
+
+async def get_macrocycle_view(conn, athlete_id: int, macrocycle_id: int | None = None) -> dict | None:
+    """The macrocycle (by id, else the athlete's active one) with display rows:
+    {"id", "status", "competition_date", "total_weeks", "rows", "next"} where
+    `next` is the first planned block, and `can_generate` says whether every
+    earlier block is completed or abandoned."""
+    from macrocycle import block_rows
+    from web.async_db import async_fetch_all, async_fetch_one
+
+    if macrocycle_id is not None:
+        mc = await async_fetch_one(conn, "SELECT * FROM macrocycles WHERE id = $1 AND athlete_id = $2",
+                                   macrocycle_id, athlete_id)
+    else:
+        mc = await async_fetch_one(
+            conn, "SELECT * FROM macrocycles WHERE athlete_id = $1 AND status = 'active' "
+                  "ORDER BY created_at DESC LIMIT 1", athlete_id)
+    if not mc:
+        return None
+    programs = await async_fetch_all(
+        conn, "SELECT id, status, macrocycle_block_index FROM generated_programs "
+              "WHERE macrocycle_id = $1 AND athlete_id = $2", mc["id"], athlete_id)
+    rows = block_rows(mc["blocks"], programs)
+    nxt = next((r for r in rows if r["status"] == "planned"), None)
+    earlier = [r for r in rows if nxt and r["index"] < nxt["index"]]
+    return {
+        "id": mc["id"], "status": mc["status"], "competition_date": mc["competition_date"],
+        "total_weeks": sum(r["weeks"] for r in rows), "rows": rows, "next": nxt,
+        "can_generate": nxt is not None and mc["status"] == "active"
+                        and all(r["status"] in ("completed", "abandoned") for r in earlier),
+    }
+
+
 async def delete_program(conn, program_id: int, athlete_id: int):
     """Permanently delete a program and all its sessions/exercises.
 

@@ -570,7 +570,7 @@ def test_max_sessions_caps_generation_and_labels_the_partial_draft():
     assert "Test rationale text." in stored     # EXPLAIN output kept below the banner
 
     params = mocks["execute_returning"].call_args_list[0].args[2]
-    generation_params = json.loads(params[-1])
+    generation_params = json.loads(params[-3])   # then macrocycle_id, block index
     assert generation_params["max_sessions"] == 2
     assert generation_params["thinking"] == "disabled" and generation_params["effort"] is None   # production default
 
@@ -581,7 +581,7 @@ def test_generation_params_record_thinking_and_effort():
         run(1, Settings(cost_limit_per_program=1.0, generation_model="claude-sonnet-5",
                         generation_thinking="disabled", generation_effort="low"))
     params = mocks["execute_returning"].call_args_list[0].args[2]
-    generation_params = json.loads(params[-1])
+    generation_params = json.loads(params[-3])   # then macrocycle_id, block index
     assert generation_params["model"] == "claude-sonnet-5"
     assert (generation_params["thinking"], generation_params["effort"]) == ("disabled", "low")
     assert "max_sessions" not in generation_params

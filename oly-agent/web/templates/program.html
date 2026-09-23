@@ -22,6 +22,8 @@
   {% include "partials/program_actions.html" %}
 </div>
 
+{% if macro %}{% with current_program_id = program.id %}{% include "partials/macrocycle_timeline.html" %}{% endwith %}{% endif %}
+
 <!-- Session progress (active programs) -->
 {% if program.status == 'active' %}
 {% set ns = namespace(total=0, done=0) %}

@@ -106,7 +106,8 @@ AGENT_TESTS := \
 	tests/test_eval_cli.py \
 	tests/test_complexes.py \
 	tests/test_strength_curve.py \
-	tests/test_volume_tables.py
+	tests/test_volume_tables.py \
+	tests/test_macrocycle.py
 
 INGESTION_TESTS := \
 	tests/test_chunker.py \

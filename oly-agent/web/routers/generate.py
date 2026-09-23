@@ -8,7 +8,7 @@ from web.auth import get_current_athlete_id
 from web.deps import get_db, limiter
 from web.queries import program as qp
 
-from shared.constants import BLOCK_WEEKS_MAX_BY_LEVEL, BLOCK_WEEKS_MIN
+from shared.constants import BLOCK_WEEKS_MAX_BY_LEVEL, BLOCK_WEEKS_MIN, MACROCYCLE_WEEKS_MAX, MACROCYCLE_WEEKS_MIN
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/generate")
@@ -26,8 +26,10 @@ async def generate_page(
     # Pick up a job that is still running from an earlier visit, so leaving the
     # page and coming back resumes polling instead of showing nothing.
     inflight = await jobs.get_inflight_job_id(athlete_id)
+    macro = await qp.get_macrocycle_view(conn, athlete_id)
     return templates.TemplateResponse(request, "generate.html", {
-        "request": request, "last_program": last,
+        "request": request, "last_program": last, "macro": macro,
+        "macro_min": MACROCYCLE_WEEKS_MIN, "macro_max": MACROCYCLE_WEEKS_MAX,
         "job_id": inflight,
         "job": {"status": "running"} if inflight else None,
     })
@@ -53,10 +55,29 @@ async def run_generation(
             return HTMLResponse(
                 f'<div class="text-red-700 text-sm">Block length must be between {BLOCK_WEEKS_MIN} and '
                 f'{max(BLOCK_WEEKS_MAX_BY_LEVEL.values())} weeks.</div>', status_code=422)
+    macrocycle = None
+    if (form.get("macrocycle_id") or "").strip():
+        try:
+            macrocycle = {"id": int(form["macrocycle_id"])}
+        except ValueError:
+            return HTMLResponse('<div class="text-red-700 text-sm">Unknown macrocycle.</div>', status_code=422)
+    elif form.get("macrocycle") == "on":
+        macrocycle = {"new": True, "weeks": None}
+        raw_total = (form.get("macrocycle_weeks") or "").strip()
+        if raw_total:
+            try:
+                macrocycle["weeks"] = int(raw_total)
+            except ValueError:
+                return HTMLResponse('<div class="text-red-700 text-sm">Macrocycle length must be a whole '
+                                    'number of weeks.</div>', status_code=422)
+            if not MACROCYCLE_WEEKS_MIN <= macrocycle["weeks"] <= MACROCYCLE_WEEKS_MAX:
+                return HTMLResponse(
+                    f'<div class="text-red-700 text-sm">Macrocycle length must be between {MACROCYCLE_WEEKS_MIN} '
+                    f'and {MACROCYCLE_WEEKS_MAX} weeks.</div>', status_code=422)
     request_id = getattr(request.state, "request_id", "-")
     try:
         job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run, request_id=request_id,
-                                              duration_weeks=duration_weeks)
+                                              duration_weeks=duration_weeks, macrocycle=macrocycle)
     except jobs.GenerationInFlightError:
         logger.info(f"Generation rejected — already in flight for athlete {athlete_id}")
         return HTMLResponse(
@@ -65,7 +86,8 @@ async def run_generation(
             "another.</div>",
             status_code=409,
         )
-    logger.info(f"Generation submitted: job_id={job_id}, athlete={athlete_id}, dry_run={dry_run}")
+    logger.info(f"Generation submitted: job_id={job_id}, athlete={athlete_id}, dry_run={dry_run}, "
+                f"macrocycle={macrocycle}")
     return templates.TemplateResponse(request, "partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": {"status": "running"},
     })

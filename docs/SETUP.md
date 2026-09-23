@@ -192,6 +192,8 @@ cd oly-agent
 # Generate a program
 uv run python orchestrator.py --athlete-id 1 --dry-run  # ASSESS + PLAN only
 uv run python orchestrator.py --athlete-id 1            # full generation
+uv run python orchestrator.py --athlete-id 1 --macrocycle 16 --dry-run  # plan a 16-week macrocycle (goal's meet date wins)
+uv run python orchestrator.py --athlete-id 1 --macrocycle-id 3          # generate that macrocycle's next block
 
 # Training log
 uv run python log.py show     --athlete-id 1          # view current week

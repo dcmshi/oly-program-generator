@@ -23,6 +23,8 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 from assess import assess
 from explain import explain
 from generate import build_session_prompt, generate_session_with_retries
+from macrocycle import create_macrocycle, load_macrocycle, next_block_index, plan_blocks
+from macrocycle import macrocycle_weeks as macrocycle_weeks_for
 from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate
 from phase_profiles import PHASE_PROFILES
 from plan import plan
@@ -58,6 +60,9 @@ def run(
     max_sessions: int | None = None,
     duration_weeks: int | None = None,
     week_concurrency: int | None = None,
+    new_macrocycle: bool = False,
+    macrocycle_weeks: int | None = None,
+    macrocycle_id: int | None = None,
 ) -> int | None:
     """Generate a complete training program for the given athlete.
 
@@ -77,6 +82,10 @@ def run(
         week_concurrency: Weeks 2..N generated at once (AUD-4); None =
             GENERATION_WEEK_CONCURRENCY, 1 = sequential. Week 1 always runs
             first and alone.
+        new_macrocycle: Plan a macrocycle (PLAN-3e) — the block sequence to the
+            goal's competition date, else `macrocycle_weeks` total — store it
+            and generate its first block. `duration_weeks` is ignored.
+        macrocycle_id: Generate the next unrealised block of this macrocycle.
 
     Returns:
         program_id of the created program, or None on failure / dry-run.
@@ -99,7 +108,13 @@ def run(
         # ── Step 2: PLAN ──────────────────────────────────────
         logger.info("=== Step 2: PLAN ===")
         _t0 = time.perf_counter()
-        program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks)
+        mc_id, mc_index, mc_block = None, None, None
+        if new_macrocycle or macrocycle_id is not None:
+            mc_id, mc_index, mc_block = _macrocycle_block(conn, athlete_id, athlete_context, macrocycle_id,
+                                                          macrocycle_weeks, dry_run)
+            if mc_block is None:
+                return None
+        program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks, block=mc_block)
         logger.info("Step 2 complete", extra={"step": "plan", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         if dry_run:
@@ -118,7 +133,8 @@ def run(
 
         # ── Create program record ─────────────────────────────
         llm_client = create_llm_client(settings)
-        program_id = _create_program_record(conn, athlete_id, athlete_context, program_plan, settings, max_sessions)
+        program_id = _create_program_record(conn, athlete_id, athlete_context, program_plan, settings, max_sessions,
+                                            macrocycle=(mc_id, mc_index) if mc_id is not None else None)
 
         # ── Step 3: RETRIEVE ──────────────────────────────────
         logger.info("=== Step 3: RETRIEVE ===")
@@ -219,7 +235,8 @@ def run(
 
 
 def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContext, program_plan: ProgramPlan,
-                           settings: Settings, max_sessions: int | None) -> int:
+                           settings: Settings, max_sessions: int | None,
+                           macrocycle: tuple[int, int] | None = None) -> int:
     """INSERT the draft generated_programs row and commit; returns its id."""
     # recorded-only, not the estimation-merged dict: else a later real max
     # replacing an estimate reads as "strength progress" (audit5-L3)
@@ -232,13 +249,15 @@ def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContex
         INSERT INTO generated_programs
             (athlete_id, name, status, phase, duration_weeks,
              sessions_per_week, start_date,
-             athlete_snapshot, maxes_snapshot, generation_params)
-        VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s)
+             athlete_snapshot, maxes_snapshot, generation_params,
+             macrocycle_id, macrocycle_block_index)
+        VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
         """,
         (
             athlete_id,
-            f"{program_plan.phase.title()} Block — {date.today()}",
+            f"{program_plan.phase.replace('_', ' ').title()} Block"
+            + (f" {macrocycle[1] + 1} of macrocycle" if macrocycle else "") + f" — {date.today()}",
             program_plan.phase,
             program_plan.duration_weeks,
             program_plan.sessions_per_week,
@@ -253,6 +272,8 @@ def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContex
                 "effort": settings.generation_effort or None,
                 **({"max_sessions": max_sessions} if max_sessions is not None else {}),
             }),
+            macrocycle[0] if macrocycle else None,
+            macrocycle[1] if macrocycle else None,
         ),
     )
     conn.commit()
@@ -1087,6 +1108,41 @@ def _mark_program_draft(conn, program_id: int, reason: str | None = None):
     conn.commit()
 
 
+def _macrocycle_block(conn, athlete_id: int, ctx: AthleteContext, macrocycle_id: int | None,
+                      macrocycle_weeks: int | None, dry_run: bool) -> tuple[int | None, int, dict | None]:
+    """(macrocycle_id, block_index, block) to generate (PLAN-3e).
+
+    New macrocycle: plan the blocks and store them (not on a dry run, which
+    prints them). Existing one: the first block without a program; when every
+    block has one the macrocycle is marked completed and the block is None.
+    """
+    if macrocycle_id is None:
+        total = macrocycle_weeks_for(ctx.weeks_to_competition, macrocycle_weeks)
+        competition = ctx.weeks_to_competition is not None
+        blocks = plan_blocks(ctx.level, total, competition=competition)
+        if dry_run:
+            print(f"\nMACROCYCLE: {total} weeks{' to the meet' if competition else ''}")
+            for i, b in enumerate(blocks, 1):
+                print(f"  {i}. {b['phase']:<16} {b['weeks']} wks  {b['note']}")
+            return None, 0, blocks[0]
+        comp_date = (ctx.active_goal or {}).get("competition_date") if competition else None
+        mc_id = create_macrocycle(conn, athlete_id, blocks, comp_date)
+        conn.commit()
+        logger.info(f"Macrocycle {mc_id} planned: {[(b['phase'], b['weeks']) for b in blocks]}")
+        return mc_id, 0, blocks[0]
+    mc = load_macrocycle(conn, macrocycle_id, athlete_id)
+    if not mc or mc["status"] != "active":
+        raise ValueError(f"Macrocycle {macrocycle_id} is not an active macrocycle of athlete {athlete_id}")
+    idx = next_block_index(conn, macrocycle_id)
+    if idx >= len(mc["blocks"]):
+        execute(conn, "UPDATE macrocycles SET status = 'completed', updated_at = now() WHERE id = %s",
+                (macrocycle_id,))
+        conn.commit()
+        logger.info(f"Macrocycle {macrocycle_id} has no blocks left — marked completed")
+        return macrocycle_id, idx, None
+    return macrocycle_id, idx, mc["blocks"][idx]
+
+
 def _print_plan(ctx: AthleteContext, p: ProgramPlan):
     """Print plan summary for dry-run mode."""
     print(f"\n{'='*60}")
@@ -1120,10 +1176,18 @@ if __name__ == "__main__":
                         help="Run ASSESS + PLAN only; don't call LLM or write sessions")
     parser.add_argument("--weeks", type=int, default=None,
                         help="Block length; clamped to the athlete's level bounds, ignored when a competition date fixes it (PLAN-1)")
+    parser.add_argument("--macrocycle", type=int, nargs="?", const=0, default=None, metavar="WEEKS",
+                        help="Plan a macrocycle to the goal's competition date (else WEEKS, default "
+                             "MACROCYCLE_WEEKS_DEFAULT) and generate its first block (PLAN-3e)")
+    parser.add_argument("--macrocycle-id", type=int, default=None,
+                        help="Generate the next block of this macrocycle (PLAN-3e)")
     args = parser.parse_args()
 
     settings = Settings()
-    program_id = run(args.athlete_id, settings, dry_run=args.dry_run, duration_weeks=args.weeks)
+    program_id = run(args.athlete_id, settings, dry_run=args.dry_run, duration_weeks=args.weeks,
+                     new_macrocycle=args.macrocycle is not None,
+                     macrocycle_weeks=args.macrocycle or None,
+                     macrocycle_id=args.macrocycle_id)
 
     if program_id:
         print(f"\nProgram generated: id={program_id}")

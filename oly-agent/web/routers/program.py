@@ -42,9 +42,12 @@ async def program_detail(
         raise HTTPException(status_code=404, detail="Program not found")
     weeks = await q.get_program_weeks(conn, program_id)
     volume_data = await q.get_program_volume_by_week(conn, program_id)
+    macro = (await q.get_macrocycle_view(conn, athlete_id, program["macrocycle_id"])
+             if program.get("macrocycle_id") else None)
     logger.info(f"Program {program_id} detail: {len(weeks)} weeks, status={program['status']}")
     return templates.TemplateResponse(request, "program.html", {
         "request": request, "program": program, "weeks": weeks, "volume_data": volume_data,
+        "macro": macro,
     })
 
 
@@ -93,12 +96,41 @@ async def complete(
     logger.info(f"Completing program {program_id} for athlete {athlete_id}")
     outcome = await q.complete_program(conn, program_id, athlete_id)
     logger.info(f"Program {program_id} completed: adherence={outcome.adherence_pct}%, make_rate={outcome.avg_make_rate:.0%}")
+    macro_next = await _advance_macrocycle(program, outcome, athlete_id, request) if program.get("macrocycle_id") else None
     return templates.TemplateResponse(request, "partials/outcome_summary.html", {
-        "request": request, "outcome": outcome, "program_id": program_id,
+        "request": request, "outcome": outcome, "program_id": program_id, "macro_next": macro_next,
         # The partial refreshes the action buttons out-of-band, so it needs the
         # post-completion status rather than the row we read above.
         "program": {**dict(program), "status": "completed"},
     })
+
+
+async def _advance_macrocycle(program, outcome, athlete_id: int, request: Request) -> dict | None:
+    """PLAN-3e: re-flow the macrocycle after a block completes and queue the
+    next block. Returns {"message", "finished", "queued", "error"} for the
+    outcome card; a failure here never fails the completion itself."""
+    from web import jobs
+    try:
+        info = await q.advance_macrocycle(program["id"], outcome)
+    except Exception as e:
+        logger.error(f"Macrocycle re-flow failed for program {program['id']}: {e}")
+        return {"message": "", "finished": False, "queued": False,
+                "error": "The macrocycle could not be updated — generate the next block from the Generate page."}
+    if not info:
+        return None
+    result = {"message": info["message"], "finished": info["finished"], "queued": False, "error": ""}
+    if info["finished"]:
+        return result
+    try:
+        await jobs.submit_generation(athlete_id, request_id=getattr(request.state, "request_id", "-"),
+                                     macrocycle={"id": info["macrocycle_id"]})
+        result["queued"] = True
+    except jobs.GenerationInFlightError:
+        result["error"] = "Another generation is running — generate the next block from the Generate page when it finishes."
+    except Exception as e:
+        logger.error(f"Could not queue the next macrocycle block: {e}")
+        result["error"] = "The next block could not be queued — generate it from the Generate page."
+    return result
 
 
 @router.delete("/{program_id}", response_class=HTMLResponse)

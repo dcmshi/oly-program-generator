@@ -7,6 +7,18 @@
 <div class="bg-blue-50 border border-blue-100 rounded-xl p-5">
   <h3 class="font-semibold text-blue-900 mb-3">Program Outcome</h3>
 
+  {% if macro_next %}
+  <div class="text-sm mb-4">
+    {% if macro_next.message %}<p class="text-blue-900 mb-1">{{ macro_next.message }}</p>{% endif %}
+    {% if macro_next.finished %}
+    <p class="text-blue-900">Macrocycle complete.</p>
+    {% elif macro_next.queued %}
+    <p class="text-blue-900">The next macrocycle block is being generated — <a href="/generate" class="text-blue-600 hover:underline">follow it on the Generate page</a>.</p>
+    {% endif %}
+    {% if macro_next.error %}<p class="text-amber-700">{{ macro_next.error }}</p>{% endif %}
+  </div>
+  {% endif %}
+
   <div class="grid grid-cols-3 gap-4 text-center mb-4">
     <div>
       <p class="text-2xl font-bold text-blue-900">{{ outcome.adherence_pct }}%</p>

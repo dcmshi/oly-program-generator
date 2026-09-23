@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-Postgres 16 + pgvector. **21 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0019_complexes_catalogue` (0018 moves the `knowledge_chunks.embedding_model` default to `text-embedding-3-large`; 0019 dedupes `exercise_complexes`, adds `UNIQUE(name)`, `movement_family`, `complexity_level` and seeds 9 complexes).
+Postgres 16 + pgvector. **22 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0020_macrocycles` (0018 moves the `knowledge_chunks.embedding_model` default to `text-embedding-3-large`; 0019 dedupes `exercise_complexes`, adds `UNIQUE(name)`, `movement_family`, `complexity_level` and seeds 9 complexes; 0020 adds `macrocycles` and `generated_programs.macrocycle_id` / `macrocycle_block_index`).
 
 **The Alembic migrations are the source of truth.** This page summarises them; where it and a migration disagree, the migration wins (`cd oly-agent && uv run alembic history`). The root-level `schema.sql`, `athlete_schema.sql`, `auth_migration.sql` and `oly-ingestion/schema.sql` predate Alembic and are not applied by `make migrate`.
 
@@ -181,7 +181,7 @@ erDiagram
 | `prilepin_chart` | 4 | Prilepin's intensity zones (55–65, 70–80, 80–90, 90–100%; seed data). The runtime source of truth is `shared/prilepin.py`'s in-memory table, which additionally covers the 65–70 transition band — nothing reads this table at runtime. |
 | `exercises` | 70+ | Full exercise taxonomy: competition lifts, variants, pulls, strength, accessory, plyometrics. Self-referencing hierarchy via `parent_exercise_id`. 45 rows from the 0000 seed; 27 coach-block variants (deficit / block / extension / pull-to-hip lifts, jumps, rows, split squats …) from migration 0014 (DOG-1f). Rows the structured loader adds from books are filtered by `pipeline._parse_exercise` (no all-caps or bare-movement chapter headings). |
 | `exercise_substitutions` | 10+ | Injury/equipment/fatigue substitution pairs with context. |
-| `exercise_complexes` | 12 | Named multi-exercise complexes with ordered JSONB structure. |
+| `exercise_complexes` | 15 | Named multi-exercise complexes with ordered JSONB structure. |
 | `percentage_schemes` | varies | Extracted percentage programs from source books (week/day/sets/reps/intensity). |
 | `programming_principles` | see `docs/CORPUS.md` | LLM-extracted if/then rules from prose. JSONB `condition` (8 schema keys, evaluated per session by `principle_matcher`) + `recommendation` fields. Restated rules are marked, not deleted: `duplicate_of` (FK to the canonical twin — the lowest id — `ON DELETE SET NULL`) and `duplicate_probability` (migration 0016) are set by `oly-ingestion/dedupe_principles.py`, and every query that feeds principles to a prompt filters `duplicate_of IS NULL` (`plan._load_principles`). |
 | `program_templates` | 47 | LLM-parsed program structures from books. |
@@ -243,7 +243,20 @@ erDiagram
         jsonb generation_params
         text rationale
         jsonb outcome_summary
+        int macrocycle_id FK
+        int macrocycle_block_index
         timestamp created_at
+    }
+
+    macrocycles {
+        int id PK
+        int athlete_id FK
+        date competition_date
+        date start_date
+        jsonb blocks
+        text status
+        timestamp created_at
+        timestamp updated_at
     }
 
     program_sessions {
@@ -309,6 +322,8 @@ erDiagram
     athletes ||--o{ athlete_maxes : "athlete_id"
     athletes ||--o{ athlete_goals : "athlete_id"
     athletes ||--o{ generated_programs : "athlete_id"
+    athletes ||--o{ macrocycles : "athlete_id"
+    macrocycles ||--o{ generated_programs : "macrocycle_id"
     athletes ||--o{ training_logs : "athlete_id"
 
     athlete_goals ||--o{ generated_programs : "goal_id"
@@ -331,7 +346,8 @@ erDiagram
 | `athletes` | Athlete profile. Technical faults and injuries drive exercise selection and substitutions. |
 | `athlete_maxes` | One `current` max per athlete per exercise (partial unique index). Historical and estimated maxes also stored. |
 | `athlete_goals` | Active goal drives phase selection in PLAN step. Stores competition date, target totals, and faults to address. |
-| `generated_programs` | Mesocycle output. Snapshots athlete state at generation time. `outcome_summary` JSONB populated after program completion via `feedback.py`. |
+| `generated_programs` | Mesocycle output. Snapshots athlete state at generation time. `outcome_summary` JSONB populated after program completion via `feedback.py`. `macrocycle_id` / `macrocycle_block_index` (migration 0020) say which macrocycle block it realises. |
+| `macrocycles` | PLAN-3e block sequence: `blocks` JSONB `[{phase, weeks, note}]`, re-flowed when a block completes; `status` active / completed / abandoned (a new plan abandons the old). Block status is derived from the programs pointing at it. |
 | `program_sessions` | One row per training day in the program (week × day). |
 | `session_exercises` | Individual exercise prescriptions within a session. `source_chunk_ids` and `source_principle_ids` trace which retrieved knowledge informed each exercise. |
 | `training_logs` | Athlete's actual session record. Links to `program_sessions` for adherence tracking. |

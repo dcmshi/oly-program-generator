@@ -65,7 +65,8 @@ ask it to.
 | ✅ | 1.8 | `phase_progression.compute_load_deltas` — proportional nudges, one source for plan + feedback |
 | ✅ | 2.1, 2.2, 2.3 | 2- and 6-day layouts; `lift_emphasis` flips the light day; shares per layout |
 | ✅ | 3.4, 3.8 | `prefs.warmups` (own / prescribed) → prompt rule; `prefs.max_test` (auto / always / never) → orchestrator |
-| — | 1.2, 1.3 | Multi-block plans stay chained generations (each re-plans on the last outcome); phase order fixed by design |
+| ✅ | 1.2 | PLAN-3e (2026-09-22): `macrocycle.py` — the block sequence to the goal's meet date (else a chosen 6–52 weeks) laid out backward (realization, intensification, near-equal accumulation blocks, general prep on ≥ 16 weeks), stored in `macrocycles`, shown on the Generate and program pages; block 1 generated now, each later block queued when the previous is completed. `reflow` repeats a held phase (inserted without a meet; with one it replaces the next preparatory block, or is skipped when only the peak fits) and re-fits the tail to the date |
+| — | 1.3 | Phase order fixed by design |
 | — | 1.7 | Thresholds are constants; per-athlete overrides not needed until a masters cohort exists |
 | ✅ | 2.4 | PLAN-3c (2026-09-22): `phase_profiles.STRENGTH_CURVE` — squat (% of the squat max) and pull (% of the lift) bands per phase + deload, each row citing its principle ids (Charniga leg-strength stages, Suchomel pulling derivatives, Roman, Vorobyev, the taper studies); on every WeekTarget, in the Program Plan prompt, validator check 13 warns outside ±5 points |
 | ✅ | 3.1 | PLAN-3d (2026-09-22): `shared/volume_tables.py` — `prefs.volume_table` = `prilepin` (default) or `medvedev` (weekly comp-lift reps from Medvedyev's monthly lift counts × his 50 % competition-lift share; his zone distribution in the prompt; Prilepin's per-set limits kept, its per-session zone caps skipped). Roman's tables are not used: their OCR is too broken to trust without a hand check |

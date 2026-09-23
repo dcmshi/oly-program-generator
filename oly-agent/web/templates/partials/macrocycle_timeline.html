@@ -1,0 +1,31 @@
+{# PLAN-3e: the macrocycle's block sequence. Needs `macro` from
+   queries.program.get_macrocycle_view; `current_program_id` (optional) marks
+   the block being viewed. #}
+<div class="bg-paper-100 border border-line rounded-xl p-4 mb-6 text-sm print:hidden">
+  <div class="flex items-center justify-between mb-2">
+    <p class="font-semibold">
+      Macrocycle · {{ macro.total_weeks }} weeks
+      {% if macro.competition_date %}<span class="text-ink-muted font-normal">to the meet on {{ macro.competition_date }}</span>{% endif %}
+    </p>
+    <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ macro.status | status_color }}">{{ macro.status }}</span>
+  </div>
+  <ol class="flex flex-wrap gap-2">
+    {% for b in macro.rows %}
+    <li class="rounded-lg px-3 py-2 bg-paper {{ 'border-2 border-navy' if current_program_id and b.program_id == current_program_id else 'border border-line' }}">
+      <div class="flex items-center gap-2">
+        <span class="text-xs text-ink-faint">{{ b.index + 1 }}</span>
+        <span class="text-xs px-2 py-0.5 rounded-full font-medium {{ b.phase | phase_color }}">{{ b.phase | replace('_', ' ') | upper }}</span>
+        <span class="text-xs text-ink-muted">{{ b.weeks }} wks · wk {{ b.start_week }}</span>
+      </div>
+      <div class="flex items-center gap-2 mt-1">
+        {% if b.program_id %}
+        <a href="/program/{{ b.program_id }}" class="text-xs text-blue-600 hover:underline">{{ b.status }} →</a>
+        {% else %}
+        <span class="text-xs text-ink-faint">planned</span>
+        {% endif %}
+        {% if b.note %}<span class="text-xs text-ink-muted">{{ b.note }}</span>{% endif %}
+      </div>
+    </li>
+    {% endfor %}
+  </ol>
+</div>

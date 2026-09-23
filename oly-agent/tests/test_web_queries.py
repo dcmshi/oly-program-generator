@@ -321,9 +321,10 @@ def test_worker_passes_deadline_to_orchestrator():
     import web.worker as worker
     captured = {}
 
-    def fake_run(athlete_id, settings, dry_run=False, deadline=None, duration_weeks=None):
+    def fake_run(athlete_id, settings, dry_run=False, deadline=None, duration_weeks=None, **macro):
         captured["deadline"] = deadline
         captured["duration_weeks"] = duration_weeks
+        captured["macro"] = macro
         return 42
 
     with patch("orchestrator.run", side_effect=fake_run):
@@ -332,6 +333,18 @@ def test_worker_passes_deadline_to_orchestrator():
     assert captured["duration_weeks"] == 6                      # PLAN-1: the form's block length reaches the planner
     assert captured.get("deadline") is not None, \
         "worker must pass a monotonic deadline (WEB-M8 — thread outlives job_timeout)"
+    assert captured["macro"] == {"new_macrocycle": False, "macrocycle_weeks": None, "macrocycle_id": None}
+
+
+def test_worker_passes_macrocycle_to_orchestrator():
+    """PLAN-3e: {"new", "weeks"} plans one; {"id"} generates its next block."""
+    import web.worker as worker
+    seen = []
+    with patch("orchestrator.run", side_effect=lambda *a, **kw: seen.append(kw) or 7):
+        asyncio.run(worker.run_generation({}, 1, macrocycle={"new": True, "weeks": 16}))
+        asyncio.run(worker.run_generation({}, 1, macrocycle={"id": 3}))
+    assert (seen[0]["new_macrocycle"], seen[0]["macrocycle_weeks"], seen[0]["macrocycle_id"]) == (True, 16, None)
+    assert (seen[1]["new_macrocycle"], seen[1]["macrocycle_id"]) == (False, 3)
 
 
 # ── WEB-L2: one in-flight generation per athlete ─────────────────────────────

@@ -35,7 +35,8 @@ from shared.volume_tables import session_rep_target
 logger = logging.getLogger(__name__)
 
 
-def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | None = None) -> ProgramPlan:
+def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | None = None,
+         block: dict | None = None) -> ProgramPlan:
     """Determine the program shape from athlete context.
 
     Decision tree:
@@ -52,10 +53,17 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
     for a length; it is clamped to the level's bounds and ignored when a
     competition date fixes the block (realization runs to the meet).
 
+    `block` (PLAN-3e) is a macrocycle block, {"phase", "weeks"}: the macrocycle
+    already chose the phase and length, so neither the decision tree nor the
+    block-length rules run (the cold-start caps still do).
+
     Returns a ProgramPlan with weekly targets and session templates.
     """
-    phase, default_weeks = _select_phase_and_duration(athlete_context)
-    duration_weeks = resolve_block_length(phase, default_weeks, athlete_context, duration_weeks)
+    if block is not None:
+        phase, duration_weeks = block["phase"], int(block["weeks"])
+    else:
+        phase, default_weeks = _select_phase_and_duration(athlete_context)
+        duration_weeks = resolve_block_length(phase, default_weeks, athlete_context, duration_weeks)
     logger.info(f"Selected phase={phase}, duration={duration_weeks} weeks")
     prefs = training_preferences(athlete_context.athlete)
 

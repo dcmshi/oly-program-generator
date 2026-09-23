@@ -25,6 +25,26 @@
 </div>
 {% endif %}
 
+<!-- Macrocycle (PLAN-3e) -->
+{% if macro %}
+{% include "partials/macrocycle_timeline.html" %}
+{% if macro.can_generate %}
+<div class="bg-paper border border-line rounded-xl p-5 shadow-sm mb-6">
+  <form hx-post="/generate/run" hx-target="#gen-output" hx-swap="innerHTML">
+    <input type="hidden" name="macrocycle_id" value="{{ macro.id }}">
+    <p class="text-sm mb-3">
+      Next: block {{ macro.next.index + 1 }} — {{ macro.next.phase | replace('_', ' ') }}, {{ macro.next.weeks }} weeks.
+    </p>
+    <button type="submit" class="bg-navy text-white px-5 py-2 rounded-lg text-sm hover:bg-navy-700">
+      Generate block {{ macro.next.index + 1 }}
+    </button>
+  </form>
+</div>
+{% elif macro.next %}
+<p class="text-sm text-ink-muted mb-6">Block {{ macro.next.index + 1 }} is generated when the current block is completed.</p>
+{% endif %}
+{% endif %}
+
 <!-- Generate form -->
 <div class="bg-paper border border-line rounded-xl p-5 shadow-sm">
   <form hx-post="/generate/run"
@@ -35,6 +55,16 @@
       <input type="number" name="weeks" min="2" max="8" step="1" placeholder="auto"
              class="border border-line rounded-lg px-3 py-1.5 w-28 bg-paper">
       <span class="block text-xs text-ink-muted mt-1">Leave blank for the phase default (beginners up to 4, intermediates 6, advanced 8). A competition date overrides this.</span>
+    </label>
+    <label class="flex items-center gap-2 text-sm mb-2 cursor-pointer">
+      <input type="checkbox" name="macrocycle" class="rounded">
+      Plan a macrocycle{% if macro %} (replaces the current one){% endif %}
+    </label>
+    <label class="block text-sm mb-4">
+      <span class="block mb-1">Macrocycle length (weeks)</span>
+      <input type="number" name="macrocycle_weeks" min="{{ macro_min }}" max="{{ macro_max }}" step="1" placeholder="12"
+             class="border border-line rounded-lg px-3 py-1.5 w-28 bg-paper">
+      <span class="block text-xs text-ink-muted mt-1">The whole block sequence ending in a peak / max-test block; block 1 is generated now, each later block when the previous one is completed. A competition date on your goal sets the length.</span>
     </label>
     <label class="flex items-center gap-2 text-sm mb-4 cursor-pointer">
       <input type="checkbox" name="dry_run" class="rounded">

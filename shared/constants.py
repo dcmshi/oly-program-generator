@@ -100,6 +100,16 @@ BLOCK_WEEKS_DEFAULT_BY_LEVEL: dict[str, dict[str, int]] = {
     "elite":        {"accumulation": 6},
 }
 
+# ── Macrocycles (PLAN-3e) ─────────────────────────────────────────
+# A macrocycle lays blocks out backward from the meet (or the chosen length's
+# final max-test week): realization, intensification, then accumulation blocks
+# of the level's default length, with a general-prep opener on long plans.
+# Shorter than the minimum is a single block, not a macrocycle.
+MACROCYCLE_WEEKS_MIN: int = 6
+MACROCYCLE_WEEKS_MAX: int = 52
+MACROCYCLE_WEEKS_DEFAULT: int = 12
+MACROCYCLE_GENERAL_PREP_MIN_WEEKS: int = 16
+
 # ── Training preferences (PLAN-2 §1.4, §3.4, §3.5, §3.8) ─────────
 # Stored under athletes.exercise_preferences["prefs"] (JSONB; "avoid" lives
 # beside it). Read by plan.py (deload cadence), generate.py (warm-up and deload
