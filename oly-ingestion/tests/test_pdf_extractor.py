@@ -176,7 +176,7 @@ def test_pymupdf_succeeds_no_fallback():
     mock_plumber = MagicMock()
 
     with patch.dict(sys.modules, {"fitz": mock_fitz, "pdfplumber": mock_plumber}):
-        result = PDFExtractor().extract(Path("test.pdf"))
+        result = PDFExtractor(vision_model="m").extract(Path("test.pdf"))
 
     assert len(result) == 1
     assert _LONG_TEXT.strip() in result[0]
@@ -189,7 +189,7 @@ def test_pymupdf_fails_triggers_pdfplumber_fallback():
     mock_plumber = _mock_pdfplumber([_LONG_TEXT])
 
     with patch.dict(sys.modules, {"fitz": mock_fitz, "pdfplumber": mock_plumber}):
-        result = PDFExtractor().extract(Path("test.pdf"))
+        result = PDFExtractor(vision_model="m").extract(Path("test.pdf"))
 
     assert len(result) == 1
     mock_plumber.open.assert_called_once()
@@ -201,7 +201,7 @@ def test_both_fail_no_client_no_vision():
     mock_plumber = _mock_pdfplumber([_SHORT_TEXT])
 
     with patch.dict(sys.modules, {"fitz": mock_fitz, "pdfplumber": mock_plumber}):
-        extractor = PDFExtractor(anthropic_client=None)
+        extractor = PDFExtractor(anthropic_client=None, vision_model="m")
         result = extractor.extract(Path("test.pdf"))
 
     # Returns whatever text was found (short, but not errored)
@@ -215,7 +215,7 @@ def test_both_fail_with_client_calls_vision():
     mock_client = MagicMock()
 
     with patch.dict(sys.modules, {"fitz": mock_fitz_module, "pdfplumber": mock_plumber}):
-        extractor = PDFExtractor(anthropic_client=mock_client)
+        extractor = PDFExtractor(anthropic_client=mock_client, vision_model="m")
         with patch.object(extractor, "_extract_with_vision", return_value=["OCR result text"]) as mock_vision:
             result = extractor.extract(Path("test.pdf"))
 
@@ -229,7 +229,7 @@ def test_max_pages_limits_results():
     mock_fitz = _mock_fitz(pages)
 
     with patch.dict(sys.modules, {"fitz": mock_fitz}):
-        result = PDFExtractor().extract(Path("test.pdf"), max_pages=3)
+        result = PDFExtractor(vision_model="m").extract(Path("test.pdf"), max_pages=3)
 
     assert len(result) == 3
 
@@ -240,7 +240,7 @@ def test_max_pages_zero_means_no_limit():
     mock_fitz = _mock_fitz(pages)
 
     with patch.dict(sys.modules, {"fitz": mock_fitz}):
-        result = PDFExtractor().extract(Path("test.pdf"), max_pages=0)
+        result = PDFExtractor(vision_model="m").extract(Path("test.pdf"), max_pages=0)
 
     assert len(result) == 5
 
@@ -250,7 +250,7 @@ def test_empty_pages_excluded():
     mock_fitz = _mock_fitz(["   ", "\n\n", _LONG_TEXT])
 
     with patch.dict(sys.modules, {"fitz": mock_fitz}):
-        result = PDFExtractor().extract(Path("test.pdf"))
+        result = PDFExtractor(vision_model="m").extract(Path("test.pdf"))
 
     assert len(result) == 1
 
@@ -262,7 +262,7 @@ def test_pymupdf_exception_falls_through_to_pdfplumber():
     mock_plumber = _mock_pdfplumber([_LONG_TEXT])
 
     with patch.dict(sys.modules, {"fitz": mock_fitz, "pdfplumber": mock_plumber}):
-        result = PDFExtractor().extract(Path("test.pdf"))
+        result = PDFExtractor(vision_model="m").extract(Path("test.pdf"))
 
     assert len(result) == 1 and _LONG_TEXT.strip() in result[0]
     mock_plumber.open.assert_called_once()
@@ -276,7 +276,7 @@ def test_both_extractors_raise_no_crash():
     mock_plumber.open.side_effect = RuntimeError("also bad")
 
     with patch.dict(sys.modules, {"fitz": mock_fitz, "pdfplumber": mock_plumber}):
-        result = PDFExtractor(anthropic_client=None).extract(Path("test.pdf"))
+        result = PDFExtractor(anthropic_client=None, vision_model="m").extract(Path("test.pdf"))
 
     assert result == []
 
@@ -337,7 +337,7 @@ def test_vision_ocr_requires_anthropic_client():
     """Calling _extract_with_vision without a client raises AttributeError."""
     _integration_only()  # gate — this test is a placeholder
     # Full OCR tests require a real PDF and API key
-    extractor = PDFExtractor(anthropic_client=None)
+    extractor = PDFExtractor(anthropic_client=None, vision_model="m")
     try:
         extractor._extract_with_vision(Path("nonexistent.pdf"))
         raise AssertionError("Should have failed without fitz or client")
@@ -418,7 +418,7 @@ def test_force_vision_skips_the_text_layer(tmp_path):
     vision.assert_called_once()
     import pytest
     with pytest.raises(ValueError):
-        PDFExtractor(anthropic_client=None, force_vision=True).extract(pdf)
+        PDFExtractor(anthropic_client=None, vision_model="m", force_vision=True).extract(pdf)
 
 
 def test_vision_retries_blank_pages_singly(tmp_path):
@@ -468,3 +468,16 @@ def test_postcorrect_is_guarded():
     assert ex._postcorrect(garbled, 3) == clean.strip()
     ex._client.messages.create.return_value = SimpleNamespace(content=[SimpleNamespace(type="text", text=clean * 3)])
     assert ex._postcorrect(garbled, 3) is None          # length ×3 → rejected
+    from shared.constants import OCR_POSTCORRECT_MAX_TOKENS
+    assert ex._client.messages.create.call_args.kwargs["max_tokens"] == OCR_POSTCORRECT_MAX_TOKENS
+
+
+def test_vision_model_is_required():
+    """No hard-coded default: a Claude id would be wrong under the OpenRouter
+    provider and would key the OCR cache to the wrong model (AUD-6)."""
+    import pytest
+    with pytest.raises(TypeError):
+        PDFExtractor(anthropic_client=None)
+    with pytest.raises(TypeError):
+        PDFExtractor(None, "claude-sonnet-5")          # keyword-only
+    assert PDFExtractor(vision_model="moonshotai/kimi-k3")._vision_model == "moonshotai/kimi-k3"
