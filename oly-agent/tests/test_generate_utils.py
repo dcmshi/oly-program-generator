@@ -1587,3 +1587,161 @@ def test_prompt_warmup_and_deload_rules_follow_preferences():
     )
     assert "warms up on their own" in own and "Include 2-3 warmup sets" not in own
     assert "intensity deload" in own
+
+
+
+# ── AUD-6: golden prompts pin build_session_prompt byte for byte ─────────────
+# The fixtures were written from the pre-refactor builder; a change to the prompt
+# text must regenerate them on purpose (`_write_golden_prompts()`), never drift.
+
+_GOLDEN_DIR = Path(__file__).parent / "fixtures"
+
+
+def _golden_rich_prompt():
+    """Every optional section populated: faults, fault exercises, substitutions,
+    projected maxes, previous program (weak lift, deltas, notes, structure),
+    recent logs, templates, principles, long context chunks, saturated
+    accessories, a block template, an intensity deload and 'own' warm-ups."""
+    athlete = AthleteContext(
+        athlete={
+            "name": "Golden Athlete", "level": "advanced", "sessions_per_week": 5,
+            "session_duration_minutes": 100, "lift_emphasis": "snatch_biased",
+            "strength_limiters": ["pull_strength", "squat_strength"],
+            "competition_experience": "national",
+            "exercise_preferences": {"avoid": ["Behind the Neck Jerk"],
+                                     "prefs": {"warmups": "own", "deload_style": "intensity"}},
+            "available_equipment": ["barbell", "rack", "blocks"],
+        },
+        level="advanced",
+        maxes={"snatch": 110.0, "clean_and_jerk": 140.0, "back_squat": 190.0, "clean_pull": 160.0},
+        active_goal=None,
+        previous_program={
+            "phase": "accumulation", "duration_weeks": 5,
+            "outcome_summary": {"adherence_pct": 88.0, "avg_make_rate": 0.81,
+                                "make_rate_by_lift": {"snatch": 0.7, "clean_and_jerk": 0.9},
+                                "avg_rpe_deviation": 0.4, "rpe_trend": "ascending",
+                                "make_rate_trend": "stable", "maxes_delta": {"snatch": 2.5},
+                                "athlete_feedback": "Knees ached in week 3."},
+            "structure": {"cycles": [{"label": "Volume", "weeks": [1, 3]}, {"label": "Deload", "weeks": [5, 5]}],
+                          "most_used": [{"exercise_name": "Snatch", "sessions": 9}],
+                          "last_week_top_sets": [{"exercise_name": "Snatch", "intensity_pct": 80,
+                                                  "absolute_weight_kg": 88}]},
+        },
+        recent_logs=[
+            {"log_date": "2026-09-10", "exercise_name": "Snatch", "weight_kg": 85, "sets_completed": 3,
+             "rpe": 8, "make_rate": 0.9},
+            {"log_date": "2026-09-10", "exercise_name": "Snatch", "weight_kg": 60, "sets_completed": 2},
+            {"log_date": "2026-09-09", "exercise_name": "Back Squat", "weight_kg": None, "sets_completed": 4},
+        ],
+        technical_faults=["early_arm_bend", "slow_turnover"],
+        injuries=["left wrist"],
+        sessions_per_week=5,
+        weeks_to_competition=None,
+    )
+    retrieval = RetrievalContext(
+        fault_exercises={"snatch": [
+            {"name": "Snatch Pull", "primary_purpose": "Pull strength. Also posture.",
+             "faults_addressed": ["early_arm_bend"]},
+        ]},
+        template_references=[
+            {"name": "Golden Block", "notes": "n", "program_structure": {"weeks": [
+                {"week_number": 2, "sessions": [{"day": "Mon", "exercises": [
+                    {"name": "Snatch", "sets": 5, "reps": 2, "intensity_pct": 78}]}]}]}},
+            {"name": "Notes Only", "notes": "Classic three-week wave", "program_structure": None},
+        ],
+        programming_rationale=[],
+        fault_correction_chunks=[],
+        available_substitutions={"Jerk": [{"substitute_name": "Push Press", "notes": "wrist friendly"}]},
+        active_principles=[],
+        prilepin_targets={"70-80": {"optimal_total_reps": 18, "total_reps_range_low": 12,
+                                    "total_reps_range_high": 24, "reps_per_set_low": 3, "reps_per_set_high": 6}},
+        available_exercises=[
+            {"name": "Snatch", "movement_family": "snatch", "complexity_level": 3,
+             "typical_sets_low": 4, "typical_sets_high": 6, "typical_reps_low": 1, "typical_reps_high": 3,
+             "typical_intensity_low": 70, "typical_intensity_high": 95, "faults_addressed": ["slow_turnover"]},
+            {"name": "Back Extension", "movement_family": "accessory", "complexity_level": 1,
+             "faults_addressed": []},
+        ],
+    )
+    principles = [
+        {"id": 11, "principle_name": "Volume first", "recommendation": {"volume": "high"},
+         "rationale": "Accumulation builds work capacity " * 20, "source_title": "Golden Book"},
+        {"id": 12, "principle_name": "Text rule", "recommendation": "keep it simple"},
+    ]
+    long_text = ("Early arm bend robs the second pull. " * 30) + ("Turnover speed matters under the bar. " * 30)
+    chunks = [
+        {"id": 1, "chunk_type": "fault_correction", "raw_content": long_text, "retrieval_query": "early arm bend"},
+        {"id": 2, "chunk_type": "periodization", "content": "Short periodization note.", "session_query": "snatch"},
+        {"id": 3, "raw_content": ""},
+    ]
+    already = [
+        {"day_number": d, "exercise_name": "Back Extension", "sets": 3, "reps": 10,
+         "intensity_pct": None, "intensity_reference": "bodyweight"} for d in (1, 2)
+    ] + [{"day_number": 2, "exercise_name": "Snatch", "sets": 5, "reps": 2, "intensity_pct": 75}]
+    return build_session_prompt(
+        athlete, WeekTarget(5, 0.6, 65.0, 73.0, 30, [2, 3], True),
+        SessionTemplate(3, "Snatch Variations", "snatch", ["pull", "squat"], 0.2, notes="light day"),
+        retrieval, week_number=5, duration_weeks=5, already_prescribed=already,
+        session_rep_target=8, cumulative_comp_reps=10,
+        effective_maxes={"snatch": 115.0, "clean_and_jerk": 140.0, "back_squat": 190.0, "clean_pull": 160.0},
+        phase="realization", sessions_per_week=4, active_principles=principles,
+        context_chunks=chunks, block_template="Snatch 5x2 @75%; Snatch Pull 4x3 @95%",
+    )
+
+
+def _golden_minimal_prompt():
+    """The fallback paths: no faults, no previous program, no logs, no
+    templates/principles/substitutions, program-level context composition
+    (context_chunks=None), prescribed warm-ups, a volume deload and no blocks."""
+    retrieval = _make_retrieval(
+        programming_rationale=[_chunk(5, "periodization", "Rationale one."), _chunk(6, "concept", "Rationale two.")],
+        fault_correction_chunks=[_chunk(9, "fault_correction", "Never shown: athlete has no faults.")],
+    )
+    athlete = _make_athlete()
+    athlete.athlete["exercise_preferences"] = None
+    athlete.maxes = {"snatch": 100.0}
+    return build_session_prompt(
+        athlete, WeekTarget(4, 0.6, 60.0, 70.0, 10, [1, 3], True),
+        SessionTemplate(1, "Snatch + Squat", "snatch", [], 0.30), retrieval,
+        week_number=4, duration_weeks=4, already_prescribed=[], session_rep_target=4,
+        cumulative_comp_reps=0,
+    )
+
+
+def _golden_faults_fallback_prompt():
+    """Faults + the program-level context fallback (fault chunks first), no
+    fault exercises retrieved for one fault, non-deload week."""
+    retrieval = _make_retrieval(
+        programming_rationale=[_chunk(5, "periodization", "Rationale one.")],
+        fault_correction_chunks=[_chunk(9, "fault_correction", "Fix the arm bend."),
+                                 _chunk(5, "periodization", "Rationale one.")],
+        fault_exercises={"snatch": [{"name": "Snatch Pull", "faults_addressed": ["early_arm_bend"]}]},
+    )
+    athlete = _make_athlete(faults=["early_arm_bend", "hips_rise_first"])
+    athlete.maxes = {"snatch": 100.0, "clean_and_jerk": 150.0, "back_squat": 140.0}
+    return _make_prompt(athlete, retrieval)
+
+
+_GOLDEN_PROMPTS = {
+    "rich": _golden_rich_prompt,
+    "minimal": _golden_minimal_prompt,
+    "faults_fallback": _golden_faults_fallback_prompt,
+}
+
+
+def _write_golden_prompts():
+    """Regenerate the fixtures — only when a prompt change is intended."""
+    _GOLDEN_DIR.mkdir(exist_ok=True)
+    for name, build in _GOLDEN_PROMPTS.items():
+        (_GOLDEN_DIR / f"prompt_golden_{name}.txt").write_text(build(), encoding="utf-8", newline="\n")
+
+
+def test_session_prompt_matches_the_golden_fixtures_byte_for_byte():
+    from generate import split_prompt_for_caching
+
+    for name, build in _GOLDEN_PROMPTS.items():
+        # universal-newline read: a CRLF checkout still compares equal
+        expected = (_GOLDEN_DIR / f"prompt_golden_{name}.txt").read_text(encoding="utf-8")
+        prompt = build()
+        assert prompt == expected, name
+        assert split_prompt_for_caching(prompt) == split_prompt_for_caching(expected), name
