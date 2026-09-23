@@ -8,8 +8,12 @@ Score the live retriever against golden.json under production settings (RAG-M6).
     PYTHONUTF8=1 uv run python -m eval.run_eval --dense-only       # ablation: hybrid off
 
 Needs the corpus DB and OPENAI_API_KEY (query embeddings). Exits 1 when a
-summary metric drops more than REGRESSION_TOLERANCE below the baseline, so it
+gated summary metric (GATED_METRICS: nDCG@k and grade-2 recall normalised by
+min(k, relevant)) drops more than REGRESSION_TOLERANCE below the baseline, so it
 can gate a change: run it before and after, or in CI under INTEGRATION_TESTS=1.
+Plain recall@k and MRR are reported but not gated — the golden set has ~16
+relevant chunks per query, which caps recall@5 near 0.3 and pins MRR at 0.93+
+(AUD-3), so neither can register a ranking change.
 
 golden.json is produced by eval/build_golden.py (LLM-graded, run once per corpus
 change). Without it this script only prints the query set.
@@ -33,8 +37,10 @@ from shared.constants import HYBRID_SEARCH_ENABLED, VECTOR_SEARCH_DEFAULT_TOP_K,
 
 GOLDEN_PATH = _HERE / "golden.json"
 BASELINE_PATH = _HERE / "baseline.json"
-REGRESSION_TOLERANCE = 0.02          # absolute drop in a mean metric that fails the run
-GATED_METRICS = ("recall_at_k", "mrr", "ndcg_at_k")
+REGRESSION_TOLERANCE = 0.02          # absolute drop in a gated mean metric that fails the run
+GATED_METRICS = ("ndcg_at_k", "nrecall_at_k")
+# Reported next to the gate for continuity with older baselines; never fail the run.
+INFORMATIONAL_METRICS = ("recall_at_k", "mrr", "hit_at_k", "nrecall_g1_at_k", "max_source_share")
 
 
 def load_golden(path: Path = GOLDEN_PATH) -> dict:
@@ -53,7 +59,8 @@ def load_golden(path: Path = GOLDEN_PATH) -> dict:
 
 def compare_to_baseline(summary: dict, baseline: dict | None,
                         tolerance: float = REGRESSION_TOLERANCE) -> list[str]:
-    """Names of gated metrics that regressed more than `tolerance`."""
+    """Gated metrics that regressed more than `tolerance`. A metric missing from
+    either side (e.g. a baseline frozen before it existed) is skipped, not failed."""
     if not baseline:
         return []
     regressed = []
@@ -87,16 +94,21 @@ def evaluate(loader, golden: dict, top_k: int = VECTOR_SEARCH_DEFAULT_TOP_K,
 
 
 def _print_report(rows, summary, by_kind, baseline, regressed):
-    print(f"\n{'id':44s} {'R@k':>6s} {'MRR':>6s} {'nDCG':>6s} {'src%':>5s} {'n':>3s}")
+    print(f"\n{'id':44s} {'nDCG':>6s} {'nR@k':>6s} {'R@k':>6s} {'MRR':>6s} {'src%':>5s} {'n':>3s} {'rel2':>4s}")
     for r in rows:
         def f(v, w=6):
             return f"{v:>{w}.3f}" if isinstance(v, float) else f"{'—':>{w}s}"
-        print(f"{r['id'][:44]:44s} {f(r['recall_at_k'])} {f(r['mrr'])} {f(r['ndcg_at_k'])} {f(r['max_source_share'], 5)} {r['n_results']:>3d}")
+        print(f"{r['id'][:44]:44s} {f(r['ndcg_at_k'])} {f(r['nrecall_at_k'])} {f(r['recall_at_k'])} "
+              f"{f(r['mrr'])} {f(r['max_source_share'], 5)} {r['n_results']:>3d} {r.get('n_relevant_g2', 0):>4d}")
     print("\nsummary:", json.dumps(summary))
     for kind, s in by_kind.items():
-        print(f"  {kind:8s}", json.dumps({k: s[k] for k in ('n_queries', 'recall_at_k', 'mrr', 'ndcg_at_k', 'max_source_share')}))
+        print(f"  {kind:8s}", json.dumps({k: s.get(k) for k in ("n_queries", *GATED_METRICS, *INFORMATIONAL_METRICS)}))
     if baseline:
-        print("baseline:", json.dumps({k: baseline.get(k) for k in GATED_METRICS}))
+        print("baseline (gated):        ", json.dumps({k: baseline.get(k) for k in GATED_METRICS}))
+        print("baseline (informational):", json.dumps({k: baseline.get(k) for k in INFORMATIONAL_METRICS}))
+        missing = [k for k in GATED_METRICS if baseline.get(k) is None]
+        if missing:
+            print(f"(baseline has no {', '.join(missing)} — not gated; re-freeze with --update-baseline)")
     if regressed:
         print("\nREGRESSION:", "; ".join(regressed))
     else:
@@ -137,7 +149,10 @@ def main(argv=None) -> int:
     _print_report(rows, summary, by_kind, baseline, regressed)
 
     if args.update_baseline:
-        args.baseline.write_text(json.dumps({**summary, "by_kind": by_kind, "golden_meta": golden.get("meta", {})}, indent=2), encoding="utf-8")
+        gate = {"gated_metrics": list(GATED_METRICS), "tolerance": REGRESSION_TOLERANCE,
+                "top_k": args.top_k, "hybrid": not args.dense_only}
+        args.baseline.write_text(json.dumps({**summary, "by_kind": by_kind, "gate": gate,
+                                             "golden_meta": golden.get("meta", {})}, indent=2), encoding="utf-8")
         print(f"baseline written to {args.baseline}")
         return 0
     return 1 if regressed else 0

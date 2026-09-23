@@ -17,7 +17,15 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from eval.build_golden import build_grading_prompt, parse_grades
-from eval.metrics import max_source_share, mrr, ndcg_at_k, recall_at_k, score_query, summarize
+from eval.metrics import (
+    max_source_share,
+    mrr,
+    ndcg_at_k,
+    recall_at_k,
+    recall_at_k_normalized,
+    score_query,
+    summarize,
+)
 from eval.queries import all_queries, legacy_queries, production_queries
 from eval.run_eval import GOLDEN_PATH, compare_to_baseline, load_golden
 
@@ -40,6 +48,35 @@ def test_max_source_share_and_summary():
     assert q["recall_at_k"] == 2 / 3 and q["hit_at_k"] == 1.0 and q["mrr"] == 1.0 and q["n_relevant"] == 3
     s = summarize([q, {**q, "recall_at_k": None}])
     assert s["n_queries"] == 2 and s["recall_at_k_n"] == 1 and s["recall_at_k"] == round(2 / 3, 4)
+
+
+def test_recall_at_k_normalized_is_not_capped_by_the_relevant_count():
+    """AUD-3: 16 relevant chunks and k=5 cap plain recall at 5/16; the normalised
+    form divides by min(k, relevant), so a perfect top 5 scores 1.0."""
+    relevant = set(range(100, 116))                                 # 16 relevant
+    top5 = [100, 101, 102, 103, 104]
+    assert recall_at_k(top5, relevant, 5) == 5 / 16
+    assert recall_at_k_normalized(top5, relevant, 5) == 1.0
+    assert recall_at_k_normalized([100, 1, 2, 101, 3], relevant, 5) == 2 / 5
+    # fewer relevant than k: the denominator is the relevant count
+    assert recall_at_k_normalized([1, 7, 2, 3, 4], {7, 8}, 5) == 0.5
+    assert recall_at_k_normalized([7, 8], {7, 8}, 5) == 1.0
+    assert recall_at_k_normalized([1, 2], set(), 5) is None
+    assert recall_at_k_normalized([1, 2], {1}, 0) is None
+
+
+def test_score_query_normalised_recall_grade2_and_grade1():
+    res = [{"id": i, "source_id": 1} for i in (1, 2, 3, 4, 5)]
+    grades = {1: 2, 2: 1, 3: 0, 4: 1, 9: 2, 10: 2, 11: 1}              # grade 2: 1, 9, 10; grade>=1: 6 ids
+    q = score_query(res, grades, k=5)
+    assert q["nrecall_at_k"] == 1 / 3                                 # 1 of min(5, 3) grade-2
+    assert q["nrecall_g1_at_k"] == 3 / 5                              # 1, 2, 4 of min(5, 6)
+    assert q["n_relevant_g2"] == 3 and q["n_relevant"] == 6
+    only_partial = score_query(res, {2: 1}, k=5)
+    assert only_partial["nrecall_at_k"] is None and only_partial["nrecall_g1_at_k"] == 1.0
+    s = summarize([q, only_partial])
+    assert s["nrecall_at_k_n"] == 1 and s["nrecall_at_k"] == round(1 / 3, 4)
+    assert s["nrecall_g1_at_k_n"] == 2 and s["nrecall_g1_at_k"] == round((3 / 5 + 1.0) / 2, 4)
 
 
 # ── query set ─────────────────────────────────────────────────────────────────
@@ -93,11 +130,26 @@ def test_load_golden_validates_and_coerces(tmp_path):
 
 
 def test_compare_to_baseline_flags_only_real_regressions():
-    base = {"recall_at_k": 0.70, "mrr": 0.60, "ndcg_at_k": 0.65}
-    assert compare_to_baseline({"recall_at_k": 0.69, "mrr": 0.60, "ndcg_at_k": 0.70}, base) == []   # within tolerance / better
-    flagged = compare_to_baseline({"recall_at_k": 0.60, "mrr": 0.60, "ndcg_at_k": 0.65}, base)
-    assert flagged and flagged[0].startswith("recall_at_k")
+    base = {"recall_at_k": 0.70, "mrr": 0.60, "ndcg_at_k": 0.65, "nrecall_at_k": 0.50}
+    assert compare_to_baseline({"ndcg_at_k": 0.64, "nrecall_at_k": 0.52}, base) == []   # within tolerance / better
+    flagged = compare_to_baseline({"ndcg_at_k": 0.65, "nrecall_at_k": 0.45}, base)
+    assert len(flagged) == 1 and flagged[0].startswith("nrecall_at_k")
+    assert compare_to_baseline({"ndcg_at_k": 0.60, "nrecall_at_k": 0.50}, base)[0].startswith("ndcg_at_k")
     assert compare_to_baseline({"recall_at_k": 0.1}, None) == []
+
+
+def test_gate_ignores_saturated_metrics_and_old_baselines():
+    """AUD-3: recall@5 and MRR are informational — a drop there never fails the
+    run — and a baseline frozen before nrecall existed is not failed on it."""
+    from eval.run_eval import GATED_METRICS, INFORMATIONAL_METRICS
+
+    assert set(GATED_METRICS) == {"ndcg_at_k", "nrecall_at_k"}
+    assert {"recall_at_k", "mrr"} <= set(INFORMATIONAL_METRICS)
+    base = {"recall_at_k": 0.30, "mrr": 0.98, "ndcg_at_k": 0.70, "nrecall_at_k": 0.60}
+    assert compare_to_baseline({"recall_at_k": 0.10, "mrr": 0.50, "ndcg_at_k": 0.70, "nrecall_at_k": 0.60}, base) == []
+    old = {"recall_at_k": 0.206, "mrr": 0.930, "ndcg_at_k": 0.716}          # pre-AUD-3 baseline.json
+    assert compare_to_baseline({"ndcg_at_k": 0.72, "nrecall_at_k": 0.1}, old) == []
+    assert compare_to_baseline({"ndcg_at_k": 0.60, "nrecall_at_k": 0.1}, old)[0].startswith("ndcg_at_k")
 
 
 def test_parse_grades_and_prompt():
@@ -205,3 +257,45 @@ def test_program_diff_renders_sessions_and_summary():
     assert s[1]["shared_with_first"] == 2 and s[1]["unique_vs_first"] == ["Overhead Squat", "Snatch Pull"]
     assert s[1]["session_jaccard_vs_first"] == round((1 / 3 + 1 / 2) / 2, 2)
     assert s[0]["mean_working_pct"] == 75.0 and s[1]["mean_working_pct"] == 76.5
+
+
+# ── composed-context diversity (AUD-3) ────────────────────────────────────────
+
+def _rs(*entries):
+    return [{"label": f"C{i}", "id": cid, "chunk_type": "fault_correction" if cid < 10 else "concept",
+             "source_id": src, "similarity": 0.6, "score": 0.03, "session_query": "q"}
+            for i, (cid, src) in enumerate(entries, 1)]
+
+
+def test_context_diversity_report_counts_slots_sources_and_repeats():
+    from eval.context_diversity import diversity_report
+
+    # 4 sessions x 3 slots; chunks 1 and 2 (source 507) lead every session
+    sessions = [
+        _rs((1, 507), (2, 507), (11, 507)),
+        _rs((1, 507), (2, 507), (12, 600)),
+        _rs((1, 507), (2, 507), (11, 507)),
+        _rs((1, 507), (2, 507), (13, 700)),
+    ]
+    rep = diversity_report(sessions)
+    assert rep["sessions"] == 4 and rep["slots"] == 12
+    assert rep["distinct_chunks"] == 5 and rep["distinct_ratio"] == round(5 / 12, 3)
+    assert rep["max_source_id"] == 507 and rep["max_source_slots"] == 10
+    assert rep["max_source_share"] == round(10 / 12, 3) and rep["sources"] == 3
+    repeated = {c["id"]: c for c in rep["repeated_chunks"]}
+    assert set(repeated) == {1, 2, 11}                               # 11 is in exactly 50 %
+    assert repeated[1]["sessions"] == 4 and repeated[1]["labels"] == {"C1": 4}
+    assert repeated[11]["session_share"] == 0.5 and repeated[11]["source_id"] == 507
+    assert [c["id"] for c in diversity_report(sessions, repeat_fraction=0.75)["repeated_chunks"]] == [1, 2]
+
+
+def test_context_diversity_counts_a_chunk_once_per_session_and_handles_empty():
+    from eval.context_diversity import diversity_report, format_report
+
+    dup = diversity_report([_rs((1, 5), (1, 5)), _rs((2, 5))])
+    assert dup["slots"] == 3 and dup["distinct_chunks"] == 2
+    assert {c["id"]: c["sessions"] for c in dup["repeated_chunks"]} == {1: 1, 2: 1}
+    empty = diversity_report([[], None])
+    assert empty["slots"] == 0 and empty["distinct_ratio"] is None and empty["repeated_chunks"] == []
+    assert "no logged retrieval sets" in format_report(99, empty)
+    assert "3 slots, 2 distinct chunks" in format_report(1, dup)
