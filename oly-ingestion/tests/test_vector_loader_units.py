@@ -297,6 +297,41 @@ def test_chapter_and_section_titles_truncated_to_column_width():
     assert len(chapter) == CHUNK_TITLE_MAX_CHARS and len(section) == CHUNK_TITLE_MAX_CHARS
     assert section.startswith("Week 1 ")
 
+
+# ── Weighted RRF fusion (AUD-3) ──────────────────────────────────────────────
+
+def _hybrid_call(**kwargs):
+    vl, cur = _loader_with_mock_cursor()
+    vl.similarity_search("snatch pull prilepin", top_k=5, hybrid=True, **kwargs)
+    return next(c for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0]).args
+
+
+def test_hybrid_fusion_weights_the_lexical_leg_only():
+    """score = 1/(k + vec_rank) + w/(k + lex_rank): the weight multiplies the
+    lexical term alone, and defaults to HYBRID_LEXICAL_WEIGHT."""
+    from shared.constants import HYBRID_LEXICAL_WEIGHT, RRF_K
+
+    sql, params = _hybrid_call()
+    assert "coalesce(1.0 / (%s + v.rnk), 0) + coalesce(%s / (%s + l.rnk), 0)" in sql
+    i = params.index("snatch | pull | prilepin")
+    # lexical leg: tsquery, embedding_model filter, LIMIT; then k, weight, k
+    assert params[i + 3:i + 6] == [RRF_K, HYBRID_LEXICAL_WEIGHT, RRF_K], params
+
+
+def test_hybrid_fusion_overrides_per_call():
+    sql, params = _hybrid_call(lexical_weight=0.3, rrf_k=20, candidates_per_leg=40)
+    i = params.index("snatch | pull | prilepin")
+    assert params[i + 3:i + 6] == [20, 0.3, 20], params
+    assert params.count(40) == 2, "both legs take candidates_per_leg"
+
+
+def test_lexical_weight_zero_skips_the_lexical_leg():
+    vl, cur = _loader_with_mock_cursor()
+    vl.similarity_search("snatch pull prilepin", top_k=5, hybrid=True, lexical_weight=0)
+    sql = next(c.args[0] for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0])
+    assert "lex AS" not in sql and "tsv" not in sql
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)

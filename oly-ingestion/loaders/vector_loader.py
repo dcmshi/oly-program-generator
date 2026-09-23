@@ -31,6 +31,7 @@ from shared.constants import (
     HNSW_EF_SEARCH,
     HNSW_ITERATIVE_SCAN,
     HYBRID_CANDIDATES_PER_LEG,
+    HYBRID_LEXICAL_WEIGHT,
     RRF_K,
     VECTOR_SEARCH_CANDIDATE_MULTIPLIER,
     VECTOR_SEARCH_MIN_CANDIDATES,
@@ -319,6 +320,9 @@ class VectorLoader:
         min_similarity: float | None = None,
         preferred_chunk_types: list[str] | None = None,
         hybrid: bool = False,
+        lexical_weight: float | None = None,
+        rrf_k: int | None = None,
+        candidates_per_leg: int | None = None,
     ) -> list[dict[str, Any]]:
         """Retrieve similar chunks with optional pre-filtering.
 
@@ -329,6 +333,11 @@ class VectorLoader:
         applies to the vector leg only (RAG-M1). Rows carry `similarity`,
         `lex_score`, `rrf` and `score`. Production (`retrieve.py`) passes
         HYBRID_SEARCH_ENABLED; the eval and tests default to dense-only.
+
+        lexical_weight / rrf_k / candidates_per_leg override HYBRID_LEXICAL_WEIGHT,
+        RRF_K and HYBRID_CANDIDATES_PER_LEG for one call (the eval sweeps them):
+        score = 1/(k + vec_rank) + lexical_weight/(k + lex_rank). A weight of 0
+        skips the lexical leg entirely (the dense path runs instead).
 
         Used downstream by the programming agent. Supports filtered
         similarity search: filter by metadata first, then rank by
@@ -389,7 +398,10 @@ class VectorLoader:
             vec_where += " AND 1 - (embedding <=> %s::vector) >= %s"
             vec_params += [query_embedding, min_similarity]
 
-        lex_query = self._lexical_tsquery(query) if hybrid else None
+        w_lex = HYBRID_LEXICAL_WEIGHT if lexical_weight is None else float(lexical_weight)
+        k_rrf = RRF_K if rrf_k is None else int(rrf_k)
+        per_leg = HYBRID_CANDIDATES_PER_LEG if candidates_per_leg is None else int(candidates_per_leg)
+        lex_query = self._lexical_tsquery(query) if hybrid and w_lex > 0 else None
         if lex_query:
             cursor.execute(
                 f"""
@@ -409,7 +421,7 @@ class VectorLoader:
                     LIMIT %s
                 ), fused AS (
                     SELECT coalesce(v.id, l.id) AS id,
-                           (coalesce(1.0 / (%s + v.rnk), 0) + coalesce(1.0 / (%s + l.rnk), 0))::float8 AS rrf,
+                           (coalesce(1.0 / (%s + v.rnk), 0) + coalesce(%s / (%s + l.rnk), 0))::float8 AS rrf,
                            v.similarity, l.lex_score::float8 AS lex_score
                     FROM vec v FULL OUTER JOIN lex l ON v.id = l.id
                 )
@@ -423,9 +435,9 @@ class VectorLoader:
                 LIMIT %s
                 """,
                 [
-                    query_embedding, query_embedding, *vec_params, query_embedding, HYBRID_CANDIDATES_PER_LEG,
-                    lex_query, *params, HYBRID_CANDIDATES_PER_LEG,
-                    RRF_K, RRF_K,
+                    query_embedding, query_embedding, *vec_params, query_embedding, per_leg,
+                    lex_query, *params, per_leg,
+                    k_rrf, w_lex, k_rrf,
                     query_embedding, list(preferred_chunk_types or []), CHUNK_TYPE_PREFERENCE_BOOST_RRF, top_k,
                 ],
             )

@@ -11,7 +11,9 @@ Also loads available exercises and substitution mappings.
 """
 
 import logging
+import math
 import sys
+import threading
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,6 +28,9 @@ from shared.constants import (
     MAX_CHUNKS_PER_SOURCE_IN_CONTEXT,
     MAX_CONTEXT_CHUNKS,
     MAX_FAULT_CHUNKS_IN_CONTEXT,
+    MAX_SOURCE_SHARE_IN_PROGRAM,
+    RERANK_ENABLED,
+    RERANK_TOP_N,
     VECTOR_SEARCH_DEFAULT_TOP_K,
     VECTOR_SEARCH_MIN_SIMILARITY,
 )
@@ -98,7 +103,57 @@ FAULT_PREFERRED_TYPES = ["fault_correction"]
 
 
 def _rank(chunk: dict) -> float:
+    """Sort key within a group: the reranker's order when a rerank ran
+    (rerank.py sets `rerank_score`), else the fused / boosted retrieval score."""
+    if chunk.get("rerank_score") is not None:
+        return 1.0 + float(chunk["rerank_score"])
     return float(chunk.get("score") or chunk.get("similarity") or 0.0)
+
+
+# Keys under which per-program objects ride in the orchestrator's per-program
+# query cache (retrieve_session_context(cache=…)). Neither is a query string.
+CONTEXT_STATE_KEY = "\x00context_diversity_state"
+RERANKER_KEY = "\x00reranker"
+
+
+class ContextDiversityState:
+    """Program-level memory of what the composed contexts already showed (AUD-3).
+
+    One instance per program, handed to every compose_session_context call of
+    that program: per-chunk use counts drive the fault-chunk rotation, per-source
+    slot counts drive the program-level source cap. Thread-safe: compose holds
+    `lock` for a whole session, so each session reads and updates one consistent
+    state. The orchestrator composes on the main thread in (week, day) order
+    (the AUD-4 prefetch), which also makes the rotation deterministic."""
+
+    def __init__(self):
+        self.lock = threading.RLock()
+        self.chunk_uses: Counter = Counter()
+        self.source_slots: Counter = Counter()
+        self.slots = 0
+        self.sessions = 0
+
+    def record(self, chosen: list[dict]) -> None:
+        with self.lock:
+            self.sessions += 1
+            for c in chosen:
+                self.chunk_uses[c.get("id")] += 1
+                self.source_slots[c.get("source_id")] += 1
+                self.slots += 1
+
+
+_STATE_CREATE_LOCK = threading.Lock()
+
+
+def context_state_for(cache: dict | None) -> ContextDiversityState | None:
+    """The program's diversity state, stored in its query cache on first use."""
+    if cache is None:
+        return None
+    with _STATE_CREATE_LOCK:
+        state = cache.get(CONTEXT_STATE_KEY)
+        if state is None:
+            state = cache[CONTEXT_STATE_KEY] = ContextDiversityState()
+    return state
 
 
 def compose_session_context(
@@ -108,6 +163,8 @@ def compose_session_context(
     max_chunks: int = MAX_CONTEXT_CHUNKS,
     max_fault_chunks: int = MAX_FAULT_CHUNKS_IN_CONTEXT,
     per_source_cap: int = MAX_CHUNKS_PER_SOURCE_IN_CONTEXT,
+    state: ContextDiversityState | None = None,
+    program_source_share: float = MAX_SOURCE_SHARE_IN_PROGRAM,
 ) -> list[dict]:
     """Pick the chunks one session prompt will show.
 
@@ -119,44 +176,125 @@ def compose_session_context(
     session chunks both tend to come from the one book that covers exercises
     in depth, and a shared cap let two fault chunks from it leave every
     "snatch variations" session with no session context at all (DOG-1).
+
+    With a program-level ``state`` (AUD-3):
+    - each fault's ranked list is walked least-shown-first (ties by rank), so the
+      fault slots rotate through that fault's chunks across sessions instead of
+      repeating its top two in every prompt;
+    - a source already holding ``program_source_share`` of the program's slots
+      (this session included) is passed over in both groups, but only in a
+      first pass: slots still empty after it are filled from the passed-over
+      chunks in rank order, so the program cap can change which chunks a
+      session gets but never how many (the DOG-1 failure mode).
+    Without ``state`` the result is the stateless composition above.
     """
+    if state is None:
+        return _compose(session_chunks, fault_chunks, has_faults, max_chunks,
+                        max_fault_chunks, per_source_cap, None, program_source_share)
+    with state.lock:
+        chosen = _compose(session_chunks, fault_chunks, has_faults, max_chunks,
+                          max_fault_chunks, per_source_cap, state, program_source_share)
+        state.record(chosen)
+    return chosen
+
+
+def _compose(session_chunks, fault_chunks, has_faults, max_chunks, max_fault_chunks,
+             per_source_cap, state, program_source_share) -> list[dict]:
     chosen: list[dict] = []
     seen: set = set()
+    session_sources: Counter = Counter()   # this session, both groups
+    passes = (True, False) if state is not None else (False,)
 
-    def _taker(per_source: Counter):
+    def _over_program_cap(sid) -> bool:
+        horizon = state.slots + max_chunks   # the program's slots once this session is in
+        allowance = max(1, math.floor(program_source_share * horizon))
+        return state.source_slots[sid] + session_sources[sid] >= allowance
+
+    def _taker(per_source: Counter, respect_program_cap: bool):
         def _take(c: dict) -> bool:
             cid, sid = c.get("id"), c.get("source_id")
             if cid in seen or per_source[sid] >= per_source_cap:
                 return False
+            if respect_program_cap and _over_program_cap(sid):
+                return False
             seen.add(cid)
             per_source[sid] += 1
+            session_sources[sid] += 1
             chosen.append(c)
             return True
         return _take
 
-    _take = _taker(Counter())
+    n_fault = 0
     if has_faults and fault_chunks:
         by_fault: dict = {}
         for c in fault_chunks:
             by_fault.setdefault(c.get("fault", "_"), []).append(c)
-        queues = [sorted(v, key=_rank, reverse=True) for v in by_fault.values()]
-        taken = 0
-        while taken < max_fault_chunks and any(queues):
-            for q in queues:
-                if taken >= max_fault_chunks:
-                    break
-                while q:
-                    if _take(q.pop(0)):
-                        taken += 1
+        uses = state.chunk_uses if state is not None else Counter()
+        # best first; with state, least-shown first (a stable sort keeps rank order on ties)
+        ordered = [sorted(sorted(v, key=_rank, reverse=True), key=lambda c: uses[c.get("id")])
+                   for v in by_fault.values()]
+        fault_per_source: Counter = Counter()
+        for respect in passes:
+            _take = _taker(fault_per_source, respect)
+            queues = [list(q) for q in ordered]
+            while n_fault < max_fault_chunks and any(queues):
+                for q in queues:
+                    if n_fault >= max_fault_chunks:
                         break
+                    while q:
+                        if _take(q.pop(0)):
+                            n_fault += 1
+                            break
+            if n_fault >= max_fault_chunks:
+                break
 
-    _take = _taker(Counter())   # session chunks get their own per-source budget
-    for c in sorted(session_chunks, key=_rank, reverse=True):
+    session_per_source: Counter = Counter()   # session chunks get their own per-source budget
+    ranked_session = sorted(session_chunks, key=_rank, reverse=True)
+    for respect in passes:
+        _take = _taker(session_per_source, respect)
+        for c in ranked_session:
+            if len(chosen) >= max_chunks:
+                break
+            _take(c)
         if len(chosen) >= max_chunks:
             break
-        _take(c)
 
-    return chosen[:max_chunks]
+    # fault picks first, then session picks in rank order whichever pass took
+    # them; the [Cn] labels follow this list (RAG-M5)
+    session_part = sorted(chosen[n_fault:], key=_rank, reverse=True)
+    return (chosen[:n_fault] + session_part)[:max_chunks]
+
+
+def default_reranker(cache: dict | None, settings=None):
+    """The program's reranker when RERANK_ENABLED (built once per cache), else None.
+
+    Any construction failure (no key, no client) logs a warning and disables
+    the rerank for that program — retrieval continues un-reranked."""
+    if not RERANK_ENABLED:
+        return None
+    holder = cache if cache is not None else {}
+    if RERANKER_KEY not in holder:
+        try:
+            from rerank import ListwiseReranker
+
+            from shared.config import Settings
+            holder[RERANKER_KEY] = ListwiseReranker.from_settings(settings or Settings())
+        except Exception as e:
+            logger.warning(f"Rerank disabled: could not build the reranker ({type(e).__name__}: {e})")
+            holder[RERANKER_KEY] = None
+    return holder[RERANKER_KEY]
+
+
+def rerank_candidates(query: str, candidates: list[dict], reranker, top_k: int | None = None) -> list[dict]:
+    """Apply the optional listwise reranker (rerank.py). A None reranker, or any
+    error, returns the candidates unchanged (cut to top_k)."""
+    if reranker is None or not candidates:
+        return candidates[:top_k] if top_k else candidates
+    try:
+        return reranker.rerank(query, candidates, top_k=top_k)
+    except Exception as e:  # defensive: ListwiseReranker already falls back internally
+        logger.warning(f"Rerank raised for {query[:60]!r} ({type(e).__name__}: {e}); keeping the retrieval order")
+        return candidates[:top_k] if top_k else candidates
 
 
 def retrieve_session_context(
@@ -168,6 +306,8 @@ def retrieve_session_context(
     retrieval_context: RetrievalContext,
     top_k: int | None = None,
     cache: dict | None = None,
+    reranker=None,
+    state: ContextDiversityState | None = None,
 ) -> list[dict]:
     """Retrieve + compose the knowledge context for ONE session (RAG-H4).
 
@@ -176,21 +316,31 @@ def retrieve_session_context(
     (template, phase, intensity band) rather than sixteen. Returns [] when no
     vector_loader is available or the search fails — generation continues
     without knowledge context, as before.
+
+    AUD-3: the program-level diversity state is ``state`` when given, else the
+    one kept in ``cache`` (CONTEXT_STATE_KEY), so the orchestrator's
+    per-program cache carries it. The reranker is ``reranker`` when given, else
+    ``default_reranker(cache)`` (None unless RERANK_ENABLED); with one, the
+    search fetches RERANK_TOP_N candidates and the reranked list is cached.
     """
     if vector_loader is None:
         return []
     cache = cache if cache is not None else {}
+    state = state if state is not None else context_state_for(cache)
+    reranker = reranker if reranker is not None else default_reranker(cache)
     top_k = top_k or VECTOR_SEARCH_DEFAULT_TOP_K
     query = build_session_query(athlete_context, plan, session_template, week_target)
     if query not in cache:
+        keep = top_k * 2  # headroom for the per-source cap + fault dedupe
         try:
-            cache[query] = vector_loader.similarity_search(
+            found = vector_loader.similarity_search(
                 query=query,
-                top_k=top_k * 2,  # headroom for the per-source cap + fault dedupe
+                top_k=max(keep, RERANK_TOP_N) if reranker is not None else keep,
                 preferred_chunk_types=SESSION_PREFERRED_TYPES,
                 min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                 hybrid=HYBRID_SEARCH_ENABLED,
             )
+            cache[query] = rerank_candidates(query, found, reranker, top_k=keep) if reranker is not None else found
         except Exception as e:
             logger.warning(f"Vector search failed for session '{session_template.label}': {e}")
             cache[query] = []
@@ -198,10 +348,40 @@ def retrieve_session_context(
         cache[query],
         retrieval_context.fault_correction_chunks,
         has_faults=bool(athlete_context.technical_faults),
+        state=state,
     )
     # copies, so the cached rows stay pristine; the query travels with each
     # chunk into generation_log.retrieval_set (RAG-M5)
     return [{**c, "session_query": query} for c in composed]
+
+
+def fetch_fault_chunks(vector_loader, faults: list[str], level: str, top_k: int, reranker=None) -> list[dict]:
+    """Fault-correction chunks for every fault (deduped across faults), each
+    tagged with the fault that surfaced it and its query. A failed search for
+    one fault is logged and skipped."""
+    out: list[dict] = []
+    fault_seen: set = set()
+    for fault in faults:
+        fault_query = build_fault_query(fault, level)
+        try:
+            chunks = vector_loader.similarity_search(
+                query=fault_query,
+                top_k=max(top_k, RERANK_TOP_N) if reranker is not None else top_k,
+                preferred_chunk_types=FAULT_PREFERRED_TYPES,
+                min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
+                hybrid=HYBRID_SEARCH_ENABLED,
+            )
+            chunks = rerank_candidates(fault_query, chunks, reranker, top_k=top_k)
+            for c in chunks:
+                if c.get("id") not in fault_seen:
+                    fault_seen.add(c["id"])
+                    # remember which fault surfaced it so the session context
+                    # can round-robin across faults (RAG-H4); its query focuses
+                    # the prompt excerpt (AUD-2)
+                    out.append({**c, "fault": fault, "retrieval_query": fault_query})
+        except Exception as e:
+            logger.warning(f"Vector search failed for fault '{fault}': {e}")
+    return out
 
 
 def retrieve(
@@ -276,6 +456,7 @@ def retrieve(
 
     if vector_loader is not None:
         seen_chunk_ids: set[int] = set()
+        reranker = default_reranker(None, settings)   # None unless RERANK_ENABLED (AUD-3)
 
         strength_limiters = athlete_context.athlete.get("strength_limiters") or []
 
@@ -288,28 +469,9 @@ def retrieve(
 
         # Fault correction — search ALL faults, not just the first two
         if athlete_context.technical_faults:
-            fault_seen: set[int] = set()
-            for fault in athlete_context.technical_faults:
-                fault_query = build_fault_query(fault, athlete_context.level)
-                try:
-                    chunks = vector_loader.similarity_search(
-                        query=fault_query,
-                        top_k=top_k,
-                        preferred_chunk_types=FAULT_PREFERRED_TYPES,
-                        min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
-                        hybrid=HYBRID_SEARCH_ENABLED,
-                    )
-                    for c in chunks:
-                        if c.get("id") not in fault_seen:
-                            fault_seen.add(c["id"])
-                            # remember which fault surfaced it so the session
-                            # context can round-robin across faults (RAG-H4);
-                            # its query focuses the prompt excerpt (AUD-2)
-                            fault_correction_chunks.append(
-                                {**c, "fault": fault, "retrieval_query": fault_query}
-                            )
-                except Exception as e:
-                    logger.warning(f"Vector search failed for fault '{fault}': {e}")
+            fault_correction_chunks = fetch_fault_chunks(
+                vector_loader, athlete_context.technical_faults, athlete_context.level, top_k, reranker
+            )
 
         # Strength limiter searches — pull targeted programming content per limiter
         for limiter in strength_limiters:
@@ -317,12 +479,13 @@ def retrieve(
             try:
                 chunks = vector_loader.similarity_search(
                     query=limiter_query,
-                    top_k=top_k,
+                    top_k=max(top_k, RERANK_TOP_N) if reranker is not None else top_k,
                     # `methodology` dropped: the inference never assigns it (RAG-H2)
                     preferred_chunk_types=SESSION_PREFERRED_TYPES,
                     min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
                     hybrid=HYBRID_SEARCH_ENABLED,
                 )
+                chunks = rerank_candidates(limiter_query, chunks, reranker, top_k=top_k)
                 for c in chunks:
                     if c.get("id") not in seen_chunk_ids:
                         seen_chunk_ids.add(c["id"])

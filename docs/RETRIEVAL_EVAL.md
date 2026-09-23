@@ -3,8 +3,9 @@
 ## Golden-set harness (2026-09-15, RAG-M6) — the gate
 
 `oly-agent/eval/` scores the live retriever under **production settings**
-(hybrid fusion, chunk_type preference, `min_similarity`, `top_k`) against a
-graded relevance set, and fails on regression:
+(`HYBRID_SEARCH_ENABLED` (dense-only since AUD-3), chunk_type preference,
+`min_similarity`, `top_k`, `RERANK_ENABLED`) against a graded relevance set, and
+fails on regression:
 
 ```bash
 cd oly-agent
@@ -13,7 +14,10 @@ PYTHONUTF8=1 uv run python -m eval.build_golden                # LLM grades dens
 PYTHONUTF8=1 uv run python -m eval.run_eval --update-baseline  # freeze eval/baseline.json
 PYTHONUTF8=1 uv run python -m eval.run_eval                    # gate: nDCG@5 + normalised recall@5; exit 1 on regression
 PYTHONUTF8=1 uv run python -m eval.run_eval --dense-only       # ablation
+PYTHONUTF8=1 uv run python -m eval.run_eval --hybrid --lexical-weight 0.2 --rrf-k 20 --candidates-per-leg 40   # fusion sweep
+PYTHONUTF8=1 uv run python -m eval.run_eval --rerank           # + listwise rerank by the light model (~$0.01)
 PYTHONUTF8=1 uv run python -m eval.context_diversity 29        # what generation received: slots, distinct chunks, source share
+PYTHONUTF8=1 uv run python -m eval.context_simulate 29 12      # what it would receive now: replays the logged session queries
 INTEGRATION_TESTS=1 uv run pytest tests/test_eval_harness.py   # the same gate as a test
 ```
 
@@ -24,6 +28,90 @@ exactly what generation receives. **Status:** `golden.json` (57 queries, Haiku 4
 grades over dense ∪ hybrid candidate pools) and `baseline.json` were built on the dev
 copy on 2026-09-16 after the full re-ingest — see the section below. Grades are tied to
 chunk ids, so rebuild both after any corpus change.
+
+## AUD-3 part 2 — 2026-09-22: dense-only production, rerank measured (off), composed-context diversity (current `baseline.json`)
+
+Same golden set (57 queries, GLM grades, union pool) and embeddings (`-large`) as the
+freeze below. Gate = nDCG@5 + grade-2 nrecall@5; run-to-run noise ≈ ±0.005 nDCG for the
+retriever (HNSW + query-embedding jitter; two identical dense runs gave 0.796 / 0.796).
+
+**1. Fusion.** `similarity_search` now takes `lexical_weight` / `rrf_k` /
+`candidates_per_leg` (defaults `HYBRID_LEXICAL_WEIGHT`, `RRF_K`,
+`HYBRID_CANDIDATES_PER_LEG`); the fused score is `1/(k + vec_rank) + w/(k + lex_rank)`.
+Sweep (all 57 queries; session family in the last column):
+
+| variant | nDCG@5 | nrecall@5 | MRR | src share | session nDCG / nR |
+|---|--:|--:|--:|--:|--:|
+| **dense-only (production now)** | **0.796** | **0.644** | 0.974 | 0.488 | 0.907 / 0.825 |
+| hybrid w=1.0 k=60 per=20 (old production) | 0.712 | 0.527 | 0.921 | 0.565 | 0.805 / 0.600 |
+| hybrid w=1.0 k=60 per=40 | 0.651 | 0.475 | 0.934 | 0.590 | 0.779 / 0.588 |
+| hybrid w=1.0 k=20 per=20 | 0.697 | 0.516 | 0.930 | 0.554 | 0.794 / 0.588 |
+| hybrid w=0.5 k=60 per=20 | 0.749 | 0.573 | 0.936 | 0.523 | 0.839 / 0.650 |
+| hybrid w=0.5 k=20 per=40 | 0.762 | 0.609 | 0.974 | 0.533 | 0.871 / 0.725 |
+| hybrid w=0.3 k=20 per=20 | 0.776 | 0.629 | 0.965 | 0.523 | 0.886 / 0.762 |
+| hybrid w=0.2 k=60 per=40 | 0.781 | 0.627 | 0.962 | 0.505 | 0.875 / 0.750 |
+| hybrid w=0.2 k=20 per=40 | 0.777 | 0.629 | 0.965 | 0.495 | 0.901 / 0.800 |
+| hybrid w=0.1 k=60 per=20 | 0.782 | 0.639 | 0.953 | 0.488 | 0.901 / 0.787 |
+| hybrid w=0.1 k=20 per=40 | 0.780 | 0.633 | 0.974 | 0.505 | 0.900 / 0.812 |
+
+(20 variants run; the rest sit between their neighbours.) Every step down in lexical
+weight helps and none reaches dense-only, so under `-large` the lexical leg only costs
+rank. **`HYBRID_SEARCH_ENABLED = False`**; `HYBRID_LEXICAL_WEIGHT = 0.1` (the best hybrid
+row) applies if it is switched back on; the lexical path and its tests stay.
+`build_golden` still builds its hybrid pool at weight 1.0 so lexical-only candidates keep
+being graded. `baseline.json` re-frozen dense-only: **nDCG@5 0.796 · nrecall@5 0.644** ·
+nrecall g≥1 0.930 · recall@5 0.213 · MRR 0.974 · src share 0.488 (+0.080 / +0.114 over the
+hybrid freeze below).
+
+**2. Listwise rerank (`oly-agent/rerank.py`, `RERANK_ENABLED = False`).** One
+schema-constrained call per query (`{"ranking": [passage numbers]}`, `thinking_kwargs(model,
+"disabled")` as base, `message_text`), 400-char query-focused excerpts, cached per (model,
+query, candidate ids); any error or malformed reply keeps the retrieval order. Reranking
+the dense top 20 surfaced 37 never-graded chunks into the top 5 (scored 0), so the fair
+depth is the graded one, **top 15** (`RERANK_TOP_N`):
+
+| rerank of dense top-N | nDCG@5 | nrecall@5 | session | fault | limiter | legacy | $ / 57 queries |
+|---|--:|--:|--:|--:|--:|--:|--:|
+| none (dense-only) | 0.796 | 0.644 | 0.907 / 0.825 | 0.759 / 0.619 | 0.772 / 0.533 | 0.742 / 0.556 | 0 |
+| DeepSeek V4.1 Flash, top 20 (biased) | 0.741 | 0.633 | 0.771 / 0.675 | 0.694 / 0.550 | 0.644 / 0.633 | 0.773 / 0.651 | 0.018 |
+| DeepSeek V4.1 Flash (light), top 15, run 1 | 0.817 | 0.686 | 0.893 / 0.812 | 0.731 / 0.554 | 0.861 / 0.700 | 0.802 / 0.670 | 0.012 |
+| DeepSeek V4.1 Flash (light), top 15, run 2 | 0.818 | 0.657 | 0.853 / 0.713 | 0.758 / 0.554 | 0.836 / 0.667 | 0.824 / 0.674 | 0.009 |
+| GLM-5.3 Flash (judge), top 15 | 0.825 | 0.682 | 0.902 / 0.825 | 0.780 / 0.650 | 0.842 / 0.633 | 0.791 / 0.611 | 0.009 |
+
+The aggregate gain (+0.02 nDCG) comes from the legacy free-form and limiter queries. On the
+**session family — which fills most of every composed context — the light-model rerank
+lost 0.014 and 0.054 nDCG in two runs** (its own run-to-run spread — 0.04 on session nDCG,
+0.03 on aggregate nrecall — is as large as the aggregate gain), and it moved fault nrecall down. GLM
+matches dense on sessions and gains on fault/limiter, but GLM is the golden set's judge —
+reranking with the grader is circular — it failed (fell back) on 11 of 57 calls, and it
+takes ~12 s per call on the prefetch path. **Left off.** Cost would be ≈ $0.0002 per query
+(≈ $0.003 per program at 12–16 distinct queries), inside the $0.01 budget, if a future
+judge-independent reranker is worth it. Total LLM spend for these measurements: ≈ $0.05.
+
+**3. Composed-context diversity.** `compose_session_context(state=ContextDiversityState)`
+keeps per-program use counts (in the orchestrator's per-program query cache under
+`CONTEXT_STATE_KEY`, lock-guarded; retrieval runs on the main thread in (week, day) order —
+AUD-4 prefetch — so it is also deterministic): (a) each fault's ranked list is walked
+least-shown-first, so fault slots rotate; (b) a source holding
+`MAX_SOURCE_SHARE_IN_PROGRAM` (0.4) of the program's slots is passed over while another
+candidate can fill the slot — a second pass fills any slot left empty, so the cap never
+starves a session (DOG-1). Measured with `eval.context_simulate` (the real composition
+over each program's logged `session_query`s, dense-only, no generation):
+
+| program | composition | distinct chunks / slots | sources | max source share | chunks in ≥ 50 % of sessions | mean session-chunk similarity |
+|---|---|--:|--:|--:|--:|--:|
+| 29 | logged (hybrid, 2026-09-21) | 13 / 96 (0.135) | 8 | 0.688 (Everett) | 2 (fault C1/C2 24/24) | — |
+| 29 | stateless, replayed | 9 / 96 (0.094) | 3 | 0.500 | 4 (fault C1/C2 24/24) | 0.628 |
+| 29 | rotation only (share 1.0) | 12 / 96 (0.125) | 3 | 0.677 | 2 | 0.628 |
+| 29 | share 0.5 | 17 / 96 (0.177) | 7 | 0.490 | 0 | 0.623 |
+| 29 | **rotation + share 0.4 (production)** | **16 / 96 (0.167)** | **7** | **0.385** | **0** | 0.619 |
+| 12 | stateless, replayed | 11 / 64 (0.172) | 5 | 0.500 | 3 | 0.623 |
+| 12 | **rotation + share 0.4 (production)** | **17 / 64 (0.266)** | **7** | **0.375** | **0** | 0.616 |
+
+The cost is ≈ 0.01 mean cosine similarity on the session chunks (all above
+`VECTOR_SEARCH_MIN_SIMILARITY`); fault chunks still lead every context and the `[Cn]`
+order is faults first, then session chunks by rank (RAG-M5). The remaining repetition is
+session-side: 12 distinct session queries share most of their top chunks.
 
 ## The gate since 2026-09-22 (AUD-3): nDCG@5 + normalised recall; composed-context diversity
 
@@ -86,7 +174,7 @@ composition puts the same two Everett fault chunks in C1–C2 of every session, 
 of every context. The fix should raise the distinct ratio and cut the repeat list without
 lowering the gated retrieval metrics.
 
-## Embedding upgrade — 2026-09-22 (EMBED-1): `text-embedding-3-small` → `-large` @ 1536 (current `baseline.json`)
+## Embedding upgrade — 2026-09-22 (EMBED-1): `text-embedding-3-small` → `-large` @ 1536 (hybrid freeze, superseded by AUD-3 part 2)
 
 All 6,839 chunks re-embedded with `text-embedding-3-large` (Matryoshka-truncated to the
 existing `vector(1536)`; ~7M tokens ≈ $0.90; `reembed.py`). To compare the two models on
@@ -152,7 +240,7 @@ Haiku more than with the open models), and the pool it judged was Haiku-built.
 reads it. Changing it means re-freezing — the baselines below the next heading are the last
 Haiku-era numbers and are not comparable to the decimal with the GLM-era ones above them.
 
-## Golden-set baseline — 2026-09-21, GLM judge (current `baseline.json`)
+## Golden-set baseline — 2026-09-21, GLM judge (superseded)
 
 First freeze under the new judge: same 57 queries, fresh pools (15 candidates per
 retriever), graded by GLM-5.3 Flash — 1,140 graded ids, 934 relevant (GLM grades more

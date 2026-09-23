@@ -416,7 +416,8 @@ def test_session_template_search_exception_caught():
     assert result.programming_rationale == []
     plan, cache = _plan(), {}
     chunks = retrieve_session_context(vl, _ctx(), plan, plan.session_templates[0], plan.weekly_targets[0], result, cache=cache)
-    assert chunks == [] and len(cache) == 1
+    queries = [k for k in cache if not k.startswith("\x00")]   # skip the AUD-3 state entry
+    assert chunks == [] and len(queries) == 1
 
 
 def test_fault_search_exception_caught():
@@ -613,3 +614,264 @@ def test_fault_query_humanises_underscored_fault_ids():
         retrieve(_ctx(faults=["jumping_forward"]), _plan(), conn=None, vector_loader=vl)
     fault_calls = [c.kwargs["query"] for c in vl.similarity_search.call_args_list if "correcting" in c.kwargs["query"]]
     assert fault_calls == ["correcting jumping forward in weightlifting, intermediate athlete"]
+
+
+# ── AUD-3: program-level context diversity ───────────────────────────────────
+
+def _fault_pool(n=5, source=507, fault="slow_turnover"):
+    return [_c(100 + i, source, 0.9 - i * 0.01, "fault_correction", fault=fault) for i in range(n)]
+
+
+def test_stateful_compose_rotates_fault_chunks_across_sessions():
+    """Program 29: the same two fault chunks sat in C1-C2 of all 24 sessions.
+    With a program state each session takes the least-shown fault chunks first
+    (rank breaks ties), so the fault slots walk the fault's ranked list."""
+    from retrieve import ContextDiversityState
+
+    state = ContextDiversityState()
+    faults = _fault_pool(5)
+    picks = []
+    for _ in range(5):
+        out = compose_session_context([_c(1, 30, 0.8), _c(2, 31, 0.7)], faults, has_faults=True,
+                                      state=state, program_source_share=1.0)
+        picks.append([c["id"] for c in out[:2]])
+    assert picks[:3] == [[100, 101], [102, 103], [104, 100]], picks
+    counts = {cid: sum(cid in p for p in picks) for cid in range(100, 105)}
+    assert set(counts.values()) == {2}, counts   # 10 fault slots spread evenly over 5 chunks
+    assert state.sessions == 5 and state.slots == 20
+
+
+def test_stateless_compose_is_unchanged_without_state():
+    faults = _fault_pool(5)
+    for _ in range(3):
+        out = compose_session_context([_c(1, 30, 0.8)], faults, has_faults=True)
+        assert [c["id"] for c in out] == [100, 101, 1]
+
+
+def test_rotation_round_robins_across_faults_too():
+    from retrieve import ContextDiversityState
+
+    state = ContextDiversityState()
+    faults = _fault_pool(2, fault="a") + [_c(200 + i, 600 + i, 0.8 - i * 0.01, "fault_correction", fault="b")
+                                          for i in range(2)]
+    first = compose_session_context([], faults, has_faults=True, state=state, program_source_share=1.0)
+    second = compose_session_context([], faults, has_faults=True, state=state, program_source_share=1.0)
+    assert [c["id"] for c in first] == [100, 200]
+    assert [c["id"] for c in second] == [101, 201]
+
+
+def test_program_source_cap_prefers_other_sources_once_a_book_holds_its_share():
+    """Once source 507 holds its share of the program's slots, sessions pass it
+    over while other candidates exist."""
+    from retrieve import ContextDiversityState
+
+    state = ContextDiversityState()
+    session = [_c(1, 507, 0.9), _c(2, 507, 0.85), _c(3, 30, 0.6), _c(4, 31, 0.55), _c(5, 32, 0.5)]
+    faults = [_c(101, 507, 0.95, "fault_correction", fault="x"), _c(102, 507, 0.9, "fault_correction", fault="x")]
+    s1 = compose_session_context(session, faults, has_faults=True, state=state, program_source_share=0.5)
+    # session 1: horizon 4 slots → allowance 2; the fault picks use it, session picks go elsewhere
+    assert [c["id"] for c in s1] == [101, 102, 3, 4], s1
+    for _ in range(3):
+        compose_session_context(session, faults, has_faults=True, state=state, program_source_share=0.5)
+        assert state.source_slots[507] <= 0.5 * state.slots, state.source_slots
+
+
+def test_program_source_cap_never_empties_a_session():
+    """DOG-1: when every candidate comes from the capped book the second pass
+    fills the slots anyway — the cap reorders, it never starves."""
+    from retrieve import ContextDiversityState
+
+    state = ContextDiversityState()
+    faults = [_c(101, 507, 0.95, "fault_correction", fault="x"), _c(102, 507, 0.9, "fault_correction", fault="x")]
+    session = [_c(1, 507, 0.9), _c(2, 507, 0.8), _c(3, 507, 0.7)]
+    for _ in range(4):
+        out = compose_session_context(session, faults, has_faults=True, state=state, program_source_share=0.1)
+        assert len(out) == 4, out
+        assert [c.get("fault") for c in out[:2]] == ["x", "x"], "fault picks stay first (RAG-M5 label order)"
+        assert [c["id"] for c in out[2:]] == [1, 2], "session picks in rank order"
+
+
+def test_session_picks_keep_rank_order_across_the_two_passes():
+    from retrieve import ContextDiversityState
+
+    state = ContextDiversityState()
+    state.source_slots[507] = 10
+    state.slots = 10
+    session = [_c(1, 507, 0.9), _c(2, 30, 0.5)]
+    out = compose_session_context(session, [], has_faults=False, state=state, program_source_share=0.4)
+    assert [c["id"] for c in out] == [1, 2], "the capped chunk comes back in pass 2 but keeps its rank"
+
+
+def test_retrieve_session_context_keeps_the_state_in_the_program_cache():
+    from retrieve import CONTEXT_STATE_KEY, ContextDiversityState
+
+    plan = _plan()
+    vl = _mock_vector_loader([_c(1, 30, 0.8), _c(2, 31, 0.7)])
+    rc = MagicMock(fault_correction_chunks=_fault_pool(4))
+    cache = {}
+    ids = []
+    for tmpl in plan.session_templates[:2]:
+        out = retrieve_session_context(vl, _ctx(faults=["slow_turnover"]), plan, tmpl, plan.weekly_targets[0],
+                                       rc, cache=cache)
+        ids.append([c["id"] for c in out[:2]])
+    assert isinstance(cache[CONTEXT_STATE_KEY], ContextDiversityState)
+    assert ids == [[100, 101], [102, 103]], ids
+    # an explicit state wins over the cached one
+    own = ContextDiversityState()
+    retrieve_session_context(vl, _ctx(faults=["slow_turnover"]), plan, plan.session_templates[0],
+                             plan.weekly_targets[0], rc, cache=cache, state=own)
+    assert own.sessions == 1 and cache[CONTEXT_STATE_KEY].sessions == 2
+
+
+def test_context_state_is_thread_safe_under_concurrent_composes():
+    """Weeks run concurrently (AUD-4). Concurrent composes on one state must
+    neither lose updates nor break the per-session invariants."""
+    import threading
+
+    from retrieve import context_state_for
+
+    cache = {}
+    states = []
+    grabbers = [threading.Thread(target=lambda: states.append(context_state_for(cache))) for _ in range(16)]
+    for t in grabbers:
+        t.start()
+    for t in grabbers:
+        t.join()
+    assert len({id(s) for s in states}) == 1, "one state per program cache"
+
+    state = states[0]
+    faults = _fault_pool(5)
+    session = [_c(i, 30 + i % 3, 0.9 - i * 0.01) for i in range(1, 11)]
+    results, errors = [], []
+
+    def _worker():
+        try:
+            for _ in range(25):
+                results.append(compose_session_context(session, faults, has_faults=True, state=state))
+        except Exception as e:   # surfaced below
+            errors.append(e)
+
+    threads = [threading.Thread(target=_worker) for _ in range(8)]
+    for t in threads:
+        t.start()
+    for t in threads:
+        t.join()
+    assert not errors, errors
+    assert state.sessions == 200 and state.slots == sum(len(r) for r in results) == 800
+    assert sum(state.chunk_uses[c] for c in range(100, 105)) == 400
+    for out in results:
+        assert len({c["id"] for c in out}) == len(out) == 4
+
+
+# ── AUD-3: optional listwise rerank (rerank.py) ──────────────────────────────
+
+def _llm_reply(text, input_tokens=1000, output_tokens=20):
+    block = MagicMock(type="text", text=text)
+    return MagicMock(content=[block], stop_reason="end_turn",
+                     usage=MagicMock(input_tokens=input_tokens, output_tokens=output_tokens,
+                                     cache_read_input_tokens=0, cache_creation_input_tokens=0))
+
+
+def _reranker(reply=None, side_effect=None, model="deepseek/deepseek-v4.1-flash", **kw):
+    from rerank import ListwiseReranker
+
+    client = MagicMock()
+    if side_effect is not None:
+        client.messages.create.side_effect = side_effect
+    else:
+        client.messages.create.return_value = reply
+    return ListwiseReranker(client, model, **kw), client
+
+
+def test_rerank_reorders_by_the_model_ranking_and_appends_omitted_ids():
+    cands = [_c(1, 10, 0.9), _c(2, 11, 0.8), _c(3, 12, 0.7), _c(4, 13, 0.6)]
+    rr, client = _reranker(_llm_reply('{"ranking": [3, 1, 3, 99]}'))
+    out = rr.rerank("snatch pulls", cands)
+    assert [c["id"] for c in out] == [3, 1, 2, 4], "ranked first (deduped, out-of-range dropped), rest in order"
+    assert out[0]["rerank_score"] > out[1]["rerank_score"] > out[-1]["rerank_score"]
+    assert "rerank_score" not in cands[0], "input rows are not mutated"
+    assert rr.calls == 1 and rr.cost_usd > 0
+    # cached per (model, query, candidate ids): no second API call
+    assert [c["id"] for c in rr.rerank("snatch pulls", cands, top_k=2)] == [3, 1]
+    assert client.messages.create.call_count == 1
+
+
+def test_rerank_request_is_schema_constrained_with_thinking_disabled():
+    from rerank import RERANK_SCHEMA
+
+    rr, client = _reranker(_llm_reply('{"ranking": [2, 1]}'))
+    rr.rerank("q", [_c(1, 10, 0.9), _c(2, 11, 0.8)])
+    kw = client.messages.create.call_args.kwargs
+    assert kw["output_config"]["format"] == {"type": "json_schema", "schema": RERANK_SCHEMA}
+    assert kw["thinking"] == {"type": "disabled"}
+    assert kw["model"] == "deepseek/deepseek-v4.1-flash"
+    assert "[1]" in kw["messages"][0]["content"] and "[2]" in kw["messages"][0]["content"]
+
+
+def test_rerank_only_reorders_the_top_n():
+    cands = [_c(i, 10 + i, 1.0 - i / 10) for i in range(1, 6)]
+    rr, client = _reranker(_llm_reply('{"ranking": [2, 1]}'), top_n=2)
+    out = rr.rerank("q", cands)
+    assert [c["id"] for c in out] == [2, 1, 3, 4, 5]
+    assert "[3]" not in client.messages.create.call_args.kwargs["messages"][0]["content"]
+
+
+def test_rerank_malformed_reply_keeps_the_retrieval_order():
+    cands = [_c(1, 10, 0.9), _c(2, 11, 0.8), _c(3, 12, 0.7)]
+    for text in ("not json", '{"order": [2, 1]}', '{"ranking": [0, 7, "x"]}', '[2, 1]'):
+        rr, _ = _reranker(_llm_reply(text))
+        out = rr.rerank("q", cands, top_k=2)
+        assert [c["id"] for c in out] == [1, 2], text
+        assert rr.failures == 1 and rr.calls == 0
+
+
+def test_rerank_api_error_keeps_the_retrieval_order_and_is_not_cached():
+    cands = [_c(1, 10, 0.9), _c(2, 11, 0.8)]
+    rr, client = _reranker(side_effect=RuntimeError("upstream 400"))
+    assert [c["id"] for c in rr.rerank("q", cands)] == [1, 2]
+    assert rr.failures == 1
+    client.messages.create.side_effect = None
+    client.messages.create.return_value = _llm_reply('{"ranking": [2, 1]}')
+    assert [c["id"] for c in rr.rerank("q", cands)] == [2, 1], "a failure is retried on the next call"
+
+
+def test_rerank_is_a_noop_for_fewer_than_two_candidates():
+    rr, client = _reranker(_llm_reply('{"ranking": [1]}'))
+    assert rr.rerank("q", []) == [] and [c["id"] for c in rr.rerank("q", [_c(1, 10, 0.9)])] == [1]
+    client.messages.create.assert_not_called()
+
+
+def test_retrieve_session_context_fetches_top_n_and_composes_in_rerank_order():
+    from shared.constants import RERANK_TOP_N
+
+    plan = _plan()
+    cands = [_c(1, 10, 0.9), _c(2, 11, 0.8), _c(3, 12, 0.7), _c(4, 13, 0.6)]
+    vl = _mock_vector_loader(cands)
+    rr, _ = _reranker(_llm_reply('{"ranking": [4, 3, 2, 1]}'))
+    out = retrieve_session_context(vl, _ctx(), plan, plan.session_templates[0], plan.weekly_targets[0],
+                                   MagicMock(fault_correction_chunks=[]), cache={}, reranker=rr)
+    assert vl.similarity_search.call_args.kwargs["top_k"] >= RERANK_TOP_N
+    assert [c["id"] for c in out] == [4, 3, 2, 1], "compose sorts by rerank_score, not the retrieval score"
+
+
+def test_rerank_off_by_default_in_production_paths():
+    from retrieve import default_reranker
+
+    from shared.constants import RERANK_ENABLED, VECTOR_SEARCH_DEFAULT_TOP_K
+
+    assert RERANK_ENABLED is False
+    assert default_reranker({}) is None
+    vl = _mock_vector_loader()
+    with patch("retrieve.fetch_all", return_value=[]):
+        retrieve(_ctx(faults=["early_arm_bend"]), _plan(), conn=None, vector_loader=vl)
+    assert all(c.kwargs["top_k"] == VECTOR_SEARCH_DEFAULT_TOP_K for c in vl.similarity_search.call_args_list)
+
+
+def test_default_reranker_build_failure_disables_rerank():
+    import retrieve as r
+
+    with patch.object(r, "RERANK_ENABLED", True), \
+         patch("rerank.ListwiseReranker.from_settings", side_effect=ValueError("no key")):
+        cache = {}
+        assert r.default_reranker(cache, settings=MagicMock()) is None
+        assert cache[r.RERANKER_KEY] is None, "the failure is remembered for the program"
