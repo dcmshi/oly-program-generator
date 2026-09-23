@@ -33,7 +33,7 @@ flowchart TB
     end
 
     subgraph ext["External APIs"]
-        Anthropic["☁ Anthropic<br/>claude-sonnet-5"]
+        Anthropic["☁ LLM provider (LLM_PROVIDER)<br/>openrouter (default): Kimi K3 · DeepSeek V4.1 Flash<br/>anthropic: Claude Sonnet 5 · Haiku 4.5"]
         OpenAI["☁ OpenAI<br/>text-embedding-3-large"]
     end
 
@@ -46,6 +46,7 @@ flowchart TB
     pipe <-->|psycopg2| PG
     S4 & S6 <-->|LLM calls| Anthropic
     S3 <-->|pgvector search| PG
+    S3 -->|embed query| OpenAI
 
     Ing <-->|psycopg2| PG
     Ing -->|embed| OpenAI
@@ -65,7 +66,7 @@ sequenceDiagram
     participant Redis
     participant Worker as ARQ Worker
     participant DB as Postgres
-    participant LLM as Claude API
+    participant LLM as LLM API (OpenRouter or Anthropic)
 
     User->>UI: POST /generate/run
     UI->>Redis: enqueue_job("run_generation", athlete_id)
@@ -116,7 +117,7 @@ flowchart LR
     end
 
     subgraph extract["Extract"]
-        PE["pdf_extractor<br/>PyMuPDF → pdfplumber<br/>→ Claude vision OCR"]
+        PE["pdf_extractor<br/>PyMuPDF → pdfplumber<br/>→ vision OCR (LLM_MODEL)"]
         EE["epub_extractor<br/>ebooklib"]
         HE["html_extractor<br/>BeautifulSoup"]
     end
@@ -126,7 +127,7 @@ flowchart LR
     subgraph route["Route by content type"]
         CHUNK["Chunker<br/>profile-aware sizing<br/>500–1100 tokens"]
         SL["Structured Loader<br/>upsert tables"]
-        PEX["Principle Extractor<br/>Claude LLM"]
+        PEX["Principle Extractor<br/>LLM (LLM_MODEL)"]
     end
 
     subgraph store["Postgres"]
@@ -151,7 +152,9 @@ flowchart LR
 
 ---
 
-## Database Schema (20 tables)
+## Database Schema (21 tables)
+
+Core relationships only; the full table reference is [docs/SCHEMA.md](docs/SCHEMA.md), and the Alembic migrations in `oly-agent/migrations/versions/` are the source of truth.
 
 ```mermaid
 erDiagram
@@ -160,6 +163,7 @@ erDiagram
     sources ||--o{ ingestion_runs : tracks
 
     knowledge_chunks }o--o{ ingestion_chunk_log : logged_in
+    knowledge_chunks ||--o{ chunk_sources : found_in
     exercises ||--o{ exercise_substitutions : has
     exercises ||--o{ exercise_complexes : part_of
 
@@ -187,9 +191,9 @@ Three processes must be running simultaneously:
 
 | Process | Command | Purpose |
 |---------|---------|---------|
-| Infrastructure | `cd oly-ingestion && docker compose up -d` | Postgres + Redis |
-| Web server | `cd oly-agent && PYTHONUTF8=1 uv run uvicorn web.app:app --reload --port 8080` | Serves the UI |
-| ARQ worker | `cd oly-agent && PYTHONUTF8=1 uv run arq web.worker.WorkerSettings` | Runs generation jobs |
+| Infrastructure | `make up` | Postgres + PgBouncer + Redis (`oly-ingestion/docker-compose.yml`) |
+| Web server | `make web` | Serves the UI on :8080 |
+| ARQ worker | `make worker` | Runs generation jobs |
 
 The web server and ARQ worker are **separate OS processes** — both connect to the same Redis and Postgres. The worker can be restarted independently without affecting the web server.
 
@@ -231,7 +235,10 @@ can be `default-src 'self'` apart from the inline `<script>` blocks in
 | `SECRET_KEY` | Session signing key — must be stable across restarts |
 | `REDIS_URL` | Redis connection string (default: `redis://localhost:6379`) |
 | `HTTPS_ONLY` | Set to `true` to enable `Secure` cookie flag |
-| `ANTHROPIC_API_KEY` | Claude API — required for generation |
-| `OPENAI_API_KEY` | OpenAI embeddings — required for vector search |
+| `LLM_PROVIDER` | `openrouter` (the code default) or `anthropic`. Picks the endpoint and the model defaults: under `openrouter`, generation / explanation / ingestion run on `moonshotai/kimi-k3`, light tasks on `deepseek/deepseek-v4.1-flash`, the eval judge on `z-ai/glm-5.3-flash`; under `anthropic`, Claude Sonnet 5 / Haiku 4.5. Each role is overridable (`GENERATION_MODEL`, `EXPLANATION_MODEL`, `LLM_MODEL`, `LIGHT_MODEL`, `JUDGE_MODEL`) — see `oly-ingestion/.env.example` |
+| `OPENROUTER_API_KEY` | Required for generation with `LLM_PROVIDER=openrouter` (the default) |
+| `ANTHROPIC_API_KEY` | Required only with `LLM_PROVIDER=anthropic` — the only provider with Message Batches (`--batch` ingestion) |
+| `LLM_BASE_URL` | Optional endpoint override; blank = the provider's default |
+| `OPENAI_API_KEY` | OpenAI embeddings (`text-embedding-3-large` at 1536 dims) — required for vector search, including query embedding in the worker |
 
 See [`docs/design/SECURITY.md`](docs/design/SECURITY.md) for the full security audit and deployment checklist.

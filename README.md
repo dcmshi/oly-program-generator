@@ -4,17 +4,41 @@
 
 Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on ~6,550 live chunks of coaching literature — 18 books, 16 research papers and ~690 web articles (current counts: [docs/CORPUS.md](docs/CORPUS.md)). A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and a no-key test suite for both subsystems (`make test`).
 
-**Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · Claude (`claude-sonnet-5`) or open models via OpenRouter · OpenAI embeddings · Alembic · uv · Docker
+**Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · LLMs via OpenRouter (Kimi K3 / DeepSeek V4.1 Flash by default) or Anthropic Claude · OpenAI `text-embedding-3-large` embeddings · Alembic · uv · Docker
 
 ![Dashboard](screenshots/02-dashboard.png)
 
 ---
 
-## Demo
+## Screenshots
 
-> **Add a short walkthrough here** — a GIF or screen recording (~60–90 s) covering: account setup → dashboard → program generation → session logging → exercise history.
->
-> Tools: [LICEcap](https://www.cockos.com/licecap/) (Windows/macOS) or [Peek](https://github.com/phw/peek) (Linux) for GIF capture. Export at ~800 px wide and commit as `screenshots/demo.gif`.
+The flow: generate a program → review it week by week → log each session against the prescription → watch the trend per exercise.
+
+**Generate** — triggers the 6-step agent pipeline as a background job
+![Generate](screenshots/07-generate.png)
+
+**Program detail** — week accordions, exercise tables with weights / intensity / RPE
+![Program detail](screenshots/04-program-detail.png)
+
+**Session logging** — prescribed exercises prefilled, log actual sets/reps/weight/RPE
+![Session log](screenshots/05-session-log.png)
+
+<details>
+<summary>More screenshots</summary>
+
+**Login**
+![Login](screenshots/01-login.png)
+
+**Programs** — every generated program with its phase and status
+![Programs](screenshots/03-programs.png)
+
+**Exercise history** — per-exercise trend across all logged sessions
+![Exercise history](screenshots/06-history.png)
+
+**Profile**
+![Profile](screenshots/08-profile.png)
+
+</details>
 
 ---
 
@@ -32,13 +56,13 @@ flowchart TB
         EXT["Extractors<br/>pdf / epub / html"]
         CLASS["Classifier<br/>heuristic + LLM fallback"]
         CHUNK["Chunker<br/>profile-aware sizing"]
-        PE["Principle Extractor<br/>Claude LLM"]
+        PE["Principle Extractor<br/>LLM (LLM_MODEL)"]
         VL["Vector Loader<br/>OpenAI text-embedding-3-large"]
         SL["Structured Loader<br/>upsert tables"]
     end
 
     subgraph DB["🗄  Postgres 16 + pgvector"]
-        KC[("knowledge_chunks<br/>6,835 chunks · embeddings")]
+        KC[("knowledge_chunks<br/>6,839 chunks (6,554 live) · embeddings")]
         PP[("programming_principles<br/>extracted if/then rules")]
         EX[("exercises · 50+<br/>substitutions · complexes")]
         PC[("prilepin_chart<br/>4 intensity zones")]
@@ -51,7 +75,7 @@ flowchart TB
     subgraph SharedPkg["shared/"]
         CFG["config.py<br/>Settings dataclass"]
         DBSH["db.py<br/>connection helpers"]
-        LLM["llm.py<br/>Anthropic client"]
+        LLM["llm.py<br/>LLM client (OpenRouter / Anthropic) + cost"]
         PRI["prilepin.py<br/>zone lookup + rep targets"]
     end
 
@@ -80,7 +104,7 @@ flowchart TB
         FEEDBACK["feedback.py<br/>outcome + max promotion"]
     end
 
-    CLAUDE(["Claude claude-sonnet-5"])
+    CLAUDE(["LLM via LLM_PROVIDER<br/>default: Kimi K3 on OpenRouter"])
 
     Sources --> EXT
     EXT --> CLASS
@@ -119,7 +143,9 @@ Each program generation runs 6 steps in sequence:
 | 5 · VALIDATE | `validate.py` | Enforce Prilepin rep ranges, intensity envelope, reps-per-set limits, avoid-list, and principle adherence |
 | 6 · EXPLAIN | `explain.py` | One LLM call producing a structured rationale with per-section headings |
 
-A 4-week, 4-session/week program = 16 sessions × ~1–2 LLM calls + 1 explain call ≈ **$0.40–0.50** at current Claude pricing.
+A 4-week, 4-session/week program = 16 sessions × ~1–2 LLM calls + 1 explain call. Measured on the default Kimi K3 via OpenRouter: **$0.24** for a full 16-session program (vs $0.42 on Claude Sonnet 5; TODO.md MODEL-2).
+
+**Models.** `LLM_PROVIDER` picks the endpoint and the per-role defaults (`shared/config.py`): `openrouter` (default) runs generation, explanation and ingestion on Kimi K3, light tasks on DeepSeek V4.1 Flash and the retrieval-eval judge on GLM-5.3 Flash; `anthropic` runs Claude Sonnet 5 / Haiku 4.5 and is the only provider with Message Batches for ingestion. Every role can be overridden by env var.
 
 ---
 
@@ -174,45 +200,19 @@ Live chunks (quarantined non-content excluded) and extracted principles, 2026-09
 
 ## Web UI
 
-FastAPI + Jinja2 + HTMX — no npm, no build step.
+FastAPI + Jinja2 + HTMX — no JavaScript build at runtime; the Tailwind CSS is compiled once (`make css`) and committed, and every asset is served from `/static`.
 
 | Page | URL | Description |
 |------|-----|-------------|
 | Login / Signup | `/login` `/setup` | bcrypt auth, session cookies, multi-athlete support |
 | Dashboard | `/` | Current week, adherence, active warnings, lift ratio analysis |
+| Programs | `/program` | Every program with its phase and status |
 | Program detail | `/program/{id}` | Week accordions, exercise tables, rationale; activate / complete / abandon; CSV export |
 | Log session | `/log/{session_id}` | Prescribed exercises prefilled; inline add/edit/delete; PR banner |
 | Exercise history | `/history` | Per-exercise trend across all logged sessions |
 | Generate | `/generate` | Background job via ARQ + Redis; HTMX polls every 3 s |
 | Profile | `/profile` | Edit athlete fields, change password/username, download training log CSV |
 | Admin | `/admin/jobs` | Generation job history — cost, session counts, errors per program (admin only) |
-
----
-
-## Screenshots
-
-<details>
-<summary>Show all screenshots</summary>
-
-**Login**
-![Login](screenshots/01-login.png)
-
-**Program detail** — week accordions, exercise tables with weights / intensity / RPE
-![Program detail](screenshots/04-program-detail.png)
-
-**Session logging** — prescribed exercises prefilled, log actual sets/reps/weight/RPE
-![Session log](screenshots/05-session-log.png)
-
-**Exercise history** — per-exercise trend across all logged sessions
-![Exercise history](screenshots/06-history.png)
-
-**Generate** — triggers the 6-step agent pipeline as a background job
-![Generate](screenshots/07-generate.png)
-
-**Profile**
-![Profile](screenshots/08-profile.png)
-
-</details>
 
 ---
 
@@ -241,8 +241,8 @@ The system is production-capable as a single-user app. These are the extensions 
 
 | # | Area | Description |
 |---|------|-------------|
-| 1 | **Cloud deployment** | Stack is already containerised with Docker Compose, PgBouncer, Redis, and a `/health` endpoint. Next step is Fly.io / Railway for low-friction deploy, or ECS + RDS + ElastiCache for a stronger AWS infrastructure story. `SCALING.md` tracks the remaining gaps. |
-| 2 | **Multi-agent pipeline** | Current pipeline is a linear chain. Natural evolution: run all session generations in parallel, add a Validation Agent that acts as a critic and sends specific sessions back for targeted revision (rather than retrying with appended errors). LangGraph would fit cleanly on the Anthropic stack and produces visualisable agent graphs. |
+| 1 | **Cloud deployment** | Stack is already containerised with Docker Compose, PgBouncer, Redis, and a `/health` endpoint. Next step is Fly.io / Railway for low-friction deploy, or ECS + RDS + ElastiCache for a stronger AWS infrastructure story. [`docs/design/SCALING.md`](docs/design/SCALING.md) tracks the remaining gaps. |
+| 2 | **Multi-agent pipeline** | Current pipeline is a linear chain. Natural evolution: run all session generations in parallel, add a Validation Agent that acts as a critic and sends specific sessions back for targeted revision (rather than retrying with appended errors). LangGraph would fit cleanly on the current stack and produces visualisable agent graphs. |
 | 3 | **Real-time autoregulation** | Feedback loop currently operates between programs. V2 would adjust within a running program: RPE consistently above target → reduce next session's intensity by 3–5% automatically, with a confirmation step before applying. Open design question around how much autonomy to grant vs. requiring athlete sign-off. |
 | 4 | **Coach mode** | Multi-athlete dashboard showing progression, flagging declining make rates, missed sessions, and RPE drift across athletes. Data model already supports it (athletes table is normalised, auth is in place) — primarily a permissions layer and aggregate query work. |
 | 5 | **Retrieval feedback loop** | `source_chunk_ids` and `source_principle_ids` on each session exercise capture which knowledge was used. Chunks cited in high-outcome programs (strong adherence, max improvements) could be boosted in future similarity searches — a lightweight RLHF loop on the RAG pipeline. |
