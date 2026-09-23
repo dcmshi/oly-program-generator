@@ -204,7 +204,10 @@ INTENSITY_BAND_WIDTH_PCT: int = 5  # session queries share a cache entry within 
 # Postgres tsvector (migration 0009) fused with the vector leg by reciprocal
 # rank: score = Σ 1/(RRF_K + rank). The chunk_type preference is re-scaled to
 # the RRF range (a rank-1 hit in one leg is worth 1/61 ≈ 0.0164).
-HYBRID_SEARCH_ENABLED: bool = True
+# Off since AUD-3 (2026-09-22): under text-embedding-3-large dense-only beats
+# every fusion weighting on the gate (nDCG@5 0.796 vs 0.712 equal-weight,
+# 0.782 at HYBRID_LEXICAL_WEIGHT 0.1). The lexical path stays working.
+HYBRID_SEARCH_ENABLED: bool = False
 RRF_K: int = 60
 HYBRID_CANDIDATES_PER_LEG: int = 20
 CHUNK_TYPE_PREFERENCE_BOOST_RRF: float = 0.004  # ≈ moving up ~15 ranks in one leg
@@ -316,3 +319,27 @@ GENERATION_WEEK_CONCURRENCY: int = 4
 # Week 1's same-day session, summarised into later weeks' prompts as the
 # block's template (exercise names, sets x reps @ %), capped at this length.
 BLOCK_TEMPLATE_MAX_CHARS: int = 400
+
+# ── Retrieval fusion, rerank and context diversity (AUD-3) ──────────
+# Weight on the lexical leg in the RRF fusion: score = 1/(RRF_K + vec_rank)
+# + HYBRID_LEXICAL_WEIGHT/(RRF_K + lex_rank). 1.0 = the original equal-weight
+# RRF (RAG-M1); 0 skips the lexical leg. 0.1 was the best weighting in the
+# sweep (docs/RETRIEVAL_EVAL.md) — still below dense-only, so it only applies
+# when HYBRID_SEARCH_ENABLED is switched back on.
+HYBRID_LEXICAL_WEIGHT: float = 0.1
+# Optional listwise rerank (oly-agent/rerank.py): the light model reorders the
+# top RERANK_TOP_N candidates of each retrieval query in one schema-constrained
+# call, cached per query; any error keeps the retrieval order. Off: its gain is
+# within its own run-to-run noise on the production-shaped query families and
+# the session family regressed (docs/RETRIEVAL_EVAL.md). 15 = the depth the
+# golden set grades (dense top 15), so the measurement is not biased by
+# ungraded chunks.
+RERANK_ENABLED: bool = False
+RERANK_TOP_N: int = 15
+RERANK_SNIPPET_CHARS: int = 400     # query-focused excerpt per passage shown to the reranker
+RERANK_MAX_TOKENS: int = 2048       # GLM's mandatory 1,024-token thinking budget counts against it
+RERANK_MAX_ATTEMPTS: int = 2
+# Program-level source cap on the composed context: a source already holding
+# this share of a program's context slots is passed over while another
+# candidate can fill the slot (never leaves a slot empty — DOG-1).
+MAX_SOURCE_SHARE_IN_PROGRAM: float = 0.4

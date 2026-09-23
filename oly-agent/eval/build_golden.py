@@ -91,12 +91,17 @@ GRADING_SCHEMA: dict = {
 
 
 def candidate_pool(loader, query: dict, n: int = CANDIDATES_PER_RETRIEVER) -> list[dict]:
-    """Dense ∪ hybrid top-n under the query's production preference, deduped by id."""
+    """Dense ∪ hybrid top-n under the query's production preference, deduped by id.
+
+    The hybrid pool uses equal-weight RRF (lexical_weight=1.0), not the
+    down-weighted production constant, so lexical-only candidates keep getting
+    graded (AUD-3)."""
     pool: dict[int, dict] = {}
     for hybrid in (False, True):
         for r in loader.similarity_search(
             query=query["query"], top_k=n, min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
             preferred_chunk_types=query.get("preferred_chunk_types") or None, hybrid=hybrid,
+            **({"lexical_weight": 1.0} if hybrid else {}),
         ):
             pool.setdefault(r["id"], r)
     return list(pool.values())

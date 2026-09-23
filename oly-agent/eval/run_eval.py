@@ -6,6 +6,8 @@ Score the live retriever against golden.json under production settings (RAG-M6).
     PYTHONUTF8=1 uv run python -m eval.run_eval                    # report + compare with baseline.json
     PYTHONUTF8=1 uv run python -m eval.run_eval --update-baseline  # accept the current numbers
     PYTHONUTF8=1 uv run python -m eval.run_eval --dense-only       # ablation: hybrid off
+    PYTHONUTF8=1 uv run python -m eval.run_eval --hybrid --lexical-weight 0.2   # fusion sweep
+    PYTHONUTF8=1 uv run python -m eval.run_eval --rerank           # + listwise LLM rerank (~$0.03)
 
 Needs the corpus DB and OPENAI_API_KEY (query embeddings). Exits 1 when a
 gated summary metric (GATED_METRICS: nDCG@k and grade-2 recall normalised by
@@ -33,7 +35,12 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
 
 from eval.metrics import score_query, summarize
 
-from shared.constants import HYBRID_SEARCH_ENABLED, VECTOR_SEARCH_DEFAULT_TOP_K, VECTOR_SEARCH_MIN_SIMILARITY
+from shared.constants import (
+    HYBRID_SEARCH_ENABLED,
+    RERANK_ENABLED,
+    VECTOR_SEARCH_DEFAULT_TOP_K,
+    VECTOR_SEARCH_MIN_SIMILARITY,
+)
 
 GOLDEN_PATH = _HERE / "golden.json"
 BASELINE_PATH = _HERE / "baseline.json"
@@ -72,19 +79,27 @@ def compare_to_baseline(summary: dict, baseline: dict | None,
 
 
 def evaluate(loader, golden: dict, top_k: int = VECTOR_SEARCH_DEFAULT_TOP_K,
-             hybrid: bool = HYBRID_SEARCH_ENABLED) -> tuple[list[dict], dict, dict]:
+             hybrid: bool = HYBRID_SEARCH_ENABLED, reranker=None,
+             **search_kwargs) -> tuple[list[dict], dict, dict]:
     """Run every golden query through the production search settings.
 
+    `search_kwargs` (lexical_weight, rrf_k, candidates_per_leg) override the
+    fusion constants for a sweep. With a `reranker` (rerank.ListwiseReranker)
+    the search fetches its top_n candidates and the reranked top_k is scored.
     Returns (per_query rows, overall summary, summary per kind)."""
     rows = []
     for q in golden["queries"]:
+        fetch_k = max(top_k, reranker.top_n) if reranker is not None else top_k
         results = loader.similarity_search(
             query=q["query"],
-            top_k=top_k,
+            top_k=fetch_k,
             preferred_chunk_types=q.get("preferred_chunk_types") or None,
             min_similarity=VECTOR_SEARCH_MIN_SIMILARITY,
             hybrid=hybrid,
+            **search_kwargs,
         )
+        if reranker is not None:
+            results = reranker.rerank(q["query"], results, top_k=top_k)
         scored = score_query(results, q["grades"], top_k)
         rows.append({"id": q["id"], "kind": q.get("kind", "?"), **scored})
     by_kind = {}
@@ -121,6 +136,12 @@ def main(argv=None) -> int:
     parser.add_argument("--baseline", type=Path, default=BASELINE_PATH)
     parser.add_argument("--top-k", type=int, default=VECTOR_SEARCH_DEFAULT_TOP_K)
     parser.add_argument("--dense-only", action="store_true", help="ablation: disable the lexical leg")
+    parser.add_argument("--hybrid", action="store_true", help="force the lexical leg on (overrides HYBRID_SEARCH_ENABLED)")
+    parser.add_argument("--lexical-weight", type=float, default=None, help="RRF weight on the lexical leg (sweep)")
+    parser.add_argument("--rrf-k", type=int, default=None, help="RRF k (sweep)")
+    parser.add_argument("--candidates-per-leg", type=int, default=None, help="candidates per fusion leg (sweep)")
+    parser.add_argument("--rerank", nargs="?", const="", default=None, metavar="MODEL",
+                        help="listwise LLM rerank of the top RERANK_TOP_N (default model: light_model; costs money)")
     parser.add_argument("--update-baseline", action="store_true")
     args = parser.parse_args(argv)
 
@@ -138,11 +159,23 @@ def main(argv=None) -> int:
     from shared.config import Settings
 
     golden = load_golden(args.golden)
-    loader = VectorLoader(Settings())
+    hybrid = False if args.dense_only else (True if args.hybrid else HYBRID_SEARCH_ENABLED)
+    search_kwargs = {k: v for k, v in (("lexical_weight", args.lexical_weight), ("rrf_k", args.rrf_k),
+                                       ("candidates_per_leg", args.candidates_per_leg)) if v is not None}
+    settings = Settings()
+    reranker = None
+    if args.rerank is not None or RERANK_ENABLED:
+        from rerank import ListwiseReranker
+        reranker = ListwiseReranker.from_settings(settings, args.rerank or None)
+    loader = VectorLoader(settings)
     try:
-        rows, summary, by_kind = evaluate(loader, golden, top_k=args.top_k, hybrid=not args.dense_only)
+        rows, summary, by_kind = evaluate(loader, golden, top_k=args.top_k, hybrid=hybrid,
+                                          reranker=reranker, **search_kwargs)
     finally:
         loader.close()
+    if reranker is not None:
+        print(f"rerank ({reranker.model}): {reranker.calls} calls, {reranker.failures} failures, "
+              f"${reranker.cost_usd:.4f}")
 
     baseline = json.loads(args.baseline.read_text(encoding="utf-8")) if args.baseline.exists() else None
     regressed = compare_to_baseline(summary, baseline)
@@ -150,7 +183,8 @@ def main(argv=None) -> int:
 
     if args.update_baseline:
         gate = {"gated_metrics": list(GATED_METRICS), "tolerance": REGRESSION_TOLERANCE,
-                "top_k": args.top_k, "hybrid": not args.dense_only}
+                "top_k": args.top_k, "hybrid": hybrid, **search_kwargs,
+                "rerank": reranker.model if reranker is not None else None}
         args.baseline.write_text(json.dumps({**summary, "by_kind": by_kind, "gate": gate,
                                              "golden_meta": golden.get("meta", {})}, indent=2), encoding="utf-8")
         print(f"baseline written to {args.baseline}")
