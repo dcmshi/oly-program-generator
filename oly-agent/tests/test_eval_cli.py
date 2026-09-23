@@ -58,7 +58,8 @@ def test_run_eval_passes_without_baseline_and_writes_one(tmp_path, capsys):
     loader.close.assert_called_once()
     code, _, base = _run(tmp_path, ["--update-baseline"], PERFECT)
     written = json.loads(base.read_text(encoding="utf-8"))
-    assert code == 0 and written["gate"]["hybrid"] is True and written["golden_meta"] == {"model": "judge"}
+    from shared.constants import HYBRID_SEARCH_ENABLED
+    assert code == 0 and written["gate"]["hybrid"] is HYBRID_SEARCH_ENABLED and written["golden_meta"] == {"model": "judge"}
     assert set(written["by_kind"]) == {"session", "fault"} and written["ndcg_at_k"] == 1.0
 
 
@@ -120,3 +121,8 @@ def test_context_diversity_main_text_and_json(capsys):
     assert "program 29:" in text and "program 12:" in text
     assert data["29"]["distinct_chunks"] == 1 and data["29"]["slots"] == 2
     conn.close.assert_called()
+
+
+def test_run_eval_hybrid_flag_forces_the_lexical_leg_on(tmp_path):
+    _, loader, _ = _run(tmp_path, ["--hybrid"], PERFECT)
+    assert loader.similarity_search.call_args_list[0].kwargs["hybrid"] is True
