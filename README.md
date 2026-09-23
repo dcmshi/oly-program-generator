@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/dcmshi/oly-program-generator/actions/workflows/ci.yml/badge.svg)](https://github.com/dcmshi/oly-program-generator/actions/workflows/ci.yml)
 
-Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on ~6,550 live chunks of coaching literature — 18 books, 16 research papers and ~690 web articles (current counts: [docs/CORPUS.md](docs/CORPUS.md)). A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and a no-key test suite for both subsystems (`make test`).
+Generates personalised Olympic weightlifting mesocycles from a RAG pipeline built on ~6,900 live chunks of coaching literature — 18 books, 28 research papers and ~690 web articles (current counts: [docs/CORPUS.md](docs/CORPUS.md)). A 6-step agent pipeline — ASSESS → PLAN → RETRIEVE → GENERATE → VALIDATE → EXPLAIN — applies Prilepin's chart programmatically to enforce per-session volume and intensity constraints before writing each session to the database. Ships with a full FastAPI + HTMX web UI, ARQ background job queue, session logging with PR detection, and a no-key test suite for both subsystems (`make test`).
 
 **Stack:** Python 3.11 · FastAPI · HTMX · asyncpg · Postgres 16 + pgvector · Redis · ARQ · LLMs via OpenRouter (Kimi K3 / DeepSeek V4.1 Flash by default) or Anthropic Claude · OpenAI `text-embedding-3-large` embeddings · Alembic · uv · Docker
 
@@ -171,7 +171,7 @@ Live chunks (quarantined non-content excluded) and extracted principles, 2026-09
 | Catalyst Athletics articles | Web | 1,052 | 495 |
 | Drechsler — *Weightlifting Encyclopedia* | PDF | 695 | 459 |
 | Everett — *Olympic Weightlifting* | EPUB | 574 | 76 |
-| Research papers — tapering, block periodization, pulling derivatives (16) | PDF / Europe PMC | 435 | 238 |
+| Research papers — tapering, block periodization, pulling derivatives, deload, sleep, injury, RIR-RPE, female/masters athletes, nutrition (28) | PDF / Europe PMC | 814 | 270 |
 | Stronger by Science articles | Web | 285 | 140 |
 | Zatsiorsky — *Science and Practice of Strength Training* | PDF | 273 | 347 |
 | Bompa & Buzzichelli — *Periodization of Strength Training for Sports* | EPUB | 250 | 536 |
@@ -191,7 +191,7 @@ Live chunks (quarantined non-content excluded) and extracted principles, 2026-09
 | Everett — *Olympic Weightlifting for Sports* | PDF | 25 | 40 |
 | Pendlay — beginner program | Web | 7 | 10 |
 | Cissik — summary of Medvedyev's *A System of Multi-Year Training* (tables transcribed) | Web | 4 | 52 |
-| **Total** | | **6,554** | **4,234** |
+| **Total** | | **6,933** | **4,266** |
 
 > Source ids, chunk-size profiles, and ingestion notes: [docs/CORPUS.md](docs/CORPUS.md)
 > Retrieval quality — graded golden set (57 queries) and the regression gate: [docs/RETRIEVAL_EVAL.md](docs/RETRIEVAL_EVAL.md)

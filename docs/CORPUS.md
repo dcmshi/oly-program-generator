@@ -3,7 +3,7 @@
 State of the ingested source material backing retrieval. Update this file after
 any ingest, re-ingest, or bulk delete.
 
-**Totals (2026-09-22):** 6,839 chunks (6,554 live, 285 quarantined) · 4,234 principles (88 marked duplicate) · 732 sources · 47 templates. Since 2026-09-21: test-fixture source 46 deleted, Cissik's Medvedyev summary added (#28).
+**Totals (2026-09-22, evening):** 7,255 chunks (6,933 live, 322 quarantined) · 4,266 principles (99 marked duplicate) · 744 sources · 47 templates; vectors on `text-embedding-3-large` (EMBED-1). Since the morning: test-fixture source 46 deleted, Cissik's Medvedyev summary (#28), 12 open-access papers (#29, AUD-5).
 There is one corpus database — the machine this repo runs on. Earlier notes about a separate
 "corpus DB machine" and a diverging "dev copy" described the same box; the runbook that was
 kept for replaying ops elsewhere is retired (`docs/DB-MACHINE-RUNBOOK.md` is history only).
@@ -61,6 +61,9 @@ size.
 | 26 | Charniga — *A De-Masculinization of Strength* | EPUB (Kobo) | 806 | theory_heavy | 101 | 0 |
 | 27 | Kono — *Weightlifting, Olympic Style* (2010) | PDF (vision OCR, scan) | 807 | programming | 194 (+7) | 174 (+2 templates) |
 | 28 | Cissik — blog summary of Medvedyev's *A System of Multi-Year Training* (2026), stopgap for row 8 below | Web + 7 hand-transcribed table images (`sources/url_lists/cissik_medvedyev.py`) | 808 | web (dynamic) | 4 | 52 (14 recommendations cleared 2026-09-22 — see note) |
+| 29 | AUD-5 open-access papers (12, Europe PMC JATS): deload — Bell 2023 Delphi consensus, Rogerson 2024 survey, Coleman 2024 RCT; sleep — Doherty 2021; injury — Lee 2026 youth/adult surveillance, Huebner 2022 older lifters, Tung 2024 systematic review; RIR-RPE — Helms 2016; female athletes — Colenso-Semple 2023 menstrual cycle; concurrent training — Schumann 2022; ISSN protein 2017 and caffeine 2021 position stands | Europe PMC text | 809–820 | research (the first papers to actually get it — see note) | 379 (+37) | 32 |
+
+Papers (#16, #17, #29): until 2026-09-22 `pipeline.py --type article` sized every article by word count and never consulted `SOURCE_PROFILE_MAP`, so rows 16–17 were chunked with the web profiles despite being mapped to `research`; `_select_chunker` now lets a mapped title win (#29 is the first batch on `research` 700/150). Rows 16–17 keep their chunks until a re-ingest. #29 yielded few principles (32 from 12 papers) — reviews and surveys state findings, not rules.
 
 Cissik (#28): 14 of its 52 principles had a `recommendation` number the post never states (juvenile ceiling 85 %, technique-learning ceilings 60/70/75 %, ≤ 6 sessions/week, GPP shares stored as `volume_modifier`, monthly lift counts as `total_reps_max`, the competition-week 13–16 % share as a 0.15 modifier). Their `recommendation` was set to `{}` on 2026-09-22; the rule name and `rationale` (which keeps the source's real figures) are unchanged. Supported numbers were kept (pulls ≤ 90 %, the 50–80 / 80–90 / 95 %+ zones, 850/1500 ≈ 0.57).
 
