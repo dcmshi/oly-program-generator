@@ -1,11 +1,15 @@
 # Database Schema Documentation
 
-Postgres 16 + pgvector. **20 tables total** across two schema files.
+Postgres 16 + pgvector. **21 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0017_ingestion_run_result`.
 
-| Schema file | Tables | Purpose |
-|-------------|--------|---------|
-| `schema.sql` | 11 | Ingestion pipeline — knowledge base, exercises, Prilepin chart |
-| `athlete_schema.sql` | 9 | Programming agent — athletes, programs, sessions, logs |
+**The Alembic migrations are the source of truth.** This page summarises them; where it and a migration disagree, the migration wins (`cd oly-agent && uv run alembic history`). The root-level `schema.sql`, `athlete_schema.sql`, `auth_migration.sql` and `oly-ingestion/schema.sql` predate Alembic and are not applied by `make migrate`.
+
+| Migration | Tables created | Purpose |
+|-----------|---------------:|---------|
+| `0000_ingestion_schema` | 11 | Ingestion pipeline — knowledge base, exercises, Prilepin chart (+ seed data) |
+| `0001_baseline` | 9 | Programming agent — athletes, programs, sessions, logs |
+| `0012_chunk_sources` | 1 | Chunk provenance across sources |
+| the other 15 | — | Column, index, constraint and seed changes, noted per table below |
 
 Connection: `postgresql://oly:oly@localhost:5432/oly_programming`
 
@@ -93,6 +97,8 @@ erDiagram
         jsonb recommendation
         int priority
         int source_id FK
+        int duplicate_of FK
+        real duplicate_probability
     }
 
     program_templates {
@@ -114,6 +120,16 @@ erDiagram
         chunk_type chunk_type
         text[] topics
         varchar content_hash
+        text embedding_model
+        text context_prefix
+        tsvector tsv
+        bool quarantined
+        real junk_probability
+        int source_id FK
+    }
+
+    chunk_sources {
+        int chunk_id FK
         int source_id FK
     }
 
@@ -144,6 +160,9 @@ erDiagram
     sources ||--o{ program_templates : "source_id"
     sources ||--o{ knowledge_chunks : "source_id"
     sources ||--o{ ingestion_runs : "source_id"
+    sources ||--o{ chunk_sources : "source_id"
+    knowledge_chunks ||--o{ chunk_sources : "chunk_id"
+    programming_principles |o--o{ programming_principles : "duplicate_of"
 
     exercises ||--o{ exercises : "parent_exercise_id"
     exercises ||--o{ exercise_substitutions : "exercise_id"
@@ -158,15 +177,15 @@ erDiagram
 
 | Table | Rows | Description |
 |-------|------|-------------|
-| `sources` | 436 | Source books and articles. Seed: 6 canonical texts. |
+| `sources` | 732 | Source books, papers and web articles (one row per article). Seed: 6 canonical texts. |
 | `prilepin_chart` | 4 | Prilepin's intensity zones (55–65, 70–80, 80–90, 90–100%; seed data). The runtime source of truth is `shared/prilepin.py`'s in-memory table, which additionally covers the 65–70 transition band — nothing reads this table at runtime. |
 | `exercises` | 70+ | Full exercise taxonomy: competition lifts, variants, pulls, strength, accessory, plyometrics. Self-referencing hierarchy via `parent_exercise_id`. 45 rows from the 0000 seed; 27 coach-block variants (deficit / block / extension / pull-to-hip lifts, jumps, rows, split squats …) from migration 0014 (DOG-1f). Rows the structured loader adds from books are filtered by `pipeline._parse_exercise` (no all-caps or bare-movement chapter headings). |
 | `exercise_substitutions` | 10+ | Injury/equipment/fatigue substitution pairs with context. |
-| `exercise_complexes` | 6 | Named multi-exercise complexes with ordered JSONB structure. |
+| `exercise_complexes` | 12 | Named multi-exercise complexes with ordered JSONB structure. |
 | `percentage_schemes` | varies | Extracted percentage programs from source books (week/day/sets/reps/intensity). |
-| `programming_principles` | see `docs/CORPUS.md` | LLM-extracted if/then rules from prose. JSONB `condition` (8 schema keys, evaluated per session by `principle_matcher`) + `recommendation` fields. |
-| `program_templates` | varies | LLM-parsed program structures from books. |
-| `knowledge_chunks` | see `docs/CORPUS.md` | Prose chunks with `vector(1536)` embeddings. `embedding_model` + `embedded_at` (migration 0008) record which model produced each row; `similarity_search` only ranks rows in the query's model space and `reembed.py` migrates rows between models. HNSW index for cosine similarity search. SHA-256 dedup via `content_hash`. |
+| `programming_principles` | see `docs/CORPUS.md` | LLM-extracted if/then rules from prose. JSONB `condition` (8 schema keys, evaluated per session by `principle_matcher`) + `recommendation` fields. Restated rules are marked, not deleted: `duplicate_of` (FK to the canonical twin — the lowest id — `ON DELETE SET NULL`) and `duplicate_probability` (migration 0016) are set by `oly-ingestion/dedupe_principles.py`, and every query that feeds principles to a prompt filters `duplicate_of IS NULL` (`plan._load_principles`). |
+| `program_templates` | 47 | LLM-parsed program structures from books. |
+| `knowledge_chunks` | see `docs/CORPUS.md` | Prose chunks with `vector(1536)` embeddings. `embedding_model` + `embedded_at` (migration 0008) record which model produced each row; `similarity_search` only ranks rows in the query's model space and `reembed.py` migrates rows between models. HNSW index for cosine similarity search. SHA-256 dedup via `content_hash`. `context_prefix` (migration 0009, written by `--contextualize`) and the generated `tsv` column feed the lexical leg of hybrid search. `quarantined` (bool, default false), `junk_probability` and `quarantine_reason` (migration 0015) are set by `oly-ingestion/quarantine_chunks.py` for non-content — indexes, reference lists, TOCs, title pages; `similarity_search` excludes quarantined rows from both legs, and the rows stay for dedup and provenance. |
 | `ingestion_runs` | per run | Pipeline execution record per source. Tracks progress, timing, and error state; `result` (JSONB, migration 0017) holds the full stats dict including the OCR-QA verdicts (`ocr_pages_unresolved`, `ocr_verdicts`, `chunks_quarantined_jev`). |
 | `ingestion_chunk_log` | per chunk | Links chunks to the ingestion run that created them. Enables rollback. |
 | `chunk_sources` | per (chunk, source) | Every source a chunk's text appeared in (migration 0012). Dedup is global by content hash, so `knowledge_chunks.source_id` is only "first seen in"; this table keeps provenance for the other sources. |
@@ -332,7 +351,7 @@ erDiagram
 
 ## Enum Types
 
-**Ingestion schema (`schema.sql`):**
+**Ingestion schema (migration `0000`):**
 
 | Enum | Values |
 |------|--------|
@@ -347,7 +366,7 @@ erDiagram
 | `ingestion_status` | `started`, `extracting`, `classifying`, `processing`, `loading`, `completed`, `failed`, `partial` |
 | `movement_applicability` | `competition_lifts`, `squats`, `pulls`, `all` |
 
-**Agent schema (`athlete_schema.sql`):**
+**Agent schema (migration `0001`):**
 
 | Enum | Values |
 |------|--------|
@@ -366,10 +385,26 @@ erDiagram
 | `knowledge_chunks` | `idx_chunks_topics` | GIN | Topic filtering in retrieval |
 | `knowledge_chunks` | `knowledge_chunks_content_hash_key` | unique | SHA-256 dedup on re-ingestion (the duplicate `idx_chunks_hash` was dropped in migration 0013) |
 | `knowledge_chunks` | `idx_chunks_embedding_model` | btree | Restrict ranking to one embedding space (RAG-M8) |
+| `knowledge_chunks` | `idx_chunks_quarantined` | partial btree | The quarantined rows, for audits and re-runs (migration 0015) |
 | `knowledge_chunks` | `idx_chunks_tsv` | GIN | Lexical leg of hybrid retrieval over the generated `tsv` column (`context_prefix` + `raw_content`; RAG-M1) |
 | `exercises` | `idx_exercises_faults` | GIN | Fault-to-exercise lookup |
 | `programming_principles` | `idx_principles_condition` | GIN | JSONB condition filtering |
+| `programming_principles` | `idx_principles_duplicate_of` | partial btree | Rows marked as duplicates (migration 0016) |
 | `program_templates` | `idx_templates_tags` | GIN | Tag-based template search |
 | `athlete_maxes` | `idx_maxes_unique_current` | unique partial | One current max per athlete per exercise |
 | `athlete_goals` | `idx_goals_active` | partial | Active goal lookup |
 | `generated_programs` | `idx_programs_active` | partial | Active program lookup per athlete |
+
+---
+
+## Ad-hoc Snapshot Tables (not migrations)
+
+The dev database also holds tables created by hand during one-off corpus operations. No migration creates them, no code reads them, and a fresh `alembic upgrade head` will not have them.
+
+| Table | Size (2026-09-22) | Contents |
+|-------|------------------:|----------|
+| `emb_backup_small_20260922` | 55 MB | All 6,839 `text-embedding-3-small` vectors (`id`, `embedding`, `embedding_model`, `embedded_at`), the rollback copy from before the EMBED-1 re-embed to `text-embedding-3-large`. Drop once `-large` has run in production for a while (TODO EMBED-1). |
+| `emb_snapshot_openai` | 37 MB | An earlier copy of 4,607 `text-embedding-3-small` vectors (`id`, `embedding`, `embedding_model`), from when the corpus had 4,607 chunks. Superseded by the table above. |
+| `chunk_type_snapshot_20260920_haiku` / `_jev` | 200 kB each | `(id, chunk_type)` label sets from the 2026-09-20 chunk-type relabel A/B; the Haiku labels were restored from the first (TODO.md). |
+
+All four are safe to drop. To restore one, run `UPDATE … FROM` joined on `id`.
