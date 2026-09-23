@@ -989,9 +989,16 @@ def generate_session_with_retries(
     ([{"label": "C1", "id": …, "similarity": …}, …]); written to
     generation_log.retrieval_set on every attempt so retrieval can be audited
     per call (RAG-M5).
+
+    Each attempt's generation_log row is priced with that attempt's cache
+    tokens, and carries validate_session's warnings in parsed_response
+    (``_log_generation``).
     """
+    attempt_cache = {"read": 0, "creation": 0}   # the current attempt's cache tokens, for its log row
+
     def _log(*args, **kwargs):
-        _log_generation(*args, retrieval_set=retrieval_set, **kwargs)
+        _log_generation(*args, retrieval_set=retrieval_set, cache_read_tokens=attempt_cache["read"],
+                        cache_creation_tokens=attempt_cache["creation"], **kwargs)
 
     max_attempts = settings.max_generation_retries + settings.max_parse_retries
     current_prompt = prompt
@@ -1022,6 +1029,7 @@ def generate_session_with_retries(
 
     for attempt in range(1, max_attempts + 1):
         logger.info(f"  Generating W{week_number}D{day_number} (attempt {attempt}/{max_attempts})")
+        attempt_cache.update(read=0, creation=0)
 
         # ── LLM call ─────────────────────────────────────────
         try:
@@ -1041,6 +1049,7 @@ def generate_session_with_retries(
             total_output_tokens += output_tokens
             total_cache_read += usage["cache_read"]
             total_cache_creation += usage["cache_creation"]
+            attempt_cache.update(read=usage["cache_read"], creation=usage["cache_creation"])
         except Exception as e:
             logger.error(f"  LLM API error (attempt {attempt}): {e}")
             _log(
@@ -1134,6 +1143,7 @@ def generate_session_with_retries(
                 current_prompt, last_raw, exercises,
                 input_tokens, output_tokens, "validation_error",
                 validation_errors=last_validation.errors,
+                validation_warnings=last_validation.warnings,
             )
             current_prompt = prompt + (
                 "\n\nIMPORTANT: Your previous response failed validation:\n"
@@ -1152,6 +1162,7 @@ def generate_session_with_retries(
             attempt, settings.generation_model,
             current_prompt, last_raw, exercises,
             input_tokens, output_tokens, "success",
+            validation_warnings=last_validation.warnings,
         )
         return GenerationResult(
             exercises=exercises,
@@ -1194,9 +1205,23 @@ def _log_generation(
     attempt, model, prompt, raw_response, parsed,
     input_tokens, output_tokens, status,
     validation_errors=None, error_message=None, retrieval_set=None,
+    cache_read_tokens=0, cache_creation_tokens=0, validation_warnings=None,
 ):
-    """Insert a row into generation_log (incl. the labelled retrieval set — RAG-M5)."""
-    cost = estimate_cost(input_tokens, output_tokens, model)
+    """Insert a row into generation_log (incl. the labelled retrieval set — RAG-M5).
+
+    estimated_cost_usd includes the attempt's prompt-cache reads / writes
+    (billed at 0.1x / 1.25x input) — input_tokens is only the uncached part.
+    parsed_response is ``{"exercises": [...], "_validation_warnings": [...]}``:
+    the table has no warnings column, and folding warnings into
+    validation_errors would inflate every error count (eval/model_baseline);
+    ``_validation_warnings`` is null when Step 5 didn't run on the attempt.
+    """
+    cost = estimate_cost(input_tokens, output_tokens, model,
+                         cache_read_tokens=cache_read_tokens, cache_creation_tokens=cache_creation_tokens)
+    parsed_response = (
+        json.dumps({"exercises": parsed, "_validation_warnings": validation_warnings})
+        if parsed else None
+    )
     with conn.cursor() as cursor:
         cursor.execute(
             """
@@ -1210,7 +1235,7 @@ def _log_generation(
             (
                 program_id, week_number, day_number, attempt,
                 model, prompt, raw_response,
-                json.dumps(parsed) if parsed else None,
+                parsed_response,
                 input_tokens, output_tokens, cost, status,
                 validation_errors, error_message,
                 json.dumps(retrieval_set, default=str) if retrieval_set is not None else None,

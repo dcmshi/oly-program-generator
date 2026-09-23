@@ -1745,3 +1745,97 @@ def test_session_prompt_matches_the_golden_fixtures_byte_for_byte():
         prompt = build()
         assert prompt == expected, name
         assert split_prompt_for_caching(prompt) == split_prompt_for_caching(expected), name
+
+
+# ── AUD-6: per-attempt cache-aware cost + validation warnings in generation_log ─
+
+def test_log_generation_prices_cache_tokens():
+    from generate import _log_generation
+
+    from shared.llm import estimate_cost
+    conn = MagicMock()
+    cursor = conn.cursor.return_value.__enter__.return_value
+    _log_generation(conn, 1, 1, 1, 1, "claude-sonnet-5", "p", "r", None, 1_000, 500, "success",
+                    cache_read_tokens=1_000_000, cache_creation_tokens=200_000)
+    cost = cursor.execute.call_args.args[1][10]
+    expected = estimate_cost(1_000, 500, "claude-sonnet-5", cache_read_tokens=1_000_000, cache_creation_tokens=200_000)
+    assert abs(cost - expected) < 1e-12
+    assert cost > estimate_cost(1_000, 500, "claude-sonnet-5") + 0.5   # 1M cached reads ≈ $0.20, 200k writes ≈ $0.50
+
+
+def test_log_generation_stores_warnings_beside_the_parsed_exercises():
+    from generate import _log_generation
+    conn = MagicMock()
+    cursor = conn.cursor.return_value.__enter__.return_value
+    exercises = [{"exercise_name": "Snatch"}]
+    _log_generation(conn, 1, 1, 1, 1, "m", "p", "r", exercises, 10, 5, "success",
+                    validation_warnings=["Estimated duration 95 min exceeds available 90 min"])
+    params = cursor.execute.call_args.args[1]
+    assert json.loads(params[7]) == {"exercises": exercises,
+                                     "_validation_warnings": ["Estimated duration 95 min exceeds available 90 min"]}
+    assert params[12] is None                       # validation_errors untouched
+    _log_generation(conn, 1, 1, 1, 1, "m", "p", "r", exercises, 10, 5, "validation_error", validation_errors=["x"])
+    assert json.loads(cursor.execute.call_args.args[1][7])["_validation_warnings"] is None   # Step 5 didn't run
+    _log_generation(conn, 1, 1, 1, 1, "m", "p", "r", None, 10, 5, "parse_error")
+    assert cursor.execute.call_args.args[1][7] is None
+
+
+def test_generate_logs_each_attempts_cache_tokens_and_warnings():
+    """Attempt 1 fails validation (cache write), attempt 2 succeeds (cache read):
+    each row carries its own attempt's cache tokens and warnings."""
+    from unittest.mock import patch
+
+    reply = [MagicMock(text='{"exercises": [{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, "reps": 2, '
+                            '"intensity_pct": 75, "intensity_reference": "snatch", "rest_seconds": 120, '
+                            '"rpe_target": 7.5, "selection_rationale": "x", "source_principle_ids": []}]}')]
+    client = MagicMock()
+    client.messages.create.side_effect = [
+        MagicMock(content=reply, stop_reason="end_turn", usage=SimpleNamespace(
+            input_tokens=100, output_tokens=50, cache_read_input_tokens=0, cache_creation_input_tokens=4_000)),
+        MagicMock(content=reply, stop_reason="end_turn", usage=SimpleNamespace(
+            input_tokens=120, output_tokens=60, cache_read_input_tokens=4_000, cache_creation_input_tokens=0)),
+    ]
+    settings = MagicMock(max_generation_retries=2, max_parse_retries=1, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    invalid = MagicMock(is_valid=False, errors=["too heavy"], warnings=["w1"])
+    valid = MagicMock(is_valid=True, errors=[], warnings=["w2"])
+    with patch("generate._log_generation") as log, patch("generate.validate_session", side_effect=[invalid, valid]):
+        result = generate_session_with_retries("p", client, settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1, MagicMock())
+    assert result.status == "success"
+    assert result.cache_read_tokens == 4_000 and result.cache_creation_tokens == 4_000
+    rows = [(c.args[11], c.kwargs["cache_read_tokens"], c.kwargs["cache_creation_tokens"],
+             c.kwargs.get("validation_warnings")) for c in log.call_args_list]
+    assert rows == [("validation_error", 0, 4_000, ["w1"]), ("success", 4_000, 0, ["w2"])]
+
+
+def test_generate_api_error_row_has_no_cache_tokens():
+    from unittest.mock import patch
+
+    client = MagicMock()
+    ok = [MagicMock(text='{"exercises": [{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, "reps": 2, '
+                         '"intensity_pct": 75, "intensity_reference": "snatch", "rest_seconds": 120, '
+                         '"rpe_target": 7.5, "selection_rationale": "x", "source_principle_ids": []}]}')]
+    client.messages.create.return_value = MagicMock(content=ok, stop_reason="end_turn", usage=SimpleNamespace(
+        input_tokens=1, output_tokens=1, cache_read_input_tokens=7, cache_creation_input_tokens=9))
+    settings = MagicMock(max_generation_retries=1, max_parse_retries=1, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    with patch("generate._log_generation") as log, \
+         patch("generate.create_message_with_retries", side_effect=[RuntimeError("down"), client.messages.create()]), \
+         patch("generate.validate_session", return_value=MagicMock(is_valid=True, errors=[], warnings=[])):
+        generate_session_with_retries("p", client, settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1, MagicMock())
+    first, second = log.call_args_list
+    assert (first.args[11], first.kwargs["cache_read_tokens"], first.kwargs["cache_creation_tokens"]) == ("failed", 0, 0)
+    assert (second.kwargs["cache_read_tokens"], second.kwargs["cache_creation_tokens"]) == (7, 9)
+
+
+def test_large_prompt_warns(caplog):
+    import logging
+
+    from generate import _warn_if_prompt_large
+
+    from shared.constants import PROMPT_LENGTH_WARN_CHARS
+    with caplog.at_level(logging.WARNING, logger="generate"):
+        _warn_if_prompt_large("x" * PROMPT_LENGTH_WARN_CHARS, 1, 1)
+        assert not caplog.records
+        _warn_if_prompt_large("x" * (PROMPT_LENGTH_WARN_CHARS + 1), 1, 1)
+    assert "Prompt is large" in caplog.records[-1].getMessage()
