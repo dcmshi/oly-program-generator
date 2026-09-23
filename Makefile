@@ -104,7 +104,8 @@ AGENT_TESTS := \
 	tests/test_feedback.py \
 	tests/test_log_commands.py \
 	tests/test_eval_cli.py \
-	tests/test_complexes.py
+	tests/test_complexes.py \
+	tests/test_strength_curve.py
 
 INGESTION_TESTS := \
 	tests/test_chunker.py \

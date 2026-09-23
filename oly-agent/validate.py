@@ -16,6 +16,7 @@ Checks, one function each, run in this order by validate_session (AUD-6):
   10. RPE target vs intensity                                      warning
   11. Fault-correction exercise coverage                           warning
   12. Strength-limiter coverage                                    warning
+  13. Squat / pull load vs the week's strength curve (PLAN-3c)    warning
 """
 
 import sys
@@ -35,12 +36,14 @@ from shared.constants import (
     MAX_RPE_TARGET,
     PRILEPIN_HARD_CAP_MULTIPLIER,
     SESSION_DURATION_TOLERANCE,
+    SQUAT_MAX_REFS,
+    STRENGTH_CURVE_TOLERANCE_PCT,
     SUPRAMAX_INTENSITY_WARN_PCT,
     WARMUP_INTENSITY_CUTOFF_PCT,
     WARMUP_VOLUME_EXCLUSION_PCT,
     WEEKLY_REP_BUDGET_TOLERANCE,
 )
-from shared.exercise_mapping import is_accessory, is_competition_lift, is_warmup_set, lift_family
+from shared.exercise_mapping import COMP_LIFT_REFS, is_accessory, is_competition_lift, is_warmup_set, lift_family
 from shared.formulas import estimate_session_minutes
 from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
@@ -439,6 +442,41 @@ def _check_strength_limiters(session_exercises: list[dict], athlete: dict, warni
             )
 
 
+
+def strength_category(ex: dict) -> str | None:
+    """"squat" (loaded off a squat max), "pull" (off a competition lift), else None.
+    Complexes and overhead squats are excluded — they are not strength work."""
+    if ex.get("complex"):
+        return None
+    name = (ex.get("exercise_name") or "").lower()
+    ref = ex.get("intensity_reference")
+    if "squat" in name and "overhead" not in name and ref in SQUAT_MAX_REFS:
+        return "squat"
+    is_pull = ("pull" in name or "deadlift" in name) and "pull-up" not in name and "pullup" not in name
+    if is_pull and ref in COMP_LIFT_REFS:
+        return "pull"
+    return None
+
+
+def _check_strength_curve(session_exercises: list[dict], week_target: dict, warnings: list[str]) -> None:
+    """Check 13: squats / pulls vs the week's strength-curve band (PLAN-3c).
+
+    Warm-up sets are skipped; a load more than STRENGTH_CURVE_TOLERANCE_PCT
+    outside the band warns."""
+    bands = (week_target or {}).get("strength_targets") or {}
+    for ex in session_exercises:
+        cat = strength_category(ex)
+        band = bands.get(cat) if cat else None
+        pct = _numeric_pct(ex)
+        if not band or pct is None or pct <= WARMUP_INTENSITY_CUTOFF_PCT:
+            continue
+        lo, hi = band["floor"] - STRENGTH_CURVE_TOLERANCE_PCT, band["ceiling"] + STRENGTH_CURVE_TOLERANCE_PCT
+        if not lo <= pct <= hi:
+            warnings.append(
+                f"{ex.get('exercise_name')} at {pct}% is outside this week's {cat} band "
+                f"{band['floor']}–{band['ceiling']}%"
+            )
+
 def validate_session(
     session_exercises: list[dict],
     week_target: dict,
@@ -499,6 +537,7 @@ def validate_session(
     _check_rpe_vs_intensity(session_exercises, warnings)
     _check_fault_coverage(session_exercises, athlete, fault_exercise_names, warnings)
     _check_strength_limiters(session_exercises, athlete, warnings)
+    _check_strength_curve(session_exercises, week_target, warnings)
 
     return ValidationResult(
         is_valid=len(errors) == 0,

@@ -713,7 +713,18 @@ Intensity range: {week_target.intensity_floor}% – {week_target.intensity_ceili
 Intensity ceiling (hard limit for competition lifts): {week_target.intensity_ceiling}%
 Volume modifier: {week_target.volume_modifier:.2f} (1.0 = baseline)
 Reps per set (comp lifts): {week_target.reps_per_set_range[0]}–{week_target.reps_per_set_range[1]}
-Deload week: {deload_rule}"""
+Deload week: {deload_rule}{_strength_curve_lines(week_target)}"""
+
+
+def _strength_curve_lines(week_target: WeekTarget) -> str:
+    """The week's squat / pull bands (PLAN-3c), or "" for a WeekTarget without them."""
+    st = getattr(week_target, "strength_targets", None) or {}
+    lines = []
+    for key, label in (("squat", "Squats (% of the squat max)"), ("pull", "Pulls (% of the lift's max)")):
+        band = st.get(key)
+        if band:
+            lines.append(f"{label}: {band['floor']}–{band['ceiling']}% × {band['reps'][0]}–{band['reps'][1]} reps")
+    return ("\n" + "\n".join(lines)) if lines else ""
 
 
 def _session_template_section(session_template: SessionTemplate, session_rep_target: int) -> str:

@@ -13,7 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan, SessionTemplate, WeekTarget
-from phase_profiles import build_weekly_targets
+from phase_profiles import build_weekly_targets, strength_targets
 from phase_progression import compute_load_deltas, decide_next_phase
 from pydantic import ValidationError
 from schemas import OutcomeSummary
@@ -142,6 +142,7 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
             total_competition_lift_reps=total_reps,
             reps_per_set_range=t["reps_per_set_range"],
             is_deload=t["is_deload"],
+            strength_targets=strength_targets(phase, t["is_deload"]),
         ))
 
     # ── Load relevant programming principles ──────────────────

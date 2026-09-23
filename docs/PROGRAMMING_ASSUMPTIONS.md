@@ -67,7 +67,7 @@ ask it to.
 | ✅ | 3.4, 3.8 | `prefs.warmups` (own / prescribed) → prompt rule; `prefs.max_test` (auto / always / never) → orchestrator |
 | — | 1.2, 1.3 | Multi-block plans stay chained generations (each re-plans on the last outcome); phase order fixed by design |
 | — | 1.7 | Thresholds are constants; per-athlete overrides not needed until a masters cohort exists |
-| — | 2.4 | Strength-work curve: needs its own profile table (Bompa MxS / Roman squat tables) — next candidate |
+| ✅ | 2.4 | PLAN-3c (2026-09-22): `phase_profiles.STRENGTH_CURVE` — squat (% of the squat max) and pull (% of the lift) bands per phase + deload, each row citing its principle ids (Charniga leg-strength stages, Suchomel pulling derivatives, Roman, Vorobyev, the taper studies); on every WeekTarget, in the Program Plan prompt, validator check 13 warns outside ±5 points |
 | — | 3.1 | Prilepin remains the volume table; Roman/Medvedev alternatives are in the principle block, not the validator |
 | ✅ | 3.2 | PLAN-3a (2026-09-22): 15 complexes (migration 0019), offered per athlete, validated by their competition-lift components (Prilepin per set on the largest component, ceiling, volume) |
 | ✅ | 3.3 | PLAN-3b (2026-09-22): the cold-start ceiling (80 % / 75 % beginner) is skipped when ASSESS finds recorded snatch and clean / C&J maxes within `COLD_START_MAX_RECENCY_DAYS` (90); duration / complexity caps and level ceilings still apply |

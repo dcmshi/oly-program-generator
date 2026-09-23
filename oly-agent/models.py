@@ -51,6 +51,8 @@ class WeekTarget:
     total_competition_lift_reps: int    # Prilepin's target for the week
     reps_per_set_range: list[int]       # [min, max] reps per set for this week
     is_deload: bool
+    # PLAN-3c: {"squat": {floor, ceiling, reps, sources}, "pull": {...}} for this week
+    strength_targets: dict | None = None
 
 
 @dataclass

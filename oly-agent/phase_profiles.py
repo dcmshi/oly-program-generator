@@ -193,3 +193,39 @@ def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str,
         })
 
     return targets
+
+
+# ── Strength-work curve (PLAN-3c, assumption 2.4) ────────────────────────────
+# Squats and pulls had no progression of their own — the model chose freely.
+# Each phase now carries a band for each, from the corpus's principles (ids in
+# `sources`, programming_principles.id):
+#   squat  = % of the athlete's own squat max (back / front squat)
+#   pull   = % of the competition lift the pull belongs to (snatch / clean)
+# The prompt shows the band; validate.py warns (never errors) outside it.
+STRENGTH_CURVE: dict[str, dict[str, dict]] = {
+    "general_prep": {
+        "squat": {"floor": 65, "ceiling": 75, "reps": (4, 6), "sources": (2452, 2131)},    # Medvedev; moderate-rep squatting
+        "pull":  {"floor": 85, "ceiling": 100, "reps": (3, 4), "sources": (2950, 4585)},  # Suchomel accumulation; Roman
+    },
+    "accumulation": {
+        "squat": {"floor": 70, "ceiling": 80, "reps": (3, 5), "sources": (2304, 2308)},   # Charniga, leg strength stage 1
+        "pull":  {"floor": 90, "ceiling": 110, "reps": (2, 4), "sources": (2950, 4585)},  # Suchomel 60–110; Roman ≥100
+    },
+    "intensification": {
+        "squat": {"floor": 85, "ceiling": 95, "reps": (2, 3), "sources": (2309,)},        # Charniga, stage 2 85–105
+        "pull":  {"floor": 95, "ceiling": 110, "reps": (2, 3), "sources": (2955, 3551)},  # Suchomel supramaximal; Vorobyev ±10
+    },
+    "realization": {
+        "squat": {"floor": 75, "ceiling": 88, "reps": (1, 3), "sources": (2807, 2808, 2825, 2766)},  # taper studies
+        "pull":  {"floor": 90, "ceiling": 100, "reps": (1, 2), "sources": (1760, 1822)},  # Everett taper doubles
+    },
+    "deload": {
+        "squat": {"floor": 70, "ceiling": 80, "reps": (2, 3), "sources": (1915,)},        # back-off week
+        "pull":  {"floor": 90, "ceiling": 100, "reps": (2, 3), "sources": (1916,)},       # moderate pulls in deload
+    },
+}
+
+
+def strength_targets(phase: str, is_deload: bool) -> dict[str, dict] | None:
+    """The squat / pull bands for a week (the deload row on a deload week)."""
+    return STRENGTH_CURVE.get("deload" if is_deload else phase)

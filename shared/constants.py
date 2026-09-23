@@ -191,6 +191,10 @@ MAX_PRINCIPLES_PER_CATEGORY: int = 3
 # then the maxes are trustworthy and the cap only held a tested lifter back
 # (PLAN-3b, assumption 3.3). Level ceilings (LEVEL_PHASE_OVERRIDES) still apply.
 COLD_START_MAX_RECENCY_DAYS: int = 90
+# validate.py check 13 (PLAN-3c): a squat / pull more than this many points
+# outside the week's STRENGTH_CURVE band warns (never errors — no paid retry).
+STRENGTH_CURVE_TOLERANCE_PCT: float = 5.0
+SQUAT_MAX_REFS: tuple[str, ...] = ("back_squat", "front_squat")
 # The condition vocabulary has no injury key, so an injury / rehab rule reads as
 # unconditional: program 32 (2026-09-22) showed "[235] Emphasize heavy pulls
 # during knee injury recovery — avoid full clean, full snatch, squats" in 10
