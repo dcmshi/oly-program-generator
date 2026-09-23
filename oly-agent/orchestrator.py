@@ -11,8 +11,10 @@ import argparse
 import json
 import logging
 import sys
+import threading
 import time
-from dataclasses import asdict
+from concurrent.futures import ThreadPoolExecutor
+from dataclasses import asdict, dataclass, field
 from datetime import date
 from pathlib import Path
 
@@ -30,7 +32,13 @@ from validate import validate_session
 from weight_resolver import apply_projected_maxes, attach_source_chunk_ids, resolve_exercise_ids, resolve_weights
 
 from shared.config import Settings
-from shared.constants import MAX_CONTEXT_CHUNKS, MAX_PRINCIPLES_IN_PROMPT, MIN_SESSION_DURATION_MINUTES
+from shared.constants import (
+    BLOCK_TEMPLATE_MAX_CHARS,
+    GENERATION_WEEK_CONCURRENCY,
+    MAX_CONTEXT_CHUNKS,
+    MAX_PRINCIPLES_IN_PROMPT,
+    MIN_SESSION_DURATION_MINUTES,
+)
 from shared.db import execute, execute_returning, fetch_all, get_connection
 from shared.formulas import estimate_session_minutes, round_kg
 from shared.llm import create_llm_client, estimate_cost
@@ -49,6 +57,7 @@ def run(
     deadline: float | None = None,
     max_sessions: int | None = None,
     duration_weeks: int | None = None,
+    week_concurrency: int | None = None,
 ) -> int | None:
     """Generate a complete training program for the given athlete.
 
@@ -65,6 +74,9 @@ def run(
             program: generation stops once this many sessions exist, the
             max-test session is skipped, EXPLAIN still runs (it is part of the
             per-program cost) and the draft's rationale says it is partial.
+        week_concurrency: Weeks 2..N generated at once (AUD-4); None =
+            GENERATION_WEEK_CONCURRENCY, 1 = sequential. Week 1 always runs
+            first and alone.
 
     Returns:
         program_id of the created program, or None on failure / dry-run.
@@ -159,9 +171,6 @@ def run(
         # ── Step 4+5: GENERATE + VALIDATE (session by session) ─
         logger.info("=== Step 4+5: GENERATE + VALIDATE ===")
         _t_gen_start = time.perf_counter()
-        cumulative_cost = 0.0
-        all_sessions_data: list[dict] = []
-        failed_sessions: list[str] = []
         session_context_cache: dict[str, list[dict]] = {}  # query → chunks, per program (RAG-H4)
 
         # Athlete-specific limit takes precedence over the global setting.
@@ -169,19 +178,51 @@ def run(
         cost_limit = athlete_context.athlete.get("cost_limit_usd")
         if cost_limit is None:
             cost_limit = settings.cost_limit_per_program
+        # Program-level spend, shared by the week workers under a lock (AUD-4)
+        spend = _SpendGuard(cost_limit)
 
-        capped = False  # max_sessions reached
-        for week_target in program_plan.weekly_targets:
+        weekly_targets = program_plan.weekly_targets
+        days_per_week = len(program_plan.session_templates)
+        total_planned = len(weekly_targets) * days_per_week
+        # max_sessions keeps the first N sessions in (week, day) order
+        capped = max_sessions is not None and max_sessions < total_planned
+
+        def _day_limit(week_index: int) -> int:
+            if max_sessions is None:
+                return days_per_week
+            return max(0, min(days_per_week, max_sessions - week_index * days_per_week))
+
+        def _session_chunks(week_target, session_template) -> list[dict]:
+            # Per-session knowledge context (RAG-H4): this template's own
+            # query (cached per template + phase + intensity band), fault
+            # chunks round-robined, per-source cap — not the same four
+            # snippets for all sixteen sessions. Called on the main thread
+            # only: the VectorLoader holds a psycopg2 connection and the
+            # query cache is a plain dict (AUD-4).
+            return retrieve_session_context(
+                vector_loader, athlete_context, program_plan, session_template, week_target,
+                retrieval_context, top_k=settings.vector_search_top_k, cache=session_context_cache,
+            )
+
+        def _generate_week(week_target, conn, day_limit, block_templates, prefetched=None, save=True):
+            """Generate one week's sessions in day order on `conn`.
+
+            Weeks are independent: the Prilepin budget (week_cumulative_reps)
+            and the already-prescribed list reset every week, and the only
+            program-level state — spend, the stop flag — lives in `spend`.
+            `prefetched` ({day: chunks}) replaces retrieval on worker threads;
+            `save=False` buffers sessions for the main thread to insert in
+            (week, day) order.
+            """
             week_number = week_target.week_number
             week_cumulative_reps: dict[str, int] = {}
             week_already_prescribed: list[dict] = []
+            outcome = _WeekOutcome(week_number)
 
-            for session_template in program_plan.session_templates:
+            for session_template in program_plan.session_templates[:day_limit]:
                 day_number = session_template.day_number
-                if max_sessions is not None and len(all_sessions_data) >= max_sessions:
-                    capped = True
-                    logger.info(f"  Session cap reached ({max_sessions}); stopping before W{week_number}D{day_number}")
-                    break
+                if spend.stopped():
+                    break  # another week hit the deadline / cost limit / an error
                 logger.info(
                     f"  Generating W{week_number}D{day_number}: {session_template.label}"
                 )
@@ -212,13 +253,9 @@ def run(
                     query=build_session_query(athlete_context, program_plan, session_template, week_target),
                 )
 
-                # Per-session knowledge context (RAG-H4): this template's own
-                # query (cached per template + phase + intensity band), fault
-                # chunks round-robined, per-source cap — not the same four
-                # snippets for all sixteen sessions.
-                session_chunks = retrieve_session_context(
-                    vector_loader, athlete_context, program_plan, session_template, week_target,
-                    retrieval_context, top_k=settings.vector_search_top_k, cache=session_context_cache,
+                session_chunks = (
+                    prefetched[day_number] if prefetched is not None
+                    else _session_chunks(week_target, session_template)
                 )
 
                 prompt = build_session_prompt(
@@ -236,49 +273,32 @@ def run(
                     sessions_per_week=program_plan.sessions_per_week,
                     active_principles=session_principles,
                     context_chunks=session_chunks,
+                    block_template=block_templates.get(day_number),
                 )
 
                 # Deadline guard — the ARQ job timeout can only cancel the
                 # awaiting coroutine, never this worker thread, so the thread
-                # must stop itself before the deadline (WEB-M8).
+                # must stop itself before the deadline (WEB-M8). The draft is
+                # marked once, by the main thread, after every week returns.
                 if deadline is not None and time.monotonic() > deadline:
-                    total_planned = len(program_plan.weekly_targets) * len(program_plan.session_templates)
                     logger.error(
                         f"Job deadline reached. Aborting before W{week_number}D{day_number}."
                     )
-                    _mark_program_draft(
-                        conn, program_id,
-                        reason=(
-                            f"# Generation Aborted — Time Limit\n"
-                            f"Stopped before W{week_number}D{day_number}: the job's time "
-                            f"limit was reached. {len(all_sessions_data)} of {total_planned} "
-                            f"sessions were generated. Re-run generation to continue."
-                        ),
-                    )
-                    return program_id
+                    outcome.abort = ("deadline", week_number, day_number)
+                    spend.stop()
+                    break
 
-                # Cost guard (limit hoisted above the loop; also gates EXPLAIN)
-                if cumulative_cost > cost_limit:
-                    total_planned = len(program_plan.weekly_targets) * len(program_plan.session_templates)
+                # Cost guard (limit hoisted above the loop; also gates EXPLAIN).
+                # try_start also counts sessions other weeks have in flight.
+                if not spend.try_start():
                     logger.error(
-                        f"Cost limit exceeded: ${cumulative_cost:.4f} > "
+                        f"Cost limit exceeded: ${spend.spent:.4f} > "
                         f"${cost_limit:.2f}. Aborting before "
                         f"W{week_number}D{day_number}."
                     )
-                    # Store a self-explanatory rationale so a cost-truncated draft
-                    # is never mistaken for a finished program (A-L1).
-                    _mark_program_draft(
-                        conn, program_id,
-                        reason=(
-                            f"# Generation Aborted — Cost Limit\n"
-                            f"Stopped before W{week_number}D{day_number}: cost limit "
-                            f"${cost_limit:.2f} reached (spent ${cumulative_cost:.4f}). "
-                            f"{len(all_sessions_data)} of {total_planned} sessions were "
-                            f"generated. Re-run generation or raise the cost limit before "
-                            f"activating this program."
-                        ),
-                    )
-                    return program_id
+                    outcome.abort = ("cost", week_number, day_number)
+                    spend.stop()
+                    break
 
                 # What this call was shown, labelled as in the prompt — logged with
                 # every attempt so retrieval can be audited per call (RAG-M5)
@@ -291,32 +311,36 @@ def run(
                     for i, c in enumerate(session_chunks[:MAX_CONTEXT_CHUNKS], 1)
                 ]
 
-                result = generate_session_with_retries(
-                    prompt=prompt,
-                    llm_client=llm_client,
-                    settings=settings,
-                    available_exercise_names=available_exercise_names,
-                    week_target=asdict(week_target),
-                    athlete=athlete_context.athlete,
-                    active_principles=session_principles,
-                    week_cumulative_reps=week_cumulative_reps,
-                    program_id=program_id,
-                    week_number=week_number,
-                    day_number=day_number,
-                    conn=conn,
-                    fault_exercise_names=fault_exercise_names,
-                    retrieval_set=retrieval_set,
-                    week_already_prescribed=week_already_prescribed,
-                )
+                try:
+                    result = generate_session_with_retries(
+                        prompt=prompt,
+                        llm_client=llm_client,
+                        settings=settings,
+                        available_exercise_names=available_exercise_names,
+                        week_target=asdict(week_target),
+                        athlete=athlete_context.athlete,
+                        active_principles=session_principles,
+                        week_cumulative_reps=week_cumulative_reps,
+                        program_id=program_id,
+                        week_number=week_number,
+                        day_number=day_number,
+                        conn=conn,  # this week's connection: generation_log rows per attempt
+                        fault_exercise_names=fault_exercise_names,
+                        retrieval_set=retrieval_set,
+                        week_already_prescribed=week_already_prescribed,
+                    )
+                except BaseException:
+                    spend.abandon()
+                    raise
 
-                cumulative_cost += estimate_cost(
+                spend.finish(estimate_cost(
                     result.input_tokens, result.output_tokens, settings.generation_model,
                     cache_read_tokens=getattr(result, "cache_read_tokens", 0) or 0,
                     cache_creation_tokens=getattr(result, "cache_creation_tokens", 0) or 0,
-                )
+                ))
 
                 if result.exercises is None:
-                    failed_sessions.append(f"W{week_number}D{day_number}")
+                    outcome.failed.append(f"W{week_number}D{day_number}")
                     logger.warning(
                         f"  W{week_number}D{day_number} generation failed — "
                         f"storing empty session"
@@ -356,25 +380,140 @@ def run(
                 for zone, reps in validation.session_comp_reps.items():
                     week_cumulative_reps[zone] = week_cumulative_reps.get(zone, 0) + reps
 
-                # Persist session to DB
+                # Persist session to DB — inline weeks save as they go; worker
+                # weeks buffer and the main thread inserts them in week order
                 session_id = _save_session(
                     conn, program_id, week_number, day_number,
                     session_template, exercises,
-                )
+                ) if save else None
 
                 # Track for within-week context
                 for ex in exercises:
                     week_already_prescribed.append({**ex, "day_number": day_number})
 
-                all_sessions_data.append({
+                outcome.sessions.append({
                     "week": week_number,
                     "day": day_number,
                     "label": session_template.label,
                     "session_id": session_id,
                     "exercises": exercises,
                 })
-            if capped:
-                break
+                outcome.templates.append(session_template)
+            return outcome
+
+        # ── Scheduling (AUD-4) ────────────────────────────────
+        # Week 1 runs first, alone; weeks 2..N then run up to
+        # GENERATION_WEEK_CONCURRENCY at a time (days in order within a week).
+        # Trade-off: a week can't see the week before it, so continuity comes
+        # from week 1 instead — each later session's prompt carries week 1's
+        # same-day session as the block's template. Anchoring on week 1 (not
+        # N−1) is what lets weeks 2..N run in parallel; it also stops the
+        # week-to-week drift a chained N−1 anchor would allow (Jerk → Push
+        # Jerk → Jerk from Behind Neck, program 29). Week 1 going first also
+        # warms the prompt cache before the concurrent calls. The anchor is
+        # passed at every concurrency, so prompts (and the rows they produce)
+        # do not depend on the setting; 1 reproduces the sequential run.
+        concurrency = max(1, GENERATION_WEEK_CONCURRENCY if week_concurrency is None else week_concurrency)
+        scheduled = [(wt, _day_limit(i)) for i, wt in enumerate(weekly_targets) if _day_limit(i) > 0]
+        outcomes: list[_WeekOutcome] = []
+        block_templates: dict[int, str] = {}
+        if scheduled:
+            first_week, first_limit = scheduled[0]
+            outcomes.append(_generate_week(first_week, conn, first_limit, block_templates))
+            block_templates = _block_templates_from(outcomes[0])
+        rest = scheduled[1:]
+        if rest and not spend.stopped():
+            if concurrency == 1 or len(rest) == 1:
+                for wt, limit in rest:
+                    outcomes.append(_generate_week(wt, conn, limit, block_templates))
+                    if spend.stopped():
+                        break
+            else:
+                # Retrieval stays on this thread, in the sequential order, so the
+                # query cache fills exactly as it would sequentially.
+                prefetched = {
+                    wt.week_number: {
+                        t.day_number: _session_chunks(wt, t)
+                        for t in program_plan.session_templates[:limit]
+                    }
+                    for wt, limit in rest
+                }
+
+                def _week_worker(wt, limit):
+                    # Own psycopg2 connection per worker — never share one
+                    # across threads. It carries only generation_log writes.
+                    worker_conn = get_connection(settings.database_url)
+                    try:
+                        out = _generate_week(
+                            wt, worker_conn, limit, block_templates,
+                            prefetched=prefetched[wt.week_number], save=False,
+                        )
+                        worker_conn.commit()
+                        return out
+                    except BaseException:
+                        spend.stop()
+                        worker_conn.rollback()
+                        raise
+                    finally:
+                        worker_conn.close()
+
+                error: BaseException | None = None
+                with ThreadPoolExecutor(
+                    max_workers=min(concurrency, len(rest)), thread_name_prefix="gen-week",
+                ) as pool:
+                    futures = [pool.submit(_week_worker, wt, limit) for wt, limit in rest]
+                    try:
+                        for fut in futures:  # week order: rows are inserted by (week, day)
+                            try:
+                                out = fut.result()
+                            except Exception as e:
+                                error = error or e
+                                continue
+                            if error is None:
+                                for session, template in zip(out.sessions, out.templates, strict=True):
+                                    session["session_id"] = _save_session(
+                                        conn, program_id, session["week"], session["day"],
+                                        template, session["exercises"],
+                                    )
+                                outcomes.append(out)
+                    except BaseException:
+                        spend.stop()  # a failed save: stop the workers before the pool joins them
+                        raise
+                if error is not None:
+                    raise error
+
+        all_sessions_data: list[dict] = [s for o in outcomes for s in o.sessions]
+        failed_sessions: list[str] = [f for o in outcomes for f in o.failed]
+        cumulative_cost = spend.spent
+
+        aborts = [o.abort for o in outcomes if o.abort is not None]
+        if aborts:
+            kind, week_number, day_number = min(aborts, key=lambda a: (a[1], a[2]))
+            if kind == "deadline":
+                reason = (
+                    f"# Generation Aborted — Time Limit\n"
+                    f"Stopped before W{week_number}D{day_number}: the job's time "
+                    f"limit was reached. {len(all_sessions_data)} of {total_planned} "
+                    f"sessions were generated. Re-run generation to continue."
+                )
+            else:
+                # Store a self-explanatory rationale so a cost-truncated draft
+                # is never mistaken for a finished program (A-L1).
+                reason = (
+                    f"# Generation Aborted — Cost Limit\n"
+                    f"Stopped before W{week_number}D{day_number}: cost limit "
+                    f"${cost_limit:.2f} reached (spent ${cumulative_cost:.4f}). "
+                    f"{len(all_sessions_data)} of {total_planned} sessions were "
+                    f"generated. Re-run generation or raise the cost limit before "
+                    f"activating this program."
+                )
+            _mark_program_draft(conn, program_id, reason=reason)
+            return program_id
+
+        if capped:
+            next_week = weekly_targets[max_sessions // days_per_week].week_number
+            next_day = program_plan.session_templates[max_sessions % days_per_week].day_number
+            logger.info(f"  Session cap reached ({max_sessions}); stopping before W{next_week}D{next_day}")
 
         # ── Max test session (realization / intensification) ──
         peak_week = compute_peak_week(program_plan.weekly_targets)
@@ -513,6 +652,103 @@ def _make_vector_loader(settings: Settings):
     except Exception as e:
         logger.warning(f"VectorLoader not available (vector search disabled): {e}")
         return None
+
+
+# ── Concurrent weeks (AUD-4) ───────────────────────────────────
+
+class _SpendGuard:
+    """Program-level LLM spend shared by the week workers, plus the stop flag.
+
+    try_start() admits a session while ``spent + in_flight × avg`` stays within
+    the limit, where avg is the mean cost of the sessions finished so far (week
+    1 always finishes first, so it is known before any concurrency). With
+    nothing in flight that is exactly the sequential rule — abort once spent >
+    limit — so concurrency adds no overshoot beyond the one session the
+    sequential guard already allows.
+    """
+
+    def __init__(self, limit: float):
+        self.limit = limit
+        self.spent = 0.0
+        self._completed = 0
+        self._in_flight = 0
+        self._lock = threading.Lock()
+        self._stop = threading.Event()
+
+    def try_start(self) -> bool:
+        with self._lock:
+            avg = self.spent / self._completed if self._completed else 0.0
+            if self.spent + self._in_flight * avg > self.limit:
+                return False
+            self._in_flight += 1
+            return True
+
+    def finish(self, cost: float) -> None:
+        with self._lock:
+            self._in_flight -= 1
+            self._completed += 1
+            self.spent += cost
+
+    def abandon(self) -> None:
+        with self._lock:
+            self._in_flight -= 1
+
+    def stop(self) -> None:
+        self._stop.set()
+
+    def stopped(self) -> bool:
+        return self._stop.is_set()
+
+
+@dataclass
+class _WeekOutcome:
+    week_number: int
+    sessions: list[dict] = field(default_factory=list)   # all_sessions_data rows, day order
+    templates: list = field(default_factory=list)        # SessionTemplate per row (deferred save)
+    failed: list[str] = field(default_factory=list)
+    abort: tuple[str, int, int] | None = None            # ("deadline" | "cost", week, day)
+
+
+def summarize_block_template(exercises: list[dict], max_chars: int = BLOCK_TEMPLATE_MAX_CHARS) -> str | None:
+    """Compact form of one session for later weeks' prompts (AUD-4):
+    ``Snatch 2x3 @ 55%, 5x2 @ 75%; Back Squat 5x5 @ 72%``, consecutive rows
+    of one exercise merged, cut at a whole exercise to ≤ max_chars. None for an
+    empty (failed) session."""
+    groups: list[tuple[str, list[str]]] = []
+    for ex in sorted(exercises, key=lambda e: e.get("exercise_order") or 0):
+        name = ex.get("exercise_name")
+        if not name:
+            continue
+        dose = f"{ex.get('sets')}x{ex.get('reps')}"
+        pct = ex.get("intensity_pct")
+        if pct is not None:
+            try:
+                dose += f" @ {float(pct):g}%"
+            except (TypeError, ValueError):
+                pass
+        if groups and groups[-1][0] == name:
+            groups[-1][1].append(dose)
+        else:
+            groups.append((name, [dose]))
+    if not groups:
+        return None
+    text = "; ".join(f"{name} {', '.join(doses)}" for name, doses in groups)
+    if len(text) <= max_chars:
+        return text
+    cut = text[: max_chars - 2]
+    if "; " in cut:
+        cut = cut[: cut.rfind("; ")]
+    return cut + " …"
+
+
+def _block_templates_from(week: _WeekOutcome) -> dict[int, str]:
+    """{day_number: summary} of a generated week — week 1's, for weeks 2..N."""
+    out: dict[int, str] = {}
+    for s in week.sessions:
+        summary = summarize_block_template(s["exercises"])
+        if summary:
+            out[s["day"]] = summary
+    return out
 
 
 # ── Snapshot / peak-week helpers ───────────────────────────────

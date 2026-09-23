@@ -22,7 +22,8 @@ from web.logging_config import configure_logging, request_id_var
 
 logger = logging.getLogger(__name__)
 
-# One generation at a time — orchestrator is CPU/IO bound and uses its own DB connection
+# One generation at a time — orchestrator is CPU/IO bound and opens its own DB
+# connections (main + one per concurrent week worker, AUD-4)
 _executor = ThreadPoolExecutor(max_workers=1)
 
 JOB_TIMEOUT_SECONDS = 600
