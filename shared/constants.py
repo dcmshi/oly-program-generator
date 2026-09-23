@@ -163,8 +163,22 @@ VECTOR_SEARCH_MIN_CANDIDATES: int = 20
 # ── Principle selection (RAG-H3) ────────────────────────────────
 # plan._load_principles pre-filters by phase/level in SQL (a superset); the
 # per-session match in principle_matcher applies every condition field, so the
-# SQL cap only needs to leave enough candidates for that second pass.
-MAX_PRINCIPLE_CANDIDATES: int = 50
+# SQL cap only needs to leave enough candidates for that second pass (which
+# now ranks by session relevance, so the pool is wide — AUD-1).
+MAX_PRINCIPLE_CANDIDATES: int = 300
+# AUD-1: only programming categories reach the session prompt — technique and
+# recovery rules ("Never Throw the Bar Down", doping bans) carried priority 10
+# with empty recommendations and filled every slot under ORDER BY priority.
+PROMPT_PRINCIPLE_CATEGORIES: tuple[str, ...] = (
+    "volume", "intensity", "frequency", "exercise_selection", "periodization",
+    "peaking", "load_progression", "deload",
+)
+# select_principles(query=…) ranks by priority + weight × (distinct session-query
+# terms found in the principle's name / rationale / recommended exercises),
+# ties by id, and takes at most this many principles of one category.
+PRINCIPLE_RELEVANCE_WEIGHT: float = 1.0
+MAX_PRINCIPLES_PER_CATEGORY: int = 3
+PRINCIPLE_RATIONALE_PROMPT_CHARS: int = 150  # rationale shown per principle line
 
 # ── Session context assembly (RAG-H4) ───────────────────────────
 # Retrieval runs per session (query keyed by template + phase + intensity

@@ -308,13 +308,8 @@ def validate_session(
         if isinstance(rec, str):
             continue  # skip text-only recommendations
 
-        max_ex = rec.get("max_exercises_per_session")
-        if max_ex and len(session_exercises) > max_ex:
-            warnings.append(
-                f"Session has {len(session_exercises)} exercises; "
-                f"principle '{principle['principle_name']}' recommends max {max_ex}"
-            )
-
+        # (A `max_exercises_per_session` branch lived here; the extraction
+        # schema never produces that key, so it was dead code — AUD-1.)
         if rec.get("competition_lifts_first") and session_exercises:
             first = session_exercises[0]
             if not is_competition_lift(first.get("exercise_name"), first.get("intensity_reference")):

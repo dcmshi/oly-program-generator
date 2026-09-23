@@ -1317,6 +1317,44 @@ def test_prompt_falls_back_to_retrieval_principles_when_not_given():
     assert "[7] Program-level rule" in prompt
 
 
+# ── AUD-1: principle line = id, name, recommendation, rationale, source ─────
+
+def test_principle_line_has_recommendation_rationale_and_source():
+    from generate import format_principle_line
+
+    from shared.constants import PRINCIPLE_RATIONALE_PROMPT_CHARS
+    long_rationale = ("Heavy pulls above the competition lift teach the finish without the "
+                      "catch, so they belong early in the block when volume is highest and "
+                      "technical fatigue is lowest across the whole training week.")
+    p = {"id": 42, "principle_name": "Pulls before squats", "recommendation": {"competition_lifts_first": True},
+         "rationale": long_rationale, "source_title": "The Weightlifting Encyclopedia"}
+    line = format_principle_line(p)
+    assert line.startswith('  [42] Pulls before squats — {"competition_lifts_first": true} — Heavy pulls')
+    assert line.endswith("… (The Weightlifting Encyclopedia)")
+    shown = line.split(" — ", 2)[2].rsplit(" (", 1)[0]
+    assert len(shown) <= PRINCIPLE_RATIONALE_PROMPT_CHARS
+    assert long_rationale.startswith(shown[:-1])          # cut at a word boundary, not mid-word
+    assert long_rationale[len(shown) - 1] == " "
+
+
+def test_principle_line_omits_missing_rationale_and_source():
+    from generate import format_principle_line
+    line = format_principle_line({"id": 1, "principle_name": "Short", "recommendation": {"volume_modifier": 0.6},
+                                  "rationale": "Fatigue.", "source_title": None})
+    assert line == '  [1] Short — {"volume_modifier": 0.6} — Fatigue.'
+    assert format_principle_line({"id": 2, "principle_name": "Bare", "recommendation": {"x": 1}}) == \
+        '  [2] Bare — {"x": 1}'
+
+
+def test_principle_block_is_below_static_dynamic_marker():
+    from shared.constants import PROMPT_STATIC_DYNAMIC_MARKER
+    retrieval = _make_retrieval()
+    principles = [{"id": 5, "principle_name": "Session rule", "recommendation": {"x": 1},
+                   "rationale": "Because.", "source_title": "Src"}]
+    prompt = _make_prompt(_make_athlete(), retrieval, active_principles=principles)
+    assert prompt.index("[5] Session rule — ") > prompt.index(PROMPT_STATIC_DYNAMIC_MARKER)
+
+
 # ── RAG-H4: per-session context chunks, labels, snippet width ────────────────
 
 def test_context_chunks_param_is_used_in_order_with_labels():

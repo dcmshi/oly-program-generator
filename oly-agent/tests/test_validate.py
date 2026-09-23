@@ -242,7 +242,9 @@ def test_avoid_list_empty_no_errors():
 
 # ── Check 5: Principles ───────────────────────────────────────
 
-def test_principle_max_exercises_warning():
+def test_principle_max_exercises_key_is_not_enforced():
+    """AUD-1: the extraction schema never produces `max_exercises_per_session`;
+    the branch that read it was dead code and is gone."""
     principles = [{
         "id": 1,
         "principle_name": "Keep it simple",
@@ -250,7 +252,7 @@ def test_principle_max_exercises_warning():
     }]
     exercises = [_ex(f"Exercise {i}", 3, 3, 75, order=i) for i in range(1, 7)]
     result = validate_session(exercises, WEEK_TARGET, principles, ATHLETE)
-    assert any("max 4" in w for w in result.warnings), result.warnings
+    assert not any("max 4" in w for w in result.warnings), result.warnings
     return True, ""
 
 
@@ -760,7 +762,7 @@ TESTS = [
     ("Avoid list: blocks exercise → error", test_avoid_list_blocks_exercise),
     ("Avoid list: case insensitive", test_avoid_list_case_insensitive),
     ("Avoid list: empty → no errors", test_avoid_list_empty_no_errors),
-    ("Principle: max exercises → warning", test_principle_max_exercises_warning),
+    ("Principle: max_exercises_per_session not enforced", test_principle_max_exercises_key_is_not_enforced),
     ("Principle: comp not first → warning", test_principle_comp_lift_first_warning),
     ("Principle: comp first → ok", test_principle_comp_lift_first_ok),
     ("Principle: text recommendation → skipped", test_principle_text_recommendation_skipped),

@@ -25,6 +25,7 @@ from shared.constants import (
     BLOCK_WEEKS_MIN,
     DELOAD_EVERY_WEEKS_OPTIONS,
     MAX_PRINCIPLE_CANDIDATES,
+    PROMPT_PRINCIPLE_CATEGORIES,
     TRAINING_PREFERENCE_DEFAULTS,
     TRAINING_PREFERENCE_OPTIONS,
 )
@@ -309,23 +310,41 @@ def _load_principles(conn, phase: str, athlete_level: str) -> list[dict]:
     `condition->>'phase' = %s` silently excluded every array-valued phase
     (RAG-H3). The other condition keys (movement_family, weeks-out, week-of-
     block, make rate, RPE, training age) are evaluated per session by
-    `principle_matcher.select_principles` in the orchestrator, so the cap only
-    needs to leave enough candidates for that pass.
+    `principle_matcher.select_principles` in the orchestrator, which also ranks
+    them by session relevance — so the cap is wide.
+
+    AUD-1: only `PROMPT_PRINCIPLE_CATEGORIES` (technique and recovery rules —
+    "Never Throw the Bar Down", doping bans — carried priority 10 and filled
+    every prompt slot) and only rows with an actionable recommendation (not
+    NULL, `{}`, or an object whose every value is null/empty). `ORDER BY
+    priority DESC, id` makes the capped pool deterministic; the source title
+    is joined for the prompt line.
     """
     return fetch_all(
         conn,
         """
-        SELECT id, principle_name, recommendation, rationale, priority, condition
-        FROM programming_principles
-        WHERE duplicate_of IS NULL
-          AND (condition IS NULL
-               OR condition->'phase' IS NULL
-               OR condition->'phase' @> to_jsonb(%s::text))
-          AND (condition IS NULL
-               OR condition->'athlete_level' IS NULL
-               OR condition->'athlete_level' @> to_jsonb(%s::text))
-        ORDER BY priority DESC
+        SELECT p.id, p.principle_name, p.category::text AS category,
+               p.recommendation, p.rationale, p.priority, p.condition,
+               s.title AS source_title
+        FROM programming_principles p
+        LEFT JOIN sources s ON s.id = p.source_id
+        WHERE p.duplicate_of IS NULL
+          AND p.category::text = ANY(%s)
+          AND p.recommendation IS NOT NULL
+          AND CASE WHEN jsonb_typeof(p.recommendation) = 'object'
+                   THEN EXISTS (
+                       SELECT 1 FROM jsonb_each(p.recommendation) r
+                       WHERE r.value NOT IN ('null'::jsonb, '[]'::jsonb, '{}'::jsonb, '""'::jsonb))
+                   ELSE p.recommendation NOT IN ('null'::jsonb, '""'::jsonb)
+              END
+          AND (p.condition IS NULL
+               OR p.condition->'phase' IS NULL
+               OR p.condition->'phase' @> to_jsonb(%s::text))
+          AND (p.condition IS NULL
+               OR p.condition->'athlete_level' IS NULL
+               OR p.condition->'athlete_level' @> to_jsonb(%s::text))
+        ORDER BY p.priority DESC, p.id
         LIMIT %s
         """,
-        (phase, athlete_level, MAX_PRINCIPLE_CANDIDATES),
+        (list(PROMPT_PRINCIPLE_CATEGORIES), phase, athlete_level, MAX_PRINCIPLE_CANDIDATES),
     )

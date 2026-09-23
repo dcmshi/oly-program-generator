@@ -18,6 +18,7 @@ from principle_matcher import (
     build_session_state,
     compare,
     condition_matches,
+    query_terms,
     select_principles,
 )
 
@@ -171,3 +172,55 @@ def test_select_filters_and_orders_by_priority():
     clean_day = select_principles(cands, {**_STATE, "movement_family": "clean"})
     assert [p["id"] for p in clean_day] == [3, 1]
     assert [p["id"] for p in select_principles(cands, _STATE, limit=1)] == [2]
+
+
+# ── AUD-1: relevance ranking, category cap, determinism ──────────────────────
+
+def _p(pid, priority, category=None, name="", rationale="", rec=None, condition=None):
+    return {"id": pid, "principle_name": name, "priority": priority, "category": category,
+            "rationale": rationale, "recommendation": rec or {"x": 1}, "condition": condition}
+
+
+def test_query_terms_drop_stopwords_boilerplate_and_plurals():
+    terms = query_terms("exercise selection for a snatch session with pulls, squats support "
+                        "during the accumulation phase at 70-80% intensity, intermediate athlete")
+    assert {"snatch", "pull", "squat", "accumulation", "intensity", "intermediate", "selection"} <= terms
+    assert not terms & {"session", "support", "phase", "athlete", "the", "with", "during"}
+    assert query_terms(None) == set() and query_terms("") == set()
+
+
+def test_select_ranks_by_priority_plus_query_overlap():
+    """A priority-7 snatch-pull rule outranks an unrelated priority-8 rule on a
+    snatch-pull day; without a query the old priority order stands."""
+    cands = [
+        _p(1, 8, "volume", name="Weekly tonnage for squats"),
+        _p(2, 7, "exercise_selection", name="Snatch pulls before snatch",
+           rationale="Pulls at 90-100% of the snatch build the finish."),
+        _p(3, 7, "intensity", name="Unrelated rule", rec={"prefer_exercises": ["snatch pull"]}),
+    ]
+    q = "exercise selection for a snatch session with snatch pull support"
+    assert [p["id"] for p in select_principles(cands, _STATE)] == [1, 2, 3]
+    # 2: 7 + overlap(snatch, pull) = 9; 3: 7 + 2 via its recommended exercise
+    # names = 9 (id tiebreak); 1: 8 + 0.
+    assert [p["id"] for p in select_principles(cands, _STATE, query=q)] == [2, 3, 1]
+
+
+def test_select_caps_principles_per_category():
+    from shared.constants import MAX_PRINCIPLES_PER_CATEGORY
+    cands = [_p(i, 10, "volume") for i in range(1, 8)] + [_p(20, 2, "deload"), _p(21, 1, None)]
+    chosen = select_principles(cands, _STATE, limit=8, query="snatch")
+    assert sum(1 for p in chosen if p["category"] == "volume") == MAX_PRINCIPLES_PER_CATEGORY
+    assert [p["id"] for p in chosen] == [1, 2, 3, 20, 21]   # lowest ids win the tie; uncategorised is uncapped
+
+
+def test_select_is_deterministic_with_id_tiebreak():
+    cands = [_p(9, 5, "volume"), _p(3, 5, "intensity"), _p(6, 5, "peaking")]
+    first = [p["id"] for p in select_principles(cands, _STATE, query="clean")]
+    assert first == [3, 6, 9]
+    assert [p["id"] for p in select_principles(list(reversed(cands)), _STATE, query="clean")] == first
+
+
+def test_select_still_applies_conditions_with_query():
+    cands = [_p(1, 9, "volume", name="snatch volume", condition={"movement_family": "clean"}),
+             _p(2, 1, "volume", name="other")]
+    assert [p["id"] for p in select_principles(cands, _STATE, query="snatch volume")] == [2]
