@@ -52,7 +52,6 @@ def test_build_maxes_known_names():
     assert maxes.get("snatch") == 100.0, maxes
     assert maxes.get("clean_and_jerk") == 125.0, maxes
     assert maxes.get("back_squat") == 160.0, maxes
-    return True, ""
 
 
 def test_build_maxes_unknown_name_snake_case():
@@ -61,7 +60,6 @@ def test_build_maxes_unknown_name_snake_case():
     maxes = build_maxes_dict(rows)
     assert "romanian_deadlift" in maxes, maxes
     assert maxes["romanian_deadlift"] == 140.0
-    return True, ""
 
 
 def test_build_maxes_float_conversion():
@@ -69,13 +67,11 @@ def test_build_maxes_float_conversion():
     rows = [{"name": "Snatch", "weight_kg": "100"}]
     maxes = build_maxes_dict(rows)
     assert isinstance(maxes["snatch"], float)
-    return True, ""
 
 
 def test_build_maxes_empty():
     """Empty input returns empty dict."""
     assert build_maxes_dict([]) == {}
-    return True, ""
 
 
 # ── resolve_weights ───────────────────────────────────────────
@@ -86,7 +82,6 @@ def test_resolve_weights_basic():
     exercises = [{"exercise_name": "Snatch", "intensity_pct": 75, "intensity_reference": "snatch"}]
     result = resolve_weights(exercises, maxes)
     assert result[0]["absolute_weight_kg"] == 75.0, result[0]
-    return True, ""
 
 
 def test_resolve_weights_rounds_to_half_kg():
@@ -97,7 +92,6 @@ def test_resolve_weights_rounds_to_half_kg():
     result = resolve_weights(exercises, maxes)
     kg = result[0]["absolute_weight_kg"]
     assert kg % 0.5 == 0.0, f"Not a half-kg multiple: {kg}"
-    return True, ""
 
 
 def test_resolve_weights_125kg_cj_80pct():
@@ -106,7 +100,6 @@ def test_resolve_weights_125kg_cj_80pct():
     exercises = [{"exercise_name": "Clean & Jerk", "intensity_pct": 80, "intensity_reference": "clean_and_jerk"}]
     result = resolve_weights(exercises, maxes)
     assert result[0]["absolute_weight_kg"] == 100.0
-    return True, ""
 
 
 def test_resolve_weights_missing_ref_returns_none():
@@ -115,7 +108,6 @@ def test_resolve_weights_missing_ref_returns_none():
     exercises = [{"exercise_name": "Box Jump", "intensity_pct": None, "intensity_reference": None}]
     result = resolve_weights(exercises, maxes)
     assert result[0]["absolute_weight_kg"] is None
-    return True, ""
 
 
 def test_resolve_weights_unknown_ref_returns_none():
@@ -124,7 +116,6 @@ def test_resolve_weights_unknown_ref_returns_none():
     exercises = [{"exercise_name": "Log Press", "intensity_pct": 70, "intensity_reference": "log_press"}]
     result = resolve_weights(exercises, maxes)
     assert result[0]["absolute_weight_kg"] is None
-    return True, ""
 
 
 def test_resolve_weights_multiple_exercises():
@@ -137,7 +128,6 @@ def test_resolve_weights_multiple_exercises():
     result = resolve_weights(exercises, maxes)
     assert result[0]["absolute_weight_kg"] == 75.0
     assert result[1]["absolute_weight_kg"] == 128.0
-    return True, ""
 
 
 # ── resolve_exercise_ids ──────────────────────────────────────
@@ -147,7 +137,6 @@ def test_resolve_exercise_ids_found():
     exercises = [{"exercise_name": "Snatch", "intensity_pct": 75, "intensity_reference": "snatch"}]
     result = resolve_exercise_ids(exercises, SAMPLE_EXERCISE_LOOKUP)
     assert result[0]["exercise_id"] == 1
-    return True, ""
 
 
 def test_resolve_exercise_ids_case_insensitive():
@@ -155,7 +144,6 @@ def test_resolve_exercise_ids_case_insensitive():
     exercises = [{"exercise_name": "BACK SQUAT", "intensity_pct": 75, "intensity_reference": "back_squat"}]
     result = resolve_exercise_ids(exercises, SAMPLE_EXERCISE_LOOKUP)
     assert result[0]["exercise_id"] == 3
-    return True, ""
 
 
 def test_resolve_exercise_ids_not_found_returns_none():
@@ -163,14 +151,12 @@ def test_resolve_exercise_ids_not_found_returns_none():
     exercises = [{"exercise_name": "Log Press", "intensity_pct": 70, "intensity_reference": "log_press"}]
     result = resolve_exercise_ids(exercises, SAMPLE_EXERCISE_LOOKUP)
     assert result[0]["exercise_id"] is None
-    return True, ""
 
 
 def test_resolve_exercise_ids_empty_list():
     """Empty list returns empty list."""
     result = resolve_exercise_ids([], SAMPLE_EXERCISE_LOOKUP)
     assert result == []
-    return True, ""
 
 
 # ── apply_projected_maxes — audit2-L6 ─────────────────────────
@@ -190,7 +176,6 @@ def test_projection_skipped_for_past_competition():
     }
     result = apply_projected_maxes(maxes, stale_goal, "realization")
     assert result == maxes, f"stale goal must not project targets: {result}"
-    return True, ""
 
 
 def test_projection_applies_for_future_competition():
@@ -205,7 +190,6 @@ def test_projection_applies_for_future_competition():
     }
     result = apply_projected_maxes(maxes, goal, "realization")
     assert result["snatch"] == 110.0, result
-    return True, ""
 
 
 # ── attach_source_chunk_ids ───────────────────────────────────
@@ -217,7 +201,6 @@ def test_attach_chunk_ids_null_rationale_no_crash():
     context = {"programming_rationale": [{"id": 1}], "fault_correction_chunks": [{"id": 2}]}
     result = attach_source_chunk_ids(exercises, context)
     assert result[0]["source_chunk_ids"] == [1], result[0]["source_chunk_ids"]
-    return True, ""
 
 
 def test_attach_chunk_ids_fault_rationale():
@@ -232,7 +215,6 @@ def test_attach_chunk_ids_fault_rationale():
     assert ids[:2] == [20, 21], ids  # fault ids first, order preserved
     assert 10 in ids                 # rationale follows
     assert len(ids) <= MAX_SOURCE_CHUNKS_PER_EXERCISE
-    return True, ""
 
 
 def test_attach_chunk_ids_capped_and_ordered():
@@ -246,7 +228,6 @@ def test_attach_chunk_ids_capped_and_ordered():
     ids = result[0]["source_chunk_ids"]
     assert ids == [1, 2, 3, 4, 5][:MAX_SOURCE_CHUNKS_PER_EXERCISE], ids  # capped, order preserved
     assert len(ids) == MAX_SOURCE_CHUNKS_PER_EXERCISE
-    return True, ""
 
 
 def test_attach_chunk_ids_no_fault_rationale():
@@ -260,7 +241,6 @@ def test_attach_chunk_ids_no_fault_rationale():
     ids = set(result[0]["source_chunk_ids"])
     assert 10 in ids
     assert 20 not in ids, "fault IDs should not be attached without fault rationale"
-    return True, ""
 
 
 def test_attach_chunk_ids_empty_context():
@@ -268,7 +248,6 @@ def test_attach_chunk_ids_empty_context():
     exercises = [{"exercise_name": "Snatch", "selection_rationale": ""}]
     result = attach_source_chunk_ids(exercises, {"programming_rationale": [], "fault_correction_chunks": []})
     assert result[0]["source_chunk_ids"] == []
-    return True, ""
 
 
 def test_attach_chunk_ids_no_duplicates():
@@ -281,7 +260,6 @@ def test_attach_chunk_ids_no_duplicates():
     result = attach_source_chunk_ids(exercises, context)
     ids = result[0]["source_chunk_ids"]
     assert len(ids) == len(set(ids)), f"Duplicate IDs: {ids}"
-    return True, ""
 
 
 # ── apply_projected_maxes ──────────────────────────────────────
@@ -294,7 +272,6 @@ def test_projected_maxes_realization_overrides():
     assert result["snatch"] == 105.0, f"Expected 105.0, got {result['snatch']}"
     assert result["clean_and_jerk"] == 130.0, f"Expected 130.0, got {result['clean_and_jerk']}"
     assert result["back_squat"] == 160.0, "Accessory lifts must not be changed"
-    return True, ""
 
 
 def test_projected_maxes_no_downgrade():
@@ -304,7 +281,6 @@ def test_projected_maxes_no_downgrade():
     result = apply_projected_maxes(maxes, goal, "realization")
     assert result["snatch"] == 100.0, "Should not downgrade snatch"
     assert result["clean_and_jerk"] == 125.0, "Should not downgrade C&J"
-    return True, ""
 
 
 def test_projected_maxes_non_realization_phase():
@@ -314,7 +290,6 @@ def test_projected_maxes_non_realization_phase():
     for phase in ("accumulation", "intensification", "general_prep"):
         result = apply_projected_maxes(maxes, goal, phase)
         assert result == maxes, f"Phase {phase} should not override maxes"
-    return True, ""
 
 
 def test_projected_maxes_no_goal():
@@ -322,7 +297,6 @@ def test_projected_maxes_no_goal():
     maxes = {"snatch": 100.0}
     result = apply_projected_maxes(maxes, None, "realization")
     assert result == maxes
-    return True, ""
 
 
 def test_projected_maxes_partial_targets():
@@ -332,7 +306,6 @@ def test_projected_maxes_partial_targets():
     result = apply_projected_maxes(maxes, goal, "realization")
     assert result["snatch"] == 107.5
     assert result["clean_and_jerk"] == 125.0
-    return True, ""
 
 
 def test_projected_maxes_equal_target_not_applied():
@@ -341,7 +314,6 @@ def test_projected_maxes_equal_target_not_applied():
     goal = {"target_snatch_kg": 100.0, "target_cj_kg": None}
     result = apply_projected_maxes(maxes, goal, "realization")
     assert result["snatch"] == 100.0
-    return True, ""
 
 
 def test_projected_maxes_original_dict_not_mutated():
@@ -350,7 +322,6 @@ def test_projected_maxes_original_dict_not_mutated():
     goal = {"target_snatch_kg": 110.0, "target_cj_kg": 135.0}
     apply_projected_maxes(maxes, goal, "realization")
     assert maxes["snatch"] == 100.0, "Original maxes dict must not be mutated"
-    return True, ""
 
 
 # ── Runner ────────────────────────────────────────────────────
@@ -400,7 +371,8 @@ def main():
     results = []
     for name, fn in TESTS:
         try:
-            ok, msg = fn()
+            fn()
+            ok, msg = True, ""
             results.append((name, ok, msg))
             if not ok:
                 failures.append(name)

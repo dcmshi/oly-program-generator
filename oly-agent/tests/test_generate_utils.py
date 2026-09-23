@@ -108,7 +108,6 @@ def test_prompt_handles_null_exercise_preferences():
     athlete.athlete["exercise_preferences"] = None  # simulate SQL NULL
     prompt = _make_prompt(athlete)  # must not raise
     assert "## Exercises to Avoid\nnone" in prompt
-    return True, ""
 
 
 def test_remaining_budget_is_weekly_not_session():
@@ -128,7 +127,6 @@ def test_remaining_budget_is_weekly_not_session():
     assert "Remaining weekly rep budget: 8" in prompt
     assert "Remaining session rep budget" not in prompt  # old label is gone
     assert "Target competition lift reps this session: 6" in prompt  # session target still shown
-    return True, ""
 
 
 # ── AGT-L1: numeric-as-string LLM fields coerced at parse time ────────────────
@@ -143,14 +141,12 @@ def test_parse_coerces_numeric_strings():
     assert ex["intensity_pct"] == 75.5 and isinstance(ex["intensity_pct"], float)
     assert isinstance(ex["exercise_order"], int)
     assert isinstance(ex["rest_seconds"], int)
-    return True, ""
 
 
 def test_parse_unparseable_numeric_becomes_none():
     raw = '[{"exercise_name": "Snatch", "sets": "four", "reps": 3}]'
     ex = parse_llm_response(raw)[0]
     assert ex["sets"] is None, "garbage numerics must become None so validation flags them"
-    return True, ""
 
 
 def test_parse_sanitizes_source_principle_ids():
@@ -181,7 +177,6 @@ def test_parse_bools_and_fractional_ints_become_none():
     assert ex["reps"] is None, ex["reps"]
     assert ex["intensity_pct"] is None, ex["intensity_pct"]
     assert ex["rpe_target"] == 7.5
-    return True, ""
 
 
 # ── AGT-L2: malformed outcome_summary must not abort the prompt build ────────
@@ -195,7 +190,6 @@ def test_prompt_tolerates_malformed_outcome_summary():
     })
     prompt = _make_prompt(athlete)  # must not raise
     assert "## Previous Program" in prompt
-    return True, ""
 
 
 # ── AGT-L8: blank exercise_name must not suggest the entire catalogue ────────
@@ -204,7 +198,6 @@ def test_validate_blank_name_no_suggestions():
     errors = validate_exercise_names([{"exercise_name": None}], ["Snatch", "Back Squat"])
     assert len(errors) == 1
     assert "Did you mean" not in errors[0], errors[0]
-    return True, ""
 
 
 # ── audit2-L4: prompt states the ACTUAL program frequency ─────────────────────
@@ -225,7 +218,6 @@ def test_prompt_shows_plan_sessions_per_week():
     )
     assert "Sessions/week: 3" in prompt
     assert "Sessions/week: 2" not in prompt
-    return True, ""
 
 
 VALID_EXERCISE = {
@@ -252,7 +244,6 @@ def test_parse_plain_json_array():
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
     assert result[0]["exercise_name"] == "Snatch"
-    return True, ""
 
 
 def test_parse_json_with_markdown_fences():
@@ -260,7 +251,6 @@ def test_parse_json_with_markdown_fences():
     raw = f"```json\n{json.dumps([VALID_EXERCISE])}\n```"
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
-    return True, ""
 
 
 def test_parse_json_with_plain_fences():
@@ -268,7 +258,6 @@ def test_parse_json_with_plain_fences():
     raw = f"```\n{json.dumps([VALID_EXERCISE])}\n```"
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
-    return True, ""
 
 
 def test_parse_json_array_embedded_in_text():
@@ -276,7 +265,6 @@ def test_parse_json_array_embedded_in_text():
     raw = f"Here is the session:\n{json.dumps([VALID_EXERCISE])}\nEnd."
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
-    return True, ""
 
 
 def test_parse_single_object_wrapped_in_list():
@@ -285,7 +273,6 @@ def test_parse_single_object_wrapped_in_list():
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
     assert result[0]["exercise_name"] == "Snatch"
-    return True, ""
 
 
 def test_parse_schema_object_wrapper():
@@ -295,7 +282,6 @@ def test_parse_schema_object_wrapper():
     result = parse_llm_response(raw)
     assert [e["exercise_name"] for e in result] == ["Snatch", "Clean"]
     assert parse_llm_response(json.dumps({"exercises": []})) == []
-    return True, ""
 
 
 def test_session_schema_requires_every_prompted_field():
@@ -310,7 +296,6 @@ def test_session_schema_requires_every_prompted_field():
     assert item["properties"]["intensity_pct"]["type"] == ["number", "null"]
     prompt = _make_prompt()
     assert '{"exercises": [...]}' in prompt and "JSON array" not in prompt
-    return True, ""
 
 
 def test_parse_multiple_exercises():
@@ -320,23 +305,21 @@ def test_parse_multiple_exercises():
     raw = json.dumps(exercises)
     result = parse_llm_response(raw)
     assert len(result) == 5
-    return True, ""
 
 
 def test_parse_invalid_json_raises():
     """Completely invalid JSON raises ValueError."""
     try:
         parse_llm_response("This is not JSON at all.")
-        return False, "Expected ValueError, got none"
+        raise AssertionError("Expected ValueError, got none")
     except ValueError:
-        return True, ""
+        pass
 
 
 def test_parse_empty_array():
     """Empty JSON array returns empty list."""
     result = parse_llm_response("[]")
     assert result == []
-    return True, ""
 
 
 def test_parse_preserves_all_fields():
@@ -345,7 +328,6 @@ def test_parse_preserves_all_fields():
     result = parse_llm_response(raw)
     for key in VALID_EXERCISE:
         assert key in result[0], f"Missing field: {key}"
-    return True, ""
 
 
 # ── validate_exercise_names ───────────────────────────────────
@@ -355,7 +337,6 @@ def test_validate_all_valid_names():
     exercises = [{"exercise_name": name} for name in AVAILABLE]
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert errors == [], errors
-    return True, ""
 
 
 def test_validate_unknown_name_returns_error():
@@ -364,7 +345,6 @@ def test_validate_unknown_name_returns_error():
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert len(errors) == 1
     assert "Log Press" in errors[0]
-    return True, ""
 
 
 def test_validate_close_match_suggests_alternative():
@@ -373,7 +353,6 @@ def test_validate_close_match_suggests_alternative():
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert len(errors) == 1
     assert "Snatch" in errors[0], errors[0]  # suggestion included
-    return True, ""
 
 
 def test_validate_case_insensitive():
@@ -381,7 +360,6 @@ def test_validate_case_insensitive():
     exercises = [{"exercise_name": "snatch"}]
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert errors == [], f"Expected no errors (case-insensitive match), got: {errors}"
-    return True, ""
 
 
 def test_validate_multiple_invalid():
@@ -393,14 +371,12 @@ def test_validate_multiple_invalid():
     ]
     errors = validate_exercise_names(exercises, AVAILABLE)
     assert len(errors) == 2, errors
-    return True, ""
 
 
 def test_validate_empty_list():
     """Empty exercise list → no errors."""
     errors = validate_exercise_names([], AVAILABLE)
     assert errors == []
-    return True, ""
 
 
 # ── build_session_prompt: recent_logs ────────────────────────
@@ -409,14 +385,12 @@ def test_recent_logs_section_present():
     """## Recent Training section always appears in the prompt."""
     prompt = _make_prompt()
     assert "## Recent Training" in prompt
-    return True, ""
 
 
 def test_recent_logs_empty_shows_fallback():
     """No logs → fallback message, not a crash or blank section."""
     prompt = _make_prompt(_make_athlete(recent_logs=[]))
     assert "No recent sessions logged" in prompt
-    return True, ""
 
 
 def test_recent_logs_entries_formatted():
@@ -431,7 +405,6 @@ def test_recent_logs_entries_formatted():
     assert "88.0kg" in prompt
     assert "RPE 8.0" in prompt
     assert "make 90%" in prompt
-    return True, ""
 
 
 def test_recent_logs_missing_rpe_and_make_rate_ok():
@@ -444,7 +417,6 @@ def test_recent_logs_missing_rpe_and_make_rate_ok():
     assert "Back Squat" in prompt
     assert "RPE None" not in prompt
     assert "make None" not in prompt
-    return True, ""
 
 
 def test_recent_logs_capped_at_max():
@@ -458,7 +430,6 @@ def test_recent_logs_capped_at_max():
     # The exercise beyond the cap should not appear
     assert f"Exercise {MAX_RECENT_LOGS_IN_PROMPT}" not in prompt
     assert f"Exercise {MAX_RECENT_LOGS_IN_PROMPT - 1}" in prompt
-    return True, ""
 
 
 # ── build_session_prompt: template_references ─────────────────
@@ -467,14 +438,12 @@ def test_template_references_section_present():
     """## Similar Program Templates section always appears in the prompt."""
     prompt = _make_prompt()
     assert "## Similar Program Templates" in prompt
-    return True, ""
 
 
 def test_template_references_empty_shows_fallback():
     """No templates → fallback message, not blank."""
     prompt = _make_prompt(retrieval=_make_retrieval(template_references=[]))
     assert "none matched" in prompt
-    return True, ""
 
 
 def test_template_references_shows_name_and_notes():
@@ -488,7 +457,6 @@ def test_template_references_shows_name_and_notes():
     assert "High volume classical lifts" in prompt
     # program_structure JSON should not be dumped into the prompt
     assert '"volume"' not in prompt
-    return True, ""
 
 
 def test_template_references_capped_at_two():
@@ -500,7 +468,6 @@ def test_template_references_capped_at_two():
     assert "Template 0" in prompt
     assert "Template 1" in prompt
     assert "Template 2" not in prompt
-    return True, ""
 
 
 # ── build_session_prompt: make_rate_by_lift directive ─────────
@@ -515,7 +482,6 @@ def test_weak_lift_directive_appears_below_threshold():
     prompt = _make_prompt(_make_athlete(previous_program=prog))
     assert "clean and jerk make rate was below 75%" in prompt
     assert "reduce intensity" in prompt
-    return True, ""
 
 
 def test_no_directive_when_all_lifts_above_threshold():
@@ -527,7 +493,6 @@ def test_no_directive_when_all_lifts_above_threshold():
                 "make_rate_trend": "stable", "maxes_delta": {}, "athlete_feedback": None}}
     prompt = _make_prompt(_make_athlete(previous_program=prog))
     assert "reduce intensity on those lifts" not in prompt
-    return True, ""
 
 
 def test_no_directive_when_no_previous_program():
@@ -535,7 +500,6 @@ def test_no_directive_when_no_previous_program():
     prompt = _make_prompt(_make_athlete(previous_program=None))
     assert "first program" in prompt
     assert "reduce intensity on those lifts" not in prompt
-    return True, ""
 
 
 def test_multiple_weak_lifts_all_named():
@@ -549,7 +513,6 @@ def test_multiple_weak_lifts_all_named():
     assert "snatch" in prompt
     assert "clean and jerk" in prompt
     assert "reduce intensity on those lifts" in prompt
-    return True, ""
 
 
 # ── build_session_prompt: fault_correction_chunks in context ──
@@ -563,7 +526,6 @@ def test_fault_correction_chunks_appear_in_context_block():
     prompt = _make_prompt(_make_athlete(faults=["forward_lean"]), retrieval)
     assert "Forward lean fix" in prompt
     assert "## Programming Context" in prompt
-    return True, ""
 
 
 def test_fault_correction_chunks_prioritized_before_rationale():
@@ -574,7 +536,6 @@ def test_fault_correction_chunks_prioritized_before_rationale():
     )
     prompt = _make_prompt(_make_athlete(faults=["forward_lean"]), retrieval)
     assert prompt.index("FAULT_TEXT_UNIQUE") < prompt.index("RATIONALE_TEXT_UNIQUE")
-    return True, ""
 
 
 def test_context_block_capped_at_four_chunks():
@@ -589,7 +550,6 @@ def test_context_block_capped_at_four_chunks():
     context_section = prompt[context_start:context_end]
     chunk_count = context_section.count("  [")
     assert chunk_count <= 4, f"Expected ≤ 4 chunks in context block, got {chunk_count}"
-    return True, ""
 
 
 def test_no_fault_correction_when_no_faults():
@@ -601,7 +561,6 @@ def test_no_fault_correction_when_no_faults():
     prompt = _make_prompt(_make_athlete(faults=None), retrieval)
     assert "FAULT_ONLY_TEXT" not in prompt
     assert "RATIONALE_TEXT" in prompt
-    return True, ""
 
 
 def test_context_deduplicates_by_chunk_id():
@@ -613,7 +572,6 @@ def test_context_deduplicates_by_chunk_id():
     )
     prompt = _make_prompt(_make_athlete(faults=["forward_lean"]), retrieval)
     assert prompt.count("SHARED_CONTENT") == 1
-    return True, ""
 
 
 # ── build_session_prompt: fault cross-reference (Group C) ────
@@ -639,7 +597,6 @@ def test_fault_block_groups_by_fault():
     prompt = _make_prompt(_make_athlete(faults=["forward_miss"]), retrieval)
     assert "'forward_miss':" in prompt
     assert "Snatch Balance" in prompt
-    return True, ""
 
 
 def test_fault_block_no_exercises_fallback_message():
@@ -649,7 +606,6 @@ def test_fault_block_no_exercises_fallback_message():
     # fault_exercises is empty so fault_block = "  None"
     assert "Fault Correction Exercises" in prompt
     assert "None" in prompt
-    return True, ""
 
 
 def test_fault_block_multiple_faults_each_listed():
@@ -665,7 +621,6 @@ def test_fault_block_multiple_faults_each_listed():
     prompt = _make_prompt(_make_athlete(faults=["forward_miss", "early_arm_bend"]), retrieval)
     assert "'forward_miss':" in prompt
     assert "'early_arm_bend':" in prompt
-    return True, ""
 
 
 def test_fault_block_exercise_not_shown_under_wrong_fault():
@@ -687,7 +642,6 @@ def test_fault_block_exercise_not_shown_under_wrong_fault():
     arm_line_end = prompt.index("\n", arm_idx)
     arm_line = prompt[arm_idx:arm_line_end]
     assert "Snatch Balance" not in arm_line
-    return True, ""
 
 
 def test_fault_block_header_updated():
@@ -695,7 +649,6 @@ def test_fault_block_header_updated():
     prompt = _make_prompt()
     assert "Fault Correction Exercises" in prompt
     assert "Exercises to Emphasize" not in prompt
-    return True, ""
 
 
 # ── build_session_prompt: lift ratios (Group C) ───────────────
@@ -727,7 +680,6 @@ def test_lift_ratios_section_present():
     """Lift ratios section appears in prompt."""
     prompt = _make_prompt()
     assert "Lift Ratios" in prompt
-    return True, ""
 
 
 def test_lift_ratios_computed_correctly():
@@ -737,7 +689,6 @@ def test_lift_ratios_computed_correctly():
     prompt = _make_prompt(athlete)
     assert "Sn/C&J" in prompt
     assert "80%" in prompt
-    return True, ""
 
 
 def test_lift_ratios_below_target_flags_structural_work():
@@ -746,7 +697,6 @@ def test_lift_ratios_below_target_flags_structural_work():
     athlete = _make_athlete_with_maxes({"snatch": 60.0, "clean_and_jerk": 100.0})
     prompt = _make_prompt(athlete)
     assert "below target" in prompt
-    return True, ""
 
 
 def test_lift_ratios_missing_max_skipped():
@@ -757,7 +707,6 @@ def test_lift_ratios_missing_max_skipped():
     # Section should exist but Sn/C&J line should not appear
     assert "Lift Ratios" in prompt
     assert "Sn/C&J" not in prompt
-    return True, ""
 
 
 def test_lift_ratios_fallback_when_no_maxes():
@@ -765,7 +714,6 @@ def test_lift_ratios_fallback_when_no_maxes():
     athlete = _make_athlete_with_maxes({})
     prompt = _make_prompt(athlete)
     assert "insufficient maxes" in prompt
-    return True, ""
 
 
 # ── T4: parse_llm_response fallback branches (lines 69-70, 75-80) ─────────────
@@ -777,7 +725,6 @@ def test_parse_object_after_prose_hits_object_branch():
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
     assert result[0]["exercise_name"] == "Snatch"
-    return True, ""
 
 
 def test_parse_invalid_array_falls_through_to_object_branch():
@@ -787,16 +734,15 @@ def test_parse_invalid_array_falls_through_to_object_branch():
     raw = f"[not valid json] {json.dumps(ex)}"
     result = parse_llm_response(raw)
     assert isinstance(result, list) and len(result) == 1
-    return True, ""
 
 
 def test_parse_invalid_object_raises_value_error():
     """Invalid JSON in both array and object branches raises ValueError (line 80 hit)."""
     try:
         parse_llm_response("[invalid array] {invalid object}")
-        return False, "Expected ValueError was not raised"
+        raise AssertionError("Expected ValueError was not raised")
     except ValueError:
-        return True, ""
+        pass
 
 
 # ── T5: generate_session_with_retries retry paths (lines 495-622) ─────────────
@@ -863,7 +809,6 @@ def test_generate_session_success_first_attempt():
     result = _call_generate(llm)
     assert result.status == "success"
     assert result.attempt_number == 1
-    return True, ""
 
 
 def test_generate_session_parse_error_retries():
@@ -878,7 +823,6 @@ def test_generate_session_parse_error_retries():
     assert result.attempt_number == 2
     second_call_prompt = llm.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
     assert "not valid JSON" in second_call_prompt
-    return True, ""
 
 
 def test_generate_session_name_error_retries():
@@ -893,7 +837,6 @@ def test_generate_session_name_error_retries():
     assert result.status == "success"
     second_call_prompt = llm.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
     assert "Log Press" in second_call_prompt
-    return True, ""
 
 
 def test_generate_session_all_retries_exhausted():
@@ -903,7 +846,6 @@ def test_generate_session_all_retries_exhausted():
     result = _call_generate(llm, _make_settings(retries=1, parse_retries=1))
     assert result.status == "failed"
     assert result.exercises is None
-    return True, ""
 
 
 # ── A-M7: malformed-but-parseable output triggers retry, not a crash ──────────
@@ -915,18 +857,18 @@ def test_parse_list_of_strings_raises():
     raw = json.dumps(["Snatch 5x2 @ 75%", "Back Squat 5x5"])
     try:
         parse_llm_response(raw)
-        return False, "Expected ValueError for list-of-strings"
+        raise AssertionError("Expected ValueError for list-of-strings")
     except ValueError:
-        return True, ""
+        pass
 
 
 def test_parse_list_of_scalars_raises():
     """A list of non-dict scalars (numbers) is also rejected."""
     try:
         parse_llm_response("[1, 2, 3]")
-        return False, "Expected ValueError for list-of-scalars"
+        raise AssertionError("Expected ValueError for list-of-scalars")
     except ValueError:
-        return True, ""
+        pass
 
 
 def test_validate_null_exercise_name_no_crash():
@@ -934,7 +876,6 @@ def test_validate_null_exercise_name_no_crash():
     it should surface an 'unknown exercise' error instead."""
     errors = validate_exercise_names([{"exercise_name": None}], AVAILABLE)
     assert len(errors) == 1, errors
-    return True, ""
 
 
 def test_generate_session_list_of_strings_retries():
@@ -948,7 +889,6 @@ def test_generate_session_list_of_strings_retries():
     result = _call_generate(llm)
     assert result.status == "success"
     assert result.attempt_number == 2
-    return True, ""
 
 
 # ── A-M2: cost guard must count every retry's tokens ──────────────────────────
@@ -966,7 +906,6 @@ def test_generate_tokens_accumulate_across_retries():
     assert result.status == "success"
     assert result.input_tokens == 200, result.input_tokens   # 2 × 100
     assert result.output_tokens == 100, result.output_tokens  # 2 × 50
-    return True, ""
 
 
 def test_generate_failed_reports_accumulated_tokens():
@@ -978,7 +917,6 @@ def test_generate_failed_reports_accumulated_tokens():
     assert result.status == "failed"
     assert result.input_tokens == 200, result.input_tokens   # 2 × 100, not 0
     assert result.output_tokens == 100, result.output_tokens  # 2 × 50, not 0
-    return True, ""
 
 
 # ── Runner ────────────────────────────────────────────────────
@@ -1072,7 +1010,8 @@ def main():
     results = []
     for name, fn in TESTS:
         try:
-            ok, msg = fn()
+            fn()
+            ok, msg = True, ""
             results.append((name, ok, msg))
             if not ok:
                 failures.append(name)
@@ -1127,7 +1066,6 @@ def test_generate_drops_temperature_and_reads_text_blocks_on_sonnet_5():
     assert kwargs["output_config"]["effort"] == "low"
     assert kwargs["output_config"]["format"] == {"type": "json_schema", "schema": SESSION_SCHEMA}
     assert result.cache_read_tokens == 900 and result.input_tokens == 100
-    return True, ""
 
 
 def test_generate_keeps_temperature_and_omits_thinking_on_sonnet_4_6():
@@ -1141,7 +1079,6 @@ def test_generate_keeps_temperature_and_omits_thinking_on_sonnet_4_6():
     assert "thinking" not in kwargs
     assert set(kwargs["output_config"]) == {"format"}       # schema only, no effort on 4.6
     assert result.cache_read_tokens == 0   # MagicMock usage has no int cache fields
-    return True, ""
 
 
 def test_generation_log_prices_at_the_logged_model():
@@ -1152,7 +1089,6 @@ def test_generation_log_prices_at_the_logged_model():
     _log_generation(conn, 1, 1, 1, 1, "claude-sonnet-5", "p", "r", None, 1_000_000, 0, "success")
     params = cursor.execute.call_args.args[1]
     assert abs(params[10] - 2.0) < 1e-9        # $2/MTok input on Sonnet 5 (was $3 flat)
-    return True, ""
 
 
 # ── DOG-1: recent logs are summarised per (date, exercise), not shown raw ─────
@@ -1181,7 +1117,6 @@ def test_recent_logs_collapse_a_warmup_ramp_to_its_top_set():
     ]
     assert summarize_recent_logs([]) == []
     assert len(summarize_recent_logs(ramp + cj + older, limit=2)) == 2
-    return True, ""
 
 
 def test_recent_logs_prompt_block_uses_the_summary():
@@ -1195,7 +1130,6 @@ def test_recent_logs_prompt_block_uses_the_summary():
     block = prompt.split("## Recent Training (last 14 days)")[1].split("## ")[0]
     assert block.count("Snatch") == 1 and "top 88.0kg × 7 sets" in block and "RPE 8.0" in block
     assert "make 95%" in block
-    return True, ""
 
 
 # ── MODEL-1: stop_reason == max_tokens grows the budget instead of re-sending ─
@@ -1230,7 +1164,6 @@ def test_generate_grows_max_tokens_when_output_is_truncated():
     assert result.output_tokens == 4096 + 50          # both attempts are paid
     logged = conn.cursor.return_value.__enter__.return_value.execute.call_args_list[0].args[1]
     assert logged[11] == "parse_error" and "truncated at max_tokens=4096" in logged[13]
-    return True, ""
 
 
 def test_generate_max_tokens_growth_stops_at_the_ceiling():
@@ -1253,7 +1186,6 @@ def test_generate_max_tokens_growth_stops_at_the_ceiling():
     assert result.status == "failed"
     budgets = [c.kwargs["max_tokens"] for c in llm.messages.create.call_args_list]
     assert budgets == [LLM_MAX_TOKENS_CEILING // 2] + [LLM_MAX_TOKENS_CEILING] * 3
-    return True, ""
 
 # ── DOG-1e: Previous Program block shows the block's structure ───────────────
 
@@ -1282,7 +1214,6 @@ def test_previous_program_block_renders_structure():
     block = prompt.split("## Previous Program")[1].split("## ")[0]
     assert "Phase: general_prep (11 weeks)" in block and "Structure: Deficit Cycle" in block
     assert block.index("Structure:") < block.index("Adherence:")
-    return True, ""
 
 
 if __name__ == "__main__":
@@ -1532,7 +1463,6 @@ def test_exercise_line_is_compact_and_lists_only_the_athletes_faults():
               "typical_sets_low": 3, "typical_sets_high": 3, "typical_reps_low": 5, "typical_reps_high": 5,
               "typical_intensity_low": None, "typical_intensity_high": None, "faults_addressed": None}
     assert _exercise_line(single, set()) == "  Box Jump [plyometric, c1] 3x5"
-    return True, ""
 
 
 def test_available_exercises_block_uses_the_compact_lines():
@@ -1546,7 +1476,6 @@ def test_available_exercises_block_uses_the_compact_lines():
     block = prompt.split("## Available Exercises")[1].split("## ")[0]
     assert "  Snatch [snatch, c1] 4-6x1-3 @70-100% | for: slow_turnover" in block
     assert "typical:" not in block and "(complexity" not in block
-    return True, ""
 
 
 # ── RAG-L3: static-first prompt + cached prefix ──────────────────────────────
