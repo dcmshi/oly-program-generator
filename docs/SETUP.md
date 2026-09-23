@@ -9,7 +9,7 @@
 - Python 3.11+
 - [uv](https://docs.astral.sh/uv/) — `pip install uv`
 - Docker Desktop (for Postgres + PgBouncer + Redis)
-- `OPENAI_API_KEY` (embeddings) and one LLM provider key: `LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY` (the dev default since 2026-09-20 — Claude and the open models through one account; no Message Batches, so `--batch` runs synchronously) or `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` (Claude only, Batches available). Optional `TYPESAFE_API_KEY` for Jev label/score decisions. Model roles and the provider notes are in `.env.example`.
+- `OPENAI_API_KEY` (embeddings) and one LLM provider key: `LLM_PROVIDER=openrouter` + `OPENROUTER_API_KEY` (the code default since 2026-09-22 — Kimi K3 / DeepSeek V4.1 Flash / GLM-5.3 Flash by role, Claude also reachable through the same account; no Message Batches, so `--batch` runs synchronously) or `LLM_PROVIDER=anthropic` + `ANTHROPIC_API_KEY` (Claude Sonnet 5 / Haiku 4.5 defaults, Batches available). The no-key test suites pin `LLM_PROVIDER=anthropic` themselves, and the live-API tests below need `ANTHROPIC_API_KEY` for the same reason. Optional `TYPESAFE_API_KEY` for Jev label/score decisions. Model roles and the provider notes are in `.env.example`.
 - `make` — on Windows: `winget install GnuWin32.Make` or use Git Bash with make from the Git SDK
 
 ---
@@ -142,7 +142,7 @@ file stays empty until the process exits.
 
 | Flag | Applies to | Effect |
 |------|-----------|--------|
-| `--vision` | `pipeline.py` | Enables the Claude vision OCR fallback for image-only PDFs (opt-in — it costs money) |
+| `--vision` | `pipeline.py` | Enables the vision OCR fallback (on `LLM_MODEL`) for image-only PDFs (opt-in — it costs money) |
 | `--max-pages N` | `pipeline.py` | Limits extraction to the first N pages — use when testing an OCR run |
 | `--ocr-postcorrect` | `pipeline.py` | OCR-QA: pages still garbled after the multi-view check go to the light model for guarded OCR error correction (kept only if the garbled share drops and the length stays within ±10 %); off by default |
 | `--no-principle-audit` | `pipeline.py`, `ingest_web.py` | Skip the end-of-ingest pass that strips principle numbers the source text never states (PRIN-AUDIT) |
@@ -151,12 +151,15 @@ file stays empty until the process exits.
 | `--no-ocr-cache` | `pipeline.py` | Ignore `sources/.ocr_cache/` and transcribe every page again; by default vision-OCR text is cached per file hash + model, so a re-ingest of an unchanged scanned PDF costs no OCR (ING-M5) |
 | `--classifier jev` | `pipeline.py` | Routes sections with one calibrated Jev `Choice` each instead of heuristics + LLM fallback (JEV-1c; beat the heuristic 13:4 on adjudicated disagreements); needs `TYPESAFE_API_KEY`, ~$0.002 per book |
 | `--judge jev` | `relabel_chunk_types.py` | Labels through TypeSafe's Jev instead of the light model: one calibrated `Choice` per passage, ~185 ms and ~$0.19 for the corpus; needs `TYPESAFE_API_KEY`. Re-freeze the golden set / baseline after applying it (labels feed the chunk-type preference boost) |
-| `--batch` | `pipeline.py`, `relabel_chunk_types.py` | Sends principle extraction, vision OCR (and the relabel calls) through the Message Batches API at half price. Principle sections are queued and flushed as one batch after the section loop; a batch takes minutes to hours, so not for smoke tests (COST-1) |
+| `--batch` | `pipeline.py`, `relabel_chunk_types.py` | Sends principle extraction, vision OCR (and the relabel calls) through the Message Batches API at half price — `LLM_PROVIDER=anthropic` only; under OpenRouter it degrades to synchronous with a warning. Principle sections are queued and flushed as one batch after the section loop; a batch takes minutes to hours, so not for smoke tests (COST-1) |
+| `--contextualize` | `pipeline.py`, `ingest_web.py` | Writes an LLM retrieval-context prefix (1–2 sentences) into each chunk before embedding and into `knowledge_chunks.context_prefix`; one short call per chunk, opt-in (RAG-M3) |
+| `--context-model MODEL` | `pipeline.py`, `ingest_web.py` | Model for `--contextualize` (default: the light model) |
 | `--categories technique` | `ingest_web.py` | Restrict to one category instead of all priority categories |
 | `--site charniga` | `ingest_web.py` | Crawl Charniga via the Wayback CDX index instead of Catalyst |
 | `--site urls --url-file sources/url_lists/<name>.json` | `ingest_web.py` | Ingest a curated URL list from any site (SBS, JTS, Pendlay); generic WordPress-style extraction, progress in `sources/urls_progress.json` |
 | `--limit 20` | `ingest_web.py` | Cap article count for a smoke test |
 | `--dry-run` | `ingest_web.py` | Collect URLs only, ingest nothing |
+| `--delay SECONDS` | `ingest_web.py` | Pause between article requests (default 1.0) |
 
 Web ingestion records completed URLs in `sources/catalyst_progress.json` (and
 `charniga_progress.json`). Runs are safe to interrupt — a re-run resumes and
@@ -306,53 +309,106 @@ The flag takes effect on next login.
 
 ## Project Structure
 
+Tracked files only (`git ls-files`); tests, templates and data files are summarised per directory.
+
 ```
 oly-program-generator/
-├── README.md
-├── Makefile                         # Common dev tasks: make web, make test, make up …
+├── README.md · LICENSE
+├── Makefile                         # Common dev tasks: make up / migrate / web / worker / test / lint / coverage / css
 ├── CLAUDE.md                        # Claude Code project instructions + invariants
-├── ARCHITECTURE.md                  # Service architecture + Mermaid diagrams
+├── ARCHITECTURE.md                  # Service architecture + Mermaid diagrams, production env vars
 ├── TODO.md                          # Current audit findings and their status
-├── schema.sql                       # Ingestion schema DDL (reference; managed by Alembic)
-├── athlete_schema.sql               # Athlete / program schema DDL (reference; managed by Alembic)
+├── TODO-audit-2026-07-03.md         # Older audit + roadmap #17–#23
+├── ruff.toml                        # Lint config (ruff version pinned in the Makefile)
+├── schema.sql · athlete_schema.sql · auth_migration.sql
+│                                    # Pre-Alembic DDL, reference only — the migrations are the source of truth
+├── .github/workflows/ci.yml         # CI: lint + the no-key test suites
+├── .claude/skills/kobo-import/      # Claude Code skill wrapping kobo_import.py
+├── screenshots/                     # README screenshots
 ├── docs/
 │   ├── SETUP.md                     # This file — setup, DB ops, ingestion, CLI, tests, backup
-│   ├── CONTRIBUTING.md              # Security audit, scaling checklist, test coverage
-│   ├── SCHEMA.md                    # ER diagrams + table reference (20 tables)
-│   ├── CORPUS.md                    # Ingested + planned sources, chunk-size profiles
-│   ├── RETRIEVAL_EVAL.md            # Retrieval quality baseline scores
+│   ├── SCHEMA.md                    # ER diagrams + table reference (21 tables)
+│   ├── CORPUS.md                    # Ingested + planned sources, chunk-size profiles, SOURCE_PROFILE_MAP
+│   ├── RETRIEVAL_EVAL.md            # Retrieval-quality baseline and the eval gate
+│   ├── RAG_RESEARCH.md              # RAG / ingestion / vector-DB review and remediation plan (RAG-* items)
+│   ├── PROGRAMMING_ASSUMPTIONS.md   # Audit of hard-coded programming decisions (PLAN-1 / PLAN-2)
+│   ├── KOBO-IMPORT.md               # Kobo purchase → clean EPUB (Calibre + DeACSM + DeDRM)
+│   ├── CONTRIBUTING.md              # Security audit, scaling checklist, coverage
 │   ├── DB-MACHINE-RUNBOOK.md        # Historical ops replay list (everything in it has run)
-│   └── design/                      # Historical build docs (pipeline, agent, code reference)
+│   ├── arch-*.png                   # Static renders of the Mermaid diagrams
+│   └── design/                      # Historical build docs (pipeline, agent, code reference, security, scaling)
 │
-├── shared/                          # Shared modules (imported by both subsystems)
-│   ├── config.py                    # Unified Settings dataclass (reads .env)
+├── shared/                          # Imported by both subsystems
+│   ├── config.py                    # Settings dataclass (reads oly-ingestion/.env); provider-aware model defaults
 │   ├── constants.py                 # Project-wide numeric constants
 │   ├── db.py                        # psycopg2 fetch_one / fetch_all / execute helpers
+│   ├── llm.py                       # LLM client (Anthropic SDK → Anthropic or OpenRouter), request helpers, batches, cost
+│   ├── schema_enums.py              # Enum values for the structured-output schemas (mirrored against the migrations)
 │   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS
 │   ├── formulas.py · timeutil.py    # Derived metrics · timezone-aware "today"
-│   ├── llm.py                       # Anthropic client + cost estimation
 │   └── prilepin.py                  # Zone lookup + per-session rep targets
 │
-├── oly-ingestion/                   # Ingestion pipeline
-│   ├── pyproject.toml
+├── oly-ingestion/                   # Ingestion pipeline (CLI only)
+│   ├── pyproject.toml · uv.lock · requirements.txt
+│   ├── .env.example                 # Template for the gitignored .env (keys, provider, model roles)
 │   ├── docker-compose.yml           # Postgres + PgBouncer + Redis
-│   ├── pipeline.py                  # EPUB / PDF ingestion orchestrator
-│   ├── ingest_web.py                # Web article ingestion (Catalyst · Charniga · curated URL lists)
+│   ├── config.py                    # Shim re-exporting shared/config.py
+│   ├── pipeline.py                  # EPUB / PDF / article ingestion orchestrator
+│   ├── ingest_web.py                # Web ingestion (Catalyst · Charniga via Wayback · curated URL lists)
+│   ├── kobo_import.py               # Kobo .acsm → DRM-free EPUB via Calibre (docs/KOBO-IMPORT.md)
 │   ├── retag_chunks.py              # Re-tag stored chunks after KEYWORD_TO_TOPIC changes
-│   ├── extractors/                  # pdf_extractor · epub_extractor · html_extractor · jats_extractor (Europe PMC) · ocr_cache
-│   ├── processors/                  # chunker · classifier · principle_extractor · ocr_corrections
-│   ├── loaders/                     # vector_loader · structured_loader
-│   ├── sources/                     # Source files + crawl progress JSON (gitignored)
+│   ├── relabel_chunk_types.py       # Re-label chunk_type with the light model or Jev
+│   ├── reembed.py                   # Re-embed chunks under a new embedding model (RAG-M8 / EMBED-1)
+│   ├── quarantine_chunks.py         # Jev junk pass — marks non-content chunks quarantined
+│   ├── dedupe_principles.py         # Marks restated principles duplicate_of their canonical twin
+│   ├── principle_audit.py           # PRIN-AUDIT — strips principle numbers the source never states
+│   ├── principle_model_compare.py   # Head-to-head principle extraction across models (MODEL-2)
+│   ├── ocr_audit.py                 # Re-runs the OCR-QA checks on cached OCR output
+│   ├── eval_queries.py              # Original hand-written retrieval queries
+│   ├── schema.sql                   # Pre-Alembic ingestion DDL (reference only)
+│   ├── extractors/                  # pdf_extractor (PyMuPDF → pdfplumber → vision OCR) · epub_extractor ·
+│   │                                # html_extractor · jats_extractor (Europe PMC) · ocr_cache · page_text
+│   ├── processors/
+│   │   ├── classifier.py            # Heuristic (+ LLM / Jev) section routing
+│   │   ├── sectioning.py            # Section splitting, capping and fragment merging before classification
+│   │   ├── section_processor.py     # Per-section routing shared by both entry points
+│   │   ├── chunker.py               # Profile-aware chunking, SOURCE_PROFILE_MAP, topic tagging
+│   │   ├── tokens.py                # tiktoken token counting
+│   │   ├── contextualizer.py        # --contextualize retrieval-context prefixes
+│   │   ├── principle_extractor.py   # LLM if/then rule extraction (schema-constrained)
+│   │   ├── ocr_quality.py           # OCR-QA gate (suspect signals + multi-view agreement)
+│   │   ├── ocr_corrections.py       # OCR correction dictionary for Soviet-era sources
+│   │   ├── jev_judge.py             # Label / score decisions through Jev (TypeSafe)
+│   │   └── progress.py              # Stage banners, per-section progress and ETA
+│   ├── loaders/
+│   │   ├── vector_loader.py         # Chunk insert + dedup + hybrid similarity_search
+│   │   ├── embedders.py             # Embedder interface + openai / openai_compat providers
+│   │   ├── local_embedder.py        # sentence-transformers provider
+│   │   └── structured_loader.py     # Exercises, templates, principles → structured tables
+│   ├── sources/                     # Source files + progress JSON (gitignored), except:
+│   │   └── url_lists/               # Curated URL lists for --site urls (sbs · jts · pendlay · extras) + one-off scripts
 │   └── tests/
 │
 └── oly-agent/                       # Programming agent + web UI
-    ├── pyproject.toml
+    ├── pyproject.toml · uv.lock · alembic.ini
     ├── orchestrator.py              # Main pipeline runner (CLI entry point)
     ├── assess.py / plan.py / retrieve.py / generate.py / validate.py / explain.py
-    ├── models.py · schemas.py · phase_profiles.py · phase_progression.py
-    ├── session_templates.py · weight_resolver.py · feedback.py · log.py · setup_auth.py
-    ├── migrations/                  # Alembic migrations (see `alembic history` for the chain)
-    ├── tests/                       # Unit tests (no DB/API needed for make test)
+    ├── principle_matcher.py         # Evaluates principle conditions against one session
+    ├── weight_resolver.py           # LLM output → DB-ready values, [Cn] citations → source_chunk_ids
+    ├── models.py · schemas.py       # Pipeline dataclasses · Pydantic models for JSONB columns
+    ├── phase_profiles.py · phase_progression.py · session_templates.py
+    ├── feedback.py · log.py         # Outcome summary + max promotion · training-log CLI
+    ├── import_program_csv.py        # Import a coach-written program CSV as a completed program
+    ├── setup_auth.py
+    ├── eval/                        # Retrieval + model evaluation harness
+    │   ├── build_golden.py · run_eval.py · metrics.py · queries.py
+    │   │                            # Golden set → golden.json, gated run vs baseline.json
+    │   ├── judge_agreement.py · judge_adjudicate.py   # Judge selection (JUDGE-1) + per-judge golden_*.json
+    │   ├── model_baseline.py        # Generation-model baseline runs (model_baseline_*.json)
+    │   ├── program_diff.py          # Side-by-side program comparison
+    │   └── program_export.py        # Standalone HTML / PDF export of a program
+    ├── migrations/                  # Alembic env + versions/ (0000 → 0017; `alembic history` for the chain)
+    ├── tests/                       # Unit + router tests (the Makefile lists which need no DB/keys)
     └── web/                         # FastAPI web UI
         ├── app.py                   # Application factory + middleware + Jinja2 filters
         ├── async_db.py              # asyncpg pool (web-only async DB layer)
@@ -362,6 +418,9 @@ oly-program-generator/
         ├── routers/                 # auth · setup · dashboard · program · log_session
         │                            # generate · export · history · profile · admin · health
         ├── queries/                 # Async DB query modules (one per router)
-        ├── static/                  # favicon
+        ├── tailwind/                # Tailwind source (input.css, tailwind.config.js palette, package.json),
+        │                            # build_palette.py (tints + contrast audit), build_fonts.py
+        ├── static/                  # Committed build output: tailwind.css, fonts.css + fonts/*.woff2,
+        │                            # vendor/ (htmx, Chart.js), favicon.svg
         └── templates/               # Jinja2 templates + HTMX partials
 ```
