@@ -1,6 +1,6 @@
 {
  "meta": {
-  "built_at": "2026-09-23T01:57:59+00:00",
+  "built_at": "2026-09-23T03:12:02+00:00",
   "model": "z-ai/glm-5.3-flash",
   "candidates_per_retriever": 15,
   "n_queries": 57,
@@ -1189,7 +1189,8 @@
     "4540": 1,
     "4548": 1,
     "12815": 2,
-    "7460": 1
+    "7460": 1,
+    "7409": 0
    },
    "snippets": {
     "4508": "However, this imbalance can have a number of sources, and correction will vary depending on the cause. Often this error proves extremely difficult and frustrati",
@@ -1212,7 +1213,8 @@
     "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi",
     "4548": "This keeps the bar from moving directly over the lifter and makes bailing out easier. Be sure to consider possible sources of this lack of confidence before pre",
     "12815": "The barbell's movement in the first phase is somewhat\ndifferent than usual if the athlete slows (or accelerates) the\nlift after barbell separation. In the first",
-    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou"
+    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou",
+    "7409": "I joke in the gym that the split jerk is just a power jerk into a split position\u2014in other words, quit making it so complicated and changing the entire movement "
    }
   },
   {
@@ -1927,7 +1929,8 @@
     "12815": 1,
     "7350": 0,
     "7199": 1,
-    "11898": 1
+    "11898": 1,
+    "7314": 2
    },
    "snippets": {
     "4540": "Dipping Forward\n\nThe dip and drive of the jerk feels awkward to most athletes new to weightlifting, as it is entirely dependent on the knees and excludes the hi",
@@ -1953,7 +1956,8 @@
     "12815": "The barbell's movement in the first phase is somewhat\ndifferent than usual if the athlete slows (or accelerates) the\nlift after barbell separation. In the first",
     "7350": "Ryan Asks: What can I do to improve on keeping my chest up and ass down on the snatch pull as the weight gets heavier? I find myself bouncing the bar a little t",
     "7199": "The cause of tipping forward in squats is counterintuitive to most of us, which is why our solutions often fail completely.\n\nIt\u2019s natural to think that because ",
-    "11898": "(10) A narrow split. Cause: The lifter is not successful in performing the drop, splitting the legs forwards-backwards, because the upward movement of the bar i"
+    "11898": "(10) A narrow split. Cause: The lifter is not successful in performing the drop, splitting the legs forwards-backwards, because the upward movement of the bar i",
+    "7314": "This is normally the result of the lifter being so focused on the split that they begin it too early, and in combination with that, leaning or diving the chest "
    }
   },
   {
@@ -2955,7 +2959,8 @@
     "4582": 2,
     "12612": 1,
     "12613": 2,
-    "3758": 1
+    "3758": 1,
+    "3809": 1
    },
    "snippets": {
     "3746": "Because you\u2019ve done such low volumes of training during the recovery session(s), just going to the planned volume in the next stimulative session might be a bit",
@@ -2983,7 +2988,8 @@
     "4582": "Within a microcycle, a lifter will not achieve complete recovery between training sessions, but this is not the goal. An entire training cycle will involve the ",
     "12612": "In the business world you'll hear the expression, \"Work hard and you'll suc-\n\nceed.\" The saying should be \"Work intelli- gently (smart) and you'll succeed.\"\n\nTH",
     "12613": "Drawing on my own experiences when I was in my teens, I could push myself almost every other workout, but when I was in my early twenties, I was generally able ",
-    "3758": "What this dynamic reinforces is that there is likely a range of training magnitudes (per session) that produce the best relationships of growth to fatigue, and "
+    "3758": "What this dynamic reinforces is that there is likely a range of training magnitudes (per session) that produce the best relationships of growth to fatigue, and ",
+    "3809": "Obsessing over training program details is nearly worthless if you eat poorly and do not sleep enough. How you or any other lifter responds to a given training "
    }
   },
   {
@@ -3151,7 +3157,15 @@
     "5169": 1,
     "5190": 1,
     "5744": 0,
-    "8919": 0
+    "8919": 0,
+    "5179": 1,
+    "11924": 0,
+    "10462": 1,
+    "12069": 0,
+    "7789": 1,
+    "10511": 1,
+    "10567": 0,
+    "12611": 2
    },
    "snippets": {
     "3816": "At three sessions per week, beginners should be training virtually every muscle in every session. (Though this might change for training 4-5 times per week, as ",
@@ -3185,7 +3199,8 @@
     "5169": "A Class 2 weightlifter is able to perform training sessions with both a classic \nsnatch and a power clean in combination or a power snatch and classic clean & j",
     "5190": "Class 2 training is much more in line with classic program planning since the \nexercise selection is somewhat more limited. The technique of the lifts has been ",
     "5744": "Weightlifting is truly one of the greatest sports \never conceived by the mind of man or woman. It is \nmy profound hope that this book will help to make \nsomeone",
-    "8919": "Two lifters stood out; from the many competitors who seemed to be stamped from the same mold. The two lifters who both placed 2nd in their respective weight cla"
+    "8919": "Two lifters stood out; from the many competitors who seemed to be stamped from the same mold. The two lifters who both placed 2nd in their respective weight cla",
+    "12611": "THE OLYMPIC LIFTS TRAINING PROGRAM\n\nYou will be happy to learn that it is not nec- essary to spend 30 hours a week in the gym to become an outstanding Olympic w"
    }
   },
   {
@@ -3226,7 +3241,8 @@
     "4572": 1,
     "5952": 1,
     "8521": 1,
-    "12128": 0
+    "12128": 0,
+    "13250": 1
    },
    "snippets": {
     "10640": "I won\u2019t spend a ton of time hashing out long-winded examples of each of the four points because they are pretty self-explanatory, so quick explanations should s",
@@ -3258,7 +3274,8 @@
     "4572": "Waves\n In some cases, intensity may be prescribed in repeated series of ascending weights. Rather than a uniform weight across the total number of sets, or asce",
     "5952": "There is a virtually unlimited number of possible \nset, rep and intensity patterns that can be \nperformed in a given workout. However, some \npopular general pat",
     "8521": "It is necessary to point out something about the back squat. This exercise performed in the 50 to 80% zones practically does not lose its effectiveness with the",
-    "12128": "Table 9.1\u2005\u2005\u2005\u2005Training Parameters for the Hypertrophy Phase\n\nDuration of hypertrophy phase\n\n6-8 weeks\n\nLoad\n\n60%-80% of 1RM\n\nNumber of exercises\n\n6-9\n\nNumber of "
+    "12128": "Table 9.1\u2005\u2005\u2005\u2005Training Parameters for the Hypertrophy Phase\n\nDuration of hypertrophy phase\n\n6-8 weeks\n\nLoad\n\n60%-80% of 1RM\n\nNumber of exercises\n\n6-9\n\nNumber of ",
+    "13250": "For the development of strength, it seems that training intensities of 80\u2013100% of 1RM provide the largest mean effect for those with resistance-training experie"
    }
   },
   {
@@ -3824,7 +3841,8 @@
     "11544": 1,
     "10608": 1,
     "10617": 2,
-    "3840": 0
+    "3840": 0,
+    "13239": 1
    },
    "snippets": {
     "10620": "This is where Mike Tuchscherer comes in. For those who don\u2019t know, Mike is an IPF champion and one of the most respected modern powerlifting coaches, having wor",
@@ -3850,7 +3868,8 @@
     "11544": "RPE/repetitions in reserve) and process-focused resistance \ntraining methods. For example, if a novice athlete required \ntechnique stabilization, measures of bi",
     "10608": "Using APRE to progress weekly training load is a form of autoregulation in that you are using the previous week\u2019s performance to dictate load for the current we",
     "10617": "What exactly is autoregulation? This article by Eric Helms cuts through the misconceptions and discusses implementation of autoregulation and RPE.\n\nNote from Gr",
-    "3840": "While understanding what is optimal is a good idea for anyone interested in hypertrophy, the average person has less-than-optimal time for training. The bad new"
+    "3840": "While understanding what is optimal is a good idea for anyone interested in hypertrophy, the average person has less-than-optimal time for training. The bad new",
+    "13239": "A rating of perceived exertion (RPE) scale is a tool used to monitor the perceptual response to training, which has been well established as a method of determi"
    }
   },
   {

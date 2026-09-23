@@ -186,6 +186,15 @@ PROMPT_PRINCIPLE_CATEGORIES: tuple[str, ...] = (
 # ties by id, and takes at most this many principles of one category.
 PRINCIPLE_RELEVANCE_WEIGHT: float = 1.0
 MAX_PRINCIPLES_PER_CATEGORY: int = 3
+# The condition vocabulary has no injury key, so an injury / rehab rule reads as
+# unconditional: program 32 (2026-09-22) showed "[235] Emphasize heavy pulls
+# during knee injury recovery — avoid full clean, full snatch, squats" in 10
+# prompts of an uninjured athlete. A principle whose name or rationale matches
+# one of these word stems is only selected when the athlete has injuries.
+INJURY_PRINCIPLE_TERMS: tuple[str, ...] = (
+    "injur", "rehab", "return to sport", "return to training", "surgery", "post-op",
+    "tendinopathy", "tendinitis", "tendonitis",
+)
 PRINCIPLE_RATIONALE_PROMPT_CHARS: int = 150  # rationale shown per principle line
 
 # ── Session context assembly (RAG-H4) ───────────────────────────

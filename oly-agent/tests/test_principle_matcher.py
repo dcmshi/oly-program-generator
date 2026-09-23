@@ -8,6 +8,7 @@ Run: PYTHONUTF8=1 uv run pytest tests/test_principle_matcher.py -q
 
 import sys
 from pathlib import Path
+from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -141,7 +142,7 @@ def test_state_decrements_weeks_out_per_week_and_reads_outcome_and_logs():
         "phase": "intensification", "athlete_level": "intermediate",
         "weeks_out_from_competition": 4, "training_age_years": 2.5,
         "week_of_block": 3, "movement_family": "clean",
-        "recent_make_rate": 0.72, "rpe_average_last_week": 8.5,
+        "recent_make_rate": 0.72, "rpe_average_last_week": 8.5, "has_injuries": False,
     }
 
 
@@ -224,3 +225,34 @@ def test_select_still_applies_conditions_with_query():
     cands = [_p(1, 9, "volume", name="snatch volume", condition={"movement_family": "clean"}),
              _p(2, 1, "volume", name="other")]
     assert [p["id"] for p in select_principles(cands, _STATE, query="snatch volume")] == [2]
+
+
+def test_injury_specific_principles_only_reach_injured_athletes():
+    """Program 32: an injury-rehab rule ('avoid full clean, full snatch, squats')
+    has no condition the vocabulary can express, so it read as unconditional."""
+    from principle_matcher import is_injury_specific, select_principles
+
+    rehab = {"id": 235, "principle_name": "Emphasize heavy pulls during knee injury recovery", "priority": 9,
+             "rationale": "Pulls keep strength while the knee heals.", "category": "exercise_selection",
+             "condition": {}, "recommendation": {"avoid_exercises": ["full clean"]}}
+    normal = {"id": 1, "principle_name": "Competition lifts first", "priority": 5, "rationale": "Fresh CNS.",
+              "category": "exercise_selection", "condition": {}, "recommendation": {"competition_lifts_first": True}}
+    tendon = {**normal, "id": 2, "principle_name": "Load management", "rationale": "Patellar tendinopathy flares."}
+    assert is_injury_specific(rehab) and is_injury_specific(tendon) and not is_injury_specific(normal)
+    healthy = select_principles([rehab, normal, tendon], {"has_injuries": False})
+    assert [p["id"] for p in healthy] == [1]
+    injured = select_principles([rehab, normal, tendon], {"has_injuries": True})
+    assert {p["id"] for p in injured} == {235, 1, 2}
+    assert {p["id"] for p in select_principles([rehab, normal], {})} == {235, 1}       # no flag → unfiltered
+
+
+def test_build_session_state_carries_has_injuries():
+    from principle_matcher import build_session_state
+
+    def ctx(injuries):
+        return SimpleNamespace(weeks_to_competition=None, previous_program=None, recent_logs=[],
+                               level="intermediate", athlete={}, injuries=injuries)
+    plan = SimpleNamespace(phase="accumulation")
+    tmpl = SimpleNamespace(primary_movement="snatch")
+    assert build_session_state(ctx([]), plan, 1, tmpl)["has_injuries"] is False
+    assert build_session_state(ctx(["left knee"]), plan, 1, tmpl)["has_injuries"] is True

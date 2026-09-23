@@ -41,7 +41,7 @@ import logging
 import operator
 import re
 
-from shared.constants import MAX_PRINCIPLES_PER_CATEGORY, PRINCIPLE_RELEVANCE_WEIGHT
+from shared.constants import INJURY_PRINCIPLE_TERMS, MAX_PRINCIPLES_PER_CATEGORY, PRINCIPLE_RELEVANCE_WEIGHT
 
 logger = logging.getLogger(__name__)
 
@@ -139,7 +139,16 @@ def build_session_state(athlete_context, plan, week_number: int, session_templat
         "movement_family": session_template.primary_movement,
         "recent_make_rate": make_rate,
         "rpe_average_last_week": (sum(rpes) / len(rpes)) if rpes else None,
+        # not a condition key — gates injury / rehab principles in select_principles
+        "has_injuries": bool(athlete_context.injuries),
     }
+
+
+def is_injury_specific(principle: dict) -> bool:
+    """True when the principle's name or rationale is about injury / rehab
+    (INJURY_PRINCIPLE_TERMS) — rules the condition vocabulary can't gate."""
+    text = f"{principle.get('principle_name') or ''} {principle.get('rationale') or ''}".lower()
+    return any(term in text for term in INJURY_PRINCIPLE_TERMS)
 
 
 # Words from `retrieve.build_session_query`'s template and plain English that
@@ -205,6 +214,8 @@ def select_principles(
     """
     terms = query_terms(query)
     kept = [p for p in candidates if condition_matches(p.get("condition"), state)]
+    if state.get("has_injuries") is False:           # absent (older callers) → no filter
+        kept = [p for p in kept if not is_injury_specific(p)]
 
     def score(p: dict) -> float:
         return (p.get("priority") or 0) + PRINCIPLE_RELEVANCE_WEIGHT * relevance_overlap(p, terms)
