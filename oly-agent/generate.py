@@ -722,7 +722,7 @@ def _already_prescribed_section(already_prescribed: list[dict], week_target: Wee
                                 cumulative_comp_reps: int) -> str:
     if already_prescribed:
         # DOG-1: accessories already used twice this week are named so the model
-        # varies them (validate.py check 7 warns on the same rule).
+        # varies them (validate.py check 8 warns on the same rule).
         acc_days = Counter(
             ex.get("exercise_name") for ex in already_prescribed if is_accessory(ex.get("exercise_name"))
         )

@@ -2,13 +2,20 @@
 """
 Step 5: VALIDATE — Check the generated session against programming constraints.
 
-Checks:
-  1. Prilepin's volume compliance (weekly cumulative reps per zone)
-  2. Intensity envelope (no exercise exceeds the week's ceiling)
-  3. Reps-per-set compliance per Prilepin's zone
-  4. Athlete avoid list (exercise_preferences.avoid)
-  5. Programming principle recommendations
-  6. Session duration estimate vs athlete's available time
+Checks, one function each, run in this order by validate_session (AUD-6):
+   0. DB-constraint mirror (NOT NULL / CHECK / column widths)      error
+   1. Prilepin per-session volume per zone                         error > hard cap, else warning
+   2. Weekly cumulative competition-lift rep budget                warning
+   3. Intensity envelope (week ceiling / floor)                    error on comp lifts, else warning
+   4. Reps per set per Prilepin zone (comp lifts)                  error >= 90 %, warning 80-90 %
+   5. Athlete avoid list (exercise_preferences.avoid)              error
+   6. Programming principle recommendations                        warning
+   7. Warm-up ordering per lift family                             warning
+   8. Accessory variety across the week                            warning
+   9. Estimated session duration vs available time                 warning
+  10. RPE target vs intensity                                      warning
+  11. Fault-correction exercise coverage                           warning
+  12. Strength-limiter coverage                                    warning
 """
 
 import sys
@@ -61,57 +68,15 @@ def _numeric_pct(ex: dict) -> float | None:
         return None
 
 
-def validate_session(
-    session_exercises: list[dict],
-    week_target: dict,
-    active_principles: list[dict],
-    athlete: dict,
-    week_cumulative_reps: dict | None = None,
-    fault_exercise_names: list[str] | None = None,
-    week_already_prescribed: list[dict] | None = None,
-) -> ValidationResult:
-    """Validate a generated session against all programming constraints.
+def _check_db_constraints(session_exercises: list[dict], errors: list[str]) -> None:
+    """Check 0: DB-constraint mirror.
 
-    Args:
-        session_exercises: LLM-generated exercise list for this session
-        week_target: WeekTarget dict (intensity_floor, intensity_ceiling, etc.)
-        active_principles: programming_principles rows
-        athlete: athletes row (for session_duration_minutes, exercise_preferences)
-        week_cumulative_reps: {zone_key: total_reps} already prescribed earlier
-                               in the same week; None on the first session.
-        fault_exercise_names: flat list of exercise names known to address the athlete's
-                               technical faults (from retrieval_context.fault_exercises).
-                               If None, fault-coverage check is skipped.
-
-    Returns:
-        ValidationResult with is_valid, errors, warnings, session_comp_reps.
+    session_exercises enforces NOT NULL sets/reps (CHECK >= 1), NOT NULL
+    exercise_order (UNIQUE per session), and intensity_pct in (0, 120].
+    Violations must fail HERE so generate's retry loop can fix them — otherwise
+    the IntegrityError fires at save time, after every session was already paid
+    for (AGT-M4, audit2-M1).
     """
-    errors: list[str] = []
-    warnings: list[str] = []
-
-    # Guard: empty session is always invalid
-    if not session_exercises:
-        return ValidationResult(
-            is_valid=False,
-            errors=["Session has no exercises — LLM returned an empty list"],
-            warnings=[],
-            session_comp_reps={},
-        )
-
-    # Normalize week_target to plain dict if it's a WeekTarget dataclass
-    if hasattr(week_target, "__dataclass_fields__"):
-        from dataclasses import asdict
-        week_target = asdict(week_target)
-
-    intensity_ceiling = week_target.get("intensity_ceiling", 100)
-    intensity_floor = week_target.get("intensity_floor", 0)
-
-    # ── Check 0: DB-constraint mirror ─────────────────────────
-    # session_exercises enforces NOT NULL sets/reps (CHECK >= 1),
-    # NOT NULL exercise_order (UNIQUE per session), and intensity_pct in
-    # (0, 120]. Violations must fail HERE so generate's retry loop can fix
-    # them — otherwise the IntegrityError fires at save time, after every
-    # session was already paid for (AGT-M4, audit2-M1).
     seen_orders: set = set()
     for ex in session_exercises:
         name = ex.get("exercise_name") or "exercise"
@@ -177,13 +142,10 @@ def validate_session(
         else:
             seen_orders.add(order_val)
 
-    # ── Check 1: Prilepin's per-session volume compliance ─────
-    # Prilepin's chart gives rep targets PER SESSION, not per week.
-    # 70-80% zone: 12-24 reps per session (optimal 18).
-    # The weekly total is managed via session_volume_share and volume_modifier
-    # in the plan step; here we only enforce the per-session ceiling.
-    comp_lift_reps: dict[str, int] = {}
 
+def _session_comp_lift_reps(session_exercises: list[dict]) -> dict[str, int]:
+    """Working competition-lift reps per Prilepin zone for this session."""
+    comp_lift_reps: dict[str, int] = {}
     for ex in session_exercises:
         if not is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference")):
             continue
@@ -205,12 +167,22 @@ def validate_session(
         except (TypeError, ValueError):
             continue  # Check 0 already errored on the malformed field
         comp_lift_reps[zone] = comp_lift_reps.get(zone, 0) + total
+    return comp_lift_reps
 
+
+def _check_prilepin_session_volume(comp_lift_reps: dict[str, int], errors: list[str],
+                                   warnings: list[str]) -> None:
+    """Check 1: Prilepin's per-session volume compliance.
+
+    Prilepin's chart gives rep targets PER SESSION, not per week (70-80% zone:
+    12-24 reps per session, optimal 18). The weekly total is managed via
+    session_volume_share and volume_modifier in the plan step; here we only
+    enforce the per-session ceiling.
+    """
     for zone, session_total in comp_lift_reps.items():
         zone_data = get_prilepin_data(zone)
         if not zone_data:
             continue
-
         # Hard cap at 1.5× range_high to account for snatch variations that
         # all reference the same max (pause snatch, hang snatch, etc. each contribute
         # to the zone total). Prilepin's original chart counts the main competition
@@ -228,31 +200,43 @@ def validate_session(
                 f"(optimal {zone_data['optimal_total_reps']})"
             )
 
-    # ── Check 1b: Weekly cumulative rep budget ────────────────
-    # The module header promised a weekly check but week_cumulative_reps was
-    # never read (AGT-L3). Warn when the week's running comp-lift total blows
-    # past the plan's weekly budget by more than the tolerance — the LLM was
-    # told the remaining budget, so overshoot is a quality signal, not an error.
-    weekly_budget = week_target.get("total_competition_lift_reps") or 0
-    if weekly_budget:
-        prior_reps = sum((week_cumulative_reps or {}).values())
-        week_total = prior_reps + sum(comp_lift_reps.values())
-        if week_total > weekly_budget * WEEKLY_REP_BUDGET_TOLERANCE:
-            warnings.append(
-                f"Weekly comp-lift volume {week_total} reps exceeds the week's "
-                f"budget of {weekly_budget} by more than "
-                f"{WEEKLY_REP_BUDGET_TOLERANCE - 1:.0%}"
-            )
 
-    # ── Check 2: Intensity envelope ───────────────────────────
+def _check_weekly_rep_budget(comp_lift_reps: dict[str, int], week_target: dict,
+                             week_cumulative_reps: dict | None, warnings: list[str]) -> None:
+    """Check 2: weekly cumulative rep budget (AGT-L3).
+
+    Warn when the week's running comp-lift total blows past the plan's weekly
+    budget by more than the tolerance — the LLM was told the remaining budget,
+    so overshoot is a quality signal, not an error.
+    """
+    weekly_budget = week_target.get("total_competition_lift_reps") or 0
+    if not weekly_budget:
+        return
+    prior_reps = sum((week_cumulative_reps or {}).values())
+    week_total = prior_reps + sum(comp_lift_reps.values())
+    if week_total > weekly_budget * WEEKLY_REP_BUDGET_TOLERANCE:
+        warnings.append(
+            f"Weekly comp-lift volume {week_total} reps exceeds the week's "
+            f"budget of {weekly_budget} by more than "
+            f"{WEEKLY_REP_BUDGET_TOLERANCE - 1:.0%}"
+        )
+
+
+def _check_intensity_envelope(session_exercises: list[dict], week_target: dict,
+                              errors: list[str], warnings: list[str]) -> None:
+    """Check 3: intensity envelope.
+
+    The week ceiling is a competition-lift ceiling. Pulls/squats are routinely
+    programmed above it (supramaximal pulls) whether they reference their own
+    max or borrow the clean's, so only comp lifts hard-error here; non-comp
+    lifts merely warn if implausibly high (A-L4).
+    """
+    intensity_ceiling = week_target.get("intensity_ceiling", 100)
+    intensity_floor = week_target.get("intensity_floor", 0)
     for ex in session_exercises:
         pct = _numeric_pct(ex)
         if pct is None:
             continue
-        # The week ceiling is a competition-lift ceiling. Pulls/squats are
-        # routinely programmed above it (supramaximal pulls) whether they
-        # reference their own max or borrow the clean's, so only comp lifts
-        # hard-error here; non-comp lifts merely warn if implausibly high (A-L4).
         comp_lift = is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference"))
         if pct > intensity_ceiling:
             if comp_lift:
@@ -273,9 +257,13 @@ def validate_session(
                 f"for competition lifts"
             )
 
-    # ── Check 3: Reps-per-set compliance ─────────────────────
-    # Prilepin's table is for the classic lifts; a 3×3 @ 90% clean pull or a
-    # heavy squat triple is normal programming and must not trip it.
+
+def _check_reps_per_set(session_exercises: list[dict], errors: list[str], warnings: list[str]) -> None:
+    """Check 4: reps-per-set compliance.
+
+    Prilepin's table is for the classic lifts; a 3×3 @ 90% clean pull or a
+    heavy squat triple is normal programming and must not trip it.
+    """
     for ex in session_exercises:
         if not is_competition_lift(ex.get("exercise_name"), ex.get("intensity_reference")):
             continue
@@ -292,7 +280,9 @@ def validate_session(
                 f"Prilepin suggests max 4 reps/set in 80-90% zone"
             )
 
-    # ── Check 4: Athlete avoid list ───────────────────────────
+
+def _check_avoid_list(session_exercises: list[dict], athlete: dict, errors: list[str]) -> None:
+    """Check 5: the athlete's avoid list (exercise_preferences.avoid)."""
     avoid_list = [
         name.lower().replace(" ", "_")
         for name in (athlete.get("exercise_preferences") or {}).get("avoid", [])
@@ -302,7 +292,10 @@ def validate_session(
         if name_norm in avoid_list:
             errors.append(f"{ex.get('exercise_name')} is in athlete's avoid list")
 
-    # ── Check 5: Principle compliance ─────────────────────────
+
+def _check_principles(session_exercises: list[dict], active_principles: list[dict],
+                      warnings: list[str]) -> None:
+    """Check 6: programming principle recommendations."""
     for principle in active_principles:
         rec = principle.get("recommendation") or {}
         if isinstance(rec, str):
@@ -318,10 +311,14 @@ def validate_session(
                     f"but principle requires competition lifts first"
                 )
 
-    # ── Check 8: Warm-up ordering per lift family ────────────
-    # A warm-up may be a lighter variant (muscle snatch before snatch) — what
-    # matters is that every warm-up set of a family precedes that family's
-    # first working set. Warning only: the session is still usable.
+
+def _check_warmup_order(session_exercises: list[dict], warnings: list[str]) -> None:
+    """Check 7: warm-up ordering per lift family.
+
+    A warm-up may be a lighter variant (muscle snatch before snatch) — what
+    matters is that every warm-up set of a family precedes that family's first
+    working set. Warning only: the session is still usable.
+    """
     first_working: dict[str, int] = {}
     ordered = sorted(session_exercises, key=lambda e: e.get("exercise_order") or 0)
     for ex in ordered:
@@ -339,9 +336,14 @@ def validate_session(
                 f"(order {ex.get('exercise_order')} > {first_working[fam]})"
             )
 
-    # ── Check 7: Accessory variety across the week (DOG-1) ────
-    # A warning only — an accessory repeated a third time is a quality note,
-    # not worth a paid retry.
+
+def _check_accessory_variety(session_exercises: list[dict], week_already_prescribed: list[dict] | None,
+                             warnings: list[str]) -> None:
+    """Check 8: accessory variety across the week (DOG-1).
+
+    A warning only — an accessory repeated a third time is a quality note, not
+    worth a paid retry.
+    """
     prior_acc = Counter(
         ex.get("exercise_name") for ex in (week_already_prescribed or []) if is_accessory(ex.get("exercise_name"))
     )
@@ -353,7 +355,9 @@ def validate_session(
                 f"(max {MAX_ACCESSORY_SESSIONS_PER_WEEK} for an accessory)"
             )
 
-    # ── Check 6: Estimated session duration ───────────────────
+
+def _check_duration(session_exercises: list[dict], athlete: dict, warnings: list[str]) -> None:
+    """Check 9: estimated session duration vs the athlete's available time."""
     available_minutes = athlete.get("session_duration_minutes") or DEFAULT_SESSION_DURATION_MINUTES
     estimated_minutes = estimate_session_minutes(session_exercises)
     if estimated_minutes > available_minutes * SESSION_DURATION_TOLERANCE:
@@ -362,9 +366,13 @@ def validate_session(
             f"available {available_minutes} min"
         )
 
-    # ── Check 7: RPE target vs intensity appropriateness ──────
-    # High-intensity sets should carry a high RPE target — if the LLM assigns
-    # a low RPE to a heavy set it likely miscalibrated the prescription.
+
+def _check_rpe_vs_intensity(session_exercises: list[dict], warnings: list[str]) -> None:
+    """Check 10: RPE target vs intensity.
+
+    High-intensity sets should carry a high RPE target — if the LLM assigns a
+    low RPE to a heavy set it likely miscalibrated the prescription.
+    """
     for ex in session_exercises:
         pct = _numeric_pct(ex) or 0
         rpe = ex.get("rpe_target")
@@ -385,36 +393,108 @@ def validate_session(
                 f"intensity 80–90% typically warrants RPE 7.0+"
             )
 
-    # ── Check 8: Fault-correction exercise coverage ───────────
-    # If the athlete has identified technical faults and fault-correction exercises
-    # were retrieved, warn when none of those exercises appear in this session.
-    # Skipped when fault_exercise_names is None (not provided by caller).
+
+def _check_fault_coverage(session_exercises: list[dict], athlete: dict,
+                          fault_exercise_names: list[str] | None, warnings: list[str]) -> None:
+    """Check 11: fault-correction exercise coverage.
+
+    When the athlete has technical faults and fault-correction exercises were
+    retrieved, warn if none of them appear in this session. Skipped when
+    fault_exercise_names is None (not provided by the caller).
+    """
     technical_faults = athlete.get("technical_faults") or []
-    if technical_faults and fault_exercise_names is not None:
-        prescribed_lower = {(ex.get("exercise_name") or "").lower() for ex in session_exercises}
-        fault_lower = {name.lower() for name in fault_exercise_names}
-        if not prescribed_lower & fault_lower:
+    if not technical_faults or fault_exercise_names is None:
+        return
+    prescribed_lower = {(ex.get("exercise_name") or "").lower() for ex in session_exercises}
+    fault_lower = {name.lower() for name in fault_exercise_names}
+    if not prescribed_lower & fault_lower:
+        warnings.append(
+            f"Athlete has technical faults ({', '.join(technical_faults)}) "
+            f"but no fault-correction exercises were selected this session"
+        )
+
+
+def _check_strength_limiters(session_exercises: list[dict], athlete: dict, warnings: list[str]) -> None:
+    """Check 12: strength limiter coverage.
+
+    Keyword matching against exercise names — not exhaustive, but catches the
+    common case of a squat/pull/overhead limiter with no relevant work.
+    """
+    strength_limiters = athlete.get("strength_limiters") or []
+    if not strength_limiters:
+        return
+    prescribed_names_lower = [(ex.get("exercise_name") or "").lower() for ex in session_exercises]
+    for limiter in strength_limiters:
+        keywords = _LIMITER_KEYWORDS.get(limiter, [])
+        if not keywords:
+            continue
+        if not any(kw in name for kw in keywords for name in prescribed_names_lower):
             warnings.append(
-                f"Athlete has technical faults ({', '.join(technical_faults)}) "
-                f"but no fault-correction exercises were selected this session"
+                f"Strength limiter '{limiter}' not addressed — "
+                f"consider adding {keywords[0]}-focused work"
             )
 
-    # ── Check 9: Strength limiter coverage ────────────────────
-    # Warn when a declared strength limiter has no matching exercise this session.
-    # Uses keyword matching against exercise names — not exhaustive but catches
-    # the common case of squat/pull/overhead limiters with no relevant work.
-    strength_limiters = athlete.get("strength_limiters") or []
-    if strength_limiters:
-        prescribed_names_lower = [(ex.get("exercise_name") or "").lower() for ex in session_exercises]
-        for limiter in strength_limiters:
-            keywords = _LIMITER_KEYWORDS.get(limiter, [])
-            if not keywords:
-                continue
-            if not any(kw in name for kw in keywords for name in prescribed_names_lower):
-                warnings.append(
-                    f"Strength limiter '{limiter}' not addressed — "
-                    f"consider adding {keywords[0]}-focused work"
-                )
+
+def validate_session(
+    session_exercises: list[dict],
+    week_target: dict,
+    active_principles: list[dict],
+    athlete: dict,
+    week_cumulative_reps: dict | None = None,
+    fault_exercise_names: list[str] | None = None,
+    week_already_prescribed: list[dict] | None = None,
+) -> ValidationResult:
+    """Validate a generated session against all programming constraints.
+
+    Runs checks 0–12 (module docstring) in order; each appends to the shared
+    errors / warnings lists, so their order is the check order.
+
+    Args:
+        session_exercises: LLM-generated exercise list for this session
+        week_target: WeekTarget dict (intensity_floor, intensity_ceiling, etc.)
+        active_principles: programming_principles rows
+        athlete: athletes row (for session_duration_minutes, exercise_preferences)
+        week_cumulative_reps: {zone_key: total_reps} already prescribed earlier
+                               in the same week; None on the first session.
+        fault_exercise_names: flat list of exercise names known to address the athlete's
+                               technical faults (from retrieval_context.fault_exercises).
+                               If None, fault-coverage check is skipped.
+        week_already_prescribed: exercises prescribed earlier in the week
+                               (accessory-variety check).
+
+    Returns:
+        ValidationResult with is_valid, errors, warnings, session_comp_reps.
+    """
+    # Guard: empty session is always invalid
+    if not session_exercises:
+        return ValidationResult(
+            is_valid=False,
+            errors=["Session has no exercises — LLM returned an empty list"],
+            warnings=[],
+            session_comp_reps={},
+        )
+
+    # Normalize week_target to plain dict if it's a WeekTarget dataclass
+    if hasattr(week_target, "__dataclass_fields__"):
+        from dataclasses import asdict
+        week_target = asdict(week_target)
+
+    errors: list[str] = []
+    warnings: list[str] = []
+    _check_db_constraints(session_exercises, errors)
+    comp_lift_reps = _session_comp_lift_reps(session_exercises)
+    _check_prilepin_session_volume(comp_lift_reps, errors, warnings)
+    _check_weekly_rep_budget(comp_lift_reps, week_target, week_cumulative_reps, warnings)
+    _check_intensity_envelope(session_exercises, week_target, errors, warnings)
+    _check_reps_per_set(session_exercises, errors, warnings)
+    _check_avoid_list(session_exercises, athlete, errors)
+    _check_principles(session_exercises, active_principles, warnings)
+    _check_warmup_order(session_exercises, warnings)
+    _check_accessory_variety(session_exercises, week_already_prescribed, warnings)
+    _check_duration(session_exercises, athlete, warnings)
+    _check_rpe_vs_intensity(session_exercises, warnings)
+    _check_fault_coverage(session_exercises, athlete, fault_exercise_names, warnings)
+    _check_strength_limiters(session_exercises, athlete, warnings)
 
     return ValidationResult(
         is_valid=len(errors) == 0,
