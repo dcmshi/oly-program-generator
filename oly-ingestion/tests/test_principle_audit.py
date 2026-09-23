@@ -8,6 +8,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from principle_audit import (
+    SOURCE_FILES,
     Claim,
     audit_principle,
     evaluate,
@@ -72,14 +73,184 @@ def test_source_without_text_is_unverifiable_not_flagged():
 def test_source_files_map_is_explicit():
     files = [Path("Tudor Bompa, Carlo Buzzichelli - Periodization.epub"),
              Path("Hornsby 2017 - Strength RFD and power.txt")]
-    assert match_source_files(802, files) == [files[0]]
-    assert match_source_files(5, files) == []                     # the never-obtained book
+    bompa = SOURCE_FILES[("Periodization of Strength Training for Sports", None)]
+    assert match_source_files(bompa, files) == [files[0]]
+    assert match_source_files("", files) == []
+    # the never-obtained *A System of…* book has no entry (fuzzy matching paired it with *Program of…*)
+    assert not any("A System of" in title for title, _a in SOURCE_FILES)
+
+
+_SOURCE_ROWS = [   # (id, title, author) as `SELECT id, title, author FROM sources` returns them
+    (3, "Managing the Training of Weightlifters", "Nikolai Laputin, Valentin Oleshko"),
+    (499, "Managing the Training of Weightlifters", "N.P. Laputin, V.G. Oleshko"),
+    (531, "Managing the Training of Weightlifters", "Andrew Charniga"),        # a web article
+    (802, "Periodization of Strength Training for Sports", "Tudor Bompa"),
+    (902, "Periodization of Strength Training for Sports", "Tudor Bompa"),     # a re-ingest beside the old row
+]
+
+
+def test_resolve_source_ids_keys_by_title_and_author_where_titles_repeat():
+    from unittest.mock import MagicMock
+
+    from principle_audit import resolve_source_ids
+
+    cur = MagicMock()
+    cur.fetchall.return_value = _SOURCE_ROWS
+    laputin = ("Managing the Training of Weightlifters", "N.P. Laputin, V.G. Oleshko")
+    bompa = ("Periodization of Strength Training for Sports", None)
+    missing = ("Weightlifting, Olympic Style", None)
+    ids = resolve_source_ids(cur, [laputin, bompa, missing])
+    assert ids == {laputin: [499], bompa: [802, 902], missing: []}
+    assert cur.execute.call_count == 1
+    assert sorted(cur.execute.call_args.args[1][0]) == sorted({laputin[0], bompa[0], missing[0]})
+
+
+def test_resolve_source_files_survives_renumbering_and_honours_only():
+    from unittest.mock import MagicMock
+
+    from principle_audit import resolve_source_files
+
+    cur = MagicMock()
+    cur.fetchall.return_value = _SOURCE_ROWS
+    assert resolve_source_files(cur) == {499: "N.P. Laputin", 802: "Tudor Bompa", 902: "Tudor Bompa"}
+    assert resolve_source_files(cur, [902]) == {902: "Tudor Bompa"}
+
+
+def test_load_source_texts_reads_each_file_once_and_can_skip_files():
+    from unittest.mock import MagicMock, patch
+
+    from principle_audit import load_source_texts
+
+    files = [Path("Tudor Bompa, Carlo Buzzichelli - Periodization.epub"), Path("Other - Book.pdf")]
+    cur = MagicMock()
+    cur.fetchall.side_effect = [[(802, "chunk text")], _SOURCE_ROWS]
+    with patch("principle_audit.file_text", return_value="file text") as ft:
+        texts = load_source_texts(cur, files)
+    ft.assert_called_once_with(files[0])                 # 802 and 902 share the file
+    assert "chunk text" in texts[802] and "file text" in texts[802] and "file text" in texts[902]
+    assert 499 not in texts or "file text" not in texts[499]
+
+    cur = MagicMock()
+    cur.fetchall.side_effect = [[(802, "chunk text")]]   # only the chunk query runs
+    with patch("principle_audit.file_text") as ft:
+        assert load_source_texts(cur, None, [802]) == {802: "chunk text"}
+    ft.assert_not_called()
+    assert cur.execute.call_count == 1
+
+
+def test_load_source_texts_keeps_going_when_a_file_cannot_be_read(caplog):
+    from unittest.mock import MagicMock, patch
+
+    from principle_audit import load_source_texts
+
+    cur = MagicMock()
+    cur.fetchall.side_effect = [[], _SOURCE_ROWS]
+    with patch("principle_audit.file_text", side_effect=OSError("locked")):
+        texts = load_source_texts(cur, [Path("Tudor Bompa - x.epub")])
+    assert texts[802].strip() == ""
+    assert "Could not read" in caplog.text
+
+
+def test_file_text_reads_the_ocr_cache_for_a_scan(tmp_path):
+    """A PDF whose text layer is under SCAN_TEXT_MIN_CHARS_PER_PAGE per page is
+    a scan: its text comes from sources/.ocr_cache/<sha256>.json."""
+    import json
+
+    import fitz
+    from extractors.ocr_cache import CACHE_DIRNAME, file_sha256
+    from principle_audit import file_text
+
+    pdf = tmp_path / "Scan - Book.pdf"
+    doc = fitz.open()
+    for _ in range(3):
+        doc.new_page()
+    doc.save(pdf)
+    doc.close()
+    (tmp_path / CACHE_DIRNAME).mkdir()
+    (tmp_path / CACHE_DIRNAME / f"{file_sha256(pdf)}.json").write_text(
+        json.dumps({"pages": {"2": "page two", "10": "page ten", "1": "page one"}}), encoding="utf-8")
+    text = file_text(pdf)
+    assert text.index("page one") < text.index("page two") < text.index("page ten")
+
+    txt = tmp_path / "Paper.txt"
+    txt.write_text("plain 80%", encoding="utf-8")
+    assert file_text(txt) == "plain 80%"
+    assert file_text(tmp_path / "notes.docx") == ""
+
+
+def test_audit_source_skips_sources_scan_when_document_text_is_given():
+    """End-of-ingest path: the document text is the file's content, so
+    sources/ is neither scanned nor re-extracted; without it the file side runs."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from principle_audit import audit_source
+
+    def run(document_text):
+        cur = MagicMock()
+        cur.fetchall.side_effect = [[], [], []]          # chunks, (sources), principles
+        conn = MagicMock()
+        conn.cursor.return_value = cur
+        with patch("psycopg2.connect", return_value=conn), \
+             patch("principle_audit.source_files", return_value=[Path("x.pdf")]) as sf, \
+             patch("principle_audit.file_text") as ft:
+            audit_source(1, SimpleNamespace(database_url="db"), document_text, apply=False)
+        return sf.call_count, ft.call_count
+
+    assert run("Pulls at 80-90%.") == (0, 0)
+    assert run("")[0] == 1
 
 
 def test_densest_window_picks_the_numeric_part():
     text = "prose " * 4000 + "70% 75% 80% 85% " * 50 + "prose " * 4000
     w = densest_window(text, size=2000)
     assert w.count("%") >= 100 and len(w) == 2000
+
+
+def test_pick_windows_resolves_books_by_title_and_takes_one_article_per_host():
+    """principle_model_compare.pick_windows: books resolved by title (the latest
+    row), Medvedev from its .txt not the scan PDF, a missing book skipped; per
+    web host the most number-dense article that can still be fetched."""
+    from unittest.mock import MagicMock, patch
+
+    import principle_model_compare as pmc
+
+    roman, vorobyev, bompa, medvedev, winwood = pmc.BOOK_SOURCES
+    cur = MagicMock()
+    cur.fetchall.side_effect = [
+        [(799, roman[0], "R.A. Roman"), (820, roman[0], "R.A. Roman"),   # re-ingested: 820 is live
+         (802, bompa[0], "Tudor Bompa"), (501, medvedev[0], "A.S. Medvedev"), (745, winwood[0], "Paul Winwood")],
+        [(11, "https://www.catalystathletics.com/a/", "Cat A", 90),       # web rows, densest first
+         (12, "https://www.catalystathletics.com/b/", "Cat B", 80),
+         (13, "https://www.strongerbyscience.com/t/", "SBS", 70)],
+    ]
+    files = [Path("R.A. Roman - Training.pdf"), Path("Tudor Bompa - Periodization.epub"),
+             Path("A.S. Medvedev - A Program of Multi-Year Training.pdf"),
+             Path("A.S. Medvedev - A Program of Multi-Year Training (OCR text).txt"),
+             Path("Winwood 2026 - Tapering.txt")]
+    dense = "prose " * 3000 + "80% " * 200 + "prose " * 3000
+
+    def fake_file_text(path):
+        return dense if path.suffix == ".txt" or "Roman" in path.name else "few numbers " * 2000
+
+    web = {"https://www.catalystathletics.com/a/": None,              # unfetchable → next row for the host
+           "https://www.catalystathletics.com/b/": "cat 70% text",
+           "https://www.strongerbyscience.com/t/": "sbs 60% text"}
+    with patch.object(pmc, "source_files", return_value=files), \
+         patch.object(pmc, "file_text", side_effect=fake_file_text) as ft, \
+         patch.object(pmc, "fetch_web_text", side_effect=web.get):
+        windows = pmc.pick_windows(cur)
+
+    labels = [w["label"] for w in windows]
+    assert labels == ["book:820", "book:802", "book:501", "book:745",       # Vorobyev has no row → skipped
+                      "web:catalystathletics:12", "web:strongerbyscience:13"]
+    by = {w["label"]: w for w in windows}
+    assert by["book:820"]["title"] == roman[0] and by["book:820"]["source_id"] == 820
+    assert by["book:820"]["text"].count("%") >= 150 and len(by["book:820"]["text"]) == pmc._PRINCIPLE_WINDOW
+    read = [c.args[0].name for c in ft.call_args_list]
+    assert "A.S. Medvedev - A Program of Multi-Year Training.pdf" not in read      # the scan is skipped
+    assert "A.S. Medvedev - A Program of Multi-Year Training (OCR text).txt" in read
+    assert by["web:catalystathletics:12"]["text"] == "cat 70% text"
 
 
 def test_competition_day_condition_is_not_a_numeric_claim_to_check():

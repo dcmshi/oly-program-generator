@@ -33,11 +33,13 @@ sys.path.insert(0, str(Path(__file__).parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))  # repo root for shared.*
 
 from principle_audit import (
-    _source_files,
+    SOURCE_FILES,
     audit_principle,
     fetch_web_text,
     file_text,
     match_source_files,
+    resolve_source_ids,
+    source_files,
     text_numbers,
 )
 from processors.principle_extractor import _PRINCIPLE_WINDOW, PrincipleExtractor
@@ -47,7 +49,17 @@ from shared.llm import create_message_growing, estimate_cost, usage_tokens
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
 
-BOOK_SOURCES = (799, 801, 802, 501, 745)          # Roman, Vorobyev, Bompa, Medvedev, Winwood
+# SOURCE_FILES keys (title, author), resolved to ids at runtime — a re-ingest
+# renumbers sources. Roman, Vorobyev, Bompa, Medvedev, Winwood.
+_MEDVEDEV = ("A Program of Multi-Year Training in Weightlifting", None)
+BOOK_SOURCES: tuple[tuple[str, str | None], ...] = (
+    ("The Training of the Weightlifter", None),
+    ("A Textbook on Weightlifting", None),
+    ("Periodization of Strength Training for Sports", None),
+    _MEDVEDEV,
+    ("Tapering and Peaking in the Weight Lifting Sports: A Systematic Review of Athletes' Self-Reported "
+     "Strategies", None),
+)
 WEB_HOSTS = ("catalystathletics.com", "sportivnypress.com", "strongerbyscience.com")
 
 
@@ -61,13 +73,20 @@ def densest_window(text: str, size: int = _PRINCIPLE_WINDOW) -> str:
 
 
 def pick_windows(cur) -> list[dict]:
-    files = _source_files()
+    """The densest window of each BOOK_SOURCES file (Medvedev from its OCR
+    text reconstruction, not the scan) and of the most number-dense article
+    per WEB_HOSTS host that can still be fetched."""
+    files = source_files()
     windows = []
-    cur.execute("SELECT id, title FROM sources WHERE id = ANY(%s)", (list(BOOK_SOURCES),))
-    titles = dict(cur.fetchall())
-    for sid in BOOK_SOURCES:
-        text = "\n\n".join(file_text(f) for f in match_source_files(sid, files) if f.suffix != ".pdf" or sid != 501)
-        windows.append({"label": f"book:{sid}", "source_id": sid, "title": titles[sid], "text": densest_window(text)})
+    ids = resolve_source_ids(cur, BOOK_SOURCES)
+    for key in BOOK_SOURCES:
+        if not ids[key]:
+            logger.warning(f"No sources row titled {key[0]!r} — window skipped")
+            continue
+        sid = ids[key][-1]                               # the latest row when a re-ingest kept the old one
+        text = "\n\n".join(file_text(f) for f in match_source_files(SOURCE_FILES[key], files)
+                           if f.suffix != ".pdf" or key != _MEDVEDEV)
+        windows.append({"label": f"book:{sid}", "source_id": sid, "title": key[0], "text": densest_window(text)})
     cur.execute("""
         SELECT s.id, s.url, s.title,
                sum(length(k.raw_content) - length(replace(k.raw_content, '%', ''))) AS pct
