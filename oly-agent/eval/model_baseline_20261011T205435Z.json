@@ -1,0 +1,225 @@
+{
+  "meta": {
+    "athlete_id": 1,
+    "sessions": 8,
+    "cost_limit": 1.5,
+    "run_at": "2026-10-11T20:54:35+00:00",
+    "configs": [
+      "openai/gpt-6.1-sol:disabled",
+      "moonshotai/kimi-k3:disabled"
+    ],
+    "deleted": false
+  },
+  "rows": [
+    {
+      "config": "openai/gpt-6.1-sol:disabled",
+      "program_id": null,
+      "error": "orchestrator.run returned None (see log)",
+      "sessions": 0,
+      "attempts": 0,
+      "first_try_ok": 0,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 12,
+      "output_tokens": 4253,
+      "cache_read_tokens": 11406,
+      "cost_usd": 0.0399,
+      "wall_s": 115.4,
+      "mean_call_s": 23.75,
+      "cost_per_session": null
+    },
+    {
+      "config": "moonshotai/kimi-k3:disabled",
+      "program_id": null,
+      "error": "orchestrator.run returned None (see log)",
+      "sessions": 0,
+      "attempts": 0,
+      "first_try_ok": 0,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 26531,
+      "output_tokens": 3007,
+      "cache_read_tokens": 0,
+      "cost_usd": 0.0647,
+      "wall_s": 163.4,
+      "mean_call_s": 39.06,
+      "cost_per_session": null
+    }
+  ],
+  "results": [
+    {
+      "config": "openai/gpt-6.1-sol:disabled",
+      "model": "openai/gpt-6.1-sol",
+      "thinking": "disabled",
+      "effort": "",
+      "program_id": null,
+      "wall_s": 115.4,
+      "calls": {
+        "calls": 4,
+        "errors": 0,
+        "input_tokens": 12,
+        "output_tokens": 4253,
+        "cache_read_tokens": 11406,
+        "cache_creation_tokens": 14472,
+        "cost_usd": 0.0399,
+        "mean_call_s": 23.75,
+        "stop_reasons": {
+          "end_turn": 4
+        },
+        "by_role": {
+          "generate": {
+            "calls": 4,
+            "mean_s": 23.75,
+            "max_s": 25.86,
+            "cost_usd": 0.0399
+          },
+          "explain": {
+            "calls": 0,
+            "mean_s": null,
+            "max_s": null,
+            "cost_usd": 0
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 21.534700600001088,
+          "input_tokens": 3,
+          "output_tokens": 981,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6312,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.012798,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 24.758371500000067,
+          "input_tokens": 3,
+          "output_tokens": 1115,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2580,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0089931,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 22.867626900002506,
+          "input_tokens": 3,
+          "output_tokens": 930,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2741,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00826935,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 25.859234800002014,
+          "input_tokens": 3,
+          "output_tokens": 1227,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2839,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00987685,
+          "error": null
+        }
+      ],
+      "error": "orchestrator.run returned None (see log)"
+    },
+    {
+      "config": "moonshotai/kimi-k3:disabled",
+      "model": "moonshotai/kimi-k3",
+      "thinking": "disabled",
+      "effort": "",
+      "program_id": null,
+      "wall_s": 163.4,
+      "calls": {
+        "calls": 4,
+        "errors": 0,
+        "input_tokens": 26531,
+        "output_tokens": 3007,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.0647,
+        "mean_call_s": 39.06,
+        "stop_reasons": {
+          "end_turn": 4
+        },
+        "by_role": {
+          "generate": {
+            "calls": 4,
+            "mean_s": 39.06,
+            "max_s": 75.29,
+            "cost_usd": 0.0647
+          },
+          "explain": {
+            "calls": 0,
+            "mean_s": null,
+            "max_s": null,
+            "cost_usd": 0
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 75.28515019999759,
+          "input_tokens": 6484,
+          "output_tokens": 753,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01609316,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 16.264489400000457,
+          "input_tokens": 6526,
+          "output_tokens": 676,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0149669,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 20.1842046999991,
+          "input_tokens": 6675,
+          "output_tokens": 821,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01723915,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 44.5207960000007,
+          "input_tokens": 6846,
+          "output_tokens": 757,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01642104,
+          "error": null
+        }
+      ],
+      "error": "orchestrator.run returned None (see log)"
+    }
+  ]
+}

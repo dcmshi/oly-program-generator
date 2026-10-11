@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "athlete_id": 1,
+    "sessions": 8,
+    "cost_limit": 1.5,
+    "run_at": "2026-10-11T21:57:36+00:00",
+    "configs": [
+      "openai/gpt-6.1-sol:adaptive:medium"
+    ],
+    "deleted": false
+  },
+  "rows": [
+    {
+      "config": "openai/gpt-6.1-sol:adaptive:medium",
+      "program_id": 37,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 467,
+      "output_tokens": 10903,
+      "cache_read_tokens": 26614,
+      "cost_usd": 0.0883,
+      "wall_s": 233.8,
+      "mean_call_s": 24.74,
+      "cost_per_session": 0.011
+    }
+  ],
+  "results": [
+    {
+      "config": "openai/gpt-6.1-sol:adaptive:medium",
+      "model": "openai/gpt-6.1-sol",
+      "thinking": "adaptive",
+      "effort": "medium",
+      "program_id": 37,
+      "wall_s": 233.8,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 467,
+        "output_tokens": 10903,
+        "cache_read_tokens": 26614,
+        "cache_creation_tokens": 25614,
+        "cost_usd": 0.0883,
+        "mean_call_s": 24.74,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 25.73,
+            "max_s": 32.58,
+            "cost_usd": 0.0851
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 16.83,
+            "max_s": 16.83,
+            "cost_usd": 0.0032
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 21.970294700000522,
+          "input_tokens": 3,
+          "output_tokens": 1227,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6312,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.014028,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 30.593784900000173,
+          "input_tokens": 3,
+          "output_tokens": 1606,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2575,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01144185,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 27.776954199998727,
+          "input_tokens": 3,
+          "output_tokens": 1268,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2713,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00992435,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 32.577272799997445,
+          "input_tokens": 3,
+          "output_tokens": 1667,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2816,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0120481,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 22.403308699998888,
+          "input_tokens": 3,
+          "output_tokens": 1063,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2618,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0087806,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 23.38881820000097,
+          "input_tokens": 3,
+          "output_tokens": 1147,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2776,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0093981,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 22.816338100001303,
+          "input_tokens": 3,
+          "output_tokens": 1083,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2815,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00912685,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 24.33345299999928,
+          "input_tokens": 3,
+          "output_tokens": 1290,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2989,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01037935,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 16.827656500001467,
+          "input_tokens": 443,
+          "output_tokens": 552,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.003203,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 24,
+        "log_output_tokens": 10351
+      }
+    }
+  ]
+}

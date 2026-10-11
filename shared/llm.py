@@ -47,7 +47,11 @@ MODEL_PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
     "z-ai/glm-5.3-flash": (0.09, 0.30),
     "deepseek/deepseek-v4.1-flash": (0.15, 0.60),
     "qwen/qwen3.8-flash": (0.15, 0.47),
-    "moonshotai/kimi-k3": (1.70, 8.50),
+    # Kimi K3: the cheapest-input providers that price routing lands on (2026-10-11);
+    # it was 1.70 / 8.50 under OpenRouter's load balancing.
+    "moonshotai/kimi-k3": (0.80, 13.50),
+    # OpenAI via OpenRouter, flex tier (MODEL-3, 2026-10-11; standard is 2 / 10)
+    "openai/gpt-6.1-sol": (1.00, 5.00),
 }
 DEFAULT_PRICING_PER_MTOK = MODEL_PRICING_PER_MTOK["claude-sonnet-4-6"]
 # Prompt-cache multipliers on the input rate (5-minute ephemeral cache).
@@ -60,6 +64,9 @@ CACHE_WRITE_MULTIPLIER = 1.25
 _NO_SAMPLING_PARAMS_PREFIXES = (
     "claude-sonnet-5", "claude-opus-4-7", "claude-opus-4-8", "claude-opus-5",
     "claude-fable-", "claude-mythos-",
+    # OpenAI reasoning models list no `temperature`; with require_parameters
+    # sending one leaves no endpoint ("No endpoints found", 404).
+    "gpt-",
 )
 # Families where omitting `thinking` runs adaptive thinking (default-on) …
 _THINKING_DEFAULT_ON_PREFIXES = ("claude-sonnet-5", "claude-opus-5", "claude-fable-", "claude-mythos-")
@@ -76,6 +83,18 @@ _ADAPTIVE_THINKING_PREFIXES = _THINKING_DEFAULT_ON_PREFIXES + (
 # "disabled" there becomes a fixed `budget_tokens` (the one cap it honours;
 # DeepSeek in turn ignores a budget — hence per-family handling).
 _REASONING_MANDATORY_PREFIXES = ("z-ai/glm-",)
+# GPT Sol also 400s on `disabled` ("Reasoning is mandatory"), but adaptive +
+# effort low spent 0 reasoning tokens on a schema reply (2026-10-11) — the
+# nearest thing to off. A budget there still spent 34.
+_EFFORT_CAPPED_PREFIXES = ("openai/gpt-",)
+_EFFORT_CAP = "low"
+# OpenAI's flex tier: half the standard rate for slower, best-effort serving.
+# OpenRouter's price sort doesn't pick it on its own; the request has to ask.
+_FLEX_TIER_PREFIXES = ("openai/",)
+# OpenAI's strict structured outputs reject an optional property ("'required'
+# ... must include every key in properties"); our schemas use Anthropic's
+# dialect, which allows them. `create_message_with_retries` translates.
+_ALL_REQUIRED_SCHEMA_PREFIXES = ("openai/",)
 OPEN_MODEL_THINKING_BUDGET_TOKENS = 1024
 THINKING_MODES = ("", "adaptive", "disabled")
 EFFORT_LEVELS = ("", "low", "medium", "high", "xhigh", "max")
@@ -117,6 +136,43 @@ def canonical_model(model: str | None) -> str:
         return ""
     base = model.rsplit("/", 1)[-1]
     return re.sub(r"^(claude-[a-z]+-\d)\.(\d)", r"\1-\2", base)
+
+
+def openrouter_routing(sort: str) -> dict:
+    """OpenRouter's `provider` request field for a sort order (MODEL-3).
+
+    `require_parameters` restricts the pick to providers that support every
+    parameter sent — structured outputs above all, which the cheapest backends
+    don't always serve. "none" / "" leaves routing to OpenRouter.
+    """
+    if not sort or sort == "none":
+        return {}
+    return {"provider": {"sort": sort, "require_parameters": True}}
+
+
+def request_extras(client, model: str | None = None) -> dict:
+    """`{"extra_body": …}` carrying the client's OpenRouter routing, else `{}`.
+
+    Under price routing an OpenAI model also asks for the flex tier, which the
+    price sort alone never selects. Every `messages.create` goes through
+    `create_message_with_retries`, which applies this; a call site that calls
+    the SDK directly spreads it in."""
+    routing = getattr(client, "openrouter_routing", None)
+    if not isinstance(routing, dict) or not routing:
+        return {}
+    body = dict(routing)
+    if model and model.startswith(_FLEX_TIER_PREFIXES) and routing.get("provider", {}).get("sort") == "price":
+        body["service_tier"] = "flex"
+    return {"extra_body": body}
+
+
+def billed_cost(usage) -> float | None:
+    """The USD cost OpenRouter reports on a response's usage (`usage.cost`) —
+    what was actually billed, at whichever provider served it — or None on the
+    first-party API, where `estimate_cost` is all there is."""
+    extra = getattr(usage, "model_extra", None)
+    value = extra.get("cost") if isinstance(extra, dict) else None
+    return float(value) if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def supports_batches(settings) -> bool:
@@ -185,7 +241,10 @@ def thinking_kwargs(model: str | None, mode: str = "", effort: str = "") -> dict
         raise ValueError("thinking 'disabled' cannot be combined with effort 'xhigh'/'max'")
     kwargs: dict = {}
     if _is_open_model(model):
-        if mode == "disabled" and model.startswith(_REASONING_MANDATORY_PREFIXES):
+        if mode == "disabled" and model.startswith(_EFFORT_CAPPED_PREFIXES):
+            kwargs["thinking"] = {"type": "adaptive"}
+            kwargs["output_config"] = {"effort": effort or _EFFORT_CAP}
+        elif mode == "disabled" and model.startswith(_REASONING_MANDATORY_PREFIXES):
             # The only cap GLM honours: adaptive + effort=low still spent 16k
             # output tokens on thinking with no text on the real session prompt;
             # a fixed budget returned the answer with ~30 chars of thinking.
@@ -234,6 +293,68 @@ def json_schema_kwargs(schema: dict, base: dict | None = None) -> dict:
         "format": {"type": "json_schema", "schema": schema},
     }
     return out
+
+
+def all_required_schema(schema):
+    """`schema` in OpenAI's strict dialect: every property listed in `required`,
+    the ones that were optional made nullable (`anyOf [..., null]`)."""
+    if isinstance(schema, list):
+        return [all_required_schema(x) for x in schema]
+    if not isinstance(schema, dict):
+        return schema
+    out = {k: all_required_schema(v) for k, v in schema.items()}
+    props = out.get("properties")
+    if isinstance(props, dict):
+        required = set(schema.get("required") or [])
+        out["properties"] = {k: v if k in required else {"anyOf": [v, {"type": "null"}]} for k, v in props.items()}
+        out["required"] = list(props)
+    return out
+
+
+def strip_optional_nulls(value, schema):
+    """Drop the nulls `all_required_schema` forced into a reply: a key that was
+    optional in `schema` and came back null is removed, so parsers see the
+    shape the Anthropic dialect would have produced."""
+    if not isinstance(schema, dict):
+        return value
+    if isinstance(value, list):
+        items = schema.get("items")
+        return [strip_optional_nulls(v, items) for v in value] if isinstance(items, dict) else value
+    if not isinstance(value, dict):
+        return value
+    branches = [b for b in schema.get("anyOf") or [] if isinstance(b, dict) and "properties" in b]
+    if branches and "properties" not in schema:
+        return strip_optional_nulls(value, branches[0])
+    props = schema.get("properties")
+    if not isinstance(props, dict):
+        return value
+    required = set(schema.get("required") or [])
+    return {k: strip_optional_nulls(v, props.get(k)) for k, v in value.items()
+            if not (v is None and k in props and k not in required)}
+
+
+def _adapt_schema_request(kwargs: dict) -> dict | None:
+    """For an all-required-dialect model, rewrite the request's schema in place
+    (on a copy) and return the original schema, else None."""
+    model = kwargs.get("model") or ""
+    fmt = (kwargs.get("output_config") or {}).get("format") or {}
+    if not model.startswith(_ALL_REQUIRED_SCHEMA_PREFIXES) or not isinstance(fmt.get("schema"), dict):
+        return None
+    original = fmt["schema"]
+    kwargs["output_config"] = {**kwargs["output_config"], "format": {**fmt, "schema": all_required_schema(original)}}
+    return original
+
+
+def _restore_optional_shape(response, schema: dict):
+    for block in getattr(response, "content", None) or []:
+        text = getattr(block, "text", None)
+        if getattr(block, "type", "text") != "text" or not isinstance(text, str):
+            continue
+        try:
+            block.text = json.dumps(strip_optional_nulls(json.loads(text), schema), ensure_ascii=False)
+        except (ValueError, TypeError, AttributeError):
+            pass      # not JSON (truncated reply) — the caller's parser reports it
+    return response
 
 
 class LLMRefusal(RuntimeError):
@@ -298,7 +419,10 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
     while True:
         attempt += 1
         try:
-            return client.messages.create(**kwargs)
+            request = {**request_extras(client, kwargs.get("model")), **kwargs}
+            original_schema = _adapt_schema_request(request)
+            response = client.messages.create(**request)
+            return _restore_optional_shape(response, original_schema) if original_schema else response
         except APIConnectionError as e:  # includes APITimeoutError
             last_exc = e
         except APIStatusError as e:  # includes RateLimitError (429), 5xx, 529
@@ -489,11 +613,13 @@ def create_llm_client(settings) -> Anthropic:
     if provider == "openrouter":
         if not getattr(settings, "openrouter_api_key", ""):
             raise ValueError("OPENROUTER_API_KEY is required when LLM_PROVIDER=openrouter. Set it in .env.")
-        return Anthropic(
+        client = Anthropic(
             api_key=settings.openrouter_api_key,
             base_url=getattr(settings, "llm_base_url", "") or OPENROUTER_BASE_URL,
             timeout=LLM_REQUEST_TIMEOUT_S, max_retries=0,   # our wrapper retries, with logging
         )
+        client.openrouter_routing = openrouter_routing(getattr(settings, "openrouter_provider_sort", ""))
+        return client
     if provider != "anthropic":
         raise ValueError(f"LLM_PROVIDER must be one of {PROVIDERS}, got {provider!r}")
     if not settings.anthropic_api_key:
@@ -510,13 +636,18 @@ def estimate_cost(
     *,
     cache_read_tokens: int = 0,
     cache_creation_tokens: int = 0,
+    billed_usd: float | None = None,
 ) -> float:
     """Estimate USD cost for a single LLM call at the model's list price.
 
     `model=None` prices at Sonnet 4.6 rates (the pre-2026-09 behaviour, when the
     rate was a module constant). Pass the cache token counts too when the call
     used prompt caching — `input_tokens` alone excludes the cached prefix.
+    `billed_usd` (from `billed_cost`, OpenRouter's own figure) wins when given:
+    with price routing the serving provider's rate isn't the table's.
     """
+    if billed_usd is not None:
+        return billed_usd
     in_rate, out_rate = pricing_for(model)
     return (
         input_tokens * in_rate

@@ -34,6 +34,7 @@ from shared.llm import (
     BatchRequestFailed,
     create_message_growing,
     message_text,
+    request_extras,
     run_message_batch,
     thinking_kwargs,
 )
@@ -428,7 +429,7 @@ class PDFExtractor:
         try:
             response = self._client.messages.create(
                 model=model, max_tokens=OCR_POSTCORRECT_MAX_TOKENS,
-                **thinking_kwargs(model, "disabled"),
+                **thinking_kwargs(model, "disabled"), **request_extras(self._client, model),
                 messages=[{"role": "user", "content": (
                     "The text below is OCR output from a scanned book page and contains recognition errors. "
                     "Correct ONLY obvious OCR errors (broken words, wrong characters, spaced digits). "

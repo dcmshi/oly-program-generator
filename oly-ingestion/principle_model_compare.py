@@ -44,7 +44,7 @@ from principle_audit import (
 )
 from processors.principle_extractor import _PRINCIPLE_WINDOW, PrincipleExtractor
 
-from shared.llm import create_message_growing, estimate_cost, usage_tokens
+from shared.llm import billed_cost, create_message_growing, estimate_cost, usage_tokens
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s [%(levelname)s] %(message)s")
 logger = logging.getLogger(__name__)
@@ -133,9 +133,11 @@ def run_model(model: str, windows: list[dict]) -> dict:
                                              **ext._request_params(w["text"], w["title"]))
                 principles = ext._parse_response(msg, w["title"])
                 u = usage_tokens(msg.usage)
+                billed = billed_cost(msg.usage)
                 error = None
             except Exception as e:                       # noqa: BLE001 — a failed window is a result
                 principles, u, error = [], {"input": 0, "output": 0, "cache_read": 0, "cache_creation": 0}, str(e)
+                billed = None
             dt = time.perf_counter() - t0
             nums = text_numbers(w["text"])
             claims = unsup = with_numbers = empty = 0
@@ -151,9 +153,10 @@ def run_model(model: str, windows: list[dict]) -> dict:
                 "window": w["label"], "principles": len(principles), "with_numbers": with_numbers,
                 "claims": claims, "unsupported": unsup, "empty_recommendation": empty,
                 "latency_s": round(dt, 1), "input_tokens": u["input"], "output_tokens": u["output"],
-                "cost_usd": round(estimate_cost(u["input"], u["output"], settings.llm_model,
-                                                cache_read_tokens=u["cache_read"],
-                                                cache_creation_tokens=u["cache_creation"]), 4),
+                "cost_usd": round(billed if billed is not None else estimate_cost(
+                    u["input"], u["output"], settings.llm_model,
+                    cache_read_tokens=u["cache_read"], cache_creation_tokens=u["cache_creation"]), 4),
+                "cost_billed": billed is not None,
                 "error": error, "unsupported_claims": flagged,
                 "principle_names": [p.principle_name for p in principles],
             })

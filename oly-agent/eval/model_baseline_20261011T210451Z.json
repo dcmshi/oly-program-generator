@@ -1,0 +1,369 @@
+{
+  "meta": {
+    "athlete_id": 1,
+    "sessions": 8,
+    "cost_limit": 1.5,
+    "run_at": "2026-10-11T21:04:51+00:00",
+    "configs": [
+      "openai/gpt-6.1-sol:disabled",
+      "moonshotai/kimi-k3:disabled"
+    ],
+    "deleted": false
+  },
+  "rows": [
+    {
+      "config": "openai/gpt-6.1-sol:disabled",
+      "program_id": 35,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 466,
+      "output_tokens": 8559,
+      "cache_read_tokens": 32926,
+      "cost_usd": 0.0693,
+      "wall_s": 131.2,
+      "mean_call_s": 13.66,
+      "cost_per_session": 0.0087
+    },
+    {
+      "config": "moonshotai/kimi-k3:disabled",
+      "program_id": 36,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 29258,
+      "output_tokens": 6965,
+      "cache_read_tokens": 25088,
+      "cost_usd": 0.1327,
+      "wall_s": 222.0,
+      "mean_call_s": 23.75,
+      "cost_per_session": 0.0166
+    }
+  ],
+  "results": [
+    {
+      "config": "openai/gpt-6.1-sol:disabled",
+      "model": "openai/gpt-6.1-sol",
+      "thinking": "disabled",
+      "effort": "",
+      "program_id": 35,
+      "wall_s": 131.2,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 466,
+        "output_tokens": 8559,
+        "cache_read_tokens": 32926,
+        "cache_creation_tokens": 19492,
+        "cost_usd": 0.0693,
+        "mean_call_s": 13.66,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 13.75,
+            "max_s": 15.87,
+            "cost_usd": 0.0659
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 12.92,
+            "max_s": 12.92,
+            "cost_usd": 0.0034
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 14.618719699999929,
+          "input_tokens": 3,
+          "output_tokens": 1072,
+          "cache_read_tokens": 6312,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0056786,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 15.870455399999628,
+          "input_tokens": 3,
+          "output_tokens": 1147,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2596,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0091731,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 12.616634900001372,
+          "input_tokens": 3,
+          "output_tokens": 919,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2751,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00822685,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 12.828020200002356,
+          "input_tokens": 3,
+          "output_tokens": 979,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2854,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0086556,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 13.900458900003287,
+          "input_tokens": 3,
+          "output_tokens": 994,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2624,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0084431,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 14.769838500000333,
+          "input_tokens": 3,
+          "output_tokens": 1115,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2804,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0092731,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 11.875259199998254,
+          "input_tokens": 3,
+          "output_tokens": 837,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 2851,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00794185,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 13.535973499998363,
+          "input_tokens": 3,
+          "output_tokens": 913,
+          "cache_read_tokens": 3802,
+          "cache_creation_tokens": 3012,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0085231,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 12.923524699999689,
+          "input_tokens": 442,
+          "output_tokens": 583,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.003357,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 24,
+        "log_output_tokens": 7976
+      }
+    },
+    {
+      "config": "moonshotai/kimi-k3:disabled",
+      "model": "moonshotai/kimi-k3",
+      "thinking": "disabled",
+      "effort": "",
+      "program_id": 36,
+      "wall_s": 222.0,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 29258,
+        "output_tokens": 6965,
+        "cache_read_tokens": 25088,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0.1327,
+        "mean_call_s": 23.75,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 25.44,
+            "max_s": 32.86,
+            "cost_usd": 0.1235
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 10.19,
+            "max_s": 10.19,
+            "cost_usd": 0.0091
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 23.105979500000103,
+          "input_tokens": 6484,
+          "output_tokens": 703,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01534316,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 26.92819679999957,
+          "input_tokens": 2977,
+          "output_tokens": 852,
+          "cache_read_tokens": 3584,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01605818,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 23.654226999999082,
+          "input_tokens": 3150,
+          "output_tokens": 771,
+          "cache_read_tokens": 3584,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0149712,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 26.239163899997948,
+          "input_tokens": 3274,
+          "output_tokens": 808,
+          "cache_read_tokens": 3584,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01561796,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 20.312956899997516,
+          "input_tokens": 3020,
+          "output_tokens": 682,
+          "cache_read_tokens": 3584,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01354,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 32.86166030000095,
+          "input_tokens": 3199,
+          "output_tokens": 855,
+          "cache_read_tokens": 3584,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01626746,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 24.926920900001278,
+          "input_tokens": 3263,
+          "output_tokens": 774,
+          "cache_read_tokens": 3584,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01509982,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 25.512843399999838,
+          "input_tokens": 3434,
+          "output_tokens": 868,
+          "cache_read_tokens": 3584,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01663636,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "moonshotai/kimi-k3",
+          "elapsed_s": 10.185915699999896,
+          "input_tokens": 457,
+          "output_tokens": 652,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00913561,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 28801,
+        "log_output_tokens": 6313
+      }
+    }
+  ]
+}
