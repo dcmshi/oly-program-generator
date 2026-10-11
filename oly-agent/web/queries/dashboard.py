@@ -25,7 +25,11 @@ async def get_active_program(conn, athlete_id: int) -> dict | None:
         SELECT id, name, phase, status, start_date, duration_weeks, sessions_per_week
         FROM generated_programs
         WHERE athlete_id = $1 AND status IN ('active', 'draft')
-        ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END, created_at DESC
+        ORDER BY CASE status WHEN 'active' THEN 0 ELSE 1 END,
+                 -- model-eval drafts (eval/model_baseline names them "[baseline: …]")
+                 -- never stand in for the athlete's program (QA-1)
+                 (name LIKE '%[baseline:%'),
+                 created_at DESC
         LIMIT 1
         """,
         athlete_id,

@@ -1,6 +1,5 @@
 # web/routers/program.py
 import logging
-from datetime import date
 from typing import Annotated
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Request
@@ -181,20 +180,32 @@ async def delete_max(
     conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
-    from web.app import templates
     try:
         await q.delete_athlete_max(conn, athlete_id, exercise_name)
         logger.info(f"Max deleted: athlete {athlete_id}, {exercise_name}")
-        maxes = await q.get_athlete_maxes(conn, athlete_id)
-        return templates.TemplateResponse(request, "partials/maxes_table.html", {
-            "request": request, "maxes": maxes, "success": f"{exercise_name} max removed — using estimated value",
-        })
+        return await _maxes_response(request, conn, athlete_id,
+                                     success=f"{exercise_name} max removed — using estimated value")
     except ValueError as e:
         logger.warning(f"Max delete failed: {e}")
-        maxes = await q.get_athlete_maxes(conn, athlete_id)
-        return templates.TemplateResponse(request, "partials/maxes_table.html", {
-            "request": request, "maxes": maxes, "error": str(e),
-        })
+        return await _maxes_response(request, conn, athlete_id, error=str(e))
+
+
+LB_TO_KG = 0.45359237
+MAX_KG = 500
+
+
+async def _maxes_response(request: Request, conn, athlete_id: int, **extra):
+    """The maxes partial, plus the dashboard's Goal Progress and Lift Ratios as
+    out-of-band swaps — both read the maxes and showed the old value until a
+    reload (QA-1)."""
+    from web.app import templates
+    from web.queries import dashboard as dq
+    return templates.TemplateResponse(request, "partials/maxes_table.html", {
+        "request": request, "maxes": await q.get_athlete_maxes(conn, athlete_id),
+        "goal_progress": await dq.get_goal_progress(conn, athlete_id),
+        "ratios": await dq.get_lift_ratios(conn, athlete_id),
+        "oob": True, **extra,
+    })
 
 
 @router.post("/maxes/update", response_class=HTMLResponse)
@@ -202,26 +213,32 @@ async def delete_max(
 async def update_max(
     request: Request,
     exercise_name: Annotated[str, Form(min_length=1, max_length=200)],
-    weight_kg: Annotated[float, Form(gt=0, le=500)],
+    weight_kg: Annotated[float, Form(gt=0, le=MAX_KG / LB_TO_KG)],
+    unit: Annotated[str, Form(pattern="^(kg|lb)$")] = "kg",
     conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
-    from web.app import templates
+    from web.queries import dashboard as dq
+
+    from shared.timeutil import today_in_tz
+    # QA-1: `weight_kg` is in the chosen unit; lb converts to kg (0.1 kg) here
+    entered = weight_kg
+    if unit == "lb":
+        weight_kg = round(entered * LB_TO_KG, 1)
+    if weight_kg > MAX_KG:
+        return await _maxes_response(request, conn, athlete_id, unit=unit,
+                                     error=f"A max above {MAX_KG} kg isn't plausible — check the value and unit.")
+    shown = f"{weight_kg:g} kg" + (f" ({entered:g} lb)" if unit == "lb" else "")
     try:
-        is_pr, prev_kg = await q.upsert_athlete_max(conn, athlete_id, exercise_name, weight_kg, date.today())
-        logger.info(f"Max updated: athlete {athlete_id}, {exercise_name} = {weight_kg} kg, PR={is_pr}")
-        maxes = await q.get_athlete_maxes(conn, athlete_id)
-        return templates.TemplateResponse(request, "partials/maxes_table.html", {
-            "request": request, "maxes": maxes,
-            "success": f"{exercise_name} updated to {weight_kg:g} kg",
-            "is_pr": is_pr,
-            "pr_exercise": exercise_name,
-            "pr_kg": weight_kg,
-            "pr_prev_kg": prev_kg,
-        })
+        # dated in the athlete's timezone, like every other athlete-facing date (QA-1)
+        today = today_in_tz(await dq.get_athlete_timezone(conn, athlete_id))
+        is_pr, prev_kg = await q.upsert_athlete_max(conn, athlete_id, exercise_name, weight_kg, today)
+        logger.info(f"Max updated: athlete {athlete_id}, {exercise_name} = {shown}, PR={is_pr}")
+        return await _maxes_response(
+            request, conn, athlete_id, unit=unit,
+            success=f"{exercise_name} updated to {shown}",
+            is_pr=is_pr, pr_exercise=exercise_name, pr_kg=weight_kg, pr_prev_kg=prev_kg,
+        )
     except ValueError as e:
         logger.warning(f"Max update failed: {e}")
-        maxes = await q.get_athlete_maxes(conn, athlete_id)
-        return templates.TemplateResponse(request, "partials/maxes_table.html", {
-            "request": request, "maxes": maxes, "error": str(e),
-        })
+        return await _maxes_response(request, conn, athlete_id, unit=unit, error=str(e))

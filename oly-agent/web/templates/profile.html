@@ -170,7 +170,8 @@
     {# a row saved before the double-encoding fix holds prefs as a JSON string — show defaults, don't 500 #}
     {% set raw_prefs = (athlete.exercise_preferences or {}).get('prefs') %}
     {% set prefs = raw_prefs if raw_prefs is mapping else {} %}
-    <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
+    {# two columns: four squeezed the option text ("Written into the…", QA-1) #}
+    <div class="grid grid-cols-1 sm:grid-cols-2 gap-4">
       <div>
         <label class="block text-xs font-medium text-ink-sec mb-1" for="pref_warmups">Warm-up sets</label>
         <select name="pref_warmups" id="pref_warmups" class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
