@@ -219,7 +219,12 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
         s = Settings()
         # OpenRouter is the default provider (2026-09-22), with the open-model roles
         assert s.llm_provider == "openrouter" and not supports_batches(s)
-        assert s.llm_model == s.template_model == s.generation_model == s.explanation_model == "moonshotai/kimi-k3"
+        assert s.llm_model == s.template_model == "moonshotai/kimi-k3"
+        # generation + explanation on GPT-6.1 Sol since 2026-10-11 (MODEL-3): generates
+        # at adaptive + medium; explains "disabled" (→ adaptive + low in thinking_kwargs)
+        assert s.generation_model == s.explanation_model == "openai/gpt-6.1-sol"
+        assert (s.generation_thinking, s.generation_effort) == ("adaptive", "medium")
+        assert (s.explanation_thinking, s.explanation_effort) == ("disabled", "")
         assert s.light_model == "deepseek/deepseek-v4.1-flash" and s.judge_model == "z-ai/glm-5.3-flash"
 
         os.environ["LLM_PROVIDER"] = "anthropic"
@@ -271,3 +276,57 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
             os.environ.pop(k, None)
             if v is not None:
                 os.environ[k] = v
+
+
+def test_openrouter_provider_sort_routes_every_call():
+    """OPENROUTER_PROVIDER_SORT (default "price", MODEL-3) becomes OpenRouter's
+    `provider` body field with require_parameters on every create; "none" and
+    the anthropic provider send nothing extra; an unknown sort is rejected."""
+    import os
+    from unittest.mock import MagicMock, patch
+
+    from shared.llm import create_llm_client, create_message_with_retries, openrouter_routing, request_extras
+
+    assert Settings(llm_provider="openrouter", openrouter_api_key="k").openrouter_provider_sort == "price"
+    assert openrouter_routing("price") == {"provider": {"sort": "price", "require_parameters": True}}
+    assert openrouter_routing("none") == openrouter_routing("") == {}
+    try:
+        Settings(openrouter_provider_sort="cheapest")
+        raise AssertionError("expected ValueError for an unknown sort")
+    except ValueError:
+        pass
+
+    with patch("shared.llm.Anthropic"):
+        client = create_llm_client(Settings(llm_provider="openrouter", openrouter_api_key="k",
+                                            openrouter_provider_sort="throughput"))
+    assert request_extras(client) == {"extra_body": {"provider": {"sort": "throughput", "require_parameters": True}}}
+    create_message_with_retries(client, model="m", max_tokens=1, messages=[])
+    assert client.messages.create.call_args.kwargs["extra_body"]["provider"]["sort"] == "throughput"
+
+    saved = os.environ.get("OPENROUTER_PROVIDER_SORT")
+    os.environ["OPENROUTER_PROVIDER_SORT"] = "none"
+    try:
+        with patch("shared.llm.Anthropic"):
+            client = create_llm_client(Settings(llm_provider="openrouter", openrouter_api_key="k"))
+        assert request_extras(client) == {}
+    finally:
+        os.environ.pop("OPENROUTER_PROVIDER_SORT")
+        if saved is not None:
+            os.environ["OPENROUTER_PROVIDER_SORT"] = saved
+
+    with patch("shared.llm.Anthropic"):
+        client = create_llm_client(Settings(llm_provider="anthropic", anthropic_api_key="k"))
+    create_message_with_retries(client, model="m", max_tokens=1, messages=[])
+    assert "extra_body" not in client.messages.create.call_args.kwargs
+    assert request_extras(MagicMock()) == {}          # test doubles never grow an extra_body
+
+
+def test_reasoning_defaults_follow_the_default_model_only():
+    """Sol's adaptive + medium comes with the default generation model; a model
+    picked by env keeps thinking disabled, and an explicit setting wins."""
+    s = Settings(llm_provider="openrouter", openrouter_api_key="k", generation_model="moonshotai/kimi-k3")
+    assert (s.generation_thinking, s.generation_effort) == ("disabled", "")
+    s = Settings(llm_provider="openrouter", openrouter_api_key="k", generation_effort="high")
+    assert (s.generation_thinking, s.generation_effort) == ("adaptive", "high")
+    s = Settings(llm_provider="anthropic", anthropic_api_key="k")
+    assert s.generation_model == "claude-sonnet-5" and s.generation_thinking == "disabled"

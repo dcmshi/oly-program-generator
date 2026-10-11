@@ -238,6 +238,7 @@ can be `default-src 'self'` apart from the inline `<script>` blocks in
 | `LLM_PROVIDER` | `openrouter` (the code default) or `anthropic`. Picks the endpoint and the model defaults: under `openrouter`, generation / explanation / ingestion run on `moonshotai/kimi-k3`, light tasks on `deepseek/deepseek-v4.1-flash`, the eval judge on `z-ai/glm-5.3-flash`; under `anthropic`, Claude Sonnet 5 / Haiku 4.5. Each role is overridable (`GENERATION_MODEL`, `EXPLANATION_MODEL`, `LLM_MODEL`, `LIGHT_MODEL`, `JUDGE_MODEL`) — see `oly-ingestion/.env.example` |
 | `OPENROUTER_API_KEY` | Required for generation with `LLM_PROVIDER=openrouter` (the default) |
 | `ANTHROPIC_API_KEY` | Required only with `LLM_PROVIDER=anthropic` — the only provider with Message Batches (`--batch` ingestion) |
+| `OPENROUTER_PROVIDER_SORT` | `price` (default), `throughput`, `latency` or `none` — how OpenRouter picks among a model's providers; sent with `require_parameters` |
 | `LLM_BASE_URL` | Optional endpoint override; blank = the provider's default |
 | `OPENAI_API_KEY` | OpenAI embeddings (`text-embedding-3-large` at 1536 dims) — required for vector search, including query embedding in the worker |
 

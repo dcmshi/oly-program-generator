@@ -54,10 +54,22 @@ DEFAULT_GENERATION_THINKING = "disabled"
 # (PRINCIPLE_EMPTY_RETRIES). The light role (labels, context, relabel) is
 # DeepSeek V4.1 Flash; the golden-set judge is GLM-5.3 Flash (JUDGE-1).
 DEFAULT_LLM_PROVIDER = "openrouter"
+DEFAULT_OPENROUTER_PROVIDER_SORT = "price"
+OPENROUTER_PROVIDER_SORTS = ("price", "throughput", "latency", "none")
 DEFAULT_OPENROUTER_LLM_MODEL = "moonshotai/kimi-k3"
 DEFAULT_OPENROUTER_LIGHT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_OPENROUTER_JUDGE_MODEL = "z-ai/glm-5.3-flash"
-DEFAULT_OPENROUTER_GENERATION_MODEL = "moonshotai/kimi-k3"
+# Generation + explanation moved to GPT-6.1 Sol on 2026-10-11 (MODEL-3,
+# eval/model_baseline_20261011T215736Z.json): 8/8 first-try, $0.0110 / session
+# billed vs Kimi K3's $0.0166, closer to the session rep targets, 93 % of
+# exercises citing a context chunk vs 62 %. Sol can't turn reasoning off; it
+# generates at effort medium (low was $0.0087 but further off the rep targets)
+# and explains at low (thinking "disabled" → adaptive + low, shared.llm).
+DEFAULT_OPENROUTER_GENERATION_MODEL = "openai/gpt-6.1-sol"
+# Thinking / effort that come with a default model when GENERATION_THINKING /
+# GENERATION_EFFORT are unset; a model picked by env keeps
+# DEFAULT_GENERATION_THINKING, so switching back to Kimi doesn't turn thinking on.
+DEFAULT_GENERATION_REASONING_BY_MODEL = {"openai/gpt-6.1-sol": ("adaptive", "medium")}
 
 
 @dataclass
@@ -152,6 +164,12 @@ class Settings:
     llm_provider: str = ""
     openrouter_api_key: str = ""
     llm_base_url: str = ""
+    # OPENROUTER_PROVIDER_SORT: how OpenRouter picks among the providers serving a
+    # model — "price" (default: generation and ingestion are offline, so the
+    # cheapest backend wins over latency), "throughput", "latency", or "none" for
+    # OpenRouter's own load balancing. Sent with require_parameters, so a provider
+    # that can't honour structured outputs is never picked. Ignored on anthropic.
+    openrouter_provider_sort: str = ""
 
     # ── Web / deployment ──────────────────────────────────────
     secret_key: str = ""   # session signing key; MUST be set in production via SECRET_KEY env var
@@ -199,6 +217,11 @@ class Settings:
         self.llm_provider = (self.llm_provider or os.getenv("LLM_PROVIDER", DEFAULT_LLM_PROVIDER)).strip().lower()
         self.openrouter_api_key = self.openrouter_api_key or os.getenv("OPENROUTER_API_KEY", "")
         self.llm_base_url = self.llm_base_url or os.getenv("LLM_BASE_URL", "")
+        self.openrouter_provider_sort = (self.openrouter_provider_sort
+                                         or os.getenv("OPENROUTER_PROVIDER_SORT", DEFAULT_OPENROUTER_PROVIDER_SORT)).strip().lower()
+        if self.openrouter_provider_sort not in OPENROUTER_PROVIDER_SORTS:
+            raise ValueError(f"OPENROUTER_PROVIDER_SORT must be one of {OPENROUTER_PROVIDER_SORTS}, "
+                             f"got {self.openrouter_provider_sort!r}")
         if self.llm_provider not in ("anthropic", "openrouter"):
             raise ValueError(f"LLM_PROVIDER must be 'anthropic' or 'openrouter', got {self.llm_provider!r}")
 
@@ -226,9 +249,11 @@ class Settings:
                             or (self.light_model if claude else DEFAULT_OPENROUTER_JUDGE_MODEL))
         self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", default_gen)
         self.explanation_model = self.explanation_model or os.getenv("EXPLANATION_MODEL", default_gen)
+        gen_thinking, gen_effort = DEFAULT_GENERATION_REASONING_BY_MODEL.get(
+            self.generation_model, (DEFAULT_GENERATION_THINKING, ""))
         self.generation_thinking = (self.generation_thinking
-                                    or os.getenv("GENERATION_THINKING", DEFAULT_GENERATION_THINKING))
-        self.generation_effort = self.generation_effort or os.getenv("GENERATION_EFFORT", "")
+                                    or os.getenv("GENERATION_THINKING", gen_thinking))
+        self.generation_effort = self.generation_effort or os.getenv("GENERATION_EFFORT", gen_effort)
         self.explanation_thinking = (self.explanation_thinking
                                      or os.getenv("EXPLANATION_THINKING", DEFAULT_GENERATION_THINKING))
         self.explanation_effort = self.explanation_effort or os.getenv("EXPLANATION_EFFORT", "")

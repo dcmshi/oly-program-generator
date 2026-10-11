@@ -238,6 +238,27 @@ def test_program_detail_renders():
     assert b"Accumulation Block" in r.content
 
 
+def test_program_detail_shows_the_coach_brief_only_when_present():
+    """COACH-1: generation_params.coach is rendered as the program's brief."""
+    coach = {"phase": "intensification", "sessions_per_week": 3, "strength_limiters": [],
+             "injuries": ["left knee"], "note": "No max singles before week 4"}
+    for params, expected in (({"model": "m", "coach": coach}, True), ({"model": "m"}, False), (None, False)):
+        with patch("web.queries.program.get_program", return_value=_program(generation_params=params)), \
+             patch("web.queries.program.get_program_weeks", return_value=_week_data()), \
+             patch("web.queries.program.get_program_volume_by_week", return_value=[]):
+            r = _client.get("/program/1")
+        assert r.status_code == 200
+        assert ("Coach&#39;s brief" in r.text or "Coach's brief" in r.text) is expected
+    with patch("web.queries.program.get_program", return_value=_program(generation_params={"coach": coach})), \
+         patch("web.queries.program.get_program_weeks", return_value=_week_data()), \
+         patch("web.queries.program.get_program_volume_by_week", return_value=[]):
+        text = " ".join(_client.get("/program/1").text.split())
+    for fragment in ("Phase:</span> intensification", "Sessions per week:</span> 3",
+                     "Strength limiters:</span> none", "Injuries:</span> left knee",
+                     "Note:</span> No max singles before week 4"):
+        assert fragment in text, fragment
+
+
 def test_program_detail_404_for_missing():
     with patch("web.queries.program.get_program", return_value=None):
         r = _client.get("/program/999")
@@ -1170,12 +1191,23 @@ def test_out_of_range_session_duration_falls_back():
 
 # ── FE-M5: generate page copy + resuming an in-flight job ─────────────────────
 
+def _generate_page_patches(stack, athlete=None, goal=None):
+    """The generate page's profile + exercise queries (COACH-1 pre-fill)."""
+    stack.enter_context(patch("web.queries.profile.get_athlete", return_value=athlete or _full_athlete()))
+    stack.enter_context(patch("web.queries.profile.get_active_goal", return_value=goal))
+    stack.enter_context(patch("web.routers.generate.async_fetch_all",
+                              return_value=[{"name": "Snatch"}, {"name": "Jerk from Rack"}]))
+
+
 def test_generate_page_resumes_polling_for_an_inflight_job():
     """Polling only lived in the swapped partial, so navigating away from
     /generate and back while a job ran showed no sign of it."""
-    with patch("web.queries.program.get_all_programs", return_value=[]), \
+    from contextlib import ExitStack
+    with ExitStack() as stack, \
+         patch("web.queries.program.get_all_programs", return_value=[]), \
          patch("web.queries.program.get_macrocycle_view", return_value=None), \
          patch("web.jobs.get_inflight_job_id", return_value="abc123"):
+        _generate_page_patches(stack)
         r = _client.get("/generate")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
     assert 'hx-get="/generate/status/abc123"' in r.text, "must resume polling the running job"
@@ -1183,12 +1215,88 @@ def test_generate_page_resumes_polling_for_an_inflight_job():
 
 
 def test_generate_page_idle_when_nothing_is_running():
-    with patch("web.queries.program.get_all_programs", return_value=[]), \
+    from contextlib import ExitStack
+    with ExitStack() as stack, \
+         patch("web.queries.program.get_all_programs", return_value=[]), \
          patch("web.queries.program.get_macrocycle_view", return_value=None), \
          patch("web.jobs.get_inflight_job_id", return_value=None):
+        _generate_page_patches(stack)
         r = _client.get("/generate")
     assert r.status_code == 200
     assert "/generate/status/" not in r.text, "no poller without a job"
+
+
+# ── COACH-1: coach constraints on the generate form ──────────────────────────
+
+def test_generate_page_prefills_the_coach_form_from_the_profile():
+    from contextlib import ExitStack
+    from datetime import date
+    athlete = {**_full_athlete(), "sessions_per_week": 5, "lift_emphasis": "cj_biased",
+               "strength_limiters": ["squat_limited"], "injuries": ["left knee", "lower back"],
+               "exercise_preferences": {"avoid": ["Jerk from Rack"]}}
+    with ExitStack() as stack, \
+         patch("web.queries.program.get_all_programs", return_value=[]), \
+         patch("web.queries.program.get_macrocycle_view", return_value=None), \
+         patch("web.jobs.get_inflight_job_id", return_value=None):
+        _generate_page_patches(stack, athlete=athlete, goal={"competition_date": date(2026, 12, 5)})
+        r = _client.get("/generate")
+    assert r.status_code == 200
+    text = " ".join(r.text.split())
+    assert 'name="coach_mode"' in text and "Coach constraints" in text
+    assert 'value="5"' in text and 'value="cj_biased" selected' in text
+    assert 'name="coach_strength_limiters" value="squat_limited" class="rounded" checked' in text
+    assert 'name="coach_strength_limiters" value="pull_limited" class="rounded" >' in text
+    assert 'value="left knee, lower back"' in text and 'value="Jerk from Rack"' in text
+    assert 'value="2026-12-05"' in text and '<option value="Snatch">' in text
+
+
+def test_generate_run_sends_only_the_changed_coach_fields():
+    athlete = {**_full_athlete(), "sessions_per_week": 4, "lift_emphasis": "balanced",
+               "strength_limiters": [], "technical_faults": [], "injuries": None,
+               "exercise_preferences": {}, "timezone": "UTC"}
+    with patch("web.queries.profile.get_athlete", return_value=athlete), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.jobs.submit_generation", return_value="job1") as submit:
+        r = _client.post("/generate/run", data={
+            "coach_mode": "on", "coach_phase": "intensification", "coach_sessions_per_week": "3",
+            "coach_lift_emphasis": "balanced", "coach_injuries": "left knee",
+            "coach_avoid_exercises": "", "coach_note": "No max singles before week 4",
+        })
+    assert r.status_code == 200, r.text
+    assert submit.call_args.kwargs["coach"] == {
+        "phase": "intensification", "sessions_per_week": 3, "injuries": ["left knee"],
+        "note": "No max singles before week 4"}
+
+
+def test_generate_run_without_coach_mode_sends_no_constraints():
+    with patch("web.jobs.submit_generation", return_value="job1") as submit:
+        r = _client.post("/generate/run", data={"coach_phase": "realization", "coach_note": "ignored"})
+    assert r.status_code == 200
+    assert submit.call_args.kwargs["coach"] is None
+
+
+def test_generate_run_rejects_bad_coach_input_and_phase_with_macrocycle():
+    athlete = {**_full_athlete(), "timezone": "UTC"}
+    with patch("web.queries.profile.get_athlete", return_value=athlete), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.jobs.submit_generation", return_value="job1") as submit:
+        bad = _client.post("/generate/run", data={"coach_mode": "on", "coach_sessions_per_week": "12"})
+        clash = _client.post("/generate/run", data={"coach_mode": "on", "coach_phase": "realization",
+                                                    "macrocycle": "on"})
+    assert bad.status_code == 422 and "Sessions per week" in bad.text
+    assert clash.status_code == 422 and "macrocycle" in clash.text
+    assert not submit.called
+
+
+def test_profile_update_saves_injuries_as_a_list():
+    """asyncpg rejects a str for the text[] column — every profile save naming
+    an injury 500'd before COACH-1."""
+    with patch("web.queries.profile.get_athlete", return_value=_full_athlete()), \
+         patch("web.queries.profile.get_active_goal", return_value=None), \
+         patch("web.queries.profile.update_profile", return_value=None) as up:
+        _client.post("/profile/update", data={"name": "T", "level": "intermediate", "timezone": "UTC",
+                                              "injuries": "left knee,\nlower back"})
+    assert up.called and up.call_args.args[2]["injuries"] == ["left knee", "lower back"]
 
 
 def test_generate_page_copy_has_no_hardcoded_pipeline_numbers():

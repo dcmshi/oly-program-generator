@@ -202,8 +202,8 @@ def _full_mock_stack(stack: ExitStack, overrides: dict = None) -> dict:
         "retrieve": _retrieval_context(),
         "generate": _generation_result(),
         "validate": _validation_result(),
-        # explain returns (rationale, input_tokens, output_tokens) — AGT-L7
-        "explain": ("# Program rationale\nTest rationale text.", 100, 50),
+        # explain returns (rationale, input_tokens, output_tokens, cost_usd) — AGT-L7
+        "explain": ("# Program rationale\nTest rationale text.", 100, 50, 0.001),
         "create_llm_client": MagicMock(),
         "estimate_cost": 0.01,
         "resolve_exercise_ids": lambda exs, lu: exs,

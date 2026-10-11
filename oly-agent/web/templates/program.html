@@ -56,6 +56,22 @@
 {% endif %}
 </div>
 
+{# COACH-1: the coach's brief — the constraints this program was generated to #}
+{% set coach_brief = (program.generation_params or {}).get('coach') if program.generation_params is mapping else none %}
+{% if coach_brief %}
+<div class="bg-paper-100 border border-line rounded-xl p-4 mb-6 mt-4 text-sm">
+  <p class="font-medium mb-1">Coach's brief</p>
+  <p class="text-xs text-ink-muted mb-3">This program was generated to these constraints; the profile itself was not changed.</p>
+  <div class="space-y-3">
+    {% for key, value in coach_brief.items() if key != 'note' %}
+    <div><span class="text-xs font-medium text-ink-sec">{{ key | replace('_', ' ') | capitalize }}:</span>
+      {% if value is string or value is number %}{{ value | string | replace('_', ' ') }}{% else %}{{ (value | join(', ') | replace('_', ' ')) or 'none' }}{% endif %}</div>
+    {% endfor %}
+    {% if coach_brief.note %}<div><span class="text-xs font-medium text-ink-sec">Note:</span> {{ coach_brief.note }}</div>{% endif %}
+  </div>
+</div>
+{% endif %}
+
 <!-- Rationale accordion -->
 {% if program.rationale %}
 <details class="rationale bg-blue-50 border border-blue-100 rounded-xl p-4 mb-6 mt-4">

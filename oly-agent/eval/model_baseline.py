@@ -49,7 +49,7 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
 
 from shared.config import Settings
 from shared.db import execute, fetch_all, get_connection
-from shared.llm import EFFORT_LEVELS, THINKING_MODES, estimate_cost, thinking_kwargs, usage_tokens
+from shared.llm import EFFORT_LEVELS, THINKING_MODES, billed_cost, estimate_cost, thinking_kwargs, usage_tokens
 
 logger = logging.getLogger(__name__)
 
@@ -146,12 +146,13 @@ class CallRecorder:
                 raise
             elapsed = time.perf_counter() - t0
             usage = usage_tokens(getattr(response, "usage", None))
+            billed = billed_cost(getattr(response, "usage", None))   # OpenRouter's bill, else list price
             self.calls.append(CallRecord(
                 role=role, model=model, elapsed_s=elapsed,
                 input_tokens=usage["input"], output_tokens=usage["output"],
                 cache_read_tokens=usage["cache_read"], cache_creation_tokens=usage["cache_creation"],
                 stop_reason=getattr(response, "stop_reason", None),
-                cost_usd=estimate_cost(
+                cost_usd=billed if billed is not None else estimate_cost(
                     usage["input"], usage["output"], model,
                     cache_read_tokens=usage["cache_read"],
                     cache_creation_tokens=usage["cache_creation"],

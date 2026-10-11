@@ -207,6 +207,17 @@ def test_update_profile_dob_string_becomes_date():
     assert isinstance(dob, date), f"date_of_birth must be datetime.date, got {type(dob).__name__}"
 
 
+def test_update_profile_sends_prefs_as_a_dict_for_the_jsonb_codec():
+    """The pool's JSONB codec json.dumps the value itself — a pre-encoded string
+    was stored as a JSON string and the next profile page load 500'd (QA 2026-10-11)."""
+    from web.queries import profile as profile_q
+    captured, fake = _capture_async()
+    prefs = {"warmups": "own", "deload_style": "volume"}
+    with patch("web.async_db.async_execute", fake):
+        asyncio.run(profile_q.update_profile(MagicMock(), 1, {"name": "A", "level": "beginner", "prefs": prefs}))
+    assert captured["params"][20] == prefs
+
+
 def test_upsert_goal_insert_competition_date_becomes_date():
     from web.queries import profile as profile_q
     captured, fake = _capture_async()
@@ -333,7 +344,18 @@ def test_worker_passes_deadline_to_orchestrator():
     assert captured["duration_weeks"] == 6                      # PLAN-1: the form's block length reaches the planner
     assert captured.get("deadline") is not None, \
         "worker must pass a monotonic deadline (WEB-M8 — thread outlives job_timeout)"
-    assert captured["macro"] == {"new_macrocycle": False, "macrocycle_weeks": None, "macrocycle_id": None}
+    assert captured["macro"] == {"new_macrocycle": False, "macrocycle_weeks": None, "macrocycle_id": None,
+                                 "coach": None}
+
+
+def test_worker_passes_coach_constraints_to_orchestrator():
+    """COACH-1: the form's constraints ride the ARQ payload into orchestrator.run."""
+    import web.worker as worker
+    seen = []
+    coach = {"sessions_per_week": 3, "note": "No max singles before week 4"}
+    with patch("orchestrator.run", side_effect=lambda *a, **kw: seen.append(kw) or 7):
+        asyncio.run(worker.run_generation({}, 1, coach=coach))
+    assert seen[0]["coach"] == coach
 
 
 def test_worker_passes_macrocycle_to_orchestrator():

@@ -6,6 +6,8 @@ Selects the training phase, block duration, volume/intensity targets,
 and session structure. All deterministic — no LLM involved at this step.
 """
 
+import dataclasses
+import json
 import logging
 import sys
 from pathlib import Path
@@ -36,7 +38,7 @@ logger = logging.getLogger(__name__)
 
 
 def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | None = None,
-         block: dict | None = None) -> ProgramPlan:
+         block: dict | None = None, phase: str | None = None) -> ProgramPlan:
     """Determine the program shape from athlete context.
 
     Decision tree:
@@ -57,10 +59,18 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
     already chose the phase and length, so neither the decision tree nor the
     block-length rules run (the cold-start caps still do).
 
+    `phase` (COACH-1) is a coach's forced phase: the decision tree is skipped
+    and the length is `duration_weeks` clamped to the level, else the level's
+    default for that phase (4 weeks if it has none) — a meet date doesn't fix
+    it, the coach chose the phase knowing the date. Cold-start caps still apply.
+
     Returns a ProgramPlan with weekly targets and session templates.
     """
     if block is not None:
         phase, duration_weeks = block["phase"], int(block["weeks"])
+    elif phase is not None:
+        duration_weeks = resolve_block_length(
+            phase, 4, dataclasses.replace(athlete_context, weeks_to_competition=None), duration_weeks)
     else:
         phase, default_weeks = _select_phase_and_duration(athlete_context)
         duration_weeks = resolve_block_length(phase, default_weeks, athlete_context, duration_weeks)
@@ -183,6 +193,14 @@ def training_preferences(athlete: dict) -> dict:
     Unknown values fall back to the default so a hand-edited row can't break
     planning."""
     raw = ((athlete or {}).get("exercise_preferences") or {}).get("prefs") or {}
+    if isinstance(raw, str):
+        # rows saved before the double-encoding fix hold the prefs as a JSON string
+        try:
+            raw = json.loads(raw)
+        except ValueError:
+            raw = {}
+    if not isinstance(raw, dict):
+        raw = {}
     prefs = {}
     for key, options in TRAINING_PREFERENCE_OPTIONS.items():
         prefs[key] = raw.get(key) if raw.get(key) in options else TRAINING_PREFERENCE_DEFAULTS[key]

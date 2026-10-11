@@ -70,6 +70,92 @@
       <input type="checkbox" name="dry_run" class="rounded">
       Dry run (ASSESS + PLAN only, no LLM calls)
     </label>
+
+    <!-- Coach constraints (COACH-1) -->
+    <details class="border border-line rounded-xl p-4 mb-4 bg-paper-100">
+      <summary class="text-sm font-medium cursor-pointer">Coach constraints</summary>
+      <p class="text-xs text-ink-muted mt-1 mb-3">
+        Pre-filled from the profile. Anything you change applies to this program only — the profile is not edited.
+        The block length above still sets the number of weeks.
+      </p>
+      <label class="flex items-center gap-2 text-sm mb-3 cursor-pointer">
+        <input type="checkbox" name="coach_mode" class="rounded">
+        Apply these constraints
+      </label>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+        <label class="block">
+          <span class="block text-xs font-medium text-ink-sec mb-1">Phase</span>
+          <select name="coach_phase" class="w-full border border-line-dark rounded-lg px-3 py-1.5 bg-paper">
+            <option value="">Auto (from goal and history)</option>
+            {% for p in coach_phases %}<option value="{{ p }}">{{ p | replace('_', ' ') | title }}</option>{% endfor %}
+          </select>
+        </label>
+        <label class="block">
+          <span class="block text-xs font-medium text-ink-sec mb-1">Sessions per week</span>
+          <input type="number" name="coach_sessions_per_week" min="{{ coach_spw_range[0] }}" max="{{ coach_spw_range[1] }}"
+                 step="1" value="{{ coach.sessions_per_week }}"
+                 class="border border-line-dark rounded-lg px-3 py-1.5 w-28 bg-paper">
+        </label>
+        <label class="block">
+          <span class="block text-xs font-medium text-ink-sec mb-1">Lift emphasis</span>
+          <select name="coach_lift_emphasis" class="w-full border border-line-dark rounded-lg px-3 py-1.5 bg-paper">
+            <option value="balanced" {% if coach.lift_emphasis == 'balanced' %}selected{% endif %}>Balanced (snatch = C&amp;J)</option>
+            <option value="snatch_biased" {% if coach.lift_emphasis == 'snatch_biased' %}selected{% endif %}>Snatch-biased</option>
+            <option value="cj_biased" {% if coach.lift_emphasis == 'cj_biased' %}selected{% endif %}>C&amp;J-biased</option>
+          </select>
+        </label>
+        <label class="block">
+          <span class="block text-xs font-medium text-ink-sec mb-1">Meet date</span>
+          <input type="date" name="coach_competition_date"
+                 value="{{ coach.competition_date.isoformat() if coach.competition_date else '' }}"
+                 class="w-full border border-line-dark rounded-lg px-3 py-1.5 bg-paper">
+        </label>
+        <fieldset class="sm:col-span-2">
+          <legend class="text-xs font-medium text-ink-sec mb-1">Strength limiters</legend>
+          <div class="flex flex-wrap gap-x-3 gap-y-1">
+            {% for label, value in limiter_options %}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" name="coach_strength_limiters" value="{{ value }}" class="rounded"
+                     {% if value in coach.strength_limiters %}checked{% endif %}>
+              {{ label }}
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <fieldset class="sm:col-span-2">
+          <legend class="text-xs font-medium text-ink-sec mb-1">Technical faults</legend>
+          <div class="flex flex-wrap gap-x-3 gap-y-1">
+            {% for label, value in fault_options %}
+            <label class="flex items-center gap-2 cursor-pointer">
+              <input type="checkbox" name="coach_technical_faults" value="{{ value }}" class="rounded"
+                     {% if value in coach.technical_faults %}checked{% endif %}>
+              {{ label }}
+            </label>
+            {% endfor %}
+          </div>
+        </fieldset>
+        <label class="block">
+          <span class="block text-xs font-medium text-ink-sec mb-1">Injuries / limitations (comma-separated)</span>
+          <input type="text" name="coach_injuries" maxlength="500" value="{{ coach.injuries | join(', ') }}"
+                 class="w-full border border-line-dark rounded-lg px-3 py-1.5 bg-paper">
+        </label>
+        <label class="block">
+          <span class="block text-xs font-medium text-ink-sec mb-1">Exercises to avoid (comma-separated)</span>
+          <input type="text" name="coach_avoid_exercises" maxlength="500" list="exercise-names"
+                 value="{{ coach.avoid_exercises | join(', ') }}"
+                 class="w-full border border-line-dark rounded-lg px-3 py-1.5 bg-paper">
+          <datalist id="exercise-names">
+            {% for name in exercise_names %}<option value="{{ name }}">{% endfor %}
+          </datalist>
+        </label>
+        <label class="block sm:col-span-2">
+          <span class="block text-xs font-medium text-ink-sec mb-1">Coach note</span>
+          <textarea name="coach_note" rows="3" maxlength="{{ coach_note_max }}"
+                    placeholder="e.g. Keep squats to 2 days, no max singles before week 4, more pause work"
+                    class="w-full border border-line-dark rounded-lg px-3 py-1.5 bg-paper"></textarea>
+        </label>
+      </div>
+    </details>
     <button type="submit"
             class="bg-navy text-white px-5 py-2 rounded-lg text-sm hover:bg-navy-700">
       Generate program

@@ -120,6 +120,23 @@ def test_fetch_complexes_degrades_to_none_on_an_old_schema():
     assert fa.call_args.args[2] == (3,)
 
 
+def test_fetched_complexes_survive_generation_log_serialisation():
+    """NUMERIC columns come back as Decimal; annotate_complexes puts the row on
+    the exercise and _log_generation json.dumps it — that crashed every run in
+    which the model picked a complex (MODEL-3 baseline, 2026-10-11)."""
+    import json
+    from decimal import Decimal
+
+    from complexes import annotate_complexes
+    from retrieve import _fetch_complexes
+    row = {**SNATCH_OHS, "typical_intensity_low": Decimal("70.00"), "typical_intensity_high": Decimal("80.00")}
+    with patch("retrieve.fetch_all", return_value=[row]):
+        complexes = _fetch_complexes(MagicMock(), 3)
+    assert complexes[0]["typical_intensity_low"] == 70.0
+    exercises = annotate_complexes([{"exercise_name": SNATCH_OHS["name"]}], complexes)
+    json.dumps({"exercises": exercises})
+
+
 def test_prompt_section_only_when_complexes_are_offered():
     from generate import _available_complexes_section
     assert _available_complexes_section([]) == "" and _available_complexes_section(None) == ""

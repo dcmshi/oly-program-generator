@@ -39,6 +39,10 @@ class AthleteContext:
     # PLAN-3b: recorded (not estimated) snatch and clean / C&J maxes within
     # COLD_START_MAX_RECENCY_DAYS — a first program then skips the cold-start ceiling.
     recent_tested_maxes: bool = False
+    # COACH-1: set by coach.apply_constraints — the coach's free-text note and
+    # the constraint record (generation_params.coach); None for a normal run.
+    coach_note: str | None = None
+    coach_constraints: dict | None = None
 
 
 @dataclass
@@ -114,6 +118,9 @@ class GenerationResult:
     # rate); `input_tokens` alone excludes the cached prefix.
     cache_read_tokens: int = 0
     cache_creation_tokens: int = 0
+    # What OpenRouter billed across all attempts, or None when any attempt
+    # carried no bill (first-party API) — then estimate_cost prices the tokens.
+    billed_cost_usd: float | None = None
 
 
 @dataclass

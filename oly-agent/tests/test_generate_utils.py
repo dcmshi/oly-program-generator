@@ -1839,3 +1839,37 @@ def test_large_prompt_warns(caplog):
         assert not caplog.records
         _warn_if_prompt_large("x" * (PROMPT_LENGTH_WARN_CHARS + 1), 1, 1)
     assert "Prompt is large" in caplog.records[-1].getMessage()
+
+
+def test_generate_logs_and_returns_the_openrouter_bill():
+    """OpenRouter's `usage.cost` prices each attempt's log row and the result
+    (summed over attempts); without one the row falls back to estimate_cost (MODEL-3)."""
+    from unittest.mock import patch
+
+    ok = [MagicMock(text='{"exercises": [{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, "reps": 2, '
+                         '"intensity_pct": 75, "intensity_reference": "snatch", "rest_seconds": 120, '
+                         '"rpe_target": 7.5, "selection_rationale": "x", "source_principle_ids": []}]}')]
+
+    def response(cost):
+        usage = SimpleNamespace(input_tokens=10, output_tokens=5, cache_read_input_tokens=0,
+                                cache_creation_input_tokens=0, model_extra={"cost": cost} if cost else {})
+        return MagicMock(content=ok, stop_reason="end_turn", usage=usage)
+
+    settings = MagicMock(max_generation_retries=1, max_parse_retries=1, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    invalid = MagicMock(is_valid=False, errors=["too heavy"], warnings=[])
+    valid = MagicMock(is_valid=True, errors=[], warnings=[])
+    with patch("generate._log_generation") as log, \
+         patch("generate.create_message_with_retries", side_effect=[response(0.002), response(0.003)]), \
+         patch("generate.validate_session", side_effect=[invalid, valid]):
+        result = generate_session_with_retries("p", MagicMock(), settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1,
+                                               MagicMock())
+    assert [c.kwargs["billed_usd"] for c in log.call_args_list] == [0.002, 0.003]
+    assert result.billed_cost_usd == 0.005
+
+    with patch("generate._log_generation") as log, \
+         patch("generate.create_message_with_retries", side_effect=[response(None)]), \
+         patch("generate.validate_session", return_value=valid):
+        result = generate_session_with_retries("p", MagicMock(), settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1,
+                                               MagicMock())
+    assert log.call_args.kwargs["billed_usd"] is None and result.billed_cost_usd is None

@@ -166,6 +166,78 @@ def test_open_models_via_openrouter_get_thinking_and_pricing():
     assert pricing_for("deepseek/deepseek-v4.1-flash") == (0.15, 0.60)
 
 
+def test_gpt_sol_caps_reasoning_drops_temperature_and_asks_for_flex():
+    """GPT Sol 400s on thinking disabled and has no endpoint that takes
+    `temperature` (MODEL-3): "disabled" → adaptive + effort low, temperature is
+    dropped, and price routing adds the flex tier for OpenAI models only."""
+    from unittest.mock import MagicMock
+
+    from shared.llm import billed_cost, openrouter_routing, request_extras, sampling_kwargs, thinking_kwargs
+
+    sol = "openai/gpt-6.1-sol"
+    assert thinking_kwargs(sol, "disabled") == {"thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}}
+    assert thinking_kwargs(sol, "disabled", "medium")["output_config"] == {"effort": "medium"}
+    assert thinking_kwargs(sol, "adaptive") == {"thinking": {"type": "adaptive"}}
+    assert sampling_kwargs(sol, 0.7) == {}
+    assert sampling_kwargs("moonshotai/kimi-k3", 0.7) == {"temperature": 0.7}
+
+    client = MagicMock()
+    client.openrouter_routing = openrouter_routing("price")
+    assert request_extras(client, sol)["extra_body"]["service_tier"] == "flex"
+    assert "service_tier" not in request_extras(client, "moonshotai/kimi-k3")["extra_body"]
+    assert client.openrouter_routing == openrouter_routing("price")          # not mutated
+    client.openrouter_routing = openrouter_routing("throughput")
+    assert "service_tier" not in request_extras(client, sol)["extra_body"]  # flex only when price-routed
+
+    usage = MagicMock(model_extra={"cost": 0.000714})
+    assert billed_cost(usage) == 0.000714
+    assert billed_cost(MagicMock(model_extra={})) is None
+    assert billed_cost(None) is None
+
+
+def test_openai_models_get_the_all_required_schema_dialect_and_nulls_stripped():
+    """OpenAI's strict structured outputs 400 on an optional property; the retry
+    wrapper sends every key required (optional ones nullable) and strips the
+    forced nulls from the reply, so parsers see the Anthropic-dialect shape."""
+    import json
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock
+
+    from processors.principle_extractor import PRINCIPLE_SCHEMA
+
+    from shared.llm import all_required_schema, create_message_with_retries, json_schema_kwargs
+
+    def walk(s):
+        if isinstance(s, dict):
+            if isinstance(s.get("properties"), dict):
+                assert set(s["required"]) == set(s["properties"])
+            for v in s.values():
+                walk(v)
+        elif isinstance(s, list):
+            for v in s:
+                walk(v)
+    walk(all_required_schema(PRINCIPLE_SCHEMA))
+
+    schema = {"type": "object", "additionalProperties": False, "required": ["items"],
+              "properties": {"note": {"type": "string"}, "items": {"type": "array", "items": {
+                  "type": "object", "additionalProperties": False, "required": ["name"],
+                  "properties": {"name": {"type": "string"}, "reps": {"type": "integer"}}}}}}
+    reply = {"note": None, "items": [{"name": "Snatch", "reps": None}, {"name": "Clean", "reps": 3}]}
+    client = MagicMock(spec=["messages"])
+    client.messages.create.return_value = SimpleNamespace(
+        content=[SimpleNamespace(type="text", text=json.dumps(reply))], stop_reason="end_turn")
+
+    r = create_message_with_retries(client, model="openai/gpt-6.1-sol", max_tokens=10, messages=[],
+                                    **json_schema_kwargs(schema))
+    sent = client.messages.create.call_args.kwargs["output_config"]["format"]["schema"]
+    assert sent["required"] == ["note", "items"] and sent["properties"]["note"]["anyOf"][1] == {"type": "null"}
+    assert json.loads(r.content[0].text) == {"items": [{"name": "Snatch"}, {"name": "Clean", "reps": 3}]}
+
+    create_message_with_retries(client, model="moonshotai/kimi-k3", max_tokens=10, messages=[],
+                                **json_schema_kwargs(schema))
+    assert client.messages.create.call_args.kwargs["output_config"]["format"]["schema"] is schema   # untouched
+
+
 def test_thinking_kwargs_per_model_family():
     from shared.llm import thinking_kwargs
 
