@@ -167,7 +167,9 @@
     </div>
 
     <!-- Training preferences (PLAN-2) -->
-    {% set prefs = (athlete.exercise_preferences or {}).get('prefs') or {} %}
+    {# a row saved before the double-encoding fix holds prefs as a JSON string — show defaults, don't 500 #}
+    {% set raw_prefs = (athlete.exercise_preferences or {}).get('prefs') %}
+    {% set prefs = raw_prefs if raw_prefs is mapping else {} %}
     <div class="grid grid-cols-2 sm:grid-cols-4 gap-4">
       <div>
         <label class="block text-xs font-medium text-ink-sec mb-1" for="pref_warmups">Warm-up sets</label>
@@ -245,7 +247,7 @@
     <div>
       <label class="block text-xs font-medium text-ink-sec mb-1" for="injuries">Injuries / limitations</label>
       <textarea name="injuries" id="injuries" rows="2" maxlength="1000"
-                class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">{{ athlete.injuries or '' }}</textarea>
+                class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">{{ (athlete.injuries or []) | join(', ') }}</textarea>
     </div>
 
     <div>

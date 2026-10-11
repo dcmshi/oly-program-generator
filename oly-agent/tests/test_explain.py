@@ -146,7 +146,7 @@ def test_explain_returns_rationale_text():
 
     # explain returns (rationale, input_tokens, output_tokens) so the
     # orchestrator can count its spend (AGT-L7)
-    rationale, in_tok, out_tok = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    rationale, in_tok, out_tok, _cost = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
     assert rationale == "This is the rationale."
     assert (in_tok, out_tok) == (100, 50)
 
@@ -165,7 +165,7 @@ def test_explain_returns_error_string_on_llm_failure():
     mock_client = MagicMock()
     mock_client.messages.create.side_effect = RuntimeError("API down")
 
-    rationale, in_tok, out_tok = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    rationale, in_tok, out_tok, _cost = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
     assert "failed" in rationale.lower() or "error" in rationale.lower()
     assert (in_tok, out_tok) == (0, 0)
 
@@ -191,7 +191,7 @@ def test_explain_drops_temperature_and_reads_text_blocks_on_opus_5():
     mock_response.stop_reason = "end_turn"
     mock_client.messages.create.return_value = mock_response
 
-    rationale, _, _ = explain(_ctx(), _plan(), _sessions(), mock_client, _V5Settings())
+    rationale, _, _, _ = explain(_ctx(), _plan(), _sessions(), mock_client, _V5Settings())
     assert rationale == "Rationale from v5."
     kwargs = mock_client.messages.create.call_args[1]
     assert "temperature" not in kwargs
@@ -220,7 +220,7 @@ def test_explain_surfaces_a_refusal_as_the_error_string():
     mock_response.stop_reason = "refusal"
     mock_client.messages.create.return_value = mock_response
 
-    rationale, in_tok, out_tok = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    rationale, in_tok, out_tok, _cost = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
     assert rationale.startswith("[Rationale generation failed:") and "refusal" in rationale
     assert (in_tok, out_tok) == (0, 0)
 
@@ -241,7 +241,7 @@ def test_explain_retries_with_a_bigger_budget_when_truncated():
 
     mock_client = MagicMock()
     mock_client.messages.create.side_effect = [truncated, ok]
-    rationale, in_tok, out_tok = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
+    rationale, in_tok, out_tok, _cost = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
     assert rationale == "Full rationale." and out_tok == 400
     assert [c.kwargs["max_tokens"] for c in mock_client.messages.create.call_args_list] == [1024, 2048]
 
@@ -258,7 +258,7 @@ def test_explain_gives_up_growing_at_the_ceiling():
     truncated.stop_reason = "max_tokens"
     mock_client = MagicMock()
     mock_client.messages.create.return_value = truncated
-    rationale, _, _ = explain(_ctx(), _plan(), _sessions(), mock_client, _BigSettings())
+    rationale, _, _, _ = explain(_ctx(), _plan(), _sessions(), mock_client, _BigSettings())
     assert rationale == "partial…" and mock_client.messages.create.call_count == 1
 
 # ── DOG-1e: the rationale prompt names the previous block ────────────────────

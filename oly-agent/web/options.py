@@ -92,3 +92,16 @@ MAX_EXERCISES = [
     "Push Press",
     "Barbell Row",
 ]
+
+
+def parse_list_text(text: str | None, max_items: int = 20) -> list[str]:
+    """A free-text list ("left knee, lower back" or one per line) as the
+    trimmed, de-duplicated list a `text[]` column takes. asyncpg rejects a str
+    for an array parameter, so the raw textarea value 500'd every profile and
+    setup save that named an injury (COACH-1)."""
+    out: list[str] = []
+    for part in (text or "").replace("\r", "").replace("\n", ",").replace(";", ",").split(","):
+        item = " ".join(part.split())
+        if item and item.lower() not in {o.lower() for o in out}:
+            out.append(item)
+    return out[:max_items]

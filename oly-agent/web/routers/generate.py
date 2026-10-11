@@ -1,14 +1,20 @@
 # web/routers/generate.py
+import html
 import logging
 
+from coach import COACH_NOTE_MAX_CHARS, COACH_PHASES, SESSIONS_PER_WEEK_RANGE
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from web import jobs
+from web.async_db import async_fetch_all
 from web.auth import get_current_athlete_id
+from web.coach_form import parse_coach_form, profile_defaults
 from web.deps import get_db, limiter
+from web.queries import profile as qprof
 from web.queries import program as qp
 
 from shared.constants import BLOCK_WEEKS_MAX_BY_LEVEL, BLOCK_WEEKS_MIN, MACROCYCLE_WEEKS_MAX, MACROCYCLE_WEEKS_MIN
+from shared.timeutil import today_in_tz
 
 logger = logging.getLogger(__name__)
 router = APIRouter(prefix="/generate")
@@ -27,11 +33,18 @@ async def generate_page(
     # page and coming back resumes polling instead of showing nothing.
     inflight = await jobs.get_inflight_job_id(athlete_id)
     macro = await qp.get_macrocycle_view(conn, athlete_id)
+    athlete = await qprof.get_athlete(conn, athlete_id)
+    goal = await qprof.get_active_goal(conn, athlete_id)
+    exercise_names = [r["name"] for r in await async_fetch_all(conn, "SELECT name FROM exercises ORDER BY name")]
     return templates.TemplateResponse(request, "generate.html", {
         "request": request, "last_program": last, "macro": macro,
         "macro_min": MACROCYCLE_WEEKS_MIN, "macro_max": MACROCYCLE_WEEKS_MAX,
         "job_id": inflight,
         "job": {"status": "running"} if inflight else None,
+        # COACH-1: the coach form, pre-filled from the profile
+        "coach": profile_defaults(athlete, goal), "coach_phases": COACH_PHASES,
+        "coach_spw_range": SESSIONS_PER_WEEK_RANGE, "coach_note_max": COACH_NOTE_MAX_CHARS,
+        "exercise_names": exercise_names,
     })
 
 
@@ -39,6 +52,7 @@ async def generate_page(
 @limiter.limit("2/minute")
 async def run_generation(
     request: Request,
+    conn=Depends(get_db),
     athlete_id: int = Depends(get_current_athlete_id),
 ):
     from web.app import templates
@@ -74,10 +88,22 @@ async def run_generation(
                 return HTMLResponse(
                     f'<div class="text-red-700 text-sm">Macrocycle length must be between {MACROCYCLE_WEEKS_MIN} '
                     f'and {MACROCYCLE_WEEKS_MAX} weeks.</div>', status_code=422)
+    coach = None
+    if form.get("coach_mode") == "on":
+        athlete = await qprof.get_athlete(conn, athlete_id)
+        goal = await qprof.get_active_goal(conn, athlete_id)
+        coach, errors = parse_coach_form(form, profile_defaults(athlete, goal),
+                                         today_in_tz((athlete or {}).get("timezone")))
+        if errors:
+            return HTMLResponse('<div class="text-red-700 text-sm">' + " ".join(map(html.escape, errors))
+                                + "</div>", status_code=422)
+        if coach and coach.get("phase") and macrocycle is not None:
+            return HTMLResponse('<div class="text-red-700 text-sm">A macrocycle sets each block\'s phase — '
+                                "leave the coach phase on auto.</div>", status_code=422)
     request_id = getattr(request.state, "request_id", "-")
     try:
         job_id = await jobs.submit_generation(athlete_id, dry_run=dry_run, request_id=request_id,
-                                              duration_weeks=duration_weeks, macrocycle=macrocycle)
+                                              duration_weeks=duration_weeks, macrocycle=macrocycle, coach=coach)
     except jobs.GenerationInFlightError:
         logger.info(f"Generation rejected — already in flight for athlete {athlete_id}")
         return HTMLResponse(
@@ -87,7 +113,7 @@ async def run_generation(
             status_code=409,
         )
     logger.info(f"Generation submitted: job_id={job_id}, athlete={athlete_id}, dry_run={dry_run}, "
-                f"macrocycle={macrocycle}")
+                f"macrocycle={macrocycle}, coach={coach}")
     return templates.TemplateResponse(request, "partials/generate_result.html", {
         "request": request, "job_id": job_id, "job": {"status": "running"},
     })

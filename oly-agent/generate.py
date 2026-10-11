@@ -20,6 +20,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from coach import coach_prompt_section
 from complexes import annotate_complexes, complex_line
 from models import (
     AthleteContext,
@@ -51,6 +52,7 @@ from shared.constants import (
 from shared.excerpt import focused_excerpt
 from shared.exercise_mapping import is_accessory
 from shared.llm import (
+    billed_cost,
     create_message_with_retries,
     estimate_cost,
     json_schema_kwargs,
@@ -945,6 +947,9 @@ def build_session_prompt(
         _fault_correction_section(athlete_context.technical_faults, retrieval_context.fault_exercises),
         _avoid_section(athlete_context.athlete),
         _substitutions_section(retrieval_context.available_substitutions),
+        # COACH-1: program-level, so above the marker; "" (omitted) on a normal run
+        coach_prompt_section(getattr(athlete_context, "coach_note", None),
+                             getattr(athlete_context, "coach_constraints", None)),
     ] if s)
     block_section = _block_template_section(block_template, session_template.day_number).strip("\n")
     dynamic = "\n\n".join(s for s in [
@@ -1034,11 +1039,13 @@ def generate_session_with_retries(
     tokens, and carries validate_session's warnings in parsed_response
     (``_log_generation``).
     """
-    attempt_cache = {"read": 0, "creation": 0}   # the current attempt's cache tokens, for its log row
+    # the current attempt's cache tokens and billed cost, for its log row
+    attempt_cache = {"read": 0, "creation": 0, "billed": None}
 
     def _log(*args, **kwargs):
         _log_generation(*args, retrieval_set=retrieval_set, cache_read_tokens=attempt_cache["read"],
-                        cache_creation_tokens=attempt_cache["creation"], **kwargs)
+                        cache_creation_tokens=attempt_cache["creation"], billed_usd=attempt_cache["billed"],
+                        **kwargs)
 
     max_attempts = settings.max_generation_retries + settings.max_parse_retries
     current_prompt = prompt
@@ -1052,6 +1059,7 @@ def generate_session_with_retries(
     total_output_tokens = 0
     total_cache_read = 0
     total_cache_creation = 0
+    total_billed: float | None = 0.0   # None once a paid attempt carries no bill
     max_tokens = settings.generation_max_tokens   # grows on truncation, see below
     # Request shape per model family: Sonnet 5 / Opus 5 reject `temperature`
     # and run adaptive thinking unless told otherwise; 4.x accept the
@@ -1069,7 +1077,7 @@ def generate_session_with_retries(
 
     for attempt in range(1, max_attempts + 1):
         logger.info(f"  Generating W{week_number}D{day_number} (attempt {attempt}/{max_attempts})")
-        attempt_cache.update(read=0, creation=0)
+        attempt_cache.update(read=0, creation=0, billed=None)
 
         # ── LLM call ─────────────────────────────────────────
         try:
@@ -1089,7 +1097,9 @@ def generate_session_with_retries(
             total_output_tokens += output_tokens
             total_cache_read += usage["cache_read"]
             total_cache_creation += usage["cache_creation"]
-            attempt_cache.update(read=usage["cache_read"], creation=usage["cache_creation"])
+            billed = billed_cost(response.usage)
+            attempt_cache.update(read=usage["cache_read"], creation=usage["cache_creation"], billed=billed)
+            total_billed = None if billed is None or total_billed is None else total_billed + billed
         except Exception as e:
             logger.error(f"  LLM API error (attempt {attempt}): {e}")
             _log(
@@ -1220,6 +1230,7 @@ def generate_session_with_retries(
             attempt_number=attempt,
             cache_read_tokens=total_cache_read,
             cache_creation_tokens=total_cache_creation,
+            billed_cost_usd=total_billed,
         )
 
     # All retries exhausted
@@ -1237,6 +1248,7 @@ def generate_session_with_retries(
         attempt_number=max_attempts,
         cache_read_tokens=total_cache_read,
         cache_creation_tokens=total_cache_creation,
+        billed_cost_usd=total_billed,
     )
 
 
@@ -1251,7 +1263,7 @@ def _log_generation(
     attempt, model, prompt, raw_response, parsed,
     input_tokens, output_tokens, status,
     validation_errors=None, error_message=None, retrieval_set=None,
-    cache_read_tokens=0, cache_creation_tokens=0, validation_warnings=None,
+    cache_read_tokens=0, cache_creation_tokens=0, validation_warnings=None, billed_usd=None,
 ):
     """Insert a row into generation_log (incl. the labelled retrieval set — RAG-M5).
 
@@ -1262,8 +1274,8 @@ def _log_generation(
     validation_errors would inflate every error count (eval/model_baseline);
     ``_validation_warnings`` is null when Step 5 didn't run on the attempt.
     """
-    cost = estimate_cost(input_tokens, output_tokens, model,
-                         cache_read_tokens=cache_read_tokens, cache_creation_tokens=cache_creation_tokens)
+    cost = estimate_cost(input_tokens, output_tokens, model, cache_read_tokens=cache_read_tokens,
+                         cache_creation_tokens=cache_creation_tokens, billed_usd=billed_usd)
     parsed_response = (
         json.dumps({"exercises": parsed, "_validation_warnings": validation_warnings})
         if parsed else None

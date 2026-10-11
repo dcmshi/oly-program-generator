@@ -1,7 +1,6 @@
 # web/queries/profile.py
 """DB queries for athlete profile viewing and editing."""
 
-import json
 from datetime import date
 
 from web.formparse import parse_float as _float  # finite + bounded (WEB-L4)
@@ -164,7 +163,10 @@ async def update_profile(conn, athlete_id: int, data: dict):
         data.get("competition_experience") or "none",
         data.get("timezone") or "UTC",
         athlete_id,
-        json.dumps(data.get("prefs") or {}),      # PLAN-2 training preferences; "avoid" is preserved by ||
+        # PLAN-2 training preferences; "avoid" is preserved by ||. A dict, not
+        # json.dumps(...): the pool's JSONB codec encodes it, and a pre-encoded
+        # string was stored as a JSON *string* that crashed the profile page.
+        data.get("prefs") or {},
     )
 
 

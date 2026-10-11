@@ -19,6 +19,7 @@ from web.options import (  # noqa: F401  (re-export)
     STRENGTH_LIMITER_OPTIONS,
     VALID_GOALS,
     VALID_SEXES,
+    parse_list_text,
 )
 
 
@@ -123,7 +124,7 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         "sessions_per_week": form.get("sessions_per_week") or "4",
         "session_duration_minutes": form.get("session_duration_minutes") or "90",
         "available_equipment": equipment,
-        "injuries": form.get("injuries", "").strip() or None,
+        "injuries": parse_list_text(form.get("injuries", "")) or None,
         "technical_faults": faults,
         "username": username,
         "notes": form.get("notes", "").strip() or None,

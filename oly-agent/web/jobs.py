@@ -72,9 +72,11 @@ async def close_arq_pool() -> None:
 
 
 async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: str = "-",
-                            duration_weeks: int | None = None, macrocycle: dict | None = None) -> str:
+                            duration_weeks: int | None = None, macrocycle: dict | None = None,
+                            coach: dict | None = None) -> str:
     """Enqueue one generation. `macrocycle` (PLAN-3e): {"new": True, "weeks": N | None}
-    plans a macrocycle and generates its first block; {"id": M} its next block."""
+    plans a macrocycle and generates its first block; {"id": M} its next block.
+    `coach` (COACH-1): `CoachConstraints.to_json()`, JSON-safe for the ARQ payload."""
     if _arq_pool is None:
         raise RuntimeError("ARQ pool not initialised — is Redis running?")
     # One in-flight generation per athlete — double-clicks otherwise queue N
@@ -87,7 +89,7 @@ async def submit_generation(athlete_id: int, dry_run: bool = False, request_id: 
     # outlive/under-live the job (W-L4).
     try:
         job = await _arq_pool.enqueue_job("run_generation", athlete_id, dry_run=dry_run, request_id=request_id,
-                                          duration_weeks=duration_weeks, macrocycle=macrocycle)
+                                          duration_weeks=duration_weeks, macrocycle=macrocycle, coach=coach)
     except BaseException:
         # No job exists to release the guard via the status poll — without this
         # the athlete is locked out for the full TTL (audit2-L5). BaseException:

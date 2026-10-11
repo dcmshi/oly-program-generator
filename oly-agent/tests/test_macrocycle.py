@@ -275,9 +275,14 @@ def _view(can_generate=True):
 
 
 def test_generate_page_shows_the_timeline_and_next_block():
-    with patch("web.queries.program.get_all_programs", return_value=[]), \
+    from contextlib import ExitStack
+
+    from tests.test_web_routers import _generate_page_patches
+    with ExitStack() as stack, \
+         patch("web.queries.program.get_all_programs", return_value=[]), \
          patch("web.queries.program.get_macrocycle_view", return_value=_view()), \
          patch("web.jobs.get_inflight_job_id", return_value=None):
+        _generate_page_patches(stack)
         r = _client().get("/generate")
     assert r.status_code == 200
     assert "Macrocycle · 12 weeks" in r.text and 'name="macrocycle_id" value="5"' in r.text
@@ -285,9 +290,14 @@ def test_generate_page_shows_the_timeline_and_next_block():
 
 
 def test_generate_page_waits_for_the_current_block():
-    with patch("web.queries.program.get_all_programs", return_value=[]), \
+    from contextlib import ExitStack
+
+    from tests.test_web_routers import _generate_page_patches
+    with ExitStack() as stack, \
+         patch("web.queries.program.get_all_programs", return_value=[]), \
          patch("web.queries.program.get_macrocycle_view", return_value=_view(can_generate=False)), \
          patch("web.jobs.get_inflight_job_id", return_value=None):
+        _generate_page_patches(stack)
         r = _client().get("/generate")
     assert "Generate block 2" not in r.text and "when the current block is completed" in r.text
 

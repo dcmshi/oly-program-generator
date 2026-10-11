@@ -21,6 +21,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from assess import assess
+from coach import CoachConstraints, apply_constraints
 from explain import explain
 from generate import build_session_prompt, generate_session_with_retries
 from macrocycle import create_macrocycle, load_macrocycle, next_block_index, plan_blocks
@@ -63,6 +64,7 @@ def run(
     new_macrocycle: bool = False,
     macrocycle_weeks: int | None = None,
     macrocycle_id: int | None = None,
+    coach: dict | None = None,
 ) -> int | None:
     """Generate a complete training program for the given athlete.
 
@@ -86,6 +88,10 @@ def run(
             goal's competition date, else `macrocycle_weeks` total — store it
             and generate its first block. `duration_weeks` is ignored.
         macrocycle_id: Generate the next unrealised block of this macrocycle.
+        coach: COACH-1 constraints (`coach.CoachConstraints.to_json()` shape) —
+            override the profile for this program only, applied right after
+            ASSESS; a forced `phase` is ignored when a macrocycle block sets it.
+            Stored as generation_params.coach.
 
     Returns:
         program_id of the created program, or None on failure / dry-run.
@@ -103,6 +109,10 @@ def run(
         logger.info(f"=== Step 1: ASSESS (athlete {athlete_id}) ===")
         _t0 = time.perf_counter()
         athlete_context = assess(athlete_id, conn)
+        coach_constraints = CoachConstraints.from_json(coach) if coach else None
+        athlete_context = apply_constraints(athlete_context, coach_constraints)
+        if _coach_record(athlete_context):
+            logger.info(f"Coach constraints applied: {_coach_record(athlete_context)}")
         logger.info("Step 1 complete", extra={"step": "assess", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         # ── Step 2: PLAN ──────────────────────────────────────
@@ -114,7 +124,12 @@ def run(
                                                           macrocycle_weeks, dry_run)
             if mc_block is None:
                 return None
-        program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks, block=mc_block)
+        forced_phase = coach_constraints.phase if coach_constraints else None
+        if forced_phase and mc_block is not None:
+            logger.warning(f"Coach phase {forced_phase} ignored — the macrocycle block sets the phase")
+            forced_phase = None
+        program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks, block=mc_block,
+                            phase=forced_phase)
         logger.info("Step 2 complete", extra={"step": "plan", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         if dry_run:
@@ -270,6 +285,7 @@ def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContex
                 "top_k": settings.vector_search_top_k,
                 "thinking": settings.generation_thinking or None,
                 "effort": settings.generation_effort or None,
+                **({"coach": _coach_record(athlete_context)} if _coach_record(athlete_context) else {}),
                 **({"max_sessions": max_sessions} if max_sessions is not None else {}),
             }),
             macrocycle[0] if macrocycle else None,
@@ -357,16 +373,27 @@ def _explain_program(g: "_GenerationRun", all_sessions_data: list[dict], cumulat
             "the rationale step. Re-run generation with a higher limit to "
             "get a full program rationale."
         ), cumulative_cost
-    rationale, explain_in_tokens, explain_out_tokens = explain(
+    rationale, _in_tokens, _out_tokens, explain_cost = explain(
         athlete_context=g.athlete_context,
         plan=g.program_plan,
         program_sessions=all_sessions_data,
         llm_client=g.llm_client,
         settings=g.settings,
     )
-    # The explain call is paid too — count it (AGT-L7)
-    return rationale, cumulative_cost + estimate_cost(
-        explain_in_tokens, explain_out_tokens, g.settings.explanation_model)
+    # The explain call is paid too — count it (AGT-L7); billed when OpenRouter says
+    return rationale, cumulative_cost + explain_cost
+
+
+def _coach_record(athlete_context) -> dict | None:
+    """The applied coach constraints (generation_params.coach), tolerant of mocks."""
+    value = getattr(athlete_context, "coach_constraints", None)
+    return value if isinstance(value, dict) and value else None
+
+
+def _billed(result) -> float | None:
+    """A GenerationResult's billed cost, tolerant of mocks without the field."""
+    value = getattr(result, "billed_cost_usd", None)
+    return value if isinstance(value, (int, float)) and not isinstance(value, bool) else None
 
 
 def _prefix_rationale_warnings(rationale: str, session_cap: int | None, n_sessions: int,
@@ -852,6 +879,7 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
         result.input_tokens, result.output_tokens, g.settings.generation_model,
         cache_read_tokens=getattr(result, "cache_read_tokens", 0) or 0,
         cache_creation_tokens=getattr(result, "cache_creation_tokens", 0) or 0,
+        billed_usd=_billed(result),
     ))
 
     if result.exercises is None:

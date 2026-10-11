@@ -366,6 +366,10 @@ def test_training_preferences_defaults_and_validation():
     assert got == {"warmups": "own", "deload_style": "volume", "max_test": "never", "volume_table": "prilepin",
                    "deload_every_weeks": 4}
     assert training_preferences({"exercise_preferences": {"prefs": {"deload_every_weeks": 7}}})["deload_every_weeks"] is None
+    # rows saved before the double-encoding fix hold prefs as a JSON string
+    legacy = training_preferences({"exercise_preferences": {"prefs": '{"warmups": "own"}'}})
+    assert legacy["warmups"] == "own"
+    assert training_preferences({"exercise_preferences": {"prefs": "not json"}})["warmups"] == "prescribed"
 
 
 def test_deload_preferences_shape_the_block():

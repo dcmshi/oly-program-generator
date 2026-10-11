@@ -12,10 +12,12 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+from coach import coach_prompt_section
 from models import AthleteContext, ProgramPlan
 
 from shared.constants import LLM_MAX_TOKENS_CEILING
 from shared.llm import (
+    billed_cost,
     create_message_with_retries,
     estimate_cost,
     message_text,
@@ -32,7 +34,7 @@ def explain(
     program_sessions: list[dict],
     llm_client,
     settings,
-) -> tuple[str, int, int]:
+) -> tuple[str, int, int, float]:
     """Generate a plain-language rationale for the program.
 
     Args:
@@ -43,9 +45,10 @@ def explain(
         settings: AgentSettings
 
     Returns:
-        (rationale_text, input_tokens, output_tokens) — the token counts feed
-        the orchestrator's per-program cost tracking, which previously
-        excluded the explain call's spend entirely (AGT-L7).
+        (rationale_text, input_tokens, output_tokens, cost_usd) — the cost
+        (OpenRouter's bill, else the list-price estimate) feeds the
+        orchestrator's per-program cost tracking, which previously excluded the
+        explain call's spend entirely (AGT-L7).
     """
     prompt = _build_explain_prompt(athlete_context, plan, program_sessions)
     request_kwargs = {
@@ -84,16 +87,17 @@ def explain(
         rationale = message_text(response).strip()
         cost = estimate_cost(
             response.usage.input_tokens, response.usage.output_tokens, settings.explanation_model,
+            billed_usd=billed_cost(response.usage),
         )
         logger.info(
             f"Generated rationale ({len(rationale)} chars, "
             f"{response.usage.input_tokens} in / {response.usage.output_tokens} out, "
             f"~${cost:.4f})"
         )
-        return rationale, response.usage.input_tokens, response.usage.output_tokens
+        return rationale, response.usage.input_tokens, response.usage.output_tokens, cost
     except Exception as e:
         logger.error(f"Explain step failed after retries: {e}")
-        return f"[Rationale generation failed: {e}]", 0, 0
+        return f"[Rationale generation failed: {e}]", 0, 0, 0.0
 
 
 def _setting_str(settings, name: str) -> str:
@@ -123,6 +127,17 @@ def _previous_block_summary(prev: dict | None) -> str:
     if isinstance(outcome, dict) and outcome.get("adherence_pct") is not None:
         parts.append(f"adherence {outcome['adherence_pct']}%")
     return "; ".join(parts)
+
+
+def _coach_block(athlete_context: AthleteContext) -> str:
+    """COACH-1: the coach's brief, so the rationale says which choices were the
+    coach's; "" on a normal run (the prompt is then unchanged)."""
+    section = coach_prompt_section(getattr(athlete_context, "coach_note", None),
+                                   getattr(athlete_context, "coach_constraints", None))
+    if not section:
+        return ""
+    brief = section.replace("## Coach Instructions", "## Coach's Brief", 1)
+    return f"\n{brief}\nMention where the program follows the coach's choices.\n"
 
 
 def _build_explain_prompt(
@@ -164,6 +179,7 @@ def _build_explain_prompt(
         comp_context = "competition this week"
     else:
         comp_context = f"{weeks_to_comp} weeks out from competition"
+    coach = _coach_block(athlete_context)
 
     return f"""An Olympic weightlifting athlete has been prescribed the following training program.
 Write a clear, direct explanation for the athlete (not a coach) covering the 5 points below.
@@ -185,7 +201,7 @@ Weekly progression:
 
 ## Sample Session (Week 1, Day 1)
 {sample_exercises}
-
+{coach}
 ## Write an explanation covering:
 1. Why this training phase was selected for this athlete's goal and timeline
 2. How volume and intensity progress across the weeks (and why)

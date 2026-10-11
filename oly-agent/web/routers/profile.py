@@ -8,6 +8,7 @@ from fastapi.responses import HTMLResponse, RedirectResponse
 from web.async_db import async_fetch_one
 from web.auth import get_current_athlete_id, hash_password, password_too_long, verify_password
 from web.deps import get_db, limiter
+from web.options import parse_list_text
 from web.queries import profile as q
 
 from shared.constants import DELOAD_EVERY_WEEKS_OPTIONS, TRAINING_PREFERENCE_DEFAULTS, TRAINING_PREFERENCE_OPTIONS
@@ -78,7 +79,7 @@ async def update_profile(
         "session_duration_minutes": session_duration_minutes,
         "available_equipment": available_equipment,
         "technical_faults": technical_faults,
-        "injuries": injuries.strip() or None,
+        "injuries": parse_list_text(injuries) or None,
         "notes": notes.strip() or None,
         "lift_emphasis": lift_emphasis or "balanced",
         "strength_limiters": strength_limiters,
