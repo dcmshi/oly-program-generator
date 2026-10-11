@@ -14,6 +14,7 @@ import logging
 import math
 import sys
 import threading
+from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -389,7 +390,7 @@ def _fetch_complexes(conn, max_complexity: int) -> list[dict]:
     """exercise_complexes rows at or below the plan's complexity cap (PLAN-3a).
     A missing table / column (a DB before migration 0019) means no complexes."""
     try:
-        return fetch_all(
+        rows = fetch_all(
             conn,
             """
             SELECT id, name, exercises_ordered, total_reps_per_set, intensity_reference,
@@ -401,6 +402,10 @@ def _fetch_complexes(conn, max_complexity: int) -> list[dict]:
             """,
             (max_complexity,),
         ) or []
+        # NUMERIC columns arrive as Decimal; annotate_complexes attaches the row
+        # to a prescribed exercise, which generation_log serialises with json.dumps.
+        rows = [{k: float(v) if isinstance(v, Decimal) else v for k, v in row.items()} for row in rows]
+        return rows
     except Exception as e:                               # noqa: BLE001 — optional catalogue
         logger.warning(f"Complexes unavailable ({e}) — generating without them")
         try:
