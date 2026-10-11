@@ -42,7 +42,8 @@
               {% endif %}
               {% set dev = o.avg_rpe_deviation %}
               <span class="{{ 'text-amber-500' if dev | abs > 1.0 else 'text-ink-faint' }}">
-                RPE {{ '+' if dev > 0 else '' }}{{ '%.1f' | format(dev) }}
+                {# avg actual RPE minus target — 0.0 means on target, not an RPE of zero (QA-1) #}
+                <span title="Average RPE vs target">RPE vs target {{ '+' if dev > 0 else '' }}{{ '%.1f' | format(dev) }}</span>
               </span>
               {% if o.maxes_delta %}
               {% set ns = namespace(gains=0) %}

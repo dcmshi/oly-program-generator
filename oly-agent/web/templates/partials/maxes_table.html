@@ -92,10 +92,17 @@
       </datalist>
     </div>
     <div class="w-full sm:w-auto">
-      <label for="max_weight_kg" class="block text-xs text-ink-muted mb-1">Weight (kg)</label>
-      <input name="weight_kg" id="max_weight_kg" type="number" step="0.5" min="1" max="500" required
-             placeholder="100.0"
-             class="border border-line rounded-lg px-3 py-1.5 text-sm w-full sm:w-24">
+      <label for="max_weight_kg" class="block text-xs text-ink-muted mb-1">Weight</label>
+      <div class="flex gap-2">
+        <input name="weight_kg" id="max_weight_kg" type="number" step="0.1" min="1" max="1100" required
+               placeholder="100.0"
+               class="border border-line rounded-lg px-3 py-1.5 text-sm w-full sm:w-24">
+        {# QA-1: lifters loading in pounds enter lb; the server converts to kg #}
+        <select name="unit" aria-label="Unit" class="border border-line rounded-lg px-2 py-1.5 text-sm bg-paper">
+          <option value="kg" {% if (unit or 'kg') == 'kg' %}selected{% endif %}>kg</option>
+          <option value="lb" {% if unit == 'lb' %}selected{% endif %}>lb</option>
+        </select>
+      </div>
     </div>
     <button type="submit"
             class="bg-navy text-white text-sm px-4 py-2 sm:py-1.5 rounded-lg hover:bg-navy-700 w-full sm:w-auto">
@@ -104,3 +111,5 @@
   </form>
 
 </div>
+
+{% if oob %}{# QA-1: refresh the panels that read the maxes #}{% include "partials/goal_progress.html" %}{% include "partials/lift_ratios.html" %}{% endif %}

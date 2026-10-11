@@ -209,6 +209,36 @@ def test_dashboard_with_active_program():
                                     r = _client.get("/")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
     assert b"Accumulation Block" in r.content
+    assert b"Draft \xe2\x80\x94 review it" not in r.content
+
+
+def test_dashboard_marks_a_draft_and_keeps_panels_swappable():
+    """QA-1: a draft says so; Goal Progress / Lift Ratios carry ids for the max routes' OOB swaps."""
+    from contextlib import ExitStack
+    with ExitStack() as stack:
+        for target, value in (("get_active_program", _program(status="draft")), ("get_current_week_sessions", []),
+                              ("get_adherence", {"prescribed": 0, "logged": 0, "pct": 0}), ("get_warnings", []),
+                              ("get_lift_ratios", {}), ("get_goal_progress", None), ("get_athlete_timezone", "UTC")):
+            stack.enter_context(patch(f"web.queries.dashboard.{target}", return_value=value))
+        stack.enter_context(patch("web.queries.program.get_athlete_maxes", return_value=[]))
+        r = _client.get("/")
+    assert "Draft — review it and activate it" in r.text
+    assert 'id="goal-progress"' in r.text and 'id="lift-ratios"' in r.text
+    assert "hx-swap-oob" not in r.text                     # only the max routes swap out-of-band
+
+
+def test_dashboard_query_never_prefers_an_eval_draft():
+    import asyncio
+
+    from web.queries import dashboard as dq
+    seen = {}
+
+    async def fake(conn, sql, *params):
+        seen["sql"] = sql
+    with patch("web.async_db.async_fetch_one", fake):
+        asyncio.run(dq.get_active_program(MagicMock(), 1))
+    order = seen["sql"].split("ORDER BY", 1)[1]
+    assert order.index("'active'") < order.index("[baseline:") < order.index("created_at DESC")
 
 
 # ── Program list ──────────────────────────────────────────────────────────────
@@ -225,6 +255,16 @@ def test_program_list_with_programs():
         r = _client.get("/program")
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
     assert b"Accumulation Block" in r.content
+
+
+def test_program_list_labels_the_rpe_deviation():
+    """QA-1: "RPE 0.0" read as an RPE of zero; it is the average deviation from target."""
+    done = _program(status="completed", outcome_summary={"adherence_pct": 100.0, "avg_make_rate": 1.0,
+                                                         "avg_rpe_deviation": 0.0, "make_rate_by_lift": {}})
+    with patch("web.queries.program.get_all_programs", return_value=[done]):
+        r = _client.get("/program")
+    text = " ".join(r.text.split())
+    assert "RPE vs target 0.0" in text
 
 
 # ── Program detail ────────────────────────────────────────────────────────────
@@ -460,11 +500,45 @@ def test_update_exercise_log():
 
 # ── Maxes ─────────────────────────────────────────────────────────────────────
 
+def _max_panel_patches(stack, tz="UTC"):
+    """The max routes re-render Goal Progress + Lift Ratios out-of-band (QA-1)."""
+    stack.enter_context(patch("web.queries.program.get_athlete_maxes", return_value=[]))
+    stack.enter_context(patch("web.queries.dashboard.get_goal_progress", return_value=None))
+    stack.enter_context(patch("web.queries.dashboard.get_lift_ratios", return_value=[]))
+    stack.enter_context(patch("web.queries.dashboard.get_athlete_timezone", return_value=tz))
+
+
 def test_update_max_success():
-    with patch("web.queries.program.upsert_athlete_max", return_value=(False, 80.0)):
-        with patch("web.queries.program.get_athlete_maxes", return_value=[]):
-            r = _client.post("/program/maxes/update", data={"exercise_name": "Snatch", "weight_kg": "85"})
+    from contextlib import ExitStack
+    with ExitStack() as stack, patch("web.queries.program.upsert_athlete_max", return_value=(False, 80.0)):
+        _max_panel_patches(stack)
+        r = _client.post("/program/maxes/update", data={"exercise_name": "Snatch", "weight_kg": "85"})
     assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert 'id="goal-progress" hx-swap-oob="true"' in r.text and 'id="lift-ratios" hx-swap-oob="true"' in r.text
+
+
+def test_update_max_in_pounds_converts_and_dates_in_the_athlete_timezone():
+    """QA-1: 155 lb → 70.3 kg; the max is dated in the athlete's timezone."""
+    from contextlib import ExitStack
+
+    from shared.timeutil import today_in_tz
+    with ExitStack() as stack, patch("web.queries.program.upsert_athlete_max", return_value=(True, 70.0)) as up:
+        _max_panel_patches(stack, tz="Pacific/Kiritimati")
+        r = _client.post("/program/maxes/update", data={"exercise_name": "Snatch", "weight_kg": "155", "unit": "lb"})
+    assert r.status_code == 200
+    _, _, name, kg, day = up.call_args.args
+    assert (name, kg) == ("Snatch", 70.3)
+    assert day == today_in_tz("Pacific/Kiritimati")
+    assert "New PR — Snatch: 70.3" in r.text and 'value="lb" selected' in r.text
+
+
+def test_update_max_rejects_an_implausible_value_without_saving():
+    from contextlib import ExitStack
+    with ExitStack() as stack, patch("web.queries.program.upsert_athlete_max") as up:
+        _max_panel_patches(stack)
+        r = _client.post("/program/maxes/update", data={"exercise_name": "Snatch", "weight_kg": "700"})
+    assert r.status_code == 200 and "isn&#39;t plausible" in r.text
+    assert not up.called
 
 
 # ── CSV export formula injection (W-M2) ─────────────────────────────────────────

@@ -1,3 +1,5 @@
+{# Re-rendered out-of-band after a max changes (QA-1); `oob` is set by the max routes. #}
+<div id="lift-ratios"{% if oob %} hx-swap-oob="true"{% endif %}>
 {% if ratios %}
 <div class="mt-8">
   <h2 class="text-lg font-semibold mb-3">Lift Ratios</h2>
@@ -56,3 +58,4 @@
   </div>
 </div>
 {% endif %}
+</div>
