@@ -428,8 +428,7 @@ The dev database also holds tables created by hand during one-off corpus operati
 
 | Table | Size (2026-09-22) | Contents |
 |-------|------------------:|----------|
-| `emb_backup_small_20260922` | 55 MB | All 6,839 `text-embedding-3-small` vectors (`id`, `embedding`, `embedding_model`, `embedded_at`), the rollback copy from before the EMBED-1 re-embed to `text-embedding-3-large`. Drop once `-large` has run in production for a while (TODO EMBED-1). |
-| `emb_snapshot_openai` | 37 MB | An earlier copy of 4,607 `text-embedding-3-small` vectors (`id`, `embedding`, `embedding_model`), from when the corpus had 4,607 chunks. Superseded by the table above. |
+| `emb_snapshot_openai` | 37 MB | An earlier copy of 4,607 `text-embedding-3-small` vectors (`id`, `embedding`, `embedding_model`), from when the corpus had 4,607 chunks. Superseded by the `-large` corpus (EMBED-1); the 2026-09-22 `-small` backup that replaced it was dropped 2026-10-12. |
 | `chunk_type_snapshot_20260920_haiku` / `_jev` | 200 kB each | `(id, chunk_type)` label sets from the 2026-09-20 chunk-type relabel A/B; the Haiku labels were restored from the first (TODO.md). |
 
 All four are safe to drop. To restore one, run `UPDATE … FROM` joined on `id`.

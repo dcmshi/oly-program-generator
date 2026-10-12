@@ -200,10 +200,7 @@ set (AUD-3) and moved 0.202 → 0.206. The similarity distributions are near-ide
 (0.796 vs 0.721)** — the lexical leg now costs rank; re-weighting or dropping it is an
 AUD-3 decision, gated on the fixed metrics. Baseline re-frozen under `-large` hybrid:
 recall@5 0.206 · MRR 0.930 · nDCG@5 0.716 · max source share 0.572 (re-runs vary ≈ ±0.005:
-approximate HNSW + query-embedding jitter). **Rollback:** `UPDATE knowledge_chunks k SET
-embedding=b.embedding, embedding_model=b.embedding_model, embedded_at=b.embedded_at FROM
-emb_backup_small_20260922 b WHERE b.id=k.id`, set `EMBEDDING_MODEL=text-embedding-3-small`,
-restore `golden.json` / `baseline.json` from git.
+approximate HNSW + query-embedding jitter). **Rollback:** the `-small` copy (`emb_backup_small_20260922`) was dropped on 2026-10-12 after three weeks on `-large`; going back now means setting `EMBEDDING_MODEL=text-embedding-3-small`, re-embedding with `oly-ingestion/reembed.py` (~$0.15) and restoring `golden.json` / `baseline.json` from git.
 
 ## Judge study — 2026-09-21 (JUDGE-1): the grader moved from Haiku 4.5 to GLM-5.3 Flash
 

@@ -3,7 +3,8 @@
 State of the ingested source material backing retrieval. Update this file after
 any ingest, re-ingest, or bulk delete.
 
-**Totals (2026-09-22, evening):** 7,255 chunks (6,933 live, 322 quarantined) · 4,266 principles (99 marked duplicate) · 744 sources · 47 templates; vectors on `text-embedding-3-large` (EMBED-1). Since the morning: test-fixture source 46 deleted, Cissik's Medvedyev summary (#28), 12 open-access papers (#29, AUD-5).
+**Totals (2026-10-12):** 7,292 chunks (6,969 live, 323 quarantined) · 4,205 principles (81 marked duplicate) · 744 sources · 45 templates; every vector on `text-embedding-3-large` (EMBED-1; the `-small` rollback table `emb_backup_small_20260922` was dropped 2026-10-12). Since 2026-09-22: Kono (#27, source 807) re-OCR'd with GPT-6.1 Sol and re-ingested — 201 → 238 chunks, 174 → 113 principles (audit: 0 unsupported), its 2 templates (one Chapter 4 workout parsed twice) now stored as prose; `dedupe_principles.py` re-run (81 links, 63 canonical rules); golden set extended over the new Kono candidates, gate unchanged (nDCG@5 0.7953).
+**Snapshot 2026-09-22, evening:** 7,255 chunks (6,933 live, 322 quarantined) · 4,266 principles (99 marked duplicate) · 744 sources · 47 templates. Since that morning: test-fixture source 46 deleted, Cissik's Medvedyev summary (#28), 12 open-access papers (#29, AUD-5).
 There is one corpus database — the machine this repo runs on. Earlier notes about a separate
 "corpus DB machine" and a diverging "dev copy" described the same box; the runbook that was
 kept for replaying ops elsewhere is retired (`docs/DB-MACHINE-RUNBOOK.md` is history only).
