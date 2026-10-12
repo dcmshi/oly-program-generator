@@ -395,7 +395,7 @@ class IngestionPipeline:
         # Build Anthropic client for vision OCR fallback (opt-in via --vision flag)
         _anthropic_client = create_llm_client(settings) if (use_vision or force_vision) else None
         self.pdf_extractor = PDFExtractor(
-            anthropic_client=_anthropic_client, vision_model=settings.llm_model, batch=batch, ocr_cache=ocr_cache,
+            anthropic_client=_anthropic_client, vision_model=settings.vision_model, batch=batch, ocr_cache=ocr_cache,
             force_vision=force_vision, ocr_postcorrect=ocr_postcorrect,
             postcorrect_model=light_model_for(settings, None),
         )
@@ -452,6 +452,7 @@ class IngestionPipeline:
             "embedding_model": self.settings.embedding_model,
             "llm_model": self.settings.llm_model,
             "template_model": getattr(self.settings, "template_model", "") or self.settings.llm_model,
+            "vision_model": getattr(self.settings, "vision_model", "") or self.settings.llm_model,
             "batch_size": self.settings.batch_size,
             "validate_chunks": self.settings.validate_chunks,
             "batch": self.batch,

@@ -112,15 +112,18 @@ def pick_groups(cache_pages: dict[str, str]) -> list[tuple[str, int]]:
 
 # ── Running a model ──────────────────────────────────────────
 
-def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict]) -> dict:
+def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reasoning: str = "default") -> dict:
+    """`reasoning`: "default" drops the thinking / effort fields so each model
+    runs at its own default; "pipeline" keeps what an ingest sends
+    (`thinking_kwargs(model, "disabled")`)."""
     import fitz
     from config import Settings
     from extractors.pdf_extractor import PDFExtractor
 
     from shared.llm import billed_cost, create_llm_client, create_message_growing, estimate_cost, usage_tokens
 
-    settings = Settings(llm_model=model)
-    model_id = settings.llm_model
+    settings = Settings(vision_model=model)
+    model_id = settings.vision_model
     ext = PDFExtractor(create_llm_client(settings), vision_model=model_id, ocr_cache=False)
     by_name = {pdf.name: pdf for pdf, _ in books}
     groups = []
@@ -130,6 +133,9 @@ def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict]) -> d
         try:
             with fitz.open(by_name[g["book"]]) as doc:
                 params = ext._ocr_request(doc, start, end)
+            if reasoning == "default":
+                params.pop("thinking", None)
+                params.pop("output_config", None)
             msg = create_message_growing(ext._client, label=f"compare OCR {model_id} {g['label']}", **params)
             stop_reason = getattr(msg, "stop_reason", None)
             ext.refused_pages = set()
@@ -194,6 +200,9 @@ def main() -> None:
     ap.add_argument("--model", action="append", required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--max-groups", type=int, default=0, help="smoke: only the first N page groups")
+    ap.add_argument("--reasoning", choices=("default", "pipeline"), default="default",
+                    help="default: each model's own reasoning default (no thinking / effort field); "
+                         "pipeline: what an ingest sends (thinking disabled, or adaptive + low where mandatory)")
     ap.add_argument("--peers", type=Path, help="a saved --out file whose models' pages join the scoring "
                                                 "(re-scored, not re-run) — add a model without re-paying for the rest")
     args = ap.parse_args()
@@ -209,7 +218,9 @@ def main() -> None:
         plan = plan[:args.max_groups]
     logger.info("Page groups: " + ", ".join(g["label"] for g in plan))
 
-    results = [run_model(m, books, plan) for m in args.model]
+    results = [run_model(m, books, plan, args.reasoning) for m in args.model]
+    for r in results:
+        r["reasoning"] = args.reasoning
     if args.peers:
         saved = json.loads(args.peers.read_text(encoding="utf-8"))
         if [g["label"] for g in saved["groups"]] != [g["label"] for g in plan]:

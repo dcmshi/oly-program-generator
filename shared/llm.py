@@ -87,8 +87,11 @@ _REASONING_MANDATORY_PREFIXES = ("z-ai/glm-",)
 # GPT Sol also 400s on `disabled` ("Reasoning is mandatory"), but adaptive +
 # effort low spent 0 reasoning tokens on a schema reply (2026-10-11) — the
 # nearest thing to off. A budget there still spent 34.
-_EFFORT_CAPPED_PREFIXES = ("openai/gpt-",)
+_EFFORT_CAPPED_PREFIXES = ("openai/gpt-", "google/gemini-")   # Gemini 3.8 Flash / 3.1 Pro: same 400
 _EFFORT_CAP = "low"
+# Models with no reasoning parameter at all: with `require_parameters` any
+# `thinking` field leaves no endpoint (404 "No endpoints found", 2026-10-12).
+_NO_REASONING_PARAM_PREFIXES = ("mistralai/mistral-", "mistralai/ministral-")
 # Sonnet 5.5 400s on `disabled` the same way ("Reasoning is mandatory for this
 # endpoint and cannot be disabled", 2026-10-12) — the same adaptive + low cap.
 _CLAUDE_EFFORT_CAPPED_PREFIXES = ("claude-sonnet-5-5",)
@@ -246,6 +249,8 @@ def thinking_kwargs(model: str | None, mode: str = "", effort: str = "") -> dict
         raise ValueError("thinking 'disabled' cannot be combined with effort 'xhigh'/'max'")
     kwargs: dict = {}
     if _is_open_model(model):
+        if model.startswith(_NO_REASONING_PARAM_PREFIXES):
+            return kwargs
         if mode == "disabled" and model.startswith(_EFFORT_CAPPED_PREFIXES):
             kwargs["thinking"] = {"type": "adaptive"}
             kwargs["output_config"] = {"effort": effort or _EFFORT_CAP}

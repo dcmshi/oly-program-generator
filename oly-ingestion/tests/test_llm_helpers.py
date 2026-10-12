@@ -255,6 +255,10 @@ def test_thinking_kwargs_per_model_family():
     for sonnet55 in ("claude-sonnet-5-5", "anthropic/claude-sonnet-5.5"):
         assert thinking_kwargs(sonnet55, "disabled") == {
             "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}}
+    assert thinking_kwargs("google/gemini-3.8-flash", "disabled") == {
+        "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}}          # reasoning mandatory
+    assert thinking_kwargs("mistralai/mistral-medium-3.1", "disabled") == {}           # no reasoning param
+    assert thinking_kwargs("mistralai/ministral-8b-2512", "adaptive", "high") == {}
     assert thinking_kwargs("claude-sonnet-5-5", "adaptive", "medium") == {
         "thinking": {"type": "adaptive"}, "output_config": {"effort": "medium"}}
     for bad in (("claude-sonnet-5", "budget", ""), ("claude-sonnet-5", "", "ultra"),

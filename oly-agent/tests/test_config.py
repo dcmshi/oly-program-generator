@@ -214,7 +214,7 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
     from shared.llm import OPENROUTER_BASE_URL, create_llm_client, supports_batches
 
     saved = {k: os.environ.pop(k, None) for k in ("LLM_PROVIDER", "OPENROUTER_API_KEY", "LLM_BASE_URL", "TEMPLATE_MODEL",
-                                                  "LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
+                                                  "VISION_MODEL", "LLM_MODEL", "LIGHT_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL")}
     try:
         s = Settings()
         # OpenRouter is the default provider (2026-09-22), with the open-model roles
@@ -226,11 +226,21 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
         assert (s.generation_thinking, s.generation_effort) == ("adaptive", "medium")
         assert (s.explanation_thinking, s.explanation_effort) == ("disabled", "")
         assert s.light_model == "deepseek/deepseek-v4.1-flash" and s.judge_model == "z-ai/glm-5.3-flash"
+        # vision OCR on Sol since 2026-10-12 (OCR-ROLE), independent of LLM_MODEL
+        assert s.vision_model == "openai/gpt-6.1-sol"
+        os.environ["LLM_MODEL"] = "z-ai/glm-5.3"
+        assert Settings().vision_model == "openai/gpt-6.1-sol"
+        os.environ["VISION_MODEL"] = "claude-sonnet-5"
+        assert Settings().vision_model == "anthropic/claude-sonnet-5"
+        assert Settings(vision_model="google/gemini-3.8-flash").vision_model == "google/gemini-3.8-flash"
+        os.environ.pop("VISION_MODEL")
+        os.environ.pop("LLM_MODEL")
 
         os.environ["LLM_PROVIDER"] = "anthropic"
         s = Settings()
         assert s.llm_provider == "anthropic" and supports_batches(s)
         assert s.llm_model == "claude-sonnet-5" and s.judge_model == s.light_model   # Claude defaults kept
+        assert s.vision_model == s.llm_model                         # no OpenRouter → OCR stays on llm_model
 
         os.environ["LLM_PROVIDER"] = "openrouter"
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"

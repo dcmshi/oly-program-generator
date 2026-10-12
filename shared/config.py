@@ -59,6 +59,16 @@ OPENROUTER_PROVIDER_SORTS = ("price", "throughput", "latency", "none")
 DEFAULT_OPENROUTER_LLM_MODEL = "moonshotai/kimi-k3"
 DEFAULT_OPENROUTER_LIGHT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_OPENROUTER_JUDGE_MODEL = "z-ai/glm-5.3-flash"
+# Vision OCR moved off Kimi K3 to GPT-6.1 Sol on 2026-10-12 (OCR-ROLE,
+# logs/ocr_model_compare_20261012_candidates.json: 8 groups × 5 pages from the
+# four scanned books, nine models at default reasoning). Sol lost no page,
+# never declined, and led every accuracy measure — peer agreement 0.620 vs
+# Kimi's 0.522, number recall 0.999 vs 0.804 (Kimi also transcribed only the
+# left half of some Kono spreads) — at $0.30 vs Kimi's $0.96 for the 40 pages.
+# Gemini's recitation filter cut the Roman pages; Sonnet 5.5 declined two
+# groups as copyrighted (MODEL-4).
+# Under LLM_PROVIDER=anthropic the role stays on llm_model.
+DEFAULT_OPENROUTER_VISION_MODEL = "openai/gpt-6.1-sol"
 # Generation + explanation moved to GPT-6.1 Sol on 2026-10-11 (MODEL-3,
 # eval/model_baseline_20261011T215736Z.json): 8/8 first-try, $0.0110 / session
 # billed vs Kimi K3's $0.0166, closer to the session rep targets, 93 % of
@@ -100,7 +110,10 @@ class Settings:
     # model can be switched per run without a code edit — LLM_MODEL,
     # GENERATION_MODEL, EXPLANATION_MODEL, LIGHT_MODEL.
     #   llm_model         ingestion heavy lifting: principle extraction, program-template
-    #                     parsing, vision OCR (needs a Sonnet-class model)
+    #                     parsing (needs a Sonnet-class model)
+    #   vision_model      vision OCR of scanned PDFs (VISION_MODEL; blank = the
+    #                     provider default — Sol under OpenRouter, llm_model under
+    #                     Anthropic)
     #   light_model       cheap label/summary tasks: classifier fallback, --contextualize,
     #                     relabel_chunk_types.py, golden-set grading (a Haiku-class model)
     #   generation_model  the agent's per-session generation call
@@ -115,6 +128,7 @@ class Settings:
     # DeepSeek's long template outputs came back as malformed JSON — templates
     # stay on Sonnet 5 while the rest of the role moves.
     template_model: str = ""
+    vision_model: str = ""
 
     # ── Agent LLM settings ────────────────────────────────────
     generation_model: str = ""
@@ -245,6 +259,8 @@ class Settings:
         self.light_model = self.light_model or os.getenv(
             "LIGHT_MODEL", DEFAULT_LIGHT_MODEL if claude else DEFAULT_OPENROUTER_LIGHT_MODEL)
         self.template_model = self.template_model or os.getenv("TEMPLATE_MODEL", "") or self.llm_model
+        self.vision_model = (self.vision_model or os.getenv("VISION_MODEL", "")
+                             or (self.llm_model if claude else DEFAULT_OPENROUTER_VISION_MODEL))
         self.judge_model = (self.judge_model or os.getenv("JUDGE_MODEL", "")
                             or (self.light_model if claude else DEFAULT_OPENROUTER_JUDGE_MODEL))
         self.generation_model = self.generation_model or os.getenv("GENERATION_MODEL", default_gen)
@@ -261,6 +277,7 @@ class Settings:
             from shared.llm import openrouter_model_id
             self.llm_model = openrouter_model_id(self.llm_model)
             self.template_model = openrouter_model_id(self.template_model)
+            self.vision_model = openrouter_model_id(self.vision_model)
             self.light_model = openrouter_model_id(self.light_model)
             self.judge_model = openrouter_model_id(self.judge_model)
             self.generation_model = openrouter_model_id(self.generation_model)
