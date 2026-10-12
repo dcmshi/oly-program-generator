@@ -588,13 +588,17 @@ class IngestionPipeline:
                         queue_principles=(lambda text, i=i: pending_principles.append((i, text))) if self.batch else None,
                     )
 
-                    # Checkpoint every 10 sections. Store the COUNT processed
-                    # (i + 1), so a resume skips exactly the done sections and
-                    # the pre-loop 0 checkpoint doesn't skip section 0 (I-M1).
-                    if i % 10 == 0:
-                        self.structured_loader.update_run_progress(
-                            run_id, pages_processed=i + 1, last_processed_page=i + 1
-                        )
+                    # Checkpoint after every section (RESUME-1 — every 10 re-paid up
+                    # to 9 sections' extraction / context / embedding on a resume).
+                    # Store the COUNT processed (i + 1), so a resume skips exactly
+                    # the done sections and the pre-loop 0 checkpoint doesn't skip
+                    # section 0 (I-M1). In --batch mode never past a section whose
+                    # principles are still queued: an abort before the flush would
+                    # otherwise skip them on resume.
+                    done = min((idx for idx, _ in pending_principles), default=i + 1)
+                    self.structured_loader.update_run_progress(
+                        run_id, pages_processed=done, last_processed_page=done
+                    )
 
                 except Exception as e:
                     logger.error(
@@ -606,6 +610,10 @@ class IngestionPipeline:
             if pending_principles:
                 stats["principles"] += self._flush_principle_batch(
                     pending_principles, source, source_id, run_id, resume_from
+                )
+                # every section is done now — an abort in the post-passes resumes past them
+                self.structured_loader.update_run_progress(
+                    run_id, pages_processed=len(all_sections), last_processed_page=len(all_sections)
                 )
             route_stage.__exit__(None, None, None)
 
@@ -674,9 +682,10 @@ class IngestionPipeline:
         """Extract the queued principle sections as one Message Batch and load
         them section by section (COST-1). Returns the number of principles.
 
-        The section loop has already checkpointed past these sections, so if
-        the batch itself fails the checkpoint is rewound to `resume_from` before
-        re-raising — a resumed run then re-queues them instead of skipping them.
+        The section loop never checkpoints past the first queued section, so a
+        failed batch (or an abort before the flush) leaves the checkpoint there
+        and a resumed run re-queues them instead of skipping them; the rewind
+        below is a belt-and-braces reset to that section.
         A single section whose load fails is rolled back and skipped, as in the
         synchronous path.
         """
@@ -686,11 +695,12 @@ class IngestionPipeline:
                 [(str(idx), text, source.title) for idx, text in pending]
             )
         except Exception:
+            first = min((idx for idx, _ in pending), default=resume_from)
             self.structured_loader.update_run_progress(
-                run_id, pages_processed=resume_from, last_processed_page=resume_from
+                run_id, pages_processed=first, last_processed_page=first
             )
             logger.error(
-                f"Principle batch failed — checkpoint rewound to section {resume_from} "
+                f"Principle batch failed — checkpoint rewound to section {first} "
                 f"so a resumed run re-queues the {len(pending)} section(s)"
             )
             raise

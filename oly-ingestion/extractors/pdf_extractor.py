@@ -316,11 +316,11 @@ class PDFExtractor:
                                f"{[(q.index + 1, q.reasons[0]) for q in suspects][:12]}")
             verdicts: dict[int, str] = {}
             for q in suspects:
-                second = self._ocr_batch(doc, q.index, q.index + 1, dpi=OCR_SECOND_VIEW_DPI, view=1)[0]
+                second = self._gate_view(doc, cache, q.index, 1)
                 text, agreement, verdict = choose_view(texts[q.index], second)
                 if verdict == "disagree":
                     # tie-break with a third independent view: keep the pair that agrees
-                    third = self._ocr_batch(doc, q.index, q.index + 1, dpi=OCR_SECOND_VIEW_DPI, view=2)[0]
+                    third = self._gate_view(doc, cache, q.index, 2)
                     text, agreement, verdict = resolve_views([texts[q.index], second, third])
                 if verdict != "disagree" and self._ocr_postcorrect and garbled_ratio(text) > OCR_GARBLED_RATIO_MAX:
                     text = self._postcorrect(text, q.index) or text
@@ -351,6 +351,20 @@ class PDFExtractor:
 
         doc.close()
         return [pages[i] for i in range(n_pages) if pages.get(i, "").strip()]
+
+    def _gate_view(self, doc, cache, index: int, view: int) -> str:
+        """One extra OCR view of a suspect page for the quality gate — from the
+        cache when an earlier run already paid for it (RESUME-1). A non-blank
+        view is cached and saved at once, so an abort mid-gate keeps it."""
+        if cache is not None:
+            hit = cache.get_view(index, view)
+            if hit is not None:
+                return hit
+        text = self._ocr_batch(doc, index, index + 1, dpi=OCR_SECOND_VIEW_DPI, view=view)[0]
+        if cache is not None and text.strip():
+            cache.put_view(index, view, text)
+            cache.save()
+        return text
 
     def _cache_put(self, cache, index: int, text: str) -> None:
         """Cache a page — except a declined one still blank, so the next run asks again."""

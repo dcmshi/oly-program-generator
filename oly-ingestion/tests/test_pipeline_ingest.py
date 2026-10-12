@@ -149,3 +149,35 @@ def test_flex_abort_mid_section_marks_the_run_failed_and_stops(tmp_path):
     assert p.sections.process.call_count == 1
     p.structured_loader.fail_run.assert_called_once()
     p.structured_loader.complete_run.assert_not_called()
+
+
+def test_every_section_is_checkpointed(tmp_path):
+    """RESUME-1: a checkpoint after every section (every 10 re-paid up to 9
+    sections' extraction / context / embedding on a resume)."""
+    p = _pipeline(_sections(3))
+    with patch("principle_audit.run_audit_pass", return_value={}), patch.object(p, "_quarantine_source"):
+        p.ingest(_doc(tmp_path))
+    done = [c.kwargs["last_processed_page"] for c in p.structured_loader.update_run_progress.call_args_list]
+    assert done[-3:] == [1, 2, 3]
+
+
+def test_batch_mode_never_checkpoints_past_a_queued_principle_section(tmp_path):
+    """--batch queues principle sections for one flush after the loop; an abort
+    before the flush must resume at the first queued section, not past it."""
+    from shared.llm import FlexUnavailable
+
+    p = _pipeline(_sections(4))
+    p.batch = True
+
+    def process(section, target, stats, queue_principles=None, **_kw):
+        if section.metadata["title"] == "S1":
+            queue_principles(section.content)
+        if section.metadata["title"] == "S3":
+            raise FlexUnavailable("standard not approved")
+        return stats
+    p.sections.process.side_effect = process
+    with pytest.raises(FlexUnavailable):
+        p.ingest(_doc(tmp_path))
+    done = [c.kwargs["last_processed_page"] for c in p.structured_loader.update_run_progress.call_args_list]
+    assert done[-2:] == [1, 1]          # S0 done → 1; S1 queued → stays at 1; S2 done → still 1 (S1 pending)
+    p.structured_loader.fail_run.assert_called_once()

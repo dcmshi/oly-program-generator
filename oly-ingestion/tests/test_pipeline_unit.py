@@ -429,8 +429,9 @@ def test_flush_principle_batch_loads_per_section_and_counts():
 
 
 def test_flush_principle_batch_failure_rewinds_checkpoint_and_raises():
-    """The section loop has already checkpointed past the queued sections, so a
-    failed batch must rewind to resume_from or a resumed run would skip them."""
+    """A failed batch rewinds the checkpoint to the first queued section (not
+    to resume_from — section 2 finished in this run, RESUME-1) so a resumed run
+    re-queues them instead of skipping them."""
     pipeline = MagicMock()
     pipeline.principle_extractor.extract_batch.side_effect = TimeoutError("batch never ended")
     try:
@@ -441,7 +442,7 @@ def test_flush_principle_batch_failure_rewinds_checkpoint_and_raises():
     except TimeoutError:
         pass
     pipeline.structured_loader.update_run_progress.assert_called_once_with(
-        5, pages_processed=2, last_processed_page=2
+        5, pages_processed=3, last_processed_page=3
     )
     pipeline.structured_loader.load_principles.assert_not_called()
 

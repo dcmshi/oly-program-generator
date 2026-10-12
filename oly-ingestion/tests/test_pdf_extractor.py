@@ -514,3 +514,27 @@ def test_declined_blank_pages_are_not_cached():
     ex._cache_put(cache, 1, "recovered") # recovered by the single-page retry → cached
     ex._cache_put(cache, 4, "")          # an ordinary blank page → cached as before
     assert [c.args for c in cache.put.call_args_list] == [(1, "recovered"), (4, "")]
+
+
+def test_gate_views_come_from_the_cache_once_paid_for(tmp_path):
+    """RESUME-1: the OCR-QA gate's extra views are cached per (page, view) and
+    saved at once, so a re-ingest or a resumed run doesn't pay for them again."""
+    from unittest.mock import patch
+
+    from extractors.ocr_cache import OcrCache
+    from extractors.pdf_extractor import PDFExtractor
+
+    pdf = tmp_path / "scan.pdf"
+    pdf.write_bytes(b"%PDF-1.4 fake")
+    ext = PDFExtractor(vision_model="m")
+    cache = OcrCache(pdf, "m", cache_dir=tmp_path / "c")
+    with patch.object(ext, "_ocr_batch", return_value=["second view text"]) as ocr:
+        assert ext._gate_view(None, cache, 4, 1) == "second view text"
+        assert ext._gate_view(None, cache, 4, 1) == "second view text"
+    assert ocr.call_count == 1
+    assert OcrCache(pdf, "m", cache_dir=tmp_path / "c").get_view(4, 1) == "second view text"   # saved to disk
+    assert OcrCache(pdf, "other-model", cache_dir=tmp_path / "c").get_view(4, 1) is None       # model-keyed
+    with patch.object(ext, "_ocr_batch", return_value=[""]) as ocr:
+        ext._gate_view(None, cache, 5, 1)
+        ext._gate_view(None, cache, 5, 1)
+    assert ocr.call_count == 2                                                              # blank: not cached
