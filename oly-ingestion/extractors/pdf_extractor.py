@@ -449,7 +449,12 @@ class PDFExtractor:
                            f"({(raw or 'stop_reason=refusal').strip()[:120]!r}) — treated as blank")
             self.refused_pages.update(range(start + 1, end + 1))
             return [""] * (end - start)
-        return self._split_page_responses(raw, list(range(start, end)))
+        # A half-spread image keeps the printed line breaks, hyphenation
+        # included ("dumb-\nbell" — 17 words on Kono p. 89); join_pages only
+        # re-attaches words split across pages, so rejoin them here, as the
+        # text-layer extractors do per block (OCR-ROLE 2b).
+        from extractors.page_text import dehyphenate
+        return [dehyphenate(t) for t in self._split_page_responses(raw, list(range(start, end)))]
 
     @staticmethod
     def _render_png(doc, index: int, dpi: int = 150, view: int = 0) -> bytes:

@@ -443,13 +443,13 @@ def rationale_text(program: ParsedProgram, source_name: str) -> str:
     return "\n".join(lines)
 
 
-def find_previous_import(conn, athlete_id: int, source_name: str) -> list[int]:
+def find_previous_import(conn, athlete_id: int, source_name: str, source: str = "csv_import") -> list[int]:
     rows = fetch_all(conn, """
         SELECT id FROM generated_programs
-        WHERE athlete_id = %s AND generation_params->>'source' = 'csv_import'
+        WHERE athlete_id = %s AND generation_params->>'source' = %s
           AND generation_params->>'file' = %s
         ORDER BY id
-    """, (athlete_id, source_name))
+    """, (athlete_id, source, source_name))
     return [r["id"] for r in rows]
 
 
@@ -473,7 +473,11 @@ def delete_import(conn, program_ids: list[int]) -> None:
 
 def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, phase: str,
                   start_date: date, source_name: str, log_as_completed: bool,
-                  make_rate: float) -> int:
+                  make_rate: float, status: str = "completed", source: str = "csv_import",
+                  label_fn=None, rationale: str | None = None, resolve_fn=None) -> int:
+    """Write the parsed program; `status` / `source` / `label_fn` / `rationale` /
+    `resolve_fn` (name → catalogue id) let the Markdown importer (import_program_md.py) reuse it for a program
+    that is about to be trained rather than a completed one."""
     from orchestrator import _build_athlete_snapshot, _estimate_duration
     from weight_resolver import build_maxes_dict, resolve_weights
 
@@ -487,7 +491,7 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
     """, (athlete_id,))
     maxes = build_maxes_dict(max_rows)
     exercise_lookup = {r["name"].lower(): r["id"] for r in fetch_all(conn, "SELECT id, name FROM exercises")}
-    unmapped = resolve_catalogue_ids(program, exercise_lookup)
+    unmapped = (resolve_fn or resolve_catalogue_ids)(program, exercise_lookup)
     if unmapped:
         logger.info(f"{len(unmapped)} sheet name(s) have no catalogue match (stored with NULL exercise_id): {unmapped}")
 
@@ -497,15 +501,15 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
         INSERT INTO generated_programs
             (athlete_id, name, status, phase, duration_weeks, sessions_per_week,
              start_date, end_date, athlete_snapshot, maxes_snapshot, generation_params, rationale)
-        VALUES (%s, %s, 'completed', %s, %s, %s, %s, %s, %s, %s, %s, %s)
+        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
         RETURNING id
     """, (
-        athlete_id, name, phase, weeks, program.sessions_per_week, start_date, end_date,
+        athlete_id, name, status, phase, weeks, program.sessions_per_week, start_date, end_date,
         json.dumps(_build_athlete_snapshot(athlete), default=str),
         json.dumps(maxes),
-        json.dumps({"source": "csv_import", "file": source_name, "model": None,
+        json.dumps({"source": source, "file": source_name, "model": None,
                     "imported_on": date.today().isoformat()}),
-        rationale_text(program, source_name),
+        rationale if rationale is not None else rationale_text(program, source_name),
     ))
 
     for week, day in program.sessions:
@@ -527,7 +531,7 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
             INSERT INTO program_sessions
                 (program_id, week_number, day_number, session_label, estimated_duration_minutes, focus_area, notes)
             VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-        """, (program_id, week.number, day.number, session_label(week, day),
+        """, (program_id, week.number, day.number, (label_fn or session_label)(week, day),
               _estimate_duration(exercises), focus_area(day), notes))
         se_ids = []
         for ex in exercises:
