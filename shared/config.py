@@ -56,6 +56,7 @@ DEFAULT_GENERATION_THINKING = "disabled"
 DEFAULT_LLM_PROVIDER = "openrouter"
 DEFAULT_OPENROUTER_PROVIDER_SORT = "price"
 OPENROUTER_PROVIDER_SORTS = ("price", "throughput", "latency", "none")
+FLEX_FALLBACK_POLICIES = ("ask", "standard", "fail")
 DEFAULT_OPENROUTER_LLM_MODEL = "moonshotai/kimi-k3"
 DEFAULT_OPENROUTER_LIGHT_MODEL = "deepseek/deepseek-v4.1-flash"
 DEFAULT_OPENROUTER_JUDGE_MODEL = "z-ai/glm-5.3-flash"
@@ -184,6 +185,13 @@ class Settings:
     # OpenRouter's own load balancing. Sent with require_parameters, so a provider
     # that can't honour structured outputs is never picked. Ignored on anthropic.
     openrouter_provider_sort: str = ""
+    # FLEX_FALLBACK: what to do when OpenAI's flex tier (half price, asked for under
+    # price routing) stays unavailable — "ask" (default: block and ask on the
+    # terminal whether to pay standard processing, 2x; with no terminal — the web
+    # worker, a background run — abort), "standard" (switch without asking),
+    # "fail" (abort). An abort raises shared.llm.FlexUnavailable: ingestion marks
+    # its run failed (resumable), generation fails the program.
+    flex_fallback: str = ""
 
     # ── Web / deployment ──────────────────────────────────────
     secret_key: str = ""   # session signing key; MUST be set in production via SECRET_KEY env var
@@ -236,6 +244,9 @@ class Settings:
         if self.openrouter_provider_sort not in OPENROUTER_PROVIDER_SORTS:
             raise ValueError(f"OPENROUTER_PROVIDER_SORT must be one of {OPENROUTER_PROVIDER_SORTS}, "
                              f"got {self.openrouter_provider_sort!r}")
+        self.flex_fallback = (self.flex_fallback or os.getenv("FLEX_FALLBACK", "ask")).strip().lower()
+        if self.flex_fallback not in FLEX_FALLBACK_POLICIES:
+            raise ValueError(f"FLEX_FALLBACK must be one of {FLEX_FALLBACK_POLICIES}, got {self.flex_fallback!r}")
         if self.llm_provider not in ("anthropic", "openrouter"):
             raise ValueError(f"LLM_PROVIDER must be 'anthropic' or 'openrouter', got {self.llm_provider!r}")
 

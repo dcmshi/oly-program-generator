@@ -22,5 +22,5 @@ import shared.config  # noqa: E402,F401  (loads .env once)
 os.environ["LLM_PROVIDER"] = "anthropic"
 for _var in ("LLM_MODEL", "LIGHT_MODEL", "JUDGE_MODEL", "TEMPLATE_MODEL", "VISION_MODEL", "GENERATION_MODEL", "EXPLANATION_MODEL",
              "GENERATION_THINKING", "GENERATION_EFFORT", "EXPLANATION_THINKING", "EXPLANATION_EFFORT",
-             "LLM_BASE_URL", "OPENROUTER_PROVIDER_SORT"):
+             "LLM_BASE_URL", "OPENROUTER_PROVIDER_SORT", "FLEX_FALLBACK"):
     os.environ.pop(_var, None)

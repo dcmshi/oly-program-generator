@@ -44,7 +44,7 @@ from shared.constants import (
 )
 from shared.db import execute, execute_returning, fetch_all, get_connection
 from shared.formulas import estimate_session_minutes, round_kg
-from shared.llm import create_llm_client, estimate_cost
+from shared.llm import FlexUnavailable, create_llm_client, estimate_cost
 
 logging.basicConfig(
     level=logging.INFO,
@@ -235,6 +235,10 @@ def run(
         )
         return program_id
 
+    except FlexUnavailable as e:
+        logger.error(f"Generation stopped: {e}")
+        conn.rollback()
+        return None
     except Exception as e:
         import traceback
         logger.error(f"Generation failed: {e}\n{traceback.format_exc()}")

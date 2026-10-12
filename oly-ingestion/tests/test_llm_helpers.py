@@ -216,26 +216,115 @@ def test_estimate_prices_a_standard_tier_fallback_at_the_standard_rate():
     assert served_tier(SimpleNamespace(model_extra={})) is None
     assert served_tier(None) is None
 
+def _flex_down():
+    from types import SimpleNamespace
+    return SimpleNamespace(type="error", content=None, error={
+        "type": "api_error", "error_type": "provider_unavailable",
+        "message": "Flex processing is temporarily unavailable. Please try again later or use standard processing."})
+
+
+_FLEX_DOWN = _flex_down()
+
+
+def _flex_client(policy):
+    from unittest.mock import MagicMock
+
+    from shared.llm import openrouter_routing
+    client = MagicMock()
+    client.openrouter_routing = openrouter_routing("price")
+    client.flex_fallback = policy
+    return client
+
+
+def _reset_flex_decision():
+    import shared.llm as llm
+    llm._flex_decision.update(choice=None, waited_at=0.0)
+
+
+def test_flex_outage_aborts_without_approval_and_is_not_swallowed():
+    """FLEX_FALLBACK=fail, and "ask" with no terminal (web worker, background
+    run): after the free flex retries the call raises FlexUnavailable — never
+    a standard-price request. It is a BaseException so per-item
+    `except Exception` handlers can't swallow it, and the decision holds for
+    the rest of the process."""
+    from unittest.mock import patch
+
+    from shared.constants import FLEX_UNAVAILABLE_RETRIES
+    from shared.llm import FlexUnavailable, create_message_with_retries
+
+    for policy in ("fail", "ask"):
+        _reset_flex_decision()
+        client = _flex_client(policy)
+        client.messages.create.side_effect = [_FLEX_DOWN] * 10
+        with patch("time.sleep"), patch("shared.llm._stdin_is_interactive", return_value=False):
+            try:
+                try:
+                    create_message_with_retries(client, model="openai/gpt-6.1-sol", max_tokens=10, messages=[])
+                except Exception:                       # noqa: BLE001 — what a per-section handler does
+                    raise AssertionError("FlexUnavailable must not be an Exception") from None
+                raise AssertionError("expected FlexUnavailable")
+            except FlexUnavailable as e:
+                assert "FLEX_FALLBACK=standard" in str(e)
+        tiers = [c.kwargs["extra_body"].get("service_tier") for c in client.messages.create.call_args_list]
+        assert tiers == ["flex"] * (FLEX_UNAVAILABLE_RETRIES + 1), policy      # no standard request
+        client.messages.create.reset_mock()
+        client.messages.create.side_effect = [_FLEX_DOWN] * 10
+        with patch("time.sleep"), patch("shared.llm._stdin_is_interactive", return_value=False):
+            try:
+                create_message_with_retries(client, model="openai/gpt-6.1-sol", max_tokens=10, messages=[])
+            except FlexUnavailable:
+                pass
+    _reset_flex_decision()
+
+
+def test_flex_outage_asks_on_a_terminal_and_remembers_the_answer():
+    from types import SimpleNamespace
+    from unittest.mock import patch
+
+    from shared.constants import FLEX_UNAVAILABLE_RETRIES
+    from shared.llm import create_message_with_retries
+
+    _reset_flex_decision()
+    ok = SimpleNamespace(type="message", content=[], stop_reason="end_turn")
+    client = _flex_client("ask")
+    n = FLEX_UNAVAILABLE_RETRIES + 1
+    # first call: wait once (flex still down after the pause), then approve standard
+    client.messages.create.side_effect = [_FLEX_DOWN] * (2 * n) + [ok, _FLEX_DOWN, ok]
+    answers = iter(["x\n", "w\n", "s\n"])                     # an unknown key re-asks
+    with patch("time.sleep"), patch("shared.llm._stdin_is_interactive", return_value=True), \
+         patch("sys.stdin") as stdin, patch("sys.stderr"):
+        stdin.readline.side_effect = lambda: next(answers)
+        assert create_message_with_retries(client, model="openai/gpt-6.1-sol", max_tokens=10, messages=[]) is ok
+        # second call: the run already approved standard — no retries, no prompt
+        assert create_message_with_retries(client, model="openai/gpt-6.1-sol", max_tokens=10, messages=[]) is ok
+    tiers = [c.kwargs["extra_body"].get("service_tier") for c in client.messages.create.call_args_list]
+    assert tiers == ["flex"] * (2 * n) + [None, "flex", None]
+    assert stdin.readline.call_count == 3
+    _reset_flex_decision()
+
 def test_error_in_a_200_body_is_retried_and_flex_falls_back_to_standard():
     """OpenRouter delivers a provider failure as a 200 `{"type": "error"}` body,
     which the SDK parses as a Message with content None (read as an empty
     reply: 20 of 30 Kono OCR groups, 2026-10-12). It is retried; "flex
-    unavailable" re-sends at standard processing without spending an attempt."""
+    unavailable" is retried on flex, then (FLEX_FALLBACK=standard) re-sent at
+    standard processing — none of it spends an attempt."""
     from types import SimpleNamespace
     from unittest.mock import MagicMock, patch
 
+    from shared.constants import FLEX_UNAVAILABLE_RETRIES
     from shared.llm import LLMErrorResponse, create_message_with_retries, openrouter_routing
 
-    flex_down = SimpleNamespace(type="error", content=None, error={
-        "type": "api_error", "error_type": "provider_unavailable",
-        "message": "Flex processing is temporarily unavailable. Please try again later or use standard processing."})
+    _reset_flex_decision()
     ok = SimpleNamespace(type="message", content=[], stop_reason="end_turn")
+    client = _flex_client("standard")
+    client.messages.create.side_effect = [_FLEX_DOWN] * (FLEX_UNAVAILABLE_RETRIES + 1) + [ok]
+    with patch("time.sleep") as slept:
+        assert create_message_with_retries(client, model="openai/gpt-6.1-sol", max_tokens=10, messages=[]) is ok
+    tiers = [c.kwargs["extra_body"].get("service_tier") for c in client.messages.create.call_args_list]
+    assert tiers == ["flex"] * (FLEX_UNAVAILABLE_RETRIES + 1) + [None]
+    assert slept.call_count == FLEX_UNAVAILABLE_RETRIES
     client = MagicMock()
     client.openrouter_routing = openrouter_routing("price")
-    client.messages.create.side_effect = [flex_down, ok]
-    assert create_message_with_retries(client, model="openai/gpt-6.1-sol", max_tokens=10, messages=[]) is ok
-    tiers = [c.kwargs["extra_body"].get("service_tier") for c in client.messages.create.call_args_list]
-    assert tiers == ["flex", None]
 
     other = SimpleNamespace(type="error", content=None, model_extra={"error": {"message": "upstream exploded"}})
     client.messages.create.side_effect = [other, other, ok]

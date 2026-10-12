@@ -134,3 +134,18 @@ def test_json_seed_files_go_straight_to_the_structured_loader(tmp_path):
     assert stats["tables_parsed"] == 12
     p.classifier.classify_sections.assert_not_called()
     p.structured_loader.complete_run.assert_called_once()
+
+
+def test_flex_abort_mid_section_marks_the_run_failed_and_stops(tmp_path):
+    """FlexUnavailable (standard pricing not approved) is not swallowed by the
+    per-section handler: the remaining sections are not processed, the run is
+    marked failed (so the next run resumes from its checkpoint) and it re-raises."""
+    from shared.llm import FlexUnavailable
+
+    p = _pipeline(_sections(3))
+    p.sections.process.side_effect = FlexUnavailable("flex down, standard not approved")
+    with pytest.raises(FlexUnavailable):
+        p.ingest(_doc(tmp_path))
+    assert p.sections.process.call_count == 1
+    p.structured_loader.fail_run.assert_called_once()
+    p.structured_loader.complete_run.assert_not_called()

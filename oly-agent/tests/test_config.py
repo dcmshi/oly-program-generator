@@ -340,3 +340,22 @@ def test_reasoning_defaults_follow_the_default_model_only():
     assert (s.generation_thinking, s.generation_effort) == ("adaptive", "high")
     s = Settings(llm_provider="anthropic", anthropic_api_key="k")
     assert s.generation_model == "claude-sonnet-5" and s.generation_thinking == "disabled"
+
+
+def test_flex_fallback_policy_resolves_and_validates():
+    import os
+    saved = os.environ.pop("FLEX_FALLBACK", None)
+    try:
+        assert Settings().flex_fallback == "ask"                     # confirm before paying standard (2026-10-12)
+        os.environ["FLEX_FALLBACK"] = "Standard"
+        assert Settings().flex_fallback == "standard"
+        assert Settings(flex_fallback="fail").flex_fallback == "fail"
+        try:
+            Settings(flex_fallback="maybe")
+            raise AssertionError("expected ValueError")
+        except ValueError as e:
+            assert "FLEX_FALLBACK" in str(e)
+    finally:
+        os.environ.pop("FLEX_FALLBACK", None)
+        if saved is not None:
+            os.environ["FLEX_FALLBACK"] = saved

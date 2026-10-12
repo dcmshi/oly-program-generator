@@ -32,6 +32,7 @@ from processors.section_processor import (  # noqa: F401 — CHUNK_TYPE_KEYWORDS
 )
 
 from shared.llm import (
+    FlexUnavailable,
     create_llm_client,
     create_message_growing,
     json_schema_kwargs,
@@ -624,7 +625,7 @@ class IngestionPipeline:
             logger.info(f"Ingestion complete in {fmt_duration(time.perf_counter() - run_started)}: {stats}")
             return stats
 
-        except Exception as e:
+        except (Exception, FlexUnavailable) as e:     # FlexUnavailable is a BaseException — stop, resumable
             import traceback
             self.structured_loader.fail_run(
                 run_id,
