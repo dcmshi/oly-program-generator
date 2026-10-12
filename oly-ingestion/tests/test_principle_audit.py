@@ -233,12 +233,12 @@ def test_pick_windows_resolves_books_by_title_and_takes_one_article_per_host():
     def fake_file_text(path):
         return dense if path.suffix == ".txt" or "Roman" in path.name else "few numbers " * 2000
 
-    web = {"https://www.catalystathletics.com/a/": None,              # unfetchable → next row for the host
-           "https://www.catalystathletics.com/b/": "cat 70% text",
-           "https://www.strongerbyscience.com/t/": "sbs 60% text"}
+    web = {"https://www.catalystathletics.com/a/": (None, True),      # page gone → next row for the host
+           "https://www.catalystathletics.com/b/": ("cat 70% text", True),
+           "https://www.strongerbyscience.com/t/": ("sbs 60% text", True)}
     with patch.object(pmc, "source_files", return_value=files), \
          patch.object(pmc, "file_text", side_effect=fake_file_text) as ft, \
-         patch.object(pmc, "fetch_web_text", side_effect=web.get):
+         patch.object(pmc, "fetch_web_article", side_effect=web.get):
         windows = pmc.pick_windows(cur)
 
     labels = [w["label"] for w in windows]
@@ -252,6 +252,30 @@ def test_pick_windows_resolves_books_by_title_and_takes_one_article_per_host():
     assert "A.S. Medvedev - A Program of Multi-Year Training (OCR text).txt" in read
     assert by["web:catalystathletics:12"]["text"] == "cat 70% text"
 
+
+def test_pick_windows_skips_an_unreachable_host_after_one_transient_failure():
+    """A timeout means the site is down, not the page: don't walk the host's
+    other articles (2026-10-12: 113 Catalyst timeouts over 9 hours)."""
+    from unittest.mock import MagicMock, patch
+
+    import principle_model_compare as pmc
+
+    cur = MagicMock()
+    cur.fetchall.side_effect = [
+        [],
+        [(11, "https://www.catalystathletics.com/a/", "Cat A", 90),
+         (12, "https://www.catalystathletics.com/b/", "Cat B", 80),
+         (13, "https://www.strongerbyscience.com/t/", "SBS", 70)],
+    ]
+    web = {"https://www.catalystathletics.com/a/": (None, False),
+           "https://www.catalystathletics.com/b/": ("cat 70% text", True),
+           "https://www.strongerbyscience.com/t/": ("sbs 60% text", True)}
+    with patch.object(pmc, "source_files", return_value=[]),          patch.object(pmc, "fetch_web_article", side_effect=web.get) as fetch:
+        windows = pmc.pick_windows(cur)
+
+    assert [w["label"] for w in windows] == ["web:strongerbyscience:13"]
+    assert [c.args[0] for c in fetch.call_args_list] == ["https://www.catalystathletics.com/a/",
+                                                        "https://www.strongerbyscience.com/t/"]
 
 def test_competition_day_condition_is_not_a_numeric_claim_to_check():
     _, unsup = audit_principle({}, {"weeks_out_from_competition": {"eq": 0}}, text_numbers("the warm-up room"))

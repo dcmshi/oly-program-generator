@@ -98,6 +98,7 @@ def _mk_resp(status=200, text="", raise_http=False):
     resp.status_code = status
     resp.text = text
     resp.content = text.encode("utf-8")
+    resp.encoding = "utf-8"
     if raise_http:
         resp.raise_for_status.side_effect = requests.HTTPError(response=resp)
     else:
@@ -447,7 +448,7 @@ def test_bot_check_capture_falls_back_to_an_earlier_capture(monkeypatch):
             + "</div></body></html>").encode()
     calls = []
 
-    def fake_get(url, timeout=30, params=None):
+    def fake_get(url, timeout=30, params=None, cache=False):
         calls.append(url if params is None else (url, params["url"]))
         if params is not None:                                   # CDX lookup
             return SimpleNamespace(json=lambda: [["timestamp"], ["20240920003433"], ["20230101000000"], ["20220101000000"]]), False
@@ -463,7 +464,7 @@ def test_bot_check_capture_falls_back_to_an_earlier_capture(monkeypatch):
     assert any(isinstance(c, tuple) for c in calls)              # CDX consulted once
     assert sum(1 for c in calls if isinstance(c, str)) == 3      # latest + 2023 (challenge) + 2022 (real)
 
-    def all_challenge(url, timeout=30, params=None):
+    def all_challenge(url, timeout=30, params=None, cache=False):
         if params is not None:
             return SimpleNamespace(json=lambda: [["timestamp"], ["20230101000000"]]), False
         return SimpleNamespace(content=challenge), False
@@ -506,7 +507,7 @@ def test_fetch_generic_article_keeps_the_body_and_drops_the_chrome(monkeypatch):
 
     import ingest_web as mod
 
-    monkeypatch.setattr(mod, "_get_with_retry", lambda url, timeout=30, params=None: (SimpleNamespace(text=_wp_page(30).decode()), False))
+    monkeypatch.setattr(mod, "_get_with_retry", lambda url, timeout=30, params=None, cache=False: (SimpleNamespace(text=_wp_page(30).decode()), False))
     article, permanent = mod.fetch_generic_article("https://www.strongerbyscience.com/tapering/")
     assert article is not None and not permanent
     assert article["title"] == "Tapering and Peaking: Why and How"
@@ -587,7 +588,7 @@ def test_fetch_generic_article_skips_video_landing_pages(monkeypatch):
 
     import ingest_web as mod
 
-    monkeypatch.setattr(mod, "_get_with_retry", lambda url, timeout=30, params=None: (SimpleNamespace(text=_wp_page(3).decode()), False))
+    monkeypatch.setattr(mod, "_get_with_retry", lambda url, timeout=30, params=None, cache=False: (SimpleNamespace(text=_wp_page(3).decode()), False))
     article, permanent = mod.fetch_generic_article("https://www.jtsstrength.com/programming-for-weightlifting/")
     assert article is None and permanent is True
 
@@ -704,3 +705,109 @@ def test_web_path_runs_principle_audit_on_the_article_text():
     with patch("principle_audit.run_audit_pass") as audit:
         ingest_article(_ARTICLE, comps, _stats())
     audit.assert_not_called()
+
+
+
+# ── Polite fetching (WEB-POLITE) ───────────────────────────────
+
+def _policy_get(robots_text, pages):
+    """A SESSION.get fake: robots.txt from `robots_text` (None → 404), other
+    URLs from `pages` (an exception instance is raised)."""
+    def get(url, timeout=None, params=None):
+        if url.endswith("/robots.txt"):
+            return _mk_resp(status=404) if robots_text is None else _mk_resp(text=robots_text)
+        page = pages[url]
+        if isinstance(page, Exception):
+            raise page
+        return _mk_resp(text=page)
+    return get
+
+
+def test_policy_off_by_default_makes_no_robots_request():
+    import ingest_web as w
+    w._policy = w._WebPolicy()
+    with patch.object(w.SESSION, "get", side_effect=_policy_get(None, {"https://a.test/x": "page"})) as get:
+        resp, _ = w._get_with_retry("https://a.test/x", cache=True)
+    assert resp.text == "page" and [c.args[0] for c in get.call_args_list] == ["https://a.test/x"]
+
+
+def test_robots_disallow_is_permanent_and_never_fetches_the_page(tmp_path):
+    import ingest_web as w
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    robots = "User-agent: *\nDisallow: /private/\n"
+    try:
+        with patch.object(w.SESSION, "get", side_effect=_policy_get(robots, {})) as get:
+            resp, permanent = w._get_with_retry("https://a.test/private/x")
+        assert resp is None and permanent is True
+        assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt"]
+    finally:
+        w._policy = w._WebPolicy()
+
+
+def test_article_page_is_cached_and_a_rerun_reads_the_copy(tmp_path):
+    import ingest_web as w
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    try:
+        with patch.object(w.SESSION, "get", side_effect=_policy_get(None, {"https://a.test/art": "<p>body</p>"})):
+            first, _ = w._get_with_retry("https://a.test/art", cache=True)
+        assert first.text == "<p>body</p>" and len(list(tmp_path.glob("*.json"))) == 1
+        w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)          # a new run
+        with patch.object(w.SESSION, "get") as get:
+            again, permanent = w._get_with_retry("https://a.test/art", cache=True)
+        get.assert_not_called()
+        assert again.text == "<p>body</p>" and again.content == b"<p>body</p>" and permanent is False
+        with patch.object(w.SESSION, "get", side_effect=_policy_get(None, {"https://a.test/list": "l"})):
+            w._get_with_retry("https://a.test/list")                            # listings are never cached
+        assert len(list(tmp_path.glob("*.json"))) == 1
+    finally:
+        w._policy = w._WebPolicy()
+
+
+def test_unanswering_host_is_not_contacted_again_this_run(tmp_path):
+    import ingest_web as w
+    import requests
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    pages = {"https://a.test/1": requests.ConnectTimeout("t"), "https://a.test/2": "never",
+             "https://b.test/1": "other host"}
+    try:
+        with patch.object(w.SESSION, "get", side_effect=_policy_get(None, pages)) as get, patch("time.sleep"):
+            assert w._get_with_retry("https://a.test/1") == (None, False)
+            assert w._get_with_retry("https://a.test/2") == (None, False)
+            assert w._get_with_retry("https://b.test/1")[0].text == "other host"
+        fetched = [c.args[0] for c in get.call_args_list]
+        assert fetched.count("https://a.test/1") == 3 and "https://a.test/2" not in fetched
+    finally:
+        w._policy = w._WebPolicy()
+
+
+def test_unreachable_robots_marks_the_host_down(tmp_path):
+    import ingest_web as w
+    import requests
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    try:
+        with patch.object(w.SESSION, "get", side_effect=requests.ConnectTimeout("t")) as get:
+            assert w._get_with_retry("https://a.test/1") == (None, False)
+            assert w._get_with_retry("https://a.test/2") == (None, False)
+        assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt"]
+    finally:
+        w._policy = w._WebPolicy()
+
+
+def test_requests_to_one_host_are_spaced_by_the_larger_of_interval_and_crawl_delay(tmp_path):
+    import ingest_web as w
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=3.0)
+    clock = {"t": 1000.0}
+
+    def sleep(s):
+        clock["t"] += s
+    robots = "User-agent: *\nCrawl-delay: 10\n"
+    pages = {"https://a.test/1": "1", "https://a.test/2": "2", "https://b.test/1": "b"}
+    try:
+        with patch.object(w.SESSION, "get", side_effect=_policy_get(robots, pages)), \
+             patch("time.monotonic", side_effect=lambda: clock["t"]), patch("time.sleep", side_effect=sleep) as slept:
+            w._get_with_retry("https://a.test/1")      # robots (first contact) → wait 3 s → page
+            w._get_with_retry("https://a.test/2")      # Crawl-delay 10 s
+        waits = [round(c.args[0], 1) for c in slept.call_args_list]
+        assert waits == [10.0, 10.0]
+    finally:
+        w._policy = w._WebPolicy()

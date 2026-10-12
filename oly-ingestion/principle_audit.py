@@ -299,19 +299,26 @@ def load_source_texts(cur, source_files: list[Path] | None, only: list[int] | No
     return texts
 
 
-def fetch_web_text(url: str) -> str | None:
-    """The article text for a web source, through the same fetchers the ingest
-    used (Catalyst selectors, Wayback for Charniga, generic WordPress for the
-    rest). None when the page can't be fetched."""
+def fetch_web_article(url: str) -> tuple[str | None, bool]:
+    """(article text, permanent) for a web source, through the same fetchers
+    the ingest used (Catalyst selectors, Wayback for Charniga, generic WordPress
+    for the rest). Text is None when the page can't be fetched; `permanent` is
+    False when that was a transient failure (timeout, connection error) — the
+    site itself may be unreachable."""
     import ingest_web as w
     if "catalystathletics.com" in url:
-        article, _ = w.fetch_article(url)
+        article, permanent = w.fetch_article(url)
     elif "sportivnypress.com" in url:
         # Wayback resolves a year-only timestamp to the nearest capture
-        article, _ = w.fetch_charniga_snapshot(url, "2024")
+        article, permanent = w.fetch_charniga_snapshot(url, "2024")
     else:
-        article, _ = w.fetch_generic_article(url)
-    return article["text"] if article else None
+        article, permanent = w.fetch_generic_article(url)
+    return (article["text"], True) if article else (None, permanent)
+
+
+def fetch_web_text(url: str) -> str | None:
+    """The article text for a web source, or None when it can't be fetched."""
+    return fetch_web_article(url)[0]
 
 
 def add_web_texts(cur, texts: dict[int, str], source_ids: set[int], cache_path: Path) -> int:
@@ -457,6 +464,8 @@ def main() -> None:
     ap.add_argument("--fetch-web", type=Path, metavar="CACHE_JSON",
                     help="re-fetch flagged / text-less web articles (cached in this file) before judging them")
     args = ap.parse_args()
+    import ingest_web
+    ingest_web.configure_web_fetching()          # robots, throttle, page cache (WEB-POLITE)
     if args.apply == args.report:
         ap.error("pass exactly one of --report / --apply")
     if args.apply and not args.backup:
