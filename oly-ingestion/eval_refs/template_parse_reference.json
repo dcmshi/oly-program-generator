@@ -1,0 +1,501 @@
+{
+  "_doc": "ING-EVAL-1 template-parse reference, hand-checked 2026-10-11 against the section text. Sections are rebuilt from sources/ by template_model_compare.py (heuristic classifier, no LLM fallback) and picked by (file prefix, ordinal among the file's PROGRAM_TEMPLATE sections); sha256 pins the text. Counts are ranges because the text allows two readings: training sessions vs. also rest/competition days, exercises without vs. with unnumbered 'Abdominals'/'Abs' lines. A session counts when it has >= 1 exercise; exercises are distinct names per session (a wave split into one row per load step is one exercise). Spot checks: some exercise in `week` (null = any) whose name matches `name_re` (case-insensitive) with every given field equal; `absent: true` inverts. `intensity_pct_max` flags kg loads read as percentages.",
+  "sections": [
+    {
+      "id": "takano-a",
+      "file_prefix": "Bob Takano - ",
+      "ordinal": 0,
+      "sha256": "3acb2eb5a0d0df6587e2b915f5ff02594301d2ac95fcb60a358b7acd96d7e23a",
+      "note": "Prose-led: chapter conclusion, then the Van Nuys '98 program weeks 1-4 (week 4 cut off at Day 6). Over 5k chars: continuation path. Rest days written as a session with a \"Rest\" entry are in range (sessions 24, exercises +2).",
+      "weeks_required": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "weeks_allowed": [
+        1,
+        2,
+        3,
+        4
+      ],
+      "sessions": [
+        22,
+        24
+      ],
+      "exercises": [
+        100,
+        116
+      ],
+      "spot": [
+        {
+          "week": 1,
+          "name_re": "snatch deadlift",
+          "sets": 4,
+          "reps": 4,
+          "intensity_pct": 85
+        },
+        {
+          "week": 2,
+          "name_re": "snatch extension",
+          "sets": 4,
+          "reps": 4,
+          "intensity_pct": 85
+        },
+        {
+          "week": 3,
+          "name_re": "good morning"
+        },
+        {
+          "week": 4,
+          "name_re": "clean extension",
+          "sets": 4,
+          "reps": 4,
+          "intensity_pct": 85
+        }
+      ]
+    },
+    {
+      "id": "takano-b",
+      "file_prefix": "Bob Takano - ",
+      "ordinal": 3,
+      "sha256": "e9f12ef1821d1de671fcb2567f4a591cb80e6bb7ce6fc96b52652950e089f484",
+      "note": "Weeks 15-20 of the same program; starts mid-program, rest and competition days, 'Same as Monday' rows. Rest / competition / activity days written as sessions with one entry each are in range (+10).",
+      "weeks_required": [
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "weeks_allowed": [
+        15,
+        16,
+        17,
+        18,
+        19,
+        20
+      ],
+      "sessions": [
+        26,
+        36
+      ],
+      "exercises": [
+        102,
+        121
+      ],
+      "spot": [
+        {
+          "week": 15,
+          "name_re": "snatch extension",
+          "sets": 5,
+          "reps": 3,
+          "intensity_pct": 95
+        },
+        {
+          "week": 17,
+          "name_re": "snatch high pull",
+          "sets": 5,
+          "reps": 3,
+          "intensity_pct": 90
+        },
+        {
+          "week": 20,
+          "name_re": "jumping back squat",
+          "sets": 3,
+          "reps": 2,
+          "intensity_pct": 50
+        }
+      ]
+    },
+    {
+      "id": "everett-sports-12wk",
+      "file_prefix": "Greg Everett - Olympic Weightlifting for Sports",
+      "ordinal": 0,
+      "sha256": "48592758b5005950a726e0fafd04a1d19e86be37e3f01f0afe8ffc29729d9531",
+      "note": "Sample 12-week program, 3 days/week, bulleted. The book's notation is weight x REPS x SETS ('65% x 8 x 3 is 3 sets of 8').",
+      "weeks_required": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "weeks_allowed": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12
+      ],
+      "sessions": [
+        36,
+        36
+      ],
+      "exercises": [
+        192,
+        192
+      ],
+      "spot": [
+        {
+          "week": 1,
+          "name_re": "back squat",
+          "sets": 3,
+          "reps": 8,
+          "intensity_pct": 65
+        },
+        {
+          "week": 1,
+          "name_re": "power clean",
+          "sets": 8,
+          "reps": 3,
+          "intensity_pct": 70
+        },
+        {
+          "week": 7,
+          "name_re": "split jerk",
+          "sets": 8,
+          "reps": 3,
+          "intensity_pct": 70
+        },
+        {
+          "week": 12,
+          "name_re": "clean high.?pull",
+          "sets": 5,
+          "reps": 3
+        }
+      ]
+    },
+    {
+      "id": "everett-masters",
+      "file_prefix": "Greg Everett - Olympic Weightlifting_",
+      "ordinal": 10,
+      "sha256": "d40316ab0dc38e7004ec380b714f3899d3dc7c3954f687612720a09d4e1b3ce0",
+      "note": "Short (1.9k): weeks 1-2 + an unnumbered 'Recovery Week'.",
+      "weeks_required": [
+        1,
+        2
+      ],
+      "weeks_allowed": [
+        0,
+        1,
+        2,
+        3
+      ],
+      "sessions": [
+        11,
+        11
+      ],
+      "exercises": [
+        35,
+        43
+      ],
+      "spot": [
+        {
+          "week": 1,
+          "name_re": "^snatch$",
+          "sets": 3,
+          "reps": 1,
+          "intensity_pct": 80
+        },
+        {
+          "week": 1,
+          "name_re": "clean pull",
+          "sets": 4,
+          "reps": 3
+        },
+        {
+          "week": null,
+          "name_re": "^press$",
+          "sets": 3,
+          "reps": 5
+        }
+      ]
+    },
+    {
+      "id": "everett-fs-cycle",
+      "file_prefix": "Greg Everett - Olympic Weightlifting_",
+      "ordinal": 12,
+      "sha256": "baa7881b1deea68adfa72a2f2968ad6e0181328749c2404519696da2222e58d2",
+      "note": "5-Week Front Squat Cycle, 5 days/week; complexes and wave sets.",
+      "weeks_required": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "weeks_allowed": [
+        1,
+        2,
+        3,
+        4,
+        5
+      ],
+      "sessions": [
+        25,
+        25
+      ],
+      "exercises": [
+        85,
+        109
+      ],
+      "spot": [
+        {
+          "week": 1,
+          "name_re": "^front squat",
+          "sets": 5,
+          "reps": 3,
+          "intensity_pct": 75
+        },
+        {
+          "week": 4,
+          "name_re": "clean pull",
+          "sets": 3,
+          "reps": 3,
+          "intensity_pct": 105
+        },
+        {
+          "week": 5,
+          "name_re": "front squat"
+        }
+      ]
+    },
+    {
+      "id": "everett-squat-cycle",
+      "file_prefix": "Greg Everett - Olympic Weightlifting_",
+      "ordinal": 13,
+      "sha256": "9ac63bfa4e3252fc94fa6f2bea2dd72f8bbcd576d6654c2faffaa867830cdfaa",
+      "note": "10-Week Volume Squat Cycle with a Week 0; one lift per day, 6 days/week.",
+      "weeks_required": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "weeks_allowed": [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10
+      ],
+      "sessions": [
+        66,
+        66
+      ],
+      "exercises": [
+        66,
+        66
+      ],
+      "spot": [
+        {
+          "week": 0,
+          "name_re": "back squat",
+          "sets": 3,
+          "reps": 4,
+          "intensity_pct": 50
+        },
+        {
+          "week": 4,
+          "name_re": "back squat",
+          "sets": 10,
+          "reps": 6,
+          "intensity_pct": 70
+        },
+        {
+          "week": 9,
+          "name_re": "front squat",
+          "sets": 2,
+          "reps": 2,
+          "intensity_pct": 87
+        }
+      ]
+    },
+    {
+      "id": "everett-risers",
+      "file_prefix": "Greg Everett - Olympic Weightlifting_",
+      "ordinal": 16,
+      "sha256": "768eba362cccee74c364d283cf997e132785f1fc5f50ac7313fdbca4420764e7",
+      "note": "Risers, Waves & Positions: prose intro, RM / OTM notation, technique primers; week 6 cut off at Wednesday.",
+      "weeks_required": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "weeks_allowed": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6
+      ],
+      "sessions": [
+        28,
+        28
+      ],
+      "exercises": [
+        131,
+        158
+      ],
+      "spot": [
+        {
+          "week": 1,
+          "name_re": "snatch pull on riser"
+        },
+        {
+          "week": 1,
+          "name_re": "^power clean$",
+          "sets": 5,
+          "reps": 3,
+          "intensity_pct": 70
+        },
+        {
+          "week": 4,
+          "name_re": "pause jerk",
+          "sets": 4,
+          "intensity_pct": 70
+        },
+        {
+          "week": 5,
+          "name_re": "good morning",
+          "sets": 3,
+          "reps": 4,
+          "intensity_pct": 25
+        }
+      ]
+    },
+    {
+      "id": "roman-week3",
+      "file_prefix": "R.A. Roman - ",
+      "ordinal": 0,
+      "sha256": "9569f5afcc5d52b9702f7f2d52c5d0c86f9d3e2b59f76084cb67fa9b9ec848bd",
+      "note": "OCR scan: tables of lift counts by zone (not workouts), then the 3rd week's Monday / Wednesday / Friday in kg (cut off). Monday is split across a table.",
+      "weeks_required": [
+        3
+      ],
+      "weeks_allowed": [
+        3
+      ],
+      "sessions": [
+        3,
+        4
+      ],
+      "exercises": [
+        7,
+        7
+      ],
+      "intensity_pct_max": 100,
+      "spot": [
+        {
+          "week": 3,
+          "name_re": "back squat"
+        },
+        {
+          "week": 3,
+          "name_re": "bench press"
+        }
+      ]
+    },
+    {
+      "id": "roman-week4",
+      "file_prefix": "R.A. Roman - ",
+      "ordinal": 1,
+      "sha256": "3f266cbc887dd02d4eafe7148e2b86dbae9e2146bc6122a44dd73adea3f74c41",
+      "note": "OCR scan: tail of the 3rd week (unlabelled Front Squat, Saturday) and the 4th week in kg, then prose. The unlabelled opening may be numbered 0, 1 or 3.",
+      "weeks_required": [
+        4
+      ],
+      "weeks_allowed": [
+        0,
+        1,
+        3,
+        4
+      ],
+      "sessions": [
+        4,
+        5
+      ],
+      "exercises": [
+        15,
+        15
+      ],
+      "intensity_pct_max": 100,
+      "spot": [
+        {
+          "week": 4,
+          "name_re": "power clean"
+        },
+        {
+          "week": 4,
+          "name_re": "front squat"
+        }
+      ]
+    },
+    {
+      "id": "zatsiorsky-negative",
+      "file_prefix": "Vladimir Zatsiorsky",
+      "ordinal": 0,
+      "sha256": "418a7ed90ccf376202b9da4992f52343a106e8b3c2e825489ad8c526ab45d290",
+      "note": "Negative control: a heuristic false positive. Prose + Table 5.2 (day-type letters per week, no exercises). Ideal: {} or no named lifts.",
+      "weeks_required": [],
+      "weeks_allowed": [
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8
+      ],
+      "sessions": [
+        0,
+        24
+      ],
+      "exercises": [
+        0,
+        24
+      ],
+      "spot": [
+        {
+          "week": null,
+          "name_re": "snatch|clean|jerk|squat|deadlift|press|bench",
+          "absent": true
+        }
+      ]
+    }
+  ]
+}
