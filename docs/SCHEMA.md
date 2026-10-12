@@ -424,10 +424,4 @@ erDiagram
 
 ## Ad-hoc Snapshot Tables (not migrations)
 
-The dev database also holds tables created by hand during one-off corpus operations. (Both embedding backups — `emb_backup_small_20260922` and `emb_snapshot_openai` — were dropped on 2026-10-12.) No migration creates them, no code reads them, and a fresh `alembic upgrade head` will not have them.
-
-| Table | Size (2026-09-22) | Contents |
-|-------|------------------:|----------|
-| `chunk_type_snapshot_20260920_haiku` / `_jev` | 200 kB each | `(id, chunk_type)` label sets from the 2026-09-20 chunk-type relabel A/B; the Haiku labels were restored from the first (TODO.md). |
-
-All four are safe to drop. To restore one, run `UPDATE … FROM` joined on `id`.
+None remain. One-off corpus operations used to leave hand-made backup tables in the dev database (`emb_backup_small_20260922` and `emb_snapshot_openai` — `text-embedding-3-small` vectors from before EMBED-1 — and `chunk_type_snapshot_20260920_haiku` / `_jev`, the label sets from the 2026-09-20 chunk-type relabel A/B); all four were dropped on 2026-10-12, so the database holds exactly the tables the Alembic chain creates. A future one-off backup should be listed here until it is dropped.
