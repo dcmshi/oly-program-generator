@@ -391,6 +391,9 @@ def main(argv: list[str] | None = None) -> int:
                     help="per-program cost limit for the run (default: Settings.cost_limit_per_program)")
     ap.add_argument("--delete", action="store_true", help="delete the baseline drafts after the report")
     ap.add_argument("--out-dir", type=Path, default=_HERE)
+    ap.add_argument("--resume", action="store_true",
+                    help="continue an aborted run: configs already finished (model_baseline.json.partial.jsonl "
+                         "in --out-dir) are not regenerated")
     args = ap.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -402,10 +405,18 @@ def main(argv: list[str] | None = None) -> int:
         ap.error("--sessions must be ≥ 1")
 
     base = Settings()
+    from shared.checkpoint import Checkpoint
+    checkpoint = Checkpoint(args.out_dir / "model_baseline.json", resume=args.resume, signature={
+        "athlete_id": args.athlete_id, "sessions": args.sessions, "cost_limit": args.cost_limit})
     results = []
     for cfg in configs:
+        if cfg.label in checkpoint:              # RESUME-1: a finished config is not regenerated
+            results.append(checkpoint.get(cfg.label))
+            continue
         try:
             results.append(run_config(cfg, args.athlete_id, args.sessions, base, args.cost_limit))
+            if not results[-1].get("error"):
+                checkpoint.put(cfg.label, json.loads(json.dumps(results[-1], default=str)))
         except Exception as e:      # keep going — one bad config must not lose the others
             logger.exception(f"config {cfg.label} crashed")
             results.append({"config": cfg.label, "model": cfg.model, "thinking": cfg.thinking,
@@ -419,6 +430,7 @@ def main(argv: list[str] | None = None) -> int:
         "deleted": bool(args.delete),
     }
     path = write_report(results, meta, args.out_dir)
+    checkpoint.finish()
     print()
     print(render_table(results))
     print(f"\nreport: {path}")

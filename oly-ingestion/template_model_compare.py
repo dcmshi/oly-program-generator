@@ -181,7 +181,10 @@ def score_section(parsed: dict, ref: dict) -> dict:
 
 # ── Running a model ──────────────────────────────────────────
 
-def run_model(model: str, sections: list[dict], reference: dict) -> dict:
+def run_model(model: str, sections: list[dict], reference: dict, checkpoint=None) -> dict:
+    """Parse every section with `model`; a clean section goes to `checkpoint`
+    as it lands and one already there (same model and section text) is not
+    re-run (RESUME-1)."""
     from config import Settings
     from pipeline import parse_program_template_text
 
@@ -203,6 +206,10 @@ def run_model(model: str, sections: list[dict], reference: dict) -> dict:
     rows = []
     for sec in sections:
         ref = refs[sec["id"]]
+        key = f"{model_id}|{sec['id']}|{sec.get('sha256', '')}"
+        if checkpoint is not None and key in checkpoint:
+            rows.append(checkpoint.get(key))
+            continue
         usage = {"input": 0, "output": 0, "cost": 0.0, "calls": 0, "billed": True, "stops": [], "declined": 0}
 
         def on_message(msg, usage=usage):
@@ -236,6 +243,8 @@ def run_model(model: str, sections: list[dict], reference: dict) -> dict:
                      "input_tokens": usage["input"], "output_tokens": usage["output"],
                      "cost_usd": round(usage["cost"], 4), "cost_billed": usage["billed"],
                      "parsed": parsed})
+        if checkpoint is not None and not errors:        # a section with a failed call is re-run on --resume
+            checkpoint.put(key, rows[-1])
         logger.info(f"{model_id} {sec['id']}: weeks {'ok' if score['weeks_ok'] else 'X'} "
                     f"sessions {score['sessions']} exercises {score['exercises']} "
                     f"spot {score['spot_passed']}/{score['spot_total']} errors {len(errors)} {dt:.0f}s")
@@ -279,6 +288,8 @@ def main() -> None:
     ap.add_argument("--model", action="append", default=[])
     ap.add_argument("--section", action="append", help="limit to these section ids")
     ap.add_argument("--out", type=Path)
+    ap.add_argument("--resume", action="store_true",
+                    help="with --out: continue an aborted run — sections in <out>.partial.jsonl are not re-sent")
     ap.add_argument("--rescore", type=Path, help="re-score a saved --out file against the current reference")
     args = ap.parse_args()
 
@@ -313,11 +324,17 @@ def main() -> None:
     if args.section:
         sections = [s for s in sections if s["id"] in set(args.section)]
 
-    results = [run_model(m, sections, reference) for m in args.model]
+    from shared.checkpoint import Checkpoint
+    if args.resume and not args.out:
+        raise SystemExit("--resume needs --out (the partial run lives beside it)")
+    checkpoint = (Checkpoint(args.out, resume=args.resume, signature={"script": "template_model_compare"})
+                  if args.out else None)
+    results = [run_model(m, sections, reference, checkpoint) for m in args.model]
     if args.out:
         args.out.parent.mkdir(parents=True, exist_ok=True)
         args.out.write_text(json.dumps({"sections": [s["id"] for s in sections], "results": results},
                                        indent=1, ensure_ascii=False), encoding="utf-8")
+        checkpoint.finish()
     print_table(results, len(sections), args.out)
 
 

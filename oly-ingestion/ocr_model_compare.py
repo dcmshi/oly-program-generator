@@ -112,10 +112,13 @@ def pick_groups(cache_pages: dict[str, str]) -> list[tuple[str, int]]:
 
 # ── Running a model ──────────────────────────────────────────
 
-def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reasoning: str = "default") -> dict:
+def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reasoning: str = "default",
+              checkpoint=None) -> dict:
     """`reasoning`: "default" drops the thinking / effort fields so each model
     runs at its own default; "pipeline" keeps what an ingest sends
-    (`thinking_kwargs(model, "disabled")`)."""
+    (`thinking_kwargs(model, "disabled")`). Each successful group goes to
+    `checkpoint` as it lands and a group already there is not re-run
+    (RESUME-1)."""
     import fitz
     from config import Settings
     from extractors.pdf_extractor import PDFExtractor
@@ -135,6 +138,10 @@ def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reas
     by_name = {pdf.name: pdf for pdf, _ in books}
     groups = []
     for g in plan:
+        key = f"{model_id}|{reasoning}|{g['label']}"
+        if checkpoint is not None and key in checkpoint:
+            groups.append(checkpoint.get(key))
+            continue
         start, end = g["start"], g["start"] + GROUP
         t0 = time.perf_counter()
         try:
@@ -162,6 +169,8 @@ def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reas
                        "stop_reason": stop_reason, "declined": declined,
                        "input_tokens": u["input"], "output_tokens": u["output"],
                        "cost_usd": round(cost, 4), "cost_billed": billed is not None, "error": error})
+        if checkpoint is not None and error is None:     # a failed group is re-run on --resume
+            checkpoint.put(key, groups[-1])
         logger.info(f"{model_id} {g['label']}: {sum(1 for p in pages if p.strip())}/{GROUP} pages, "
                     f"{sum(len(p) for p in pages):,} chars, {dt:.0f}s, ${cost:.4f}")
     return {"model": model_id, "groups": groups}
@@ -212,7 +221,11 @@ def main() -> None:
                          "pipeline: what an ingest sends (thinking disabled, or adaptive + low where mandatory)")
     ap.add_argument("--peers", type=Path, help="a saved --out file whose models' pages join the scoring "
                                                 "(re-scored, not re-run) — add a model without re-paying for the rest")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue an aborted run: groups already in <out>.partial.jsonl are not re-sent")
     args = ap.parse_args()
+    from shared.checkpoint import Checkpoint
+    checkpoint = Checkpoint(args.out, resume=args.resume, signature={"script": "ocr_model_compare"})
 
     books = scanned_books()
     plan = []
@@ -225,7 +238,7 @@ def main() -> None:
         plan = plan[:args.max_groups]
     logger.info("Page groups: " + ", ".join(g["label"] for g in plan))
 
-    results = [run_model(m, books, plan, args.reasoning) for m in args.model]
+    results = [run_model(m, books, plan, args.reasoning, checkpoint) for m in args.model]
     for r in results:
         r["reasoning"] = args.reasoning
     if args.peers:
@@ -238,6 +251,7 @@ def main() -> None:
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps({"groups": [{k: v for k, v in g.items() if k != "cached"} for g in plan],
                                     "results": results}, indent=1, ensure_ascii=False), encoding="utf-8")
+    checkpoint.finish()
 
     print(f"\n{'model':<32} {'pages':>5} {'lost':>5} {'susp':>5} {'fail':>5} {'decl':>5} {'peer agr':>9} {'cache agr':>10} "
           f"{'num rec':>8} {'garbled':>8} {'sec':>6} {'$':>7}")

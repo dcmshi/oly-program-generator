@@ -123,7 +123,12 @@ class _RepairCounter(logging.Handler):
             self.count += 1
 
 
-def run_model(model: str, windows: list[dict]) -> dict:
+def run_model(model: str, windows: list[dict], checkpoint=None) -> dict:
+    """Extract principles from every window with `model`; a clean window goes
+    to `checkpoint` as it lands and one already there (same model and window
+    text) is not re-run (RESUME-1)."""
+    import hashlib
+
     from config import Settings
     settings = Settings(llm_model=model)
     ext = PrincipleExtractor(settings)
@@ -132,6 +137,12 @@ def run_model(model: str, windows: list[dict]) -> dict:
     per_window = []
     try:
         for w in windows:
+            key = f"{settings.llm_model}|{w['label']}|{hashlib.sha256(w['text'].encode()).hexdigest()[:16]}"
+            if checkpoint is not None and key in checkpoint:
+                per_window.append(checkpoint.get(key))
+                continue
+            repairs_before = repairs.count
+            msg = None
             t0 = time.perf_counter()
             try:
                 msg = create_message_growing(ext._get_client(), label=f"compare {model} {w['label']}",
@@ -159,12 +170,15 @@ def run_model(model: str, windows: list[dict]) -> dict:
                 "claims": claims, "unsupported": unsup, "empty_recommendation": empty,
                 "latency_s": round(dt, 1), "input_tokens": u["input"], "output_tokens": u["output"],
                 "cost_usd": round(billed if billed is not None else estimate_cost(
-                    u["input"], u["output"], settings.llm_model, service_tier=served_tier(msg.usage),
+                    u["input"], u["output"], settings.llm_model, service_tier=served_tier(getattr(msg, "usage", None)),
                     cache_read_tokens=u["cache_read"], cache_creation_tokens=u["cache_creation"]), 4),
                 "cost_billed": billed is not None,
                 "error": error, "unsupported_claims": flagged,
                 "principle_names": [p.principle_name for p in principles],
+                "parser_repairs": repairs.count - repairs_before,
             })
+            if checkpoint is not None and error is None:     # a failed window is re-run on --resume
+                checkpoint.put(key, per_window[-1])
             logger.info(f"{model} {w['label']}: {len(principles)} principles, {unsup}/{claims} unsupported, {dt:.0f}s")
     finally:
         logging.getLogger("processors.principle_extractor").removeHandler(repairs)
@@ -174,7 +188,7 @@ def run_model(model: str, windows: list[dict]) -> dict:
                   "latency_s", "cost_usd", "output_tokens"):
             total[k] += r[k]
     total["failed_windows"] = sum(1 for r in per_window if r["error"])
-    total["parser_repairs"] = repairs.count
+    total["parser_repairs"] = sum(r.get("parser_repairs", 0) for r in per_window)
     return {"model": settings.llm_model, "totals": dict(total), "windows": per_window}
 
 
@@ -185,7 +199,11 @@ def main() -> None:
     ap = argparse.ArgumentParser(description=__doc__.split("\n\n")[0])
     ap.add_argument("--model", action="append", required=True)
     ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--resume", action="store_true",
+                    help="continue an aborted run: windows in <out>.partial.jsonl are not re-sent")
     args = ap.parse_args()
+    from shared.checkpoint import Checkpoint
+    checkpoint = Checkpoint(args.out, resume=args.resume, signature={"script": "principle_model_compare"})
     import ingest_web
     ingest_web.configure_web_fetching()          # robots, throttle, page cache (WEB-POLITE)
 
@@ -194,10 +212,11 @@ def main() -> None:
     conn.close()
     logger.info("Windows: " + ", ".join(f"{w['label']} ({len(w['text']):,} ch)" for w in windows))
 
-    results = [run_model(m, windows) for m in args.model]
+    results = [run_model(m, windows, checkpoint) for m in args.model]
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps({"windows": [{k: v for k, v in w.items() if k != "text"} for w in windows],
                                     "results": results}, indent=1), encoding="utf-8")
+    checkpoint.finish()
 
     print(f"\n{'model':<32} {'princ':>6} {'w/nums':>7} {'claims':>7} {'unsup':>6} {'rate':>6} {'empty':>6} "
           f"{'repairs':>8} {'failed':>7} {'sec':>6} {'$':>7}")

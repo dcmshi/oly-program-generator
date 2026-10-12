@@ -55,6 +55,8 @@ def main(argv=None) -> int:
     ap = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
     ap.add_argument("--adjudicator", default="anthropic/claude-opus-5")
     ap.add_argument("--limit", type=int, default=0, help="only the first N disputed pairs (smoke)")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue an aborted run: queries in <out>.partial.jsonl are not re-adjudicated")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -97,10 +99,17 @@ def main(argv=None) -> int:
     for q, c in disputed:
         by_query.setdefault(q, []).append(c)
     in_tok = out_tok = 0
+    from shared.checkpoint import Checkpoint
+    checkpoint = Checkpoint(OUT, resume=args.resume, signature={"adjudicator": args.adjudicator})
     for q, chunks in by_query.items():
+        key = f"{q}|{','.join(sorted(chunks, key=int))}"   # a changed disputed set is re-adjudicated
+        if key in checkpoint:                              # RESUME-1
+            adjudicated[q] = checkpoint.get(key)
+            continue
         cands = [{"id": int(c), "raw_content": text.get(int(c), "")} for c in chunks]
         got = grade_candidates(client, args.adjudicator, query_text[q], cands)
         adjudicated[q] = {str(k): int(v) for k, v in got.items()}
+        checkpoint.put(key, adjudicated[q])
         in_tok += sum(len(c["raw_content"]) for c in cands) // 4 + 400 * ((len(cands) + 9) // 10)
         out_tok += 30 * len(cands)
         logger.info(f"{q:<42} adjudicated {len(got)}/{len(cands)}")
@@ -131,6 +140,7 @@ def main(argv=None) -> int:
     OUT.write_text(json.dumps({"adjudicator": args.adjudicator, "unanimous": unanimous, "adjudicated": adjudicated,
                                "report": report}, indent=1), encoding="utf-8")
     print(f"  written {OUT}")
+    checkpoint.finish()
     return 0
 
 

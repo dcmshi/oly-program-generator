@@ -263,7 +263,7 @@ def test_principle_model_compare_main_writes_results(monkeypatch, tmp_path, caps
     import principle_model_compare as pmc
     windows = [{"label": "book:1", "title": "T", "text": "abc", "source_id": 1}]
     monkeypatch.setattr(pmc, "pick_windows", lambda cur: windows)
-    monkeypatch.setattr(pmc, "run_model", lambda m, w: {"model": m, "windows": [], "totals": {
+    monkeypatch.setattr(pmc, "run_model", lambda m, w, checkpoint=None: {"model": m, "windows": [], "totals": {
         "principles": 3, "with_numbers": 1, "claims": 2, "unsupported": 1, "empty_recommendation": 0,
         "parser_repairs": 0, "failed_windows": 0, "latency_s": 4.0, "cost_usd": 0.01}})
     import config

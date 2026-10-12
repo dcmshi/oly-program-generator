@@ -176,6 +176,8 @@ def main(argv=None) -> int:
     parser.add_argument("--dry-run", action="store_true", help="print queries + pool sizes; no LLM calls")
     parser.add_argument("--limit", type=int, default=0, help="only the first N queries (smoke test)")
     parser.add_argument("--model", default=None, help="grading model (default: settings.judge_model — JUDGE_MODEL in .env)")
+    parser.add_argument("--resume", action="store_true",
+                        help="continue an aborted build: queries in <out>.partial.jsonl are not regraded")
     parser.add_argument("--extend", type=Path, default=None,
                         help="keep this golden set's grades and grade only the candidates it lacks — the union "
                              "pool for comparing two retrievers (e.g. embedding models) on the same labels")
@@ -200,9 +202,17 @@ def main(argv=None) -> int:
     if args.extend:
         base = {q["id"]: q for q in json.loads(args.extend.read_text(encoding="utf-8"))["queries"]}
 
+    checkpoint = None
+    if not args.dry_run:
+        from shared.checkpoint import Checkpoint
+        checkpoint = Checkpoint(args.out, resume=args.resume, signature={
+            "model": model, "extend": str(args.extend or ""), "embedding_model": settings.embedding_model})
     graded = []
     try:
         for q in queries:
+            if checkpoint is not None and q["id"] in checkpoint:     # RESUME-1
+                graded.append(checkpoint.get(q["id"]))
+                continue
             pool = candidate_pool(loader, q)
             prior = base.get(q["id"], {})
             new = [c for c in pool if str(c["id"]) not in prior.get("grades", {})]
@@ -217,6 +227,7 @@ def main(argv=None) -> int:
                 "snippets": {**prior.get("snippets", {}),
                              **{str(c["id"]): str(c.get("raw_content", ""))[:160] for c in pool}},
             })
+            checkpoint.put(q["id"], graded[-1])
             n2 = sum(1 for g in grades.values() if g == 2)
             print(f"{q['id']:44s} pool={len(pool):3d} graded={len(grades):3d} grade2={n2:2d}")
     finally:
@@ -232,6 +243,7 @@ def main(argv=None) -> int:
         "queries": graded,
     }
     args.out.write_text(json.dumps(out, indent=1), encoding="utf-8")
+    checkpoint.finish()
     print(f"\ngolden set written: {args.out} ({len(graded)} queries)")
     return 0
 

@@ -57,6 +57,9 @@ def main(argv=None) -> int:
     ap.add_argument("--model", required=True, help="candidate judge (OpenRouter id)")
     ap.add_argument("--limit", type=int, default=0, help="only the first N queries")
     ap.add_argument("--write", action="store_true", help="save the candidate grades to eval/golden_<model>.json")
+    ap.add_argument("--resume", action="store_true",
+                    help="continue an aborted run: queries already graded (judge_agreement_<model>.json"
+                         ".partial.jsonl) are not re-sent")
     args = ap.parse_args(argv)
     logging.basicConfig(level=logging.INFO, format="%(levelname)s %(message)s")
 
@@ -71,9 +74,17 @@ def main(argv=None) -> int:
     pairs: list[tuple[int, int]] = []
     per_query = []
     out = {"model": args.model, "queries": []}
+    from shared.checkpoint import Checkpoint
+    checkpoint = Checkpoint(GOLDEN.with_name(f"judge_agreement_{args.model.replace('/', '_')}.json"),
+                            resume=args.resume, signature={"model": args.model})
     for q in queries:
-        cands = [{"id": int(cid), "raw_content": text.get(int(cid), "")} for cid in q["grades"] if int(cid) in text]
-        got = grade_candidates(client, args.model, q["query"], cands)
+        if q["id"] in checkpoint:                    # RESUME-1: graded before the abort
+            got = {int(k): v for k, v in checkpoint.get(q["id"]).items()}
+        else:
+            cands = [{"id": int(cid), "raw_content": text.get(int(cid), "")}
+                     for cid in q["grades"] if int(cid) in text]
+            got = grade_candidates(client, args.model, q["query"], cands)
+            checkpoint.put(q["id"], {str(k): v for k, v in got.items()})
         both = [(int(q["grades"][str(cid)]), int(g)) for cid, g in got.items() if str(cid) in q["grades"]]
         pairs.extend(both)
         exact = sum(1 for a, b in both if a == b) / max(1, len(both))
@@ -98,6 +109,7 @@ def main(argv=None) -> int:
         dest = GOLDEN.with_name(f"golden_{args.model.replace('/', '_')}.json")
         dest.write_text(json.dumps(out, indent=1), encoding="utf-8")
         print(f"  candidate grades written to {dest}")
+    checkpoint.finish()
     return 0
 
 
