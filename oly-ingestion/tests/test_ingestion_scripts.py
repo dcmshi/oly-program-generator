@@ -220,11 +220,17 @@ def test_dedupe_main_release_and_dry_run(monkeypatch, capsys, tmp_path):
     loader = MagicMock()
     loader._embed_batch.return_value = [[1.0, 0.0], [0.99, 0.1], [0.0, 1.0]]
     monkeypatch.setattr(dp, "VectorLoader", lambda s: loader)
-    monkeypatch.setattr(dp, "judge_pairs", lambda states: {0: 0.92})
-    assert dp.main(["--dry-run"]) == 0
+    def fake_judge(states, on_result=None):
+        on_result(0, 0.92)
+        return {0: 0.92}
+
+    monkeypatch.setattr(dp, "judge_pairs", fake_judge)
+    cache = tmp_path / "scores.jsonl"              # never the real sources/ cache
+    assert dp.main(["--dry-run", "--score-cache", str(cache)]) == 0
     out = capsys.readouterr().out
     assert "1 duplicate pairs" in out and "1 cross-source" in out and "#2" in out
     assert not cur.executemany_calls
+    assert len(dp.ScoreCache(cache).scores) == 1    # the judged score was cached
 
 
 # ── principle_model_compare ──────────────────────────────────────
