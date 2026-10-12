@@ -219,7 +219,8 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
         s = Settings()
         # OpenRouter is the default provider (2026-09-22), with the open-model roles
         assert s.llm_provider == "openrouter" and not supports_batches(s)
-        assert s.llm_model == s.template_model == "moonshotai/kimi-k3"
+        # templates on GPT-6.1 Sol since 2026-10-12, principles stay on Kimi K3
+        assert s.llm_model == "moonshotai/kimi-k3" and s.template_model == "openai/gpt-6.1-sol"
         # generation + explanation on GPT-6.1 Sol since 2026-10-11 (MODEL-3): generates
         # at adaptive + medium; explains "disabled" (→ adaptive + low in thinking_kwargs)
         assert s.generation_model == s.explanation_model == "openai/gpt-6.1-sol"
@@ -241,6 +242,7 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
         assert s.llm_provider == "anthropic" and supports_batches(s)
         assert s.llm_model == "claude-sonnet-5" and s.judge_model == s.light_model   # Claude defaults kept
         assert s.vision_model == s.llm_model                         # no OpenRouter → OCR stays on llm_model
+        assert s.template_model == s.llm_model                       # … and so do templates
 
         os.environ["LLM_PROVIDER"] = "openrouter"
         os.environ["OPENROUTER_API_KEY"] = "sk-or-test"
@@ -251,7 +253,7 @@ def test_openrouter_provider_rewrites_model_ids_and_picks_the_key():
         assert s.llm_model == "anthropic/claude-sonnet-5"             # Claude ids rewritten to OpenRouter's
         assert s.light_model == "anthropic/claude-haiku-4.5"          # dated snapshot dropped, dotted minor
         assert s.generation_model == s.explanation_model == "anthropic/claude-sonnet-5"
-        assert s.template_model == s.llm_model                      # blank TEMPLATE_MODEL follows LLM_MODEL
+        assert s.template_model == "openai/gpt-6.1-sol"             # blank TEMPLATE_MODEL → Sol under openrouter
         os.environ["TEMPLATE_MODEL"] = "claude-sonnet-5"
         os.environ["LLM_MODEL"] = "moonshotai/kimi-k3"
         s = Settings()
@@ -309,7 +311,8 @@ def test_openrouter_provider_sort_routes_every_call():
     with patch("shared.llm.Anthropic"):
         client = create_llm_client(Settings(llm_provider="openrouter", openrouter_api_key="k",
                                             openrouter_provider_sort="throughput"))
-    assert request_extras(client) == {"extra_body": {"provider": {"sort": "throughput", "require_parameters": True}}}
+    assert request_extras(client) == {"extra_body": {"provider": {"sort": "throughput", "require_parameters": True,
+                                                                  "ignore": ["inference-net"]}}}
     create_message_with_retries(client, model="m", max_tokens=1, messages=[])
     assert client.messages.create.call_args.kwargs["extra_body"]["provider"]["sort"] == "throughput"
 
@@ -318,7 +321,8 @@ def test_openrouter_provider_sort_routes_every_call():
     try:
         with patch("shared.llm.Anthropic"):
             client = create_llm_client(Settings(llm_provider="openrouter", openrouter_api_key="k"))
-        assert request_extras(client) == {}
+        # no sort, but the ignore list still applies
+        assert request_extras(client) == {"extra_body": {"provider": {"ignore": ["inference-net"]}}}
     finally:
         os.environ.pop("OPENROUTER_PROVIDER_SORT")
         if saved is not None:
@@ -329,6 +333,30 @@ def test_openrouter_provider_sort_routes_every_call():
     create_message_with_retries(client, model="m", max_tokens=1, messages=[])
     assert "extra_body" not in client.messages.create.call_args.kwargs
     assert request_extras(MagicMock()) == {}          # test doubles never grow an extra_body
+
+
+def test_openrouter_provider_ignore_keeps_a_broken_endpoint_out():
+    """OPENROUTER_PROVIDER_IGNORE (default inference-net: its fp4 Kimi K3 answered
+    template sections with an empty program on 2026-10-12) rides on every
+    OpenRouter call as provider.ignore; a comma list, "none" clears it."""
+    import os
+
+    from shared.llm import openrouter_routing
+
+    assert openrouter_routing("price", "a, b,") == {"provider": {"sort": "price", "require_parameters": True,
+                                                                 "ignore": ["a", "b"]}}
+    assert openrouter_routing("none", ["x"]) == {"provider": {"ignore": ["x"]}}
+    assert openrouter_routing("price", "none") == openrouter_routing("price")
+    assert openrouter_routing("none", "") == {}
+    saved = os.environ.pop("OPENROUTER_PROVIDER_IGNORE", None)
+    try:
+        assert Settings(llm_provider="openrouter", openrouter_api_key="k").openrouter_provider_ignore == "inference-net"
+        os.environ["OPENROUTER_PROVIDER_IGNORE"] = "none"
+        assert Settings(llm_provider="openrouter", openrouter_api_key="k").openrouter_provider_ignore == "none"
+    finally:
+        os.environ.pop("OPENROUTER_PROVIDER_IGNORE", None)
+        if saved is not None:
+            os.environ["OPENROUTER_PROVIDER_IGNORE"] = saved
 
 
 def test_reasoning_defaults_follow_the_default_model_only():

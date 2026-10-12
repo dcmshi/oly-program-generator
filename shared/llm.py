@@ -152,16 +152,24 @@ def canonical_model(model: str | None) -> str:
     return re.sub(r"^(claude-[a-z]+-\d)\.(\d)", r"\1-\2", base)
 
 
-def openrouter_routing(sort: str) -> dict:
+def openrouter_routing(sort: str, ignore: str | list[str] | None = None) -> dict:
     """OpenRouter's `provider` request field for a sort order (MODEL-3).
 
     `require_parameters` restricts the pick to providers that support every
     parameter sent — structured outputs above all, which the cheapest backends
-    don't always serve. "none" / "" leaves routing to OpenRouter.
+    don't always serve. "none" / "" leaves the order to OpenRouter. `ignore`
+    (OPENROUTER_PROVIDER_IGNORE, comma-separated or a list; "none" = no list)
+    names providers never to route to — an endpoint that answers with empty
+    replies is cheapest exactly because nobody can use it.
     """
-    if not sort or sort == "none":
-        return {}
-    return {"provider": {"sort": sort, "require_parameters": True}}
+    if isinstance(ignore, str):
+        ignore = [] if ignore.strip().lower() == "none" else [s.strip() for s in ignore.split(",") if s.strip()]
+    provider: dict = {}
+    if sort and sort != "none":
+        provider.update({"sort": sort, "require_parameters": True})
+    if ignore:
+        provider["ignore"] = list(ignore)
+    return {"provider": provider} if provider else {}
 
 
 def request_extras(client, model: str | None = None, *, flex: bool = True) -> dict:
@@ -802,7 +810,8 @@ def create_llm_client(settings) -> Anthropic:
             base_url=getattr(settings, "llm_base_url", "") or OPENROUTER_BASE_URL,
             timeout=LLM_REQUEST_TIMEOUT_S, max_retries=0,   # our wrapper retries, with logging
         )
-        client.openrouter_routing = openrouter_routing(getattr(settings, "openrouter_provider_sort", ""))
+        client.openrouter_routing = openrouter_routing(getattr(settings, "openrouter_provider_sort", ""),
+                                                       getattr(settings, "openrouter_provider_ignore", ""))
         client.flex_fallback = getattr(settings, "flex_fallback", "") or "ask"
         return client
     if provider != "anthropic":
