@@ -157,20 +157,51 @@ def openrouter_routing(sort: str) -> dict:
     return {"provider": {"sort": sort, "require_parameters": True}}
 
 
-def request_extras(client, model: str | None = None) -> dict:
+def request_extras(client, model: str | None = None, *, flex: bool = True) -> dict:
     """`{"extra_body": …}` carrying the client's OpenRouter routing, else `{}`.
 
     Under price routing an OpenAI model also asks for the flex tier, which the
-    price sort alone never selects. Every `messages.create` goes through
+    price sort alone never selects (`flex=False` asks for standard processing —
+    the fallback when flex is unavailable). Every `messages.create` goes through
     `create_message_with_retries`, which applies this; a call site that calls
     the SDK directly spreads it in."""
     routing = getattr(client, "openrouter_routing", None)
     if not isinstance(routing, dict) or not routing:
         return {}
     body = dict(routing)
-    if model and model.startswith(_FLEX_TIER_PREFIXES) and routing.get("provider", {}).get("sort") == "price":
+    if (flex and model and model.startswith(_FLEX_TIER_PREFIXES)
+            and routing.get("provider", {}).get("sort") == "price"):
         body["service_tier"] = "flex"
     return {"extra_body": body}
+
+
+class LLMErrorResponse(RuntimeError):
+    """An error delivered as an HTTP 200 body (`{"type": "error", "error": …}`).
+
+    OpenRouter does this when the routed provider fails after accepting the
+    request — e.g. OpenAI's flex tier under load ("Flex processing is
+    temporarily unavailable", 2026-10-12). The SDK parses it as a Message with
+    `content=None`, which read as an empty reply: 20 of 30 Kono OCR groups came
+    back blank before this was caught. Retryable."""
+
+    def __init__(self, error):
+        self.error = error if isinstance(error, dict) else getattr(error, "__dict__", {}) or {}
+        super().__init__(self.error.get("message") or str(error))
+
+
+def _error_body(response):
+    """The error payload of a 200 response that is really an error, else None."""
+    if getattr(response, "type", None) != "error":
+        return None
+    error = getattr(response, "error", None)
+    if error is None:
+        error = (getattr(response, "model_extra", None) or {}).get("error")
+    return error or {"message": "error response with no detail"}
+
+
+def _is_flex_unavailable(exc: "LLMErrorResponse") -> bool:
+    msg = str(exc.error.get("message", "")).lower()
+    return "flex" in msg or "standard processing" in msg
 
 
 def billed_cost(usage) -> float | None:
@@ -439,9 +470,12 @@ RETRYABLE_STATUS_CODES = frozenset({429, 500, 502, 503, 529})
 def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: float = 2.0, **kwargs):
     """client.messages.create with exponential backoff on transient errors.
 
-    Retries connection errors, timeouts, rate limits, and 5xx/overloaded
-    responses. Non-retryable API errors (auth, bad request) raise immediately,
-    as does the last error once attempts are exhausted.
+    Retries connection errors, timeouts, rate limits, 5xx/overloaded
+    responses and errors delivered in a 200 body (`LLMErrorResponse`). When the
+    flex tier itself is unavailable the call is re-sent at standard processing
+    at once (twice the price, billed as such) without spending an attempt.
+    Non-retryable API errors (auth, bad request) raise immediately, as does the
+    last error once attempts are exhausted.
     """
     from anthropic import APIConnectionError, APIStatusError
 
@@ -450,13 +484,24 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
     last_exc = None
     attempt = 0
     rate_limit_waits = 0
+    flex = True
     while True:
         attempt += 1
         try:
-            request = {**request_extras(client, kwargs.get("model")), **kwargs}
+            request = {**request_extras(client, kwargs.get("model"), flex=flex), **kwargs}
             original_schema = _adapt_schema_request(request)
             response = client.messages.create(**request)
+            error = _error_body(response)
+            if error is not None:
+                raise LLMErrorResponse(error)
             return _restore_optional_shape(response, original_schema) if original_schema else response
+        except LLMErrorResponse as e:
+            last_exc = e
+            if flex and _is_flex_unavailable(e) and request.get("extra_body", {}).get("service_tier") == "flex":
+                logger.warning(f"Flex tier unavailable ({e}) — re-sending at standard processing")
+                flex = False
+                attempt -= 1
+                continue
         except APIConnectionError as e:  # includes APITimeoutError
             last_exc = e
         except APIStatusError as e:  # includes RateLimitError (429), 5xx, 529

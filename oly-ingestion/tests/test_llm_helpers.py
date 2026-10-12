@@ -195,6 +195,40 @@ def test_gpt_sol_caps_reasoning_drops_temperature_and_asks_for_flex():
     assert billed_cost(None) is None
 
 
+def test_error_in_a_200_body_is_retried_and_flex_falls_back_to_standard():
+    """OpenRouter delivers a provider failure as a 200 `{"type": "error"}` body,
+    which the SDK parses as a Message with content None (read as an empty
+    reply: 20 of 30 Kono OCR groups, 2026-10-12). It is retried; "flex
+    unavailable" re-sends at standard processing without spending an attempt."""
+    from types import SimpleNamespace
+    from unittest.mock import MagicMock, patch
+
+    from shared.llm import LLMErrorResponse, create_message_with_retries, openrouter_routing
+
+    flex_down = SimpleNamespace(type="error", content=None, error={
+        "type": "api_error", "error_type": "provider_unavailable",
+        "message": "Flex processing is temporarily unavailable. Please try again later or use standard processing."})
+    ok = SimpleNamespace(type="message", content=[], stop_reason="end_turn")
+    client = MagicMock()
+    client.openrouter_routing = openrouter_routing("price")
+    client.messages.create.side_effect = [flex_down, ok]
+    assert create_message_with_retries(client, model="openai/gpt-6.1-sol", max_tokens=10, messages=[]) is ok
+    tiers = [c.kwargs["extra_body"].get("service_tier") for c in client.messages.create.call_args_list]
+    assert tiers == ["flex", None]
+
+    other = SimpleNamespace(type="error", content=None, model_extra={"error": {"message": "upstream exploded"}})
+    client.messages.create.side_effect = [other, other, ok]
+    with patch("time.sleep"):
+        assert create_message_with_retries(client, model="moonshotai/kimi-k3", max_tokens=10, messages=[]) is ok
+    client.messages.create.side_effect = [other] * 3
+    with patch("time.sleep"):
+        try:
+            create_message_with_retries(client, model="moonshotai/kimi-k3", max_tokens=10, messages=[])
+            raise AssertionError("expected LLMErrorResponse")
+        except LLMErrorResponse as e:
+            assert "upstream exploded" in str(e)
+
+
 def test_openai_models_get_the_all_required_schema_dialect_and_nulls_stripped():
     """OpenAI's strict structured outputs 400 on an optional property; the retry
     wrapper sends every key required (optional ones nullable) and strips the
