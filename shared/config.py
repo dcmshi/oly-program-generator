@@ -70,6 +70,18 @@ DEFAULT_OPENROUTER_JUDGE_MODEL = "z-ai/glm-5.3-flash"
 # groups as copyrighted (MODEL-4).
 # Under LLM_PROVIDER=anthropic the role stays on llm_model.
 DEFAULT_OPENROUTER_VISION_MODEL = "openai/gpt-6.1-sol"
+# Program-template parsing moved off Kimi K3 to GPT-6.1 Sol on 2026-10-12
+# (template_model_compare, 10 hand-checked sections): Sol 8/10 sections fully
+# right and 27/29 spot facts in both repeat runs (7/10, 27/29 on 2026-10-11)
+# at $0.24-0.26 a run, vs Kimi's 7/10, 27/29 at $0.41 on a sound provider.
+# Under LLM_PROVIDER=anthropic the role stays on llm_model.
+DEFAULT_OPENROUTER_TEMPLATE_MODEL = "openai/gpt-6.1-sol"
+# OPENROUTER_PROVIDER_IGNORE: provider slugs OpenRouter must never route to.
+# InferenceNet's fp4 Kimi K3 endpoint became the cheapest on 2026-10-12 and
+# answered most template sections with an empty program — {"duration_weeks":
+# 0} after 15 tokens, stop end_turn — where Moonshot and Chutes parsed the same
+# section in full (scratchpad diag; template runs 2026-10-12 rep1/rep2 kimi).
+DEFAULT_OPENROUTER_PROVIDER_IGNORE = "inference-net"
 # Generation + explanation moved to GPT-6.1 Sol on 2026-10-11 (MODEL-3,
 # eval/model_baseline_20261011T215736Z.json): 8/8 first-try, $0.0110 / session
 # billed vs Kimi K3's $0.0166, closer to the session rep targets, 93 % of
@@ -123,7 +135,8 @@ class Settings:
     llm_max_tokens: int = 4096
     light_model: str = ""
     judge_model: str = ""        # golden-set grader (JUDGE-1); blank = light_model
-    # TEMPLATE_MODEL: program-template parsing only; blank = llm_model. Split out
+    # TEMPLATE_MODEL: program-template parsing only; blank = GPT-6.1 Sol under
+    # openrouter (DEFAULT_OPENROUTER_TEMPLATE_MODEL), llm_model under anthropic. Split out
     # on 2026-09-20 because Kimi K3 handles principle extraction and OCR but
     # returned one empty template parse in four (a silently lost program), and
     # DeepSeek's long template outputs came back as malformed JSON — templates
@@ -185,6 +198,9 @@ class Settings:
     # OpenRouter's own load balancing. Sent with require_parameters, so a provider
     # that can't honour structured outputs is never picked. Ignored on anthropic.
     openrouter_provider_sort: str = ""
+    # OPENROUTER_PROVIDER_IGNORE: comma-separated provider slugs never routed to
+    # (sent as provider.ignore); "none" clears the default list.
+    openrouter_provider_ignore: str = ""
     # FLEX_FALLBACK: what to do when OpenAI's flex tier (half price, asked for under
     # price routing) stays unavailable — "ask" (default: block and ask on the
     # terminal whether to pay standard processing, 2x; with no terminal — the web
@@ -241,6 +257,9 @@ class Settings:
         self.llm_base_url = self.llm_base_url or os.getenv("LLM_BASE_URL", "")
         self.openrouter_provider_sort = (self.openrouter_provider_sort
                                          or os.getenv("OPENROUTER_PROVIDER_SORT", DEFAULT_OPENROUTER_PROVIDER_SORT)).strip().lower()
+        self.openrouter_provider_ignore = (self.openrouter_provider_ignore
+                                           or os.getenv("OPENROUTER_PROVIDER_IGNORE",
+                                                        DEFAULT_OPENROUTER_PROVIDER_IGNORE)).strip()
         if self.openrouter_provider_sort not in OPENROUTER_PROVIDER_SORTS:
             raise ValueError(f"OPENROUTER_PROVIDER_SORT must be one of {OPENROUTER_PROVIDER_SORTS}, "
                              f"got {self.openrouter_provider_sort!r}")
@@ -269,7 +288,8 @@ class Settings:
         self.llm_model = self.llm_model or os.getenv("LLM_MODEL", default_llm)
         self.light_model = self.light_model or os.getenv(
             "LIGHT_MODEL", DEFAULT_LIGHT_MODEL if claude else DEFAULT_OPENROUTER_LIGHT_MODEL)
-        self.template_model = self.template_model or os.getenv("TEMPLATE_MODEL", "") or self.llm_model
+        self.template_model = (self.template_model or os.getenv("TEMPLATE_MODEL", "")
+                               or (self.llm_model if claude else DEFAULT_OPENROUTER_TEMPLATE_MODEL))
         self.vision_model = (self.vision_model or os.getenv("VISION_MODEL", "")
                              or (self.llm_model if claude else DEFAULT_OPENROUTER_VISION_MODEL))
         self.judge_model = (self.judge_model or os.getenv("JUDGE_MODEL", "")
