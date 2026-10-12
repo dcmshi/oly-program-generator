@@ -1669,6 +1669,8 @@ def test_is_resumable_only_for_stopped_drafts_with_a_resume_record():
     assert is_resumable(_program("draft", rationale="# Generation Aborted — Cost Limit\n…", **_RESUMABLE))
     assert is_resumable(_program("draft", rationale="# Generation Warning\n2 session(s)…", **_RESUMABLE))
     assert is_resumable(_program("draft", rationale="[Rationale generation failed: flex]", **_RESUMABLE))
+    assert is_resumable(_program("draft", rationale="# Partial Program — Session Cap\nCapped.\n\n"
+                                                    "[Rationale generation failed: flex]", **_RESUMABLE))
     assert not is_resumable(_program("draft", rationale="# Overview\nA finished program.", **_RESUMABLE))
     assert not is_resumable(_program("active", **_RESUMABLE))
     assert not is_resumable(_program("draft", generation_params={"model": "m"}))   # made before RESUME-1
