@@ -116,6 +116,7 @@ INGESTION_TESTS := \
 	tests/test_chunker.py \
 	tests/test_classifier.py \
 	tests/test_pdf_extractor.py \
+	tests/test_spreads.py \
 	tests/test_epub_extractor.py \
 	tests/test_retag_chunks.py \
 	tests/test_html_extractor.py \

@@ -322,6 +322,20 @@ OCR_VIEW_AGREEMENT_MIN: float = 0.5       # 3-shingle Jaccard between the two vi
 OCR_SECOND_VIEW_DPI: int = 200            # first view renders at 150 DPI (_ocr_request)
 OCR_VIEW_ROTATIONS_DEG: tuple[float, ...] = (1.5, -1.5)   # second / third view: zoom + slight rotation = independent probe
 
+# ── Two-page spreads (OCR-ROLE part 2b) ────────────────────────────
+# A scan of open-book spreads (Kono: 149 of 149 pages landscape) is sent to
+# the vision model as two half images per page, split at the gutter, so no
+# model reads two book pages from one downscaled image. Only in a scan that is
+# mostly landscape — Vorobyev's 7 landscape pages in 319 are single sideways
+# diagrams, which a split would cut in half — and only on a page with an empty
+# vertical band near the middle and ink on both sides (extractors/spreads.py).
+OCR_SPREAD_ASPECT_MIN: float = 1.15       # width / height at or above this is landscape (A4 spread ≈ 1.41)
+OCR_SPREAD_DOC_MIN_SHARE: float = 0.5     # landscape share of the scan before any page is split
+OCR_SPREAD_GUTTER_BAND: tuple[float, float] = (0.38, 0.62)   # where the gutter is looked for (fraction of width)
+OCR_SPREAD_GUTTER_MAX_INK: float = 0.03   # a gutter column is dark on ≤ 3 % of its rows (tolerates a shadow tick)
+OCR_SPREAD_GUTTER_MIN_WIDTH: float = 0.01  # the empty band is at least 1 % of the page width
+OCR_SPREAD_DETECT_DPI: int = 40           # grayscale render the detector reads
+
 # ── LLM request resilience ───────────────────────────────────────────
 # The client is built with max_retries=0 so create_message_with_retries owns
 # every retry (logged, exponential backoff) instead of the SDK silently

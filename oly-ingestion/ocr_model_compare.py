@@ -113,12 +113,14 @@ def pick_groups(cache_pages: dict[str, str]) -> list[tuple[str, int]]:
 # ── Running a model ──────────────────────────────────────────
 
 def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reasoning: str = "default",
-              checkpoint=None) -> dict:
+              checkpoint=None, split_spreads: bool = False) -> dict:
     """`reasoning`: "default" drops the thinking / effort fields so each model
     runs at its own default; "pipeline" keeps what an ingest sends
     (`thinking_kwargs(model, "disabled")`). Each successful group goes to
     `checkpoint` as it lands and a group already there is not re-run
-    (RESUME-1)."""
+    (RESUME-1). `split_spreads` sends two-page spreads as two halves, as an
+    ingest does (OCR-ROLE 2b); off by default so runs stay comparable with the
+    saved files made before it."""
     import fitz
     from config import Settings
     from extractors.pdf_extractor import PDFExtractor
@@ -146,6 +148,9 @@ def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reas
         t0 = time.perf_counter()
         try:
             with fitz.open(by_name[g["book"]]) as doc:
+                if split_spreads:
+                    from extractors.spreads import spread_gutters
+                    ext._gutters = spread_gutters(doc, len(doc))
                 params = ext._ocr_request(doc, start, end)
             if reasoning == "default":
                 params.pop("thinking", None)
@@ -223,9 +228,12 @@ def main() -> None:
                                                 "(re-scored, not re-run) — add a model without re-paying for the rest")
     ap.add_argument("--resume", action="store_true",
                     help="continue an aborted run: groups already in <out>.partial.jsonl are not re-sent")
+    ap.add_argument("--split-spreads", action="store_true",
+                    help="send two-page spreads as left / right halves, as an ingest does (OCR-ROLE 2b)")
     args = ap.parse_args()
     from shared.checkpoint import Checkpoint
-    checkpoint = Checkpoint(args.out, resume=args.resume, signature={"script": "ocr_model_compare"})
+    signature = {"script": "ocr_model_compare", **({"split_spreads": True} if args.split_spreads else {})}
+    checkpoint = Checkpoint(args.out, resume=args.resume, signature=signature)
 
     books = scanned_books()
     plan = []
@@ -238,9 +246,10 @@ def main() -> None:
         plan = plan[:args.max_groups]
     logger.info("Page groups: " + ", ".join(g["label"] for g in plan))
 
-    results = [run_model(m, books, plan, args.reasoning, checkpoint) for m in args.model]
+    results = [run_model(m, books, plan, args.reasoning, checkpoint, args.split_spreads) for m in args.model]
     for r in results:
         r["reasoning"] = args.reasoning
+        r["split_spreads"] = args.split_spreads
     if args.peers:
         saved = json.loads(args.peers.read_text(encoding="utf-8"))
         if [g["label"] for g in saved["groups"]] != [g["label"] for g in plan]:

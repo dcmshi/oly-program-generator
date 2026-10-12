@@ -376,7 +376,7 @@ class IngestionPipeline:
                  contextualize: bool = False, context_model: str | None = None,
                  batch: bool = False, classifier: str = "heuristic", ocr_cache: bool = True,
                  force_vision: bool = False, ocr_postcorrect: bool = False, quarantine: bool = True,
-                 principle_audit: bool = True):
+                 principle_audit: bool = True, split_spreads: bool = True):
         self.settings = settings
         self.max_pages = max_pages
         # COST-1: principle extraction (the dominant ingestion spend) and vision
@@ -398,7 +398,7 @@ class IngestionPipeline:
         self.pdf_extractor = PDFExtractor(
             anthropic_client=_anthropic_client, vision_model=settings.vision_model, batch=batch, ocr_cache=ocr_cache,
             force_vision=force_vision, ocr_postcorrect=ocr_postcorrect,
-            postcorrect_model=light_model_for(settings, None),
+            postcorrect_model=light_model_for(settings, None), split_spreads=split_spreads,
         )
         self.quarantine = quarantine
         self.principle_audit = principle_audit
@@ -942,6 +942,8 @@ if __name__ == "__main__":
                         help="Skip the Jev junk pass over the new source's chunks at the end of the run")
     parser.add_argument("--no-principle-audit", action="store_true",
                         help="Keep principle numbers the source text never states (skip the PRIN-AUDIT pass)")
+    parser.add_argument("--no-split-spreads", action="store_true",
+                        help="Send two-page spread scans to vision OCR whole instead of as left / right halves")
     parser.add_argument("--no-ocr-cache", action="store_true",
                         help="Ignore sources/.ocr_cache and transcribe every page again (ING-M5)")
     parser.add_argument("--classifier", choices=("heuristic", "jev"), default="heuristic",
@@ -956,7 +958,8 @@ if __name__ == "__main__":
                                  batch=args.batch, classifier=args.classifier, ocr_cache=not args.no_ocr_cache,
                                  force_vision=args.force_vision, ocr_postcorrect=args.ocr_postcorrect,
                                  quarantine=not args.no_quarantine,
-                                 principle_audit=not args.no_principle_audit)
+                                 principle_audit=not args.no_principle_audit,
+                                 split_spreads=not args.no_split_spreads)
 
     doc = SourceDocument(
         path=Path(args.source),
