@@ -1,0 +1,192 @@
+{
+  "meta": {
+    "athlete_id": 2,
+    "sessions": 8,
+    "cost_limit": 2.0,
+    "run_at": "2026-10-12T04:48:33+00:00",
+    "configs": [
+      "anthropic/claude-sonnet-5.5"
+    ],
+    "deleted": false
+  },
+  "rows": [
+    {
+      "config": "anthropic/claude-sonnet-5.5",
+      "program_id": 46,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 34586,
+      "output_tokens": 8916,
+      "cache_read_tokens": 26910,
+      "cost_usd": 0.2014,
+      "wall_s": 70.0,
+      "mean_call_s": 7.05,
+      "cost_per_session": 0.0252
+    }
+  ],
+  "results": [
+    {
+      "config": "anthropic/claude-sonnet-5.5",
+      "model": "anthropic/claude-sonnet-5.5",
+      "thinking": "",
+      "effort": "",
+      "program_id": 46,
+      "wall_s": 70.0,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 34586,
+        "output_tokens": 8916,
+        "cache_read_tokens": 26910,
+        "cache_creation_tokens": 16146,
+        "cost_usd": 0.2014,
+        "mean_call_s": 7.05,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 6.64,
+            "max_s": 8.17,
+            "cost_usd": 0.1889
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 10.27,
+            "max_s": 10.27,
+            "cost_usd": 0.0124
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 5.107197700002871,
+          "input_tokens": 3848,
+          "output_tokens": 851,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0167442,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 7.908117699997092,
+          "input_tokens": 4040,
+          "output_tokens": 1008,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5382,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.031615,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 6.34718409999914,
+          "input_tokens": 4205,
+          "output_tokens": 1014,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0190882,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 5.817280099996424,
+          "input_tokens": 4454,
+          "output_tokens": 890,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0183462,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 6.356327299996337,
+          "input_tokens": 4044,
+          "output_tokens": 991,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0185362,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 7.968984500002989,
+          "input_tokens": 4344,
+          "output_tokens": 1050,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5382,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.032643,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 8.171918500003812,
+          "input_tokens": 4396,
+          "output_tokens": 1074,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5382,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.032987,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 5.480824099999154,
+          "input_tokens": 4663,
+          "output_tokens": 912,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0189842,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 10.265294299999368,
+          "input_tokens": 592,
+          "output_tokens": 1126,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.012444,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 33994,
+        "log_output_tokens": 7790
+      }
+    }
+  ]
+}

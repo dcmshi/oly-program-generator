@@ -27,6 +27,8 @@ Usage (from oly-ingestion/):
     PYTHONUTF8=1 uv run python ocr_model_compare.py \\
         --model moonshotai/kimi-k3 --model openai/gpt-6.1-sol --model claude-sonnet-5 \\
         --out logs/ocr_model_compare.json
+    PYTHONUTF8=1 uv run python ocr_model_compare.py --model claude-sonnet-5-5 \\
+        --peers logs/ocr_model_compare.json --out logs/ocr_model_compare_plus.json
 """
 
 import argparse
@@ -185,6 +187,8 @@ def main() -> None:
     ap.add_argument("--model", action="append", required=True)
     ap.add_argument("--out", type=Path, required=True)
     ap.add_argument("--max-groups", type=int, default=0, help="smoke: only the first N page groups")
+    ap.add_argument("--peers", type=Path, help="a saved --out file whose models' pages join the scoring "
+                                                "(re-scored, not re-run) — add a model without re-paying for the rest")
     args = ap.parse_args()
 
     books = scanned_books()
@@ -199,6 +203,12 @@ def main() -> None:
     logger.info("Page groups: " + ", ".join(g["label"] for g in plan))
 
     results = [run_model(m, books, plan) for m in args.model]
+    if args.peers:
+        saved = json.loads(args.peers.read_text(encoding="utf-8"))
+        if [g["label"] for g in saved["groups"]] != [g["label"] for g in plan]:
+            raise SystemExit(f"{args.peers} covers other page groups — re-run every model instead")
+        have = {r["model"] for r in results}
+        results += [r for r in saved["results"] if r["model"] not in have]
     score(results, plan)
     args.out.parent.mkdir(parents=True, exist_ok=True)
     args.out.write_text(json.dumps({"groups": [{k: v for k, v in g.items() if k != "cached"} for g in plan],

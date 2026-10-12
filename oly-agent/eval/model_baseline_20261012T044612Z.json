@@ -1,0 +1,832 @@
+{
+  "meta": {
+    "athlete_id": 2,
+    "sessions": 8,
+    "cost_limit": 3.0,
+    "run_at": "2026-10-12T04:46:12+00:00",
+    "configs": [
+      "openai/gpt-6.1-sol",
+      "anthropic/claude-sonnet-5.5",
+      "anthropic/claude-sonnet-5.5:adaptive:medium"
+    ],
+    "deleted": false
+  },
+  "rows": [
+    {
+      "config": "openai/gpt-6.1-sol",
+      "program_id": 43,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 401,
+      "output_tokens": 11107,
+      "cache_read_tokens": 24983,
+      "cost_usd": 0.0889,
+      "wall_s": 192.6,
+      "mean_call_s": 19.57,
+      "cost_per_session": 0.0111
+    },
+    {
+      "config": "anthropic/claude-sonnet-5.5",
+      "program_id": 44,
+      "error": null,
+      "sessions": 8,
+      "attempts": 32,
+      "first_try_ok": 0,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 32,
+      "input_tokens": 0,
+      "output_tokens": 0,
+      "cache_read_tokens": 0,
+      "cost_usd": 0,
+      "wall_s": 89.5,
+      "mean_call_s": null,
+      "cost_per_session": 0.0
+    },
+    {
+      "config": "anthropic/claude-sonnet-5.5:adaptive:medium",
+      "program_id": 45,
+      "error": null,
+      "sessions": 8,
+      "attempts": 8,
+      "first_try_ok": 8,
+      "parse_errors": 0,
+      "validation_errors": 0,
+      "failed": 0,
+      "input_tokens": 34406,
+      "output_tokens": 9162,
+      "cache_read_tokens": 21528,
+      "cost_usd": 0.2164,
+      "wall_s": 73.7,
+      "mean_call_s": 7.53,
+      "cost_per_session": 0.0271
+    }
+  ],
+  "results": [
+    {
+      "config": "openai/gpt-6.1-sol",
+      "model": "openai/gpt-6.1-sol",
+      "thinking": "",
+      "effort": "",
+      "program_id": 43,
+      "wall_s": 192.6,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 401,
+        "output_tokens": 11107,
+        "cache_read_tokens": 24983,
+        "cache_creation_tokens": 25355,
+        "cost_usd": 0.0889,
+        "mean_call_s": 19.57,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 20.87,
+            "max_s": 27.34,
+            "cost_usd": 0.0855
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 9.16,
+            "max_s": 9.16,
+            "cost_usd": 0.0034
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 22.082902999994985,
+          "input_tokens": 3,
+          "output_tokens": 1266,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 6075,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01392675,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 26.12384010000096,
+          "input_tokens": 3,
+          "output_tokens": 1591,
+          "cache_read_tokens": 3569,
+          "cache_creation_tokens": 2571,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0113502,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 19.651988800003892,
+          "input_tokens": 3,
+          "output_tokens": 1293,
+          "cache_read_tokens": 3569,
+          "cache_creation_tokens": 2712,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.01003645,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 27.339805399999022,
+          "input_tokens": 3,
+          "output_tokens": 1763,
+          "cache_read_tokens": 3569,
+          "cache_creation_tokens": 2813,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0125127,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 17.216571799996018,
+          "input_tokens": 3,
+          "output_tokens": 1001,
+          "cache_read_tokens": 3569,
+          "cache_creation_tokens": 2612,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00845145,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 18.62373479999951,
+          "input_tokens": 3,
+          "output_tokens": 1212,
+          "cache_read_tokens": 3569,
+          "cache_creation_tokens": 2779,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0097152,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 15.700981499998306,
+          "input_tokens": 3,
+          "output_tokens": 1023,
+          "cache_read_tokens": 3569,
+          "cache_creation_tokens": 2812,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.00881145,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 20.198472500000207,
+          "input_tokens": 3,
+          "output_tokens": 1356,
+          "cache_read_tokens": 3569,
+          "cache_creation_tokens": 2981,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0106877,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "openai/gpt-6.1-sol",
+          "elapsed_s": 9.157737200002884,
+          "input_tokens": 377,
+          "output_tokens": 602,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.003387,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 24,
+        "log_output_tokens": 10505
+      }
+    },
+    {
+      "config": "anthropic/claude-sonnet-5.5",
+      "model": "anthropic/claude-sonnet-5.5",
+      "thinking": "",
+      "effort": "",
+      "program_id": 44,
+      "wall_s": 89.5,
+      "calls": {
+        "calls": 33,
+        "errors": 33,
+        "input_tokens": 0,
+        "output_tokens": 0,
+        "cache_read_tokens": 0,
+        "cache_creation_tokens": 0,
+        "cost_usd": 0,
+        "mean_call_s": null,
+        "stop_reasons": {},
+        "by_role": {
+          "generate": {
+            "calls": 0,
+            "mean_s": null,
+            "max_s": null,
+            "cost_usd": 0
+          },
+          "explain": {
+            "calls": 0,
+            "mean_s": null,
+            "max_s": null,
+            "cost_usd": 0
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.0912358999994467,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780211-9yXyIafnXBdCtL47xXU4', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.11013280000042869,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780212-RhK5GooE039Na6AzXG6s', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.06933980000030715,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780214-owSmwTR8wsXYV1YdhvRY', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.09226109999872278,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780217-7SRJ9AutVhUUaEtBDgur', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.11488500000268687,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780222-YE3i9wD10aRXnbBPWlv4', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.045976100002008025,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780223-NgjIZiKHyYGfkiRSnGpB', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.03327420000277925,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780225-EzMU12yeVaRqVZEgHXkd', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.05882249999558553,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780228-UoYBlwxx5iCq6y5zzlop', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.0476559000017005,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780232-crxkcon92wHys82oI4jO', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.0755970999962301,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780233-8ksNlobCxYdico5srzZ2', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.04527619999862509,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780236-lTQunP8aSJfkRRwhBzcw', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.035715300000447314,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780239-eog2Es2gd2SxRgay1HiU', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.06905860000551911,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780243-MTpZcgFAP8NP8MkRZYDp', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.03594300000258954,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780244-XLRjVQp6ewfliBy5sch3', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.9298243000012008,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780247-BpeodnCy4KnDy5LrqlOF', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.03968840000015916,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780250-rOKODXQuRbnAtunT6eqB', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.04256869999517221,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780254-oJTXZDVU6liKPZJWplmZ', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.06784490000427468,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780255-6E4WzWZHcbqpqcjRrQY7', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.05319479999889154,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780257-Cnpu43RKXP8AQO1ad9tf', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.03886499999498483,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780261-yBdOctX8Thg6vXOi3Jss', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.036421000004338566,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780265-JmgQcVnOtiSnpwzV7PmE', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.05553650000365451,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780266-iWqN4mUXsztlXCY71dzT', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.07205299999623094,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780268-zz2xce5ViFbzjbH5m9e8', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.07516149999719346,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780271-JpEb5p9OA540hZH2LOpf', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.09134530000301311,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780275-7Q89S4zhyTnfQG29CVvq', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.03952460000436986,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780276-5AzPHyPIKuaWCPYjLO31', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.03461609999794746,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780278-NeTk2NQ0Ur7KqbneYznF', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.04868520000309218,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780281-KoAvrj0cbrPwNv6oQnoh', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.0459052999940468,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780285-vArskl5vazaSeUCN4xMO', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.038521400005265605,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780286-GOO4TnlGAJrjcE1VCCUZ', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.04347560000314843,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780288-eDPJu1ZKiWvCAA4F95M4', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.07019059999583988,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780291-HEz4E1gtCdBCfkEb7hYu', 'metadata': {'provider_name': None}}"
+        },
+        {
+          "role": "explain",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 0.04323819999990519,
+          "input_tokens": 0,
+          "output_tokens": 0,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": null,
+          "cost_usd": 0.0,
+          "error": "BadRequestError: Error code: 400 - {'type': 'error', 'error': {'type': 'invalid_request_error', 'message': 'Reasoning is mandatory for this endpoint and cannot be disabled.', 'error_type': 'invalid_request'}, 'request_id': 'gen-1791780295-Rp2RXw6RryAeptH9Kryw', 'metadata': {'provider_name': None}}"
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 0,
+        "first_try_ok": 0,
+        "attempts": 32,
+        "attempts_per_session": 4.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 32,
+        "log_input_tokens": 0,
+        "log_output_tokens": 0
+      }
+    },
+    {
+      "config": "anthropic/claude-sonnet-5.5:adaptive:medium",
+      "model": "anthropic/claude-sonnet-5.5",
+      "thinking": "adaptive",
+      "effort": "medium",
+      "program_id": 45,
+      "wall_s": 73.7,
+      "calls": {
+        "calls": 9,
+        "errors": 0,
+        "input_tokens": 34406,
+        "output_tokens": 9162,
+        "cache_read_tokens": 21528,
+        "cache_creation_tokens": 21528,
+        "cost_usd": 0.2164,
+        "mean_call_s": 7.53,
+        "stop_reasons": {
+          "end_turn": 9
+        },
+        "by_role": {
+          "generate": {
+            "calls": 8,
+            "mean_s": 7.15,
+            "max_s": 12.09,
+            "cost_usd": 0.2037
+          },
+          "explain": {
+            "calls": 1,
+            "mean_s": 10.53,
+            "max_s": 10.53,
+            "cost_usd": 0.0127
+          }
+        }
+      },
+      "call_records": [
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 7.292956599994795,
+          "input_tokens": 3848,
+          "output_tokens": 947,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5382,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.030621,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 8.213595500004885,
+          "input_tokens": 4040,
+          "output_tokens": 986,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5382,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.031395,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 5.37740859999758,
+          "input_tokens": 4183,
+          "output_tokens": 916,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0180642,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 6.836478000004718,
+          "input_tokens": 4407,
+          "output_tokens": 785,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5382,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.030119,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 6.046528999999282,
+          "input_tokens": 4044,
+          "output_tokens": 967,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0182962,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 6.157115200003318,
+          "input_tokens": 4331,
+          "output_tokens": 934,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0185402,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 5.206819200000609,
+          "input_tokens": 4360,
+          "output_tokens": 877,
+          "cache_read_tokens": 5382,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.0180282,
+          "error": null
+        },
+        {
+          "role": "generate",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 12.085092000001168,
+          "input_tokens": 4601,
+          "output_tokens": 1601,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 5382,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.038667,
+          "error": null
+        },
+        {
+          "role": "explain",
+          "model": "anthropic/claude-sonnet-5.5",
+          "elapsed_s": 10.528751300000295,
+          "input_tokens": 592,
+          "output_tokens": 1149,
+          "cache_read_tokens": 0,
+          "cache_creation_tokens": 0,
+          "stop_reason": "end_turn",
+          "cost_usd": 0.012674,
+          "error": null
+        }
+      ],
+      "log": {
+        "sessions": 8,
+        "sessions_ok": 8,
+        "first_try_ok": 8,
+        "attempts": 8,
+        "attempts_per_session": 1.0,
+        "parse_errors": 0,
+        "validation_errors": 0,
+        "validation_error_items": 0,
+        "failed": 0,
+        "log_input_tokens": 33814,
+        "log_output_tokens": 8013
+      }
+    }
+  ]
+}
