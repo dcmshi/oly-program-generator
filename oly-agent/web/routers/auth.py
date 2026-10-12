@@ -56,6 +56,7 @@ async def login_submit(
             {"request": request, "error": "Invalid username or password"},
             status_code=401,
         )
+    request.session.clear()   # a fresh login never inherits a previous user's state (COACH-2 acting)
     request.session["athlete_id"] = row["id"]
     request.session["athlete_name"] = row["name"]
     request.session["is_admin"] = bool(row["is_admin"])

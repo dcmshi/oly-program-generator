@@ -29,6 +29,7 @@ from web.logging_config import configure_logging, request_id_var
 from web.queries.program import is_resumable
 from web.routers import admin as admin_router
 from web.routers import auth as auth_router
+from web.routers import coach as coach_router
 from web.routers import dashboard, generate, log_session, program
 from web.routers import export as export_router
 from web.routers import health as health_router
@@ -369,3 +370,4 @@ app.include_router(export_router.router)
 app.include_router(history_router.router)
 app.include_router(health_router.router)
 app.include_router(admin_router.router)
+app.include_router(coach_router.router)
