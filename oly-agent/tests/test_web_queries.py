@@ -958,10 +958,11 @@ def test_templates_carry_no_palette_of_their_own():
         assert "/static/tailwind.css" in text, f"{name} does not load the compiled CSS"
         assert "--text-sec" not in text and "--navy" not in text, \
             f"{name} still defines its own palette"
-    # program.html keeps a page-specific @media print block; nothing else should
-    # have an inline <style> at all.
+    # program.html keeps a page-specific @media print block, and share_page.html
+    # is a downloaded, self-contained file (SHARE-1) that can't load the app's CSS;
+    # nothing else should have an inline <style> at all.
     with_styles = sorted(p.name for p in tpl_dir.rglob("*.html") if "<style>" in p.read_text(encoding="utf-8"))
-    assert with_styles == ["program.html"], f"unexpected inline styles in {with_styles}"
+    assert with_styles == ["program.html", "share_page.html"], f"unexpected inline styles in {with_styles}"
 
 
 def test_no_default_gray_utilities_remain():
@@ -1202,3 +1203,32 @@ if __name__ == "__main__":
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
+
+# ── SHARE-1: share page data ───────────────────────────────────────────────────
+
+def test_share_sources_resolve_citation_labels_to_titles():
+    from web.queries import share as qs
+    calls = []
+
+    async def fake_all(conn, sql, *params):
+        calls.append(sql)
+        if "FROM generation_log" in sql:
+            return [{"week_number": 1, "day_number": 2, "retrieval_set": [
+                {"label": "C1", "source_id": 7}, {"label": "C2", "source_id": 9}, {"label": "C3"}]}]
+        return [{"id": 7, "title": "Olympic Weightlifting", "author": "Greg Everett", "source_type": "book"}]
+    with patch("web.async_db.async_fetch_all", fake_all):
+        out = asyncio.run(qs._sources_by_session(MagicMock(), 40))
+    assert out == {"1-2": {"C1": {"title": "Olympic Weightlifting", "author": "Greg Everett", "type": "book"}}}
+    assert "DISTINCT ON" in calls[0] and "status = 'success'" in calls[0]
+
+
+def test_share_data_refuses_programs_of_another_athlete():
+    from web.queries import share as qs
+
+    async def fake_all(conn, sql, *params):
+        assert params[0] == 1                       # always scoped to the session's athlete
+        return [{"id": 40}]                         # only one of the two requested ids is theirs
+    with patch("web.async_db.async_fetch_all", fake_all):
+        assert asyncio.run(qs.build_share_data(MagicMock(), 1, [40, 99])) is None
+        assert asyncio.run(qs.build_share_data(MagicMock(), 1, [])) is None
+

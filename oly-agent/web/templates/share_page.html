@@ -1,0 +1,450 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{ title }}</title>
+{# SHARE-1: a self-contained export — styles, fonts (data URIs) and data inline, no requests.
+   Generated from the claude.ai page built for the 2026-10-11 examples. #}
+<style>
+{{ font_css | safe }}
+/* Layout: a training-log notebook — athlete card, then one tab per program; each program reads
+   summary → brief → weekly load chart → session cards, with sources resolved under every choice. */
+:root {
+  --canvas: #F4F0EA;      /* page */
+  --paper: #FDFBF8;       /* cards */
+  --sunken: #EDE8E0;      /* panels, tracks */
+  --line: #DDD8CF;
+  --line-faint: #EEE9E1;
+  --ink: #1C2128;
+  --ink-sec: #5C5750;
+  --ink-faint: #6C6761;
+  --navy: #1C2B3A;        /* primary: header band, active tab */
+  --on-navy: #EEF1F5;
+  --on-navy-muted: #A9B6C4;
+  --accum: #2F5E8F;       /* phase colours — semantic, from the app's phase badges */
+  --accum-tint: #E3EAF2;
+  --intens: #A0610F;
+  --intens-tint: #F4E8D6;
+  --real: #A23B32;
+  --real-tint: #F3E0DC;
+  --deload: #6C6761;
+  --bar: #2F5E8F;
+  --bar-deload: #B9B2A8;
+  --focus: #2F5E8F;
+  --font-display: "Barlow Condensed", "Arial Narrow", "Roboto Condensed", sans-serif;
+  --font-body: "DM Sans", system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-data: ui-monospace, "SFMono-Regular", Menlo, Consolas, monospace;
+  --radius: 10px;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+    --canvas: #14191F; --paper: #1B222A; --sunken: #232C36; --line: #303A46; --line-faint: #26303A;
+    --ink: #E8E4DD; --ink-sec: #B3ADA4; --ink-faint: #9A948B;
+    --navy: #0F1822; --on-navy: #E8EDF3; --on-navy-muted: #93A3B4;
+    --accum: #8DB4DE; --accum-tint: #22344A; --intens: #E2B06A; --intens-tint: #3A2E1C;
+    --real: #E59287; --real-tint: #3D2522; --deload: #9A948B; --bar: #7FA9D6; --bar-deload: #4A535E;
+    --focus: #8DB4DE; color-scheme: dark;
+  }
+}
+:root[data-theme="dark"] {
+  --canvas: #14191F; --paper: #1B222A; --sunken: #232C36; --line: #303A46; --line-faint: #26303A;
+  --ink: #E8E4DD; --ink-sec: #B3ADA4; --ink-faint: #9A948B;
+  --navy: #0F1822; --on-navy: #E8EDF3; --on-navy-muted: #93A3B4;
+  --accum: #8DB4DE; --accum-tint: #22344A; --intens: #E2B06A; --intens-tint: #3A2E1C;
+  --real: #E59287; --real-tint: #3D2522; --deload: #9A948B; --bar: #7FA9D6; --bar-deload: #4A535E;
+  --focus: #8DB4DE; color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+body { background: var(--canvas); color: var(--ink); font-family: var(--font-body); font-size: 15px; line-height: 1.55; }
+.wrap { max-width: 1040px; margin: 0 auto; padding-inline: 16px; padding-block: 0 56px; }
+h1, h2, h3 { font-family: var(--font-display); font-weight: 700; letter-spacing: 0.01em; text-wrap: balance; margin: 0; line-height: 1.1; }
+p { margin: 0; }
+.num { font-variant-numeric: tabular-nums; }
+:focus-visible { outline: 2px solid var(--focus); outline-offset: 2px; border-radius: 4px; }
+button { font: inherit; color: inherit; }
+
+/* Header band */
+.band { background: var(--navy); color: var(--on-navy); padding-inline: 16px; }
+.band-inner { max-width: 1040px; margin: 0 auto; padding-block: 28px 24px; display: grid; gap: 10px; }
+.eyebrow { font-size: 12px; letter-spacing: 0.12em; text-transform: uppercase; color: var(--on-navy-muted); }
+.band h1 { font-size: clamp(30px, 5vw, 44px); }
+.band p { color: var(--on-navy-muted); max-width: 68ch; }
+.pipeline { display: flex; flex-wrap: wrap; gap: 6px; margin-top: 6px; font-size: 12px; letter-spacing: 0.06em; text-transform: uppercase; }
+.pipeline span { border: 1px solid #3A4B5E; border-radius: 4px; padding: 2px 8px; color: var(--on-navy); }
+.pipeline i { font-style: normal; color: var(--on-navy-muted); align-self: center; }
+
+/* Athlete card */
+.athlete { margin-top: -1px; background: var(--paper); border: 1px solid var(--line); border-top: 0; border-radius: 0 0 var(--radius) var(--radius); padding: 18px 20px; display: grid; gap: 14px; }
+.athlete-row { display: flex; flex-wrap: wrap; gap: 8px 28px; align-items: baseline; }
+.label { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-faint); }
+.fact { display: grid; gap: 2px; }
+.fact b { font-weight: 600; font-size: 15px; }
+.maxes { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 8px; }
+.max { background: var(--sunken); border-radius: 8px; padding: 8px 12px; display: grid; gap: 0; }
+.max .v { font-family: var(--font-display); font-size: 24px; font-weight: 700; }
+.max .alt { font-size: 12px; color: var(--ink-faint); }
+.history { font-size: 13.5px; color: var(--ink-sec); max-width: 80ch; }
+
+/* Controls */
+.controls { display: flex; flex-wrap: wrap; justify-content: space-between; align-items: end; gap: 12px; margin-top: 28px; }
+.tabs { display: flex; flex-wrap: wrap; gap: 6px; }
+.tab { border: 1px solid var(--line); background: var(--paper); border-radius: 8px; padding: 8px 14px; cursor: pointer; text-align: left; display: grid; gap: 0; min-width: 0; }
+.tab .t { font-family: var(--font-display); font-size: 18px; font-weight: 700; }
+.tab .s { font-size: 12px; color: var(--ink-faint); }
+.tab[aria-selected="true"] { background: var(--navy); color: var(--on-navy); border-color: var(--navy); }
+.tab[aria-selected="true"] .s { color: var(--on-navy-muted); }
+.unit { display: inline-flex; border: 1px solid var(--line); border-radius: 8px; overflow: hidden; background: var(--paper); }
+.unit button { border: 0; background: transparent; padding: 6px 12px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.unit button[aria-pressed="true"] { background: var(--sunken); }
+
+/* Program */
+.program { margin-top: 16px; display: grid; gap: 18px; }
+.panel { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); padding: 18px 20px; min-width: 0; }
+.prog-head { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 10px 24px; align-items: start; }
+.prog-head h2 { font-size: 30px; }
+.prog-head .lede { color: var(--ink-sec); margin-top: 6px; max-width: 70ch; }
+.stats { display: flex; flex-wrap: wrap; gap: 18px; }
+.stat { display: grid; }
+.stat .v { font-family: var(--font-display); font-size: 22px; font-weight: 700; }
+.chip { display: inline-block; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase; font-weight: 600; padding: 2px 8px; border-radius: 999px; }
+.ph-accumulation { background: var(--accum-tint); color: var(--accum); }
+.ph-intensification { background: var(--intens-tint); color: var(--intens); }
+.ph-realization { background: var(--real-tint); color: var(--real); }
+
+.two { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 18px; }
+@media (max-width: 760px) { .two { grid-template-columns: minmax(0, 1fr); } }
+
+.brief dl { display: grid; grid-template-columns: max-content 1fr; gap: 6px 14px; margin: 12px 0 0; }
+.brief dt { color: var(--ink-faint); font-size: 13px; }
+.brief dd { margin: 0; font-weight: 500; }
+.brief blockquote { margin: 12px 0 0; padding: 10px 14px; background: var(--sunken); border-radius: 8px; color: var(--ink-sec); font-size: 14px; }
+
+.timeline { display: flex; gap: 4px; margin-top: 12px; }
+.tl-block { border-radius: 6px; padding: 8px 10px; min-width: 0; display: grid; gap: 2px; }
+.tl-block .w { font-size: 12px; opacity: 0.85; }
+.tl-block b { font-family: var(--font-display); font-size: 16px; }
+.tl-block.current { outline: 2px solid currentColor; outline-offset: -2px; }
+.tl-note { font-size: 13px; color: var(--ink-faint); margin-top: 8px; }
+
+.chart-wrap { overflow-x: auto; }
+.chart svg { display: block; width: 100%; height: auto; }
+.chart text { fill: var(--ink-faint); font-family: var(--font-body); font-size: 11px; }
+.chart .val { fill: var(--ink); font-weight: 600; }
+.chart .grid { stroke: var(--line-faint); }
+.legend { display: flex; gap: 14px; font-size: 12px; color: var(--ink-faint); margin-top: 6px; flex-wrap: wrap; }
+.sw { display: inline-block; width: 10px; height: 10px; border-radius: 2px; margin-right: 5px; vertical-align: -1px; }
+
+/* Rationale */
+.rationale { columns: 2 340px; column-gap: 32px; font-size: 14.5px; color: var(--ink-sec); }
+.rationale p, .rationale ul { margin: 0 0 10px; break-inside: avoid-column; }
+.rationale h4 { font-family: var(--font-display); font-size: 17px; color: var(--ink); margin: 4px 0 6px; break-after: avoid; }
+.rationale strong { color: var(--ink); font-weight: 600; }
+
+/* Weeks + sessions */
+.weeks { display: flex; flex-wrap: wrap; gap: 6px; align-items: center; }
+.wk { border: 1px solid var(--line); background: var(--paper); border-radius: 6px; padding: 4px 10px; cursor: pointer; font-size: 13px; font-weight: 600; }
+.wk[aria-pressed="true"] { background: var(--ink); color: var(--paper); border-color: var(--ink); }
+.wk .d { font-weight: 400; opacity: 0.75; margin-left: 4px; }
+.sessions { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 460px), 1fr)); gap: 14px; margin-top: 14px; }
+.session { background: var(--paper); border: 1px solid var(--line); border-radius: var(--radius); min-width: 0; }
+.session-head { display: flex; justify-content: space-between; gap: 8px; padding: 12px 16px 8px; border-bottom: 1px solid var(--line-faint); }
+.session-head h3 { font-size: 19px; }
+.session-head .m { font-size: 12px; color: var(--ink-faint); white-space: nowrap; }
+.ex { padding: 8px 16px; border-bottom: 1px solid var(--line-faint); }
+.ex:last-child { border-bottom: 0; }
+.ex-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 4px 12px; align-items: baseline; }
+.ex-name { font-weight: 600; font-size: 14.5px; }
+.ex-name .cx { font-weight: 400; font-size: 12px; color: var(--ink-faint); margin-left: 4px; }
+.ex-rx { font-family: var(--font-data); font-size: 13px; white-space: nowrap; text-align: right; }
+.ex-meta { font-size: 12px; color: var(--ink-faint); }
+.ex details { margin-top: 4px; }
+.ex summary { cursor: pointer; font-size: 12px; color: var(--accum); width: max-content; list-style: none; }
+.ex summary::-webkit-details-marker { display: none; }
+.ex summary::before { content: "+ "; }
+.ex details[open] summary::before { content: "− "; }
+.why { font-size: 13.5px; color: var(--ink-sec); margin-top: 6px; }
+.cites { display: grid; gap: 3px; margin-top: 6px; }
+.cite { font-size: 12px; color: var(--ink-faint); }
+.cite b { font-weight: 600; color: var(--ink-sec); }
+.warmup .ex-name { font-weight: 500; color: var(--ink-sec); }
+
+footer { margin-top: 36px; color: var(--ink-faint); font-size: 13px; display: grid; gap: 6px; max-width: 80ch; }
+footer b { color: var(--ink-sec); font-weight: 600; }
+@media (prefers-reduced-motion: no-preference) { .tab, .wk { transition: background-color .15s, color .15s; } }
+</style>
+</head>
+<body>
+<header class="band">
+  <div class="band-inner">
+    <span class="eyebrow">Oly Agent · exported {{ exported_on }}{% if athlete_name %} · {{ athlete_name }}{% endif %}</span>
+    <h1>{{ heading }}</h1>
+    <p>Generated by Oly Agent, an Olympic weightlifting program generator: it reads the athlete's profile and training history, plans the block, pulls the relevant passages from a library of coaching books and articles, writes each session with a language model, then checks every session against volume and intensity rules before saving it.</p>
+    <div class="pipeline" aria-label="Generation steps">
+      <span>Assess</span><i>→</i><span>Plan</span><i>→</i><span>Retrieve</span><i>→</i><span>Generate</span><i>→</i><span>Validate</span><i>→</i><span>Explain</span>
+    </div>
+  </div>
+</header>
+
+<main class="wrap">
+  <section class="athlete" aria-label="The athlete">
+    <div class="athlete-row" id="athlete-facts"></div>
+    <div class="maxes" id="maxes"></div>
+    <p class="history" id="history"></p>
+  </section>
+
+  <div class="controls">
+    <div class="tabs" role="tablist" id="tabs" aria-label="Programs"></div>
+    <div>
+      <div class="label" style="margin-bottom:4px">Loads in</div>
+      <div class="unit" role="group" aria-label="Units">
+        <button type="button" id="u-kg" aria-pressed="true">kg</button>
+        <button type="button" id="u-lb" aria-pressed="false">lb</button>
+      </div>
+    </div>
+  </div>
+
+  <section class="program" id="program" aria-live="polite"></section>
+
+  <footer>
+    <p><b>How these were made.</b> Each session was written by a language model{% if model %} ({{ model }}){% endif %} from a prompt holding the athlete profile, the block plan for that week, competition-lift volume targets and passages retrieved for that session from an ingested library of weightlifting books, papers and coaching articles. A validator checks every session (rep counts per intensity zone, intensity ceilings, the avoid list, complexes) before it is saved; failed sessions are regenerated with the errors attached.</p>
+    <p><b>Sources.</b> The “why” under each exercise lists the passages it cited. Loads are percentages of the athlete's recorded maxes, rounded to the nearest kilo; the lb view converts those to the nearest 5 lb.</p>
+  </footer>
+</main>
+
+<script type="application/json" id="data">{{ data | tojson }}</script>
+<script>
+{% raw %}
+(function () {
+  const DATA = JSON.parse(document.getElementById('data').textContent);
+  const KG_TO_LB = 2.20462;
+  const PHASE_LEDE = {
+    general_prep: 'General preparation: broad work capacity and positions before heavier training.',
+    accumulation: 'Accumulation: building volume and positions at moderate intensity.',
+    intensification: 'Intensification: less volume, heavier competition lifts.',
+    realization: 'Realization: tapering volume to peak the competition lifts.',
+  };
+  function meta(p, i) {
+    const blocks = p.macrocycle ? p.macrocycle.blocks || [] : [];
+    const total = blocks.reduce((n, b) => n + b.weeks, 0);
+    if (p.coach) return { tab: "Coach's brief", sub: `${p.duration_weeks} wk · ${p.sessions_per_week}/wk`,
+      title: p.name, lede: 'Generated to a coach\'s constraints for this program only; the athlete\'s saved profile is unchanged.' };
+    if (p.macrocycle) return { tab: `Macrocycle block ${(p.macrocycle_block_index || 0) + 1}`, sub: `${total} weeks in all`,
+      title: p.name, lede: `Block ${(p.macrocycle_block_index || 0) + 1} of ${blocks.length} in a ${total}-week plan laid out backward from the peak. Later blocks are generated when the previous one is finished, from how it went.` };
+    return { tab: titleCase(p.phase), sub: `${p.duration_weeks} wk · ${p.sessions_per_week}/wk`,
+      title: p.name, lede: PHASE_LEDE[p.phase] || 'Generated from the athlete\'s profile and training history.' };
+  }
+  const COMP_REFS = new Set(['snatch', 'clean_and_jerk', 'clean', 'jerk']);
+  const WARMUP_MAX_PCT = 60;
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const LABELS = {
+    cj_biased: 'C&J-biased', snatch_biased: 'Snatch-biased', balanced: 'Balanced',
+    jerk_limited: 'Jerk-limited', clean_limited: 'Clean-limited', squat_limited: 'Squat strength',
+    pull_limited: 'Pulling strength', overhead_limited: 'Overhead stability', positional_strength: 'Off-the-floor strength',
+    clean_and_jerk: 'C&J', lift_emphasis: 'Lift emphasis', strength_limiters: 'Limiter', technical_faults: 'Technical faults',
+    sessions_per_week: 'Days / week', avoid_exercises: 'Avoid', competition_date: 'Meet date',
+  };
+  const titleCase = s => LABELS[s] || String(s).replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase());
+
+  let unit = 'kg';
+  try { unit = localStorage.getItem('oly-unit') === 'lb' ? 'lb' : 'kg'; } catch (e) { /* storage blocked */ }
+  let current = DATA.programs[0].id;
+  try { const h = location.hash.replace('#', ''); if (/^p\d+$/.test(h) && DATA.programs.some(p => 'p' + p.id === h)) current = +h.slice(1); } catch (e) {}
+  const weekByProgram = {};
+
+  function load(kg) {
+    if (kg == null) return '';
+    return unit === 'kg' ? `${Math.round(kg)} kg` : `${Math.round(kg * KG_TO_LB / 5) * 5} lb`;
+  }
+  function maxLabel(kg) {
+    return unit === 'kg' ? { v: `${kg % 1 ? kg.toFixed(1) : kg}`, u: 'kg', alt: `${Math.round(kg * KG_TO_LB)} lb` }
+                         : { v: `${Math.round(kg * KG_TO_LB)}`, u: 'lb', alt: `${kg} kg` };
+  }
+
+  function renderAthlete() {
+    const a = DATA.athlete;
+    const facts = [
+      ['Level', titleCase(a.level)],
+      ['Bodyweight', unit === 'kg' ? `${a.bodyweight_kg} kg` : `${Math.round(a.bodyweight_kg * KG_TO_LB)} lb`],
+      ['Class', `${a.weight_class} kg`],
+      ['Training age', `${a.training_age_years} years`],
+      ['Days / week', a.sessions_per_week],
+      ['Technical fault', (a.technical_faults || []).map(titleCase).join(', ') || 'none'],
+    ];
+    document.getElementById('athlete-facts').innerHTML = facts.map(([k, v]) =>
+      `<div class="fact"><span class="label">${esc(k)}</span><b class="num">${esc(v)}</b></div>`).join('');
+    const first = ['Snatch', 'Clean & Jerk', 'Clean', 'Front Squat', 'Back Squat'];
+    const order = [...first, ...Object.keys(DATA.maxes).filter(n => !first.includes(n))].slice(0, 6);
+    document.getElementById('maxes').innerHTML = order.filter(n => DATA.maxes[n] != null).map(n => {
+      const m = maxLabel(DATA.maxes[n]);
+      return `<div class="max"><span class="label">${esc(n)}</span><span class="v num">${m.v}<small style="font-size:14px;font-weight:600"> ${m.u}</small></span><span class="alt num">${m.alt}</span></div>`;
+    }).join('');
+    document.getElementById('history').textContent =
+      DATA.previous ? `Previous block: ${DATA.previous.name}, ${DATA.previous.duration_weeks} weeks, completed${DATA.previous.adherence_pct != null ? ` (${Math.round(DATA.previous.adherence_pct)}% of sessions logged)` : ''}.` : 'No completed block yet: this is the athlete\'s first program.';
+  }
+
+  function renderTabs() {
+    const tabs = document.getElementById('tabs');
+    tabs.innerHTML = DATA.programs.map(p => {
+      const m = meta(p);
+      return `<button type="button" class="tab" role="tab" id="tab-${p.id}" aria-selected="${p.id === current}" data-id="${p.id}">
+        <span class="t">${esc(m.tab)}</span><span class="s">${esc(m.sub)}</span></button>`;
+    }).join('');
+    tabs.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => {
+      current = +b.dataset.id;
+      try { history.replaceState(null, '', '#p' + current); } catch (e) {}
+      renderTabs(); renderProgram();
+    }));
+  }
+
+  function isComp(ex) {
+    return COMP_REFS.has(ex.intensity_reference) && !/pull|deadlift|squat|press|row|recovery/i.test(ex.exercise_name);
+  }
+  function weekStats(p) {
+    const weeks = {};
+    for (const s of p.sessions) {
+      const w = weeks[s.week_number] ||= { week: s.week_number, reps: 0, comp: 0, top: 0 };
+      for (const ex of s.exercises) {
+        const reps = (ex.sets || 0) * (ex.reps || 0);
+        w.reps += reps;
+        if (isComp(ex) && (ex.intensity_pct || 0) > WARMUP_MAX_PCT) { w.comp += reps; w.top = Math.max(w.top, ex.intensity_pct || 0); }
+      }
+    }
+    const list = Object.values(weeks).sort((a, b) => a.week - b.week);
+    const peak = Math.max(...list.map(w => w.comp));
+    list.forEach((w, i) => { w.deload = i === list.length - 1 && w.comp < 0.75 * peak; });
+    return list;
+  }
+
+  function chart(stats) {
+    const W = 520, H = 210, padL = 34, padR = 10, padT = 22, padB = 30;
+    const maxV = Math.max(...stats.map(s => s.comp));
+    const step = maxV > 120 ? 40 : 20;
+    const top = Math.ceil(maxV / step) * step;
+    const y = v => padT + (H - padT - padB) * (1 - v / top);
+    const bw = (W - padL - padR) / stats.length;
+    let g = '';
+    for (let v = 0; v <= top; v += step) {
+      g += `<line class="grid" x1="${padL}" x2="${W - padR}" y1="${y(v)}" y2="${y(v)}"/><text x="${padL - 6}" y="${y(v) + 4}" text-anchor="end">${v}</text>`;
+    }
+    stats.forEach((s, i) => {
+      const x = padL + i * bw + bw * 0.18, w = bw * 0.64;
+      g += `<rect x="${x}" y="${y(s.comp)}" width="${w}" height="${y(0) - y(s.comp)}" rx="3" fill="${s.deload ? 'var(--bar-deload)' : 'var(--bar)'}"><title>Week ${s.week}: ${s.comp} competition-lift reps, top set ${s.top}%</title></rect>`;
+      g += `<text class="val" x="${x + w / 2}" y="${y(s.comp) - 6}" text-anchor="middle">${s.top}%</text>`;
+      g += `<text x="${x + w / 2}" y="${H - 10}" text-anchor="middle">Wk ${s.week}${s.deload ? ' · deload' : ''}</text>`;
+    });
+    return `<div class="chart-wrap chart"><svg viewBox="0 0 ${W} ${H}" role="img" aria-label="Competition-lift reps per week with the heaviest percentage">${g}</svg></div>
+      <div class="legend"><span><i class="sw" style="background:var(--bar)"></i>Competition-lift reps above 60% per week</span><span>Label: heaviest prescribed %</span></div>`;
+  }
+
+  function md(text) {
+    const blocks = String(text || '').replace(/\r/g, '').split(/\n{2,}/);
+    return blocks.map(b => {
+      const t = b.trim();
+      if (!t) return '';
+      const inline = s => esc(s).replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+      if (/^#{1,4}\s/.test(t)) return `<h4>${inline(t.replace(/^#{1,4}\s*/, ''))}</h4>`;
+      if (/^[-*]\s/m.test(t)) return '<ul>' + t.split('\n').map(l => `<li>${inline(l.replace(/^[-*]\s*/, ''))}</li>`).join('') + '</ul>';
+      return `<p>${inline(t.replace(/\n/g, ' '))}</p>`;
+    }).join('');
+  }
+
+  function briefPanel(p) {
+    if (!p.coach) return '';
+    const c = p.coach;
+    const rows = Object.entries(c).filter(([k]) => k !== 'note').map(([k, v]) =>
+      `<dt>${esc(titleCase(k))}</dt><dd>${esc(Array.isArray(v) ? (v.map(titleCase).join(', ') || 'none') : titleCase(v))}</dd>`).join('');
+    return `<div class="panel brief"><span class="label">Coach's brief</span>
+      <dl>${rows}</dl>${c.note ? `<blockquote>${esc(c.note)}</blockquote>` : ''}
+      <p class="tl-note">Applied to this program only; the athlete's saved profile is unchanged.</p></div>`;
+  }
+  function macroPanel(p) {
+    if (!p.macrocycle) return '';
+    const blocks = p.macrocycle.blocks || [];
+    const total = blocks.reduce((n, b) => n + b.weeks, 0);
+    const cells = blocks.map((b, i) => `<div class="tl-block ph-${b.phase}${i === (p.macrocycle_block_index || 0) ? ' current' : ''}" style="flex:${b.weeks}">
+      <b>${esc(titleCase(b.phase))}</b><span class="w num">${b.weeks} weeks${b.note ? ' · ' + esc(b.note) : ''}</span></div>`).join('');
+    return `<div class="panel"><span class="label">Macrocycle · ${total} weeks</span><div class="timeline">${cells}</div>
+      <p class="tl-note">Block 1 (outlined) is shown below. Blocks 2 and 3 are generated when the previous block is completed, using how it went.</p></div>`;
+  }
+
+  function exerciseHtml(ex, sources) {
+    const warm = !!ex.is_warmup;   // the app's own warm-up rule (get_program_weeks)
+    const rx = `${ex.sets}×${ex.notes && /^complex /.test(ex.notes) ? '(' + esc(ex.notes.replace('complex ', '')) + ')' : ex.reps}`;
+    const pct = ex.intensity_pct ? `${Math.round(ex.intensity_pct * 10) / 10}%` : '';
+    const ld = ex.absolute_weight_kg ? load(ex.absolute_weight_kg) : '';
+    const meta = [ex.rpe_target ? `RPE ${ex.rpe_target}` : '', ex.rest_seconds ? `${Math.round(ex.rest_seconds / 60 * 2) / 2} min rest` : '',
+                  ex.intensity_reference ? `% of ${titleCase(ex.intensity_reference)}` : ''].filter(Boolean).join(' · ');
+    const labels = [...String(ex.selection_rationale || '').matchAll(/\[([^\]]+)\]/g)]
+      .flatMap(m => (m[1].match(/C\d+/g) || []));
+    const cited = [...new Set(labels)].map(l => sources[l]).filter(Boolean);
+    const seen = new Set();
+    const citeHtml = cited.filter(s => !seen.has(s.title) && seen.add(s.title)).map(s =>
+      `<div class="cite"><b>${esc(s.title)}</b>${s.author ? ' · ' + esc(s.author) : ''}${s.type ? ' · ' + esc(s.type) : ''}</div>`).join('');
+    const why = String(ex.selection_rationale || '').replace(/\s*\[(?:C\d+(?:\s*,\s*C?\d+)*|\d+)\]/g, '').trim();
+    return `<div class="ex${warm ? ' warmup' : ''}">
+      <div class="ex-row"><span class="ex-name">${esc(ex.exercise_name)}${warm ? '<span class="cx">warm-up</span>' : ''}</span>
+        <span class="ex-rx num">${rx}${pct ? ' @ ' + pct : ''}${ld ? ' · ' + ld : ''}</span></div>
+      <div class="ex-meta num">${esc(meta)}</div>
+      ${why ? `<details><summary>Why this</summary><p class="why">${esc(why)}</p>${citeHtml ? `<div class="cites">${citeHtml}</div>` : ''}</details>` : ''}
+    </div>`;
+  }
+
+  function renderSessions(p) {
+    const stats = weekStats(p);
+    const wk = weekByProgram[p.id] || 1;
+    const weeksHtml = stats.map(s => `<button type="button" class="wk" aria-pressed="${s.week === wk}" data-w="${s.week}">Week ${s.week}${s.deload ? '<span class="d">deload</span>' : ''}</button>`).join('');
+    const sessions = p.sessions.filter(s => s.week_number === wk).map(s => `<article class="session">
+      <div class="session-head"><h3>Day ${s.day_number} · ${esc(s.session_label)}</h3><span class="m num">~${s.estimated_duration_minutes || '–'} min</span></div>
+      ${s.exercises.map(ex => exerciseHtml(ex, s.sources || {})).join('')}</article>`).join('');
+    return `<div><div class="weeks" role="group" aria-label="Week">${weeksHtml}</div><div class="sessions">${sessions}</div></div>`;
+  }
+
+  function renderProgram() {
+    const p = DATA.programs.find(x => x.id === current) || DATA.programs[0];
+    const m = meta(p);
+    const stats = weekStats(p);
+    const cost = p.generation_cost_usd ? `$${p.generation_cost_usd.toFixed(2)}` : '–';
+    const side = briefPanel(p) || macroPanel(p);
+    document.getElementById('tabs').hidden = DATA.programs.length < 2;
+    document.getElementById('program').innerHTML = `
+      <div class="panel prog-head">
+        <div style="min-width:0"><span class="chip ph-${esc(p.phase)}">${esc(titleCase(p.phase))}</span>
+          <h2 style="margin-top:8px">${esc(m.title)}</h2><p class="lede">${esc(m.lede)}</p></div>
+        <div class="stats">
+          <div class="stat"><span class="label">Weeks</span><span class="v num">${p.duration_weeks}</span></div>
+          <div class="stat"><span class="label">Days / week</span><span class="v num">${p.sessions_per_week}</span></div>
+          <div class="stat"><span class="label">Sessions</span><span class="v num">${p.sessions.length}</span></div>
+          <div class="stat"><span class="label">Model cost</span><span class="v num">${cost}</span></div>
+        </div>
+      </div>
+      <div class="two">
+        <div class="panel"><span class="label">Weekly load</span>${chart(stats)}</div>
+        ${side || `<div class="panel"><span class="label">Block shape</span><p class="tl-note" style="margin-top:12px">Volume builds through the working weeks while the heaviest prescribed percentage climbs; the last week drops volume to recover before the next block.</p></div>`}
+      </div>
+      <div class="panel"><span class="label">Rationale written for the athlete</span><div class="rationale" style="margin-top:10px">${md(p.rationale)}</div></div>
+      ${renderSessions(p)}`;
+    document.querySelectorAll('.wk').forEach(b => b.addEventListener('click', () => {
+      weekByProgram[p.id] = +b.dataset.w; renderProgram();
+      const target = document.querySelector('.weeks'); if (target) target.scrollIntoView({ block: 'nearest' });
+    }));
+  }
+
+  function setUnit(u) {
+    unit = u;
+    try { localStorage.setItem('oly-unit', u); } catch (e) {}
+    document.getElementById('u-kg').setAttribute('aria-pressed', u === 'kg');
+    document.getElementById('u-lb').setAttribute('aria-pressed', u === 'lb');
+    renderAthlete(); renderProgram();
+  }
+  document.getElementById('u-kg').addEventListener('click', () => setUnit('kg'));
+  document.getElementById('u-lb').addEventListener('click', () => setUnit('lb'));
+
+  renderTabs();
+  setUnit(unit);
+})();
+{% endraw %}
+</script>
+</body>
+</html>
