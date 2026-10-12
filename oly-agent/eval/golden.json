@@ -1,6 +1,6 @@
 {
  "meta": {
-  "built_at": "2026-09-23T03:12:02+00:00",
+  "built_at": "2026-10-12T16:21:20+00:00",
   "model": "z-ai/glm-5.3-flash",
   "candidates_per_retriever": 15,
   "n_queries": 57,
@@ -1309,7 +1309,8 @@
     "7995": 0,
     "4504": 1,
     "8054": 2,
-    "7273": 2
+    "7273": 2,
+    "4450": 2
    },
    "snippets": {
     "7469": "Continue pulling the elbows up even as your turn the arms over\u2014keep tension on throughout the movement. It\u2019s common to see lifters suddenly get slack in the sys",
@@ -1340,7 +1341,8 @@
     "7995": "But what I have always found to be the case when I\u2019ve made the mistake of not hammering these problems immediately and unrelentingly until they\u2019re resolved is t",
     "4504": "Another consideration with regard to practical errors is whether or not the cause is related to position-specific strength. A perfect example of this is the ten",
     "8054": "With specific regard to improving the speed of the snatch and clean, there are really three distinct elements to making a lift quick: the final explosive extens",
-    "7273": "In response, you try to pull the bar higher, and try to get yourself into a lower receiving position sooner, creating that separation I mentioned previously. Th"
+    "7273": "In response, you try to pull the bar higher, and try to get yourself into a lower receiving position sooner, creating that separation I mentioned previously. Th",
+    "4450": "This results in excessive distance between the barbell and the athlete from a combination of the bar swinging away from the body and the athlete being pushed ba"
    }
   },
   {
@@ -1434,7 +1436,8 @@
     "4508": 1,
     "7350": 1,
     "12602": 1,
-    "7460": 2
+    "7460": 2,
+    "4502": 1
    },
    "snippets": {
     "4503": "These can be used in greater quantity and with more variety in a given session than technique work that involves more focused coaching and practice of a specifi",
@@ -1460,7 +1463,8 @@
     "4508": "However, this imbalance can have a number of sources, and correction will vary depending on the cause. Often this error proves extremely difficult and frustrati",
     "7350": "Ryan Asks: What can I do to improve on keeping my chest up and ass down on the snatch pull as the weight gets heavier? I find myself bouncing the bar a little t",
     "12602": "2. The bar is too far away from the body once the bar is in motion during the pull. 20 ABCS OF OLYMPIC LIFTING\n\nABCS OF OLYMPIC LIFTING 21\n\nToo many of us tend ",
-    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou"
+    "7460": "Finally, we have the failure of the lifter to bring the bar back into position when finishing the third pull. This may seem like the same problem as the previou",
+    "4502": "In other words, the lifter has transitioned into a legitimate training program rather than a more introductory program focused primarily on lift instruction and"
    }
   },
   {
@@ -1497,7 +1501,10 @@
     "7302": 2,
     "5980": 1,
     "4771": 2,
-    "8141": 2
+    "8141": 2,
+    "13684": 1,
+    "13685": 2,
+    "13480": 2
    },
    "snippets": {
     "4333": "This can be a difficult problem to fix and will typically require a good deal of patience from both the coach and athlete. To combat the inability of the athlet",
@@ -1526,7 +1533,10 @@
     "7302": "Adrian Asks: I've been lifting a year and a half and have a problem setting up tight from the floor. From plates and off blocks I feel really strong but when it",
     "5980": "exercise.\n\nThe Low Position in the Snatch\n\nPerhaps the best way to develop flexibility for the \nlow squat position of the snatch is to practice \noverhead squats",
     "4771": "Purpose:\n The stiff-legged deadlift strengthens the back arch along with the glutes and hamstrings. It also strengthens the lats and shoulders because of the ef",
-    "8141": "This influences the foot position and leg orientation that maximizes hip range of motion. If you\u2019re squatting in a position that pushes the femurs against the p"
+    "8141": "This influences the foot position and leg orientation that maximizes hip range of motion. If you\u2019re squatting in a position that pushes the femurs against the p",
+    "13684": "THE\n\u201cLOOSENING\u201d\nDEADLIFT\n\nThe last of the ABCs of Weightlifting articles I wrote was The \u201cLoosening\u201d Deadlift. I felt this was a timely article because many lif",
+    "13685": "2. Include loosening up exercises which \u201cstretch\u201d the lumbar muscles instead of contracting them. The schedule of a training program is more difficult since it ",
+    "13480": "Perform this breathing movement without raising your shoulders. (People have a tendency of elevating their shoulders as they breathe in, but, in this case, you "
    }
   },
   {
@@ -2080,7 +2090,8 @@
     "4770": 1,
     "10897": 1,
     "12296": 0,
-    "4711": 2
+    "4711": 2,
+    "13504": 1
    },
    "snippets": {
     "11514": "Exercise selection typically varies with the phase of periodization. Although weightlifting pulling derivatives can\nbe implemented in all phases of training, an",
@@ -2117,7 +2128,8 @@
     "4770": "Weights can usually be 20-40% of the lifter\u2019s best back squat. Split Squat\n\nWith a barbell behind the neck as for a back squat, the lifter will step into a lung",
     "10897": "Second is overhead strengthening. Getting weight over head is the final result, but your shoulder strength only improves but so much by doing the lifts. The res",
     "12296": "With a pendular movement lift one arm forward and up and the other backward, keeping the arms straight. 2-3 sets of 6 - 8 repetitions. 9. S. P.: standing, trunk",
-    "4711": "Use 1-3 reps per set. Variations:\n The block clean can be performed from blocks of any height. It can also be combined in a complex with clean pulls. Block Clea"
+    "4711": "Use 1-3 reps per set. Variations:\n The block clean can be performed from blocks of any height. It can also be combined in a complex with clean pulls. Block Clea",
+    "13504": "with a weight 90 to 95 per cent of his best Snatch weight while using straps. On a very good day a lifter might be able to get this same weight for the same num"
    }
   },
   {
@@ -2156,7 +2168,8 @@
     "11443": 1,
     "10913": 1,
     "7692": 1,
-    "7423": 2
+    "7423": 2,
+    "13504": 0
    },
    "snippets": {
     "10897": "Second is overhead strengthening. Getting weight over head is the final result, but your shoulder strength only improves but so much by doing the lifts. The res",
@@ -2186,7 +2199,8 @@
     "11443": "The stage of special strength training is longer for the highly \u2013 qualified sportsman and in those sports where strength is the crucial factor for the improveme",
     "10913": "Will be a long-term developmental factor as well. Relative strength is most important for the sport of weightlifting. Meaning how much weight can you lift in co",
     "7692": "When beginners start weightlifting, they don\u2019t know what will or will not work for them, so it is important to start them with standard technique progressions a",
-    "7423": "In those times, the only solution is to tie the arm as directly and tightly to the trunk as possible. In the overhead position, the shoulder blades should be re"
+    "7423": "In those times, the only solution is to tie the arm as directly and tightly to the trunk as possible. In the overhead position, the shoulder blades should be re",
+    "13504": "with a weight 90 to 95 per cent of his best Snatch weight while using straps. On a very good day a lifter might be able to get this same weight for the same num"
    }
   },
   {
@@ -2606,7 +2620,9 @@
     "12638": 2,
     "4609": 0,
     "10574": 1,
-    "11015": 1
+    "11015": 1,
+    "13556": 2,
+    "12086": 2
    },
    "snippets": {
     "5181": "Another effective distribution of the weekly volumes might be 35%, 22%, 28%, \n15% or even 35%, 15%, 28%, 22%. These sequences can be adjusted by the coach as is",
@@ -2636,7 +2652,9 @@
     "12638": "THE FINAL TWO\nWEEKS OF\nTRAINING\nBEFORE A\nCOMPETITION\n\nYour performance in a competition is\nthe culmination of hard training over a\nperiod of weeks or even month",
     "4609": "Preparation\n\nAKA Preparatory, Accumulation, Extensification, Strength & Power Development\n\nThe need for strength increases is in a sense infinite, as this is ov",
     "10574": "While tapering strategies vary based on the lifter, certain principles consistently emerge from research and practice.\n\nTapering is one of the most critical yet",
-    "11015": "Effective tapering strategies will allow an athlete to express competitive performance\n\nenhancements from training, while poor tapering strategies may hinder pe"
+    "11015": "Effective tapering strategies will allow an athlete to express competitive performance\n\nenhancements from training, while poor tapering strategies may hinder pe",
+    "13556": "Normally, it is not wise to go heavy in the squat exercise during the final 2 weeks of training. Your heavy pulling exercises, such as the Snatch-grip or the Cl",
+    "12086": "As the main competition of the year approaches, most of the athlete\u2019s energy must be directed to the main sport-specific biomotor ability or mix of biomotor abi"
    }
   },
   {
@@ -2960,7 +2978,9 @@
     "12612": 1,
     "12613": 2,
     "3758": 1,
-    "3809": 1
+    "3809": 1,
+    "13679": 2,
+    "13523": 2
    },
    "snippets": {
     "3746": "Because you\u2019ve done such low volumes of training during the recovery session(s), just going to the planned volume in the next stimulative session might be a bit",
@@ -2989,7 +3009,9 @@
     "12612": "In the business world you'll hear the expression, \"Work hard and you'll suc-\n\nceed.\" The saying should be \"Work intelli- gently (smart) and you'll succeed.\"\n\nTH",
     "12613": "Drawing on my own experiences when I was in my teens, I could push myself almost every other workout, but when I was in my early twenties, I was generally able ",
     "3758": "What this dynamic reinforces is that there is likely a range of training magnitudes (per session) that produce the best relationships of growth to fatigue, and ",
-    "3809": "Obsessing over training program details is nearly worthless if you eat poorly and do not sleep enough. How you or any other lifter responds to a given training "
+    "3809": "Obsessing over training program details is nearly worthless if you eat poorly and do not sleep enough. How you or any other lifter responds to a given training ",
+    "13679": "You should push yourself like this no more than once a week (or enough time to recover from the previous heavy day). All the data you keep of your workouts shou",
+    "13523": "Drawing on my own experiences when\nI was in my teens, I could push myself\nalmost every other workout, but when I\nwas in my early twenties, I was generally\nable "
    }
   },
   {
@@ -3023,7 +3045,9 @@
     "7913": 2,
     "12655": 2,
     "4834": 2,
-    "7940": 1
+    "7940": 1,
+    "13570": 1,
+    "13571": 2
    },
    "snippets": {
     "4832": "If the weight is already beyond what the athlete can reasonably take more than once, the weight may need to be dropped and then the athlete will work back up. O",
@@ -3048,7 +3072,9 @@
     "7913": "We posted an article last week about how to handle the final week leading into a weightlifting competition, and it generated some questions about how to choose ",
     "12655": "When you take your final attempt, that is when there should be a 50-50 chance of succeeding. A good coach is someone who has been working with you and knows you",
     "4834": "Ultimately, an athlete only needs to make one snatch and one clean & jerk to win; this is certainly a riskier strategy, but has the potential to pay off more. T",
-    "7940": "One of the most common questions I get through the various media through which I\u2019m connected interminably to the weightlifting world is how to properly warm-up "
+    "7940": "One of the most common questions I get through the various media through which I\u2019m connected interminably to the weightlifting world is how to properly warm-up ",
+    "13570": "IMPORTANCE OF\nSUCCESSFUL\nATTEMPTS\n\nWhen a national or international contest ends, I try to get a copy of the scorekeepers\u2019 results sheet so I can review the con",
+    "13571": "When you take your final attempt, that is when there should be a 50-50 chance of succeeding. A good coach is someone who has been working with you and knows you"
    }
   },
   {
@@ -3165,7 +3191,8 @@
     "7789": 1,
     "10511": 1,
     "10567": 0,
-    "12611": 2
+    "12611": 2,
+    "13526": 2
    },
    "snippets": {
     "3816": "At three sessions per week, beginners should be training virtually every muscle in every session. (Though this might change for training 4-5 times per week, as ",
@@ -3200,7 +3227,8 @@
     "5190": "Class 2 training is much more in line with classic program planning since the \nexercise selection is somewhat more limited. The technique of the lifts has been ",
     "5744": "Weightlifting is truly one of the greatest sports \never conceived by the mind of man or woman. It is \nmy profound hope that this book will help to make \nsomeone",
     "8919": "Two lifters stood out; from the many competitors who seemed to be stamped from the same mold. The two lifters who both placed 2nd in their respective weight cla",
-    "12611": "THE OLYMPIC LIFTS TRAINING PROGRAM\n\nYou will be happy to learn that it is not nec- essary to spend 30 hours a week in the gym to become an outstanding Olympic w"
+    "12611": "THE OLYMPIC LIFTS TRAINING PROGRAM\n\nYou will be happy to learn that it is not nec- essary to spend 30 hours a week in the gym to become an outstanding Olympic w",
+    "13526": "Training three times a week is sufficient\nto make good progress. A fourth workout\nmay be performed but only because one of\nthe three workouts is split over two "
    }
   },
   {
@@ -3242,7 +3270,8 @@
     "5952": 1,
     "8521": 1,
     "12128": 0,
-    "13250": 1
+    "13250": 1,
+    "13697": 0
    },
    "snippets": {
     "10640": "I won\u2019t spend a ton of time hashing out long-winded examples of each of the four points because they are pretty self-explanatory, so quick explanations should s",
@@ -3275,7 +3304,8 @@
     "5952": "There is a virtually unlimited number of possible \nset, rep and intensity patterns that can be \nperformed in a given workout. However, some \npopular general pat",
     "8521": "It is necessary to point out something about the back squat. This exercise performed in the 50 to 80% zones practically does not lose its effectiveness with the",
     "12128": "Table 9.1\u2005\u2005\u2005\u2005Training Parameters for the Hypertrophy Phase\n\nDuration of hypertrophy phase\n\n6-8 weeks\n\nLoad\n\n60%-80% of 1RM\n\nNumber of exercises\n\n6-9\n\nNumber of ",
-    "13250": "For the development of strength, it seems that training intensities of 80\u2013100% of 1RM provide the largest mean effect for those with resistance-training experie"
+    "13250": "For the development of strength, it seems that training intensities of 80\u2013100% of 1RM provide the largest mean effect for those with resistance-training experie",
+    "13697": "54 60.8 67.5 74.3 81 87.8 94.5 101.3 108 114.8 121.5 128.3 135 141.8 148.5 155.3 162 130 52 58.5 65 71.5 78 84.5 91 97.5 104 110.5 117 123.5 130 136.5 143 149.5"
    }
   },
   {
@@ -3624,7 +3654,8 @@
     "8226": 1,
     "7283": 2,
     "7303": 0,
-    "8140": 0
+    "8140": 0,
+    "6044": 0
    },
    "snippets": {
     "7583": "The squat is foundational to the Olympic lifts as a position, a movement and a strength exercise. Without a well-developed and consistent squat, neither pulling",
@@ -3658,7 +3689,8 @@
     "8226": "The mini-band squat is simply an unloaded squat with a short elastic band wrapped around your legs just below the knees. Don't just push the knees out - push ou",
     "7283": "Ideally you don\u2019t hold the bottom of your cleans\u2014but if the problem is severe enough, you may need to. Finally, footwork drills and supplemental exercises that ",
     "7303": "Good morning squats may also help\u2014arch the back completely, bend into the good morning, and then slowly sit the hips down into the squat position, fighting to m",
-    "8140": "The butt wink\u2026 I\u2019m honestly not sure which is more worrisome to me\u2014the actual phenomenon or the commonly accepted term for it. In either case, I\u2019m going to weig"
+    "8140": "The butt wink\u2026 I\u2019m honestly not sure which is more worrisome to me\u2014the actual phenomenon or the commonly accepted term for it. In either case, I\u2019m going to weig",
+    "6044": "It is\n\ndifficult to recruit all of the muscles of the legs, and\n\nFig. 35 only profound concentration and volitional effort\n\nwill both teach the lifter how to re"
    }
   },
   {
@@ -3975,7 +4007,8 @@
     "4770": 1,
     "12859": 1,
     "7701": 1,
-    "8848": 0
+    "8848": 0,
+    "10567": 1
    },
    "snippets": {
     "12855": "The amount of weight used in both the back and\nthe front squat is approximately 45-125%; in other squats -- 35-\n55% of the maximum clean and jerk. Heavyweights ",
@@ -4003,7 +4036,8 @@
     "4770": "Weights can usually be 20-40% of the lifter\u2019s best back squat. Split Squat\n\nWith a barbell behind the neck as for a back squat, the lifter will step into a lung",
     "12859": "The training weights should be: good mornings -- approximately 25-60% (an average of 50%); hyperextensions -- 15-35% (an average of 20%) of the limit clean and ",
     "7701": "If you\u2019re a beginning to intermediate lifter and are using a percentage-based program, remember that those prescriptions are adjustable. This is especially impo",
-    "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical"
+    "8848": "Charniga photo. Ivanov (15) studied the connection between results in the clean and jerk and the back squat. The data showed that the squat results were typical",
+    "10567": "In this example, our lifter felt great during warmups, started high, and added weight each set right up to a PR, did a great first rep with 101, then barely mis"
    }
   }
  ]
