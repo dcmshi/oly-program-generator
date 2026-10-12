@@ -340,6 +340,13 @@
   </div>
   {% endif %}
 
+  {% if request.session.get("acting_athlete_id") %}
+  {# COACH-2: login details belong to the account, not the athlete being coached #}
+  <div class="bg-paper rounded-xl border border-line shadow-sm p-6">
+    <h2 class="font-semibold text-ink mb-1">Security</h2>
+    <p class="text-xs text-ink-muted">You are coaching {{ athlete.name }}. Their login details (if they have a login) are theirs to change; switch back to your own account to change yours.</p>
+  </div>
+  {% else %}
   <div class="bg-paper rounded-xl border border-line shadow-sm p-6 space-y-6">
     <h2 class="font-semibold text-ink">Security</h2>
 
@@ -398,6 +405,7 @@
       </div>
     </form>
   </div>
+  {% endif %}
 
   <!-- ── Data Export ──────────────────────────────────────────── -->
   <div class="bg-paper rounded-xl border border-line shadow-sm p-6">

@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-Postgres 16 + pgvector. **22 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0020_macrocycles` (0018 moves the `knowledge_chunks.embedding_model` default to `text-embedding-3-large`; 0019 dedupes `exercise_complexes`, adds `UNIQUE(name)`, `movement_family`, `complexity_level` and seeds 9 complexes; 0020 adds `macrocycles` and `generated_programs.macrocycle_id` / `macrocycle_block_index`).
+Postgres 16 + pgvector. **23 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0021_coach_athletes` (0018 moves the `knowledge_chunks.embedding_model` default to `text-embedding-3-large`; 0019 dedupes `exercise_complexes`, adds `UNIQUE(name)`, `movement_family`, `complexity_level` and seeds 9 complexes; 0020 adds `macrocycles` and `generated_programs.macrocycle_id` / `macrocycle_block_index`; 0021 adds `coach_athletes`).
 
 **The Alembic migrations are the source of truth.** This page summarises them; where it and a migration disagree, the migration wins (`cd oly-agent && uv run alembic history`). The root-level `schema.sql`, `athlete_schema.sql`, `auth_migration.sql` and `oly-ingestion/schema.sql` predate Alembic and are not applied by `make migrate`.
 
@@ -248,6 +248,13 @@ erDiagram
         timestamp created_at
     }
 
+    coach_athletes {
+        int coach_id PK,FK
+        int athlete_id PK,FK
+        text origin
+        timestamp created_at
+    }
+
     macrocycles {
         int id PK
         int athlete_id FK
@@ -323,6 +330,7 @@ erDiagram
     athletes ||--o{ athlete_goals : "athlete_id"
     athletes ||--o{ generated_programs : "athlete_id"
     athletes ||--o{ macrocycles : "athlete_id"
+    athletes ||--o{ coach_athletes : "coach_id / athlete_id"
     macrocycles ||--o{ generated_programs : "macrocycle_id"
     athletes ||--o{ training_logs : "athlete_id"
 
@@ -348,6 +356,7 @@ erDiagram
 | `athlete_goals` | Active goal drives phase selection in PLAN step. Stores competition date, target totals, and faults to address. |
 | `generated_programs` | Mesocycle output. Snapshots athlete state at generation time. `outcome_summary` JSONB populated after program completion via `feedback.py`. `macrocycle_id` / `macrocycle_block_index` (migration 0020) say which macrocycle block it realises. |
 | `macrocycles` | PLAN-3e block sequence: `blocks` JSONB `[{phase, weeks, note}]`, re-flowed when a block completes; `status` active / completed / abandoned (a new plan abandons the old). Block status is derived from the programs pointing at it. |
+| `coach_athletes` | COACH-2 coach ↔ athlete links, one row per pair, `CHECK (coach_id <> athlete_id)`. `origin` = `granted` (the athlete gave a coach's username access) or `created` (the coach added an athlete with no login). A coach acts as one linked athlete at a time (session `acting_athlete_id`); the link is re-checked on every request. Deleting either account removes the row. |
 | `program_sessions` | One row per training day in the program (week × day). |
 | `session_exercises` | Individual exercise prescriptions within a session. `source_chunk_ids` and `source_principle_ids` trace which retrieved knowledge informed each exercise. |
 | `training_logs` | Athlete's actual session record. Links to `program_sessions` for adherence tracking. |

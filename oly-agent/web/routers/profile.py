@@ -6,7 +6,15 @@ from typing import Annotated
 from fastapi import APIRouter, Depends, Form, Request
 from fastapi.responses import HTMLResponse, RedirectResponse
 from web.async_db import async_fetch_one
-from web.auth import get_current_athlete_id, hash_password, password_too_long, verify_password
+from web.auth import (
+    ACTING_ID_KEY,
+    ACTING_NAME_KEY,
+    get_account_id,
+    get_current_athlete_id,
+    hash_password,
+    password_too_long,
+    verify_password,
+)
 from web.deps import get_db, limiter
 from web.options import parse_list_text
 from web.queries import profile as q
@@ -143,8 +151,8 @@ async def update_profile(
 
     await q.update_profile(conn, athlete_id, data)
 
-    # Refresh session name if it changed
-    request.session["athlete_name"] = data["name"]
+    # Refresh the name the nav shows — the coached athlete's while coaching (COACH-2)
+    request.session[ACTING_NAME_KEY if request.session.get(ACTING_ID_KEY) else "athlete_name"] = data["name"]
     logger.info(f"Profile updated: athlete_id={athlete_id}")
     return RedirectResponse("/profile?success=profile", status_code=303)
 
@@ -154,11 +162,14 @@ async def update_profile(
 async def update_password(
     request: Request,
     conn=Depends(get_db),
-    athlete_id: int = Depends(get_current_athlete_id),
+    athlete_id: int = Depends(get_account_id),        # the login's own password, never a coached athlete's
     current_password: Annotated[str, Form(min_length=1, max_length=200)] = "",
     new_password: Annotated[str, Form(min_length=8, max_length=200)] = "",
     confirm_password: Annotated[str, Form(min_length=1, max_length=200)] = "",
 ):
+    if request.session.get(ACTING_ID_KEY):
+        return RedirectResponse("/profile?error=Switch+back+to+your+own+account+to+change+login+details.",
+                                status_code=303)
     from web.app import templates
 
     athlete = await q.get_athlete(conn, athlete_id)
@@ -196,10 +207,13 @@ async def update_password(
 async def update_username(
     request: Request,
     conn=Depends(get_db),
-    athlete_id: int = Depends(get_current_athlete_id),
+    athlete_id: int = Depends(get_account_id),        # the login's own username, never a coached athlete's
     new_username: Annotated[str, Form(min_length=3, max_length=100)] = "",
     confirm_password_u: Annotated[str, Form(min_length=1, max_length=200)] = "",
 ):
+    if request.session.get(ACTING_ID_KEY):
+        return RedirectResponse("/profile?error=Switch+back+to+your+own+account+to+change+login+details.",
+                                status_code=303)
     from web.app import templates
 
     athlete = await q.get_athlete(conn, athlete_id)
