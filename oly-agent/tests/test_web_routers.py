@@ -281,6 +281,7 @@ def test_program_detail_renders():
 def test_program_detail_shows_the_coach_brief_only_when_present():
     """COACH-1: generation_params.coach is rendered as the program's brief."""
     coach = {"phase": "intensification", "sessions_per_week": 3, "strength_limiters": [],
+             "lift_emphasis": "cj_biased", "technical_faults": ["slow_turnover"],
              "injuries": ["left knee"], "note": "No max singles before week 4"}
     for params, expected in (({"model": "m", "coach": coach}, True), ({"model": "m"}, False), (None, False)):
         with patch("web.queries.program.get_program", return_value=_program(generation_params=params)), \
@@ -295,7 +296,9 @@ def test_program_detail_shows_the_coach_brief_only_when_present():
         text = " ".join(_client.get("/program/1").text.split())
     for fragment in ("Phase:</span> intensification", "Sessions per week:</span> 3",
                      "Strength limiters:</span> none", "Injuries:</span> left knee",
-                     "Note:</span> No max singles before week 4"):
+                     "Note:</span> No max singles before week 4",
+                     "Lift emphasis:</span> C&amp;J-biased",                 # form labels, not raw values
+                     "Technical faults:</span> Slow turnover"):
         assert fragment in text, fragment
 
 

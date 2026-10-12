@@ -65,7 +65,7 @@
   <div class="space-y-3">
     {% for key, value in coach_brief.items() if key != 'note' %}
     <div><span class="text-xs font-medium text-ink-sec">{{ key | replace('_', ' ') | capitalize }}:</span>
-      {% if value is string or value is number %}{{ value | string | replace('_', ' ') }}{% else %}{{ (value | join(', ') | replace('_', ' ')) or 'none' }}{% endif %}</div>
+      {% if value is string or value is number %}{{ value | option_label }}{% else %}{{ (value | map('option_label') | join(', ')) or 'none' }}{% endif %}</div>
     {% endfor %}
     {% if coach_brief.note %}<div><span class="text-xs font-medium text-ink-sec">Note:</span> {{ coach_brief.note }}</div>{% endif %}
   </div>

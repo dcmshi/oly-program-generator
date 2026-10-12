@@ -296,6 +296,16 @@ from web.options import (
     WEIGHT_CLASSES,
 )
 
+_OPTION_LABELS = {value: label for label, value in (*FAULT_OPTIONS, *STRENGTH_LIMITER_OPTIONS)}
+_OPTION_LABELS.update({"balanced": "Balanced (snatch = C&J)", "snatch_biased": "Snatch-biased", "cj_biased": "C&J-biased"})
+
+
+def _option_label(value) -> str:
+    """A stored vocabulary value as the form shows it ("cj_biased" → "C&J-biased"); others de-underscored."""
+    return _OPTION_LABELS.get(value, str(value).replace("_", " "))
+
+
+templates.env.filters["option_label"] = _option_label   # the coach brief on the program page (COACH-1)
 templates.env.globals["equipment_options"] = EQUIPMENT_OPTIONS
 templates.env.globals["fault_options"]     = FAULT_OPTIONS
 templates.env.globals["limiter_options"]   = STRENGTH_LIMITER_OPTIONS
