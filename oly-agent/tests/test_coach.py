@@ -104,6 +104,51 @@ def test_plan_forced_phase_skips_the_decision_tree_and_the_meet_date():
     assert default.phase == "realization" and default.duration_weeks >= 1
 
 
+def test_intensity_cap_validates_its_range():
+    for bad in (59, 101):
+        with pytest.raises(CoachConstraintError):
+            CoachConstraints(intensity_cap=bad)
+    assert CoachConstraints.from_json({"intensity_cap": 85}).to_json() == {"intensity_cap": 85}
+    assert not CoachConstraints(intensity_cap=85).is_empty()
+
+
+def test_plan_intensity_cap_clamps_every_week_ceiling_and_floor():
+    from plan import plan
+    from tests.test_plan import _FakeSettings
+    ctx = _ctx(previous_program={"id": 1, "phase": "intensification", "outcome_summary": {}})
+    with patch("plan.fetch_all", return_value=[]):
+        free = plan(ctx, None, _FakeSettings(), phase="realization")
+        capped = plan(ctx, None, _FakeSettings(), phase="realization", intensity_cap=85)
+        block = plan(ctx, None, _FakeSettings(), block={"phase": "realization", "weeks": 3}, intensity_cap=85)
+    assert max(w.intensity_ceiling for w in free.weekly_targets) > 85      # the phase runs above the cap
+    for p in (capped, block):
+        assert all(w.intensity_ceiling <= 85 and w.intensity_floor <= w.intensity_ceiling for w in p.weekly_targets)
+        assert p.intensity_ceiling_override == 85
+    # below the cap the weeks are unchanged
+    for a, b in zip(free.weekly_targets, capped.weekly_targets, strict=True):
+        if a.intensity_ceiling <= 85:
+            assert (a.intensity_floor, a.intensity_ceiling) == (b.intensity_floor, b.intensity_ceiling)
+
+
+def test_max_test_is_skipped_under_a_cap_below_100():
+    import dataclasses
+
+    import orchestrator
+    from plan import plan
+    from tests.test_plan import _FakeSettings
+    ctx = _ctx(previous_program={"id": 1, "phase": "intensification", "outcome_summary": {}})
+    ctx.athlete["exercise_preferences"]["prefs"]["max_test"] = "always"
+    with patch("plan.fetch_all", return_value=[]):
+        p = plan(ctx, None, _FakeSettings(), phase="realization")
+    for cap, expected in ((90, 0), (100, 1), (None, 1)):
+        c = dataclasses.replace(ctx, coach_constraints={"intensity_cap": cap} if cap else None)
+        sessions: list[dict] = []
+        with patch.object(orchestrator, "_build_max_test_session", return_value=[]), \
+             patch.object(orchestrator, "_save_session", return_value=7):
+            orchestrator._add_max_test_session(None, 1, c, p, {}, sessions)
+        assert len(sessions) == expected, cap
+
+
 # ── Prompt and EXPLAIN sections ──────────────────────────────────────────────
 
 def test_prompt_section_is_empty_without_a_brief():
@@ -193,6 +238,21 @@ def test_form_errors_are_reported_not_raised():
                         coach_strength_limiters=["bogus"], coach_competition_date="2026-01-01"),
         _profile(), TODAY)
     assert coach is None and len(errors) == 5
+
+
+def test_form_intensity_cap_blank_is_none_and_bad_values_are_errors():
+    from web.coach_form import parse_coach_form
+    assert parse_coach_form(_untouched_form(coach_intensity_cap=""), _profile(), TODAY) == (None, [])
+    assert parse_coach_form(_untouched_form(coach_intensity_cap="85%"), _profile(), TODAY) == (
+        {"intensity_cap": 85}, [])
+    for bad in ("50", "eighty", "85.5"):
+        coach, errors = parse_coach_form(_untouched_form(coach_intensity_cap=bad), _profile(), TODAY)
+        assert coach is None and len(errors) == 1
+
+
+def test_prompt_section_states_the_cap_as_a_percentage():
+    section = coach_prompt_section(None, {"intensity_cap": 85})
+    assert "intensity cap: 85% of max on the competition lifts" in section
 
 
 def test_parse_list_text_splits_trims_and_dedupes():

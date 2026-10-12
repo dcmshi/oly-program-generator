@@ -2,7 +2,7 @@
 
 The coach fills a form on the athlete's account — sessions per week, phase,
 lift emphasis, strength limiters, technical faults, injuries, exercises to
-avoid, a meet date — plus a free-text note. Every field is optional and
+avoid, a meet date, an intensity cap — plus a free-text note. Every field is optional and
 overrides the athlete's profile for **this program only**: the constraints
 become a copy of the AthleteContext right after ASSESS, so PLAN, RETRIEVE,
 the session prompt and the validator honour them through the fields they
@@ -30,6 +30,9 @@ COACH_PHASES: tuple[str, ...] = ("general_prep", "accumulation", "intensificatio
 LIFT_EMPHASES: tuple[str, ...] = ("balanced", "snatch_biased", "cj_biased")
 COACH_NOTE_MAX_CHARS = 1500
 SESSIONS_PER_WEEK_RANGE = (1, 7)
+# Highest % of max a coach may cap the competition lifts at. Below 60 the
+# whole block would sit in the deload zone (Prilepin starts at 55).
+INTENSITY_CAP_RANGE = (60, 100)
 
 
 class CoachConstraintError(ValueError):
@@ -47,6 +50,7 @@ class CoachConstraints:
     injuries: list[str] | None = None
     avoid_exercises: list[str] | None = None
     competition_date: date | None = None
+    intensity_cap: int | None = None
     note: str = ""
 
     def __post_init__(self):
@@ -57,6 +61,9 @@ class CoachConstraints:
         lo, hi = SESSIONS_PER_WEEK_RANGE
         if self.sessions_per_week is not None and not lo <= self.sessions_per_week <= hi:
             raise CoachConstraintError(f"Sessions per week must be between {lo} and {hi}.")
+        lo, hi = INTENSITY_CAP_RANGE
+        if self.intensity_cap is not None and not lo <= self.intensity_cap <= hi:
+            raise CoachConstraintError(f"Intensity cap must be between {lo}% and {hi}%.")
         if len(self.note) > COACH_NOTE_MAX_CHARS:
             raise CoachConstraintError(f"The coach note is limited to {COACH_NOTE_MAX_CHARS} characters.")
 
@@ -67,7 +74,8 @@ class CoachConstraints:
         """The structured fields that override the profile (None ones dropped)."""
         out = {}
         for f in ("phase", "sessions_per_week", "lift_emphasis", "strength_limiters",
-                  "technical_faults", "injuries", "avoid_exercises", "competition_date"):
+                  "technical_faults", "injuries", "avoid_exercises", "competition_date",
+                  "intensity_cap"):
             value = getattr(self, f)
             if value is not None:
                 out[f] = value
@@ -101,6 +109,8 @@ def apply_constraints(ctx: AthleteContext, c: CoachConstraints | None,
     exercise_preferences.avoid, sessions_per_week, injuries, technical_faults)
     and the context fields (sessions_per_week, technical_faults, injuries,
     weeks_to_competition, active_goal.competition_date). `ctx` is not modified.
+    The intensity cap is not a context field: the orchestrator hands it to
+    `plan(intensity_cap=…)`, which clamps every week's ceiling and floor.
     """
     if c is None or c.is_empty():
         return ctx
@@ -148,7 +158,13 @@ def coach_prompt_section(note: str | None, constraints: dict | None) -> str:
     shown = {k: v for k, v in (constraints or {}).items() if k != "note"}
     if shown:
         lines.append("Coach choices: " + "; ".join(
-            f"{k.replace('_', ' ')}: {', '.join(v) if isinstance(v, list) else v}" for k, v in shown.items()))
+            f"{k.replace('_', ' ')}: {_choice_text(k, v)}" for k, v in shown.items()))
     if note:
         lines.append(f"Coach note: {note}")
     return "\n".join(lines)
+
+
+def _choice_text(key: str, value) -> str:
+    if key == "intensity_cap":
+        return f"{value}% of max on the competition lifts"
+    return ", ".join(value) if isinstance(value, list) else str(value)

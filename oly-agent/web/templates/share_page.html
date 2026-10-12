@@ -354,7 +354,8 @@ footer b { color: var(--ink-sec); font-weight: 600; }
     if (!p.coach) return '';
     const c = p.coach;
     const rows = Object.entries(c).filter(([k]) => k !== 'note').map(([k, v]) =>
-      `<dt>${esc(titleCase(k))}</dt><dd>${esc(Array.isArray(v) ? (v.map(titleCase).join(', ') || 'none') : titleCase(v))}</dd>`).join('');
+      `<dt>${esc(titleCase(k))}</dt><dd>${esc(k === 'intensity_cap' ? `${v}% of max (competition lifts)`
+        : Array.isArray(v) ? (v.map(titleCase).join(', ') || 'none') : titleCase(v))}</dd>`).join('');
     return `<div class="panel brief"><span class="label">Coach's brief</span>
       <dl>${rows}</dl>${c.note ? `<blockquote>${esc(c.note)}</blockquote>` : ''}
       <p class="tl-note">Applied to this program only; the athlete's saved profile is unchanged.</p></div>`;

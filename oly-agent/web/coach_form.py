@@ -12,6 +12,7 @@ from datetime import date
 from coach import (
     COACH_NOTE_MAX_CHARS,
     COACH_PHASES,
+    INTENSITY_CAP_RANGE,
     LIFT_EMPHASES,
     SESSIONS_PER_WEEK_RANGE,
     CoachConstraintError,
@@ -35,6 +36,7 @@ def profile_defaults(athlete: dict | None, goal: dict | None) -> dict:
         "injuries": list(athlete.get("injuries") or []),
         "avoid_exercises": list(prefs.get("avoid") or []),
         "competition_date": (goal or {}).get("competition_date"),
+        "intensity_cap": None,   # no profile value — blank means the phase's own ceilings
     }
 
 
@@ -102,6 +104,18 @@ def parse_coach_form(form, profile: dict, today: date) -> tuple[dict | None, lis
                 errors.append("The meet date is in the past.")
             elif meet != profile["competition_date"]:
                 fields["competition_date"] = meet
+
+    raw_cap = (form.get("coach_intensity_cap") or "").strip().rstrip("%").strip()
+    if raw_cap:
+        lo, hi = INTENSITY_CAP_RANGE
+        try:
+            cap = int(raw_cap)
+        except ValueError:
+            cap = None
+        if cap is None or not lo <= cap <= hi:
+            errors.append(f"Intensity cap must be a whole percentage between {lo} and {hi}.")
+        else:
+            fields["intensity_cap"] = cap
 
     note = (form.get("coach_note") or "").strip()
     if len(note) > COACH_NOTE_MAX_CHARS:

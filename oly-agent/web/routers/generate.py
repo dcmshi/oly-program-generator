@@ -2,7 +2,7 @@
 import html
 import logging
 
-from coach import COACH_NOTE_MAX_CHARS, COACH_PHASES, SESSIONS_PER_WEEK_RANGE
+from coach import COACH_NOTE_MAX_CHARS, COACH_PHASES, INTENSITY_CAP_RANGE, SESSIONS_PER_WEEK_RANGE
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
 from web import jobs
@@ -44,6 +44,7 @@ async def generate_page(
         # COACH-1: the coach form, pre-filled from the profile
         "coach": profile_defaults(athlete, goal), "coach_phases": COACH_PHASES,
         "coach_spw_range": SESSIONS_PER_WEEK_RANGE, "coach_note_max": COACH_NOTE_MAX_CHARS,
+        "coach_cap_range": INTENSITY_CAP_RANGE,
         "exercise_names": exercise_names,
     })
 

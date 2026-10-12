@@ -38,7 +38,8 @@ logger = logging.getLogger(__name__)
 
 
 def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | None = None,
-         block: dict | None = None, phase: str | None = None) -> ProgramPlan:
+         block: dict | None = None, phase: str | None = None,
+         intensity_cap: float | None = None) -> ProgramPlan:
     """Determine the program shape from athlete context.
 
     Decision tree:
@@ -63,6 +64,12 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
     and the length is `duration_weeks` clamped to the level, else the level's
     default for that phase (4 weeks if it has none) — a meet date doesn't fix
     it, the coach chose the phase knowing the date. Cold-start caps still apply.
+
+    `intensity_cap` (COACH-1) is a coach's hard limit, % of max on the
+    competition lifts: every week's ceiling and floor are clamped to it after
+    the cold-start / outcome adjustments, so the prompt, the Prilepin rep
+    targets and the validator's ceiling check all see it. Applies under a
+    macrocycle block too.
 
     Returns a ProgramPlan with weekly targets and session templates.
     """
@@ -118,6 +125,18 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
     else:
         # ── Outcome-based volume/intensity adjustments ─────────
         raw_targets = _apply_outcome_adjustments(raw_targets, athlete_context.previous_program)
+
+    # ── Coach intensity cap ───────────────────────────────────
+    if intensity_cap is not None:
+        cap = float(intensity_cap)
+        raw_targets = [
+            {**t,
+             "intensity_ceiling": min(t["intensity_ceiling"], cap),
+             "intensity_floor": min(t["intensity_floor"], cap)}
+            for t in raw_targets
+        ]
+        intensity_ceiling_override = min(intensity_ceiling_override or cap, cap)
+        logger.info(f"Coach intensity cap: {cap}% on every week")
 
     # ── Session templates ──────────────────────────────────────
     session_tmpl_dicts = get_session_templates(

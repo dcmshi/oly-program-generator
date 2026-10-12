@@ -110,6 +110,12 @@
                  value="{{ coach.competition_date.isoformat() if coach.competition_date else '' }}"
                  class="w-full border border-line-dark rounded-lg px-3 py-1.5 bg-paper">
         </label>
+        <label class="block">
+          <span class="block text-xs font-medium text-ink-sec mb-1">Intensity cap (% of max, competition lifts)</span>
+          <input type="number" name="coach_intensity_cap" min="{{ coach_cap_range[0] }}" max="{{ coach_cap_range[1] }}"
+                 step="1" placeholder="none" value="{{ coach.intensity_cap or '' }}"
+                 class="border border-line-dark rounded-lg px-3 py-1.5 w-28 bg-paper">
+        </label>
         <fieldset class="sm:col-span-2">
           <legend class="text-xs font-medium text-ink-sec mb-1">Strength limiters</legend>
           <div class="flex flex-wrap gap-x-3 gap-y-1">
