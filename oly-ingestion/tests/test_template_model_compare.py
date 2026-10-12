@@ -77,3 +77,34 @@ def test_reference_file_is_well_formed():
         assert set(s["weeks_required"]) <= set(s["weeks_allowed"])
         assert s["sessions"][0] <= s["sessions"][1] and s["exercises"][0] <= s["exercises"][1]
         assert s["sha256"] and s["spot"]
+
+
+def test_an_aborted_run_resumes_without_re_sending_finished_sections(tmp_path):
+    """RESUME-1: a section's result is checkpointed as it lands; after an abort
+    (here a declined standard-tier fallback) --resume sends only the rest."""
+    from unittest.mock import patch
+
+    import pytest
+    import template_model_compare as tmc
+
+    from shared.checkpoint import Checkpoint
+    from shared.llm import FlexUnavailable
+
+    reference = {"sections": [{"id": s, **REF} for s in ("a", "b")]}
+    sections = [{"id": "a", "text": "A", "sha256": "1"}, {"id": "b", "text": "B", "sha256": "2"}]
+    out = tmp_path / "result.json"
+    calls = []
+
+    def parse(client, model, max_tokens, text, label, on_message=None, errors=None):
+        calls.append(text)
+        if text == "B" and len(calls) == 2:
+            raise FlexUnavailable("standard not approved")
+        return _parsed()
+
+    with patch("pipeline.parse_program_template_text", side_effect=parse), \
+         patch("shared.llm.create_llm_client"):
+        with pytest.raises(FlexUnavailable):
+            tmc.run_model("moonshotai/kimi-k3", sections, reference, Checkpoint(out, resume=False))
+        result = tmc.run_model("moonshotai/kimi-k3", sections, reference, Checkpoint(out, resume=True))
+    assert calls == ["A", "B", "B"]                                   # A was not re-sent
+    assert [r["section"] for r in result["sections"]] == ["a", "b"] and result["totals"]["sections_all_ok"] == 2

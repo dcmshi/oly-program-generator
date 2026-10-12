@@ -102,6 +102,7 @@ AGENT_TESTS := \
 	tests/test_coach.py \
 	tests/test_import_program_csv.py \
 	tests/test_excerpt.py \
+	tests/test_checkpoint.py \
 	tests/test_demographics.py \
 	tests/test_feedback.py \
 	tests/test_log_commands.py \
