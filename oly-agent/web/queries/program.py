@@ -44,6 +44,9 @@ def _representative_reps_per_set(spec) -> float | None:
 # _explain_program, explain's failure note, _prefix_rationale_warnings).
 _STOPPED_RATIONALE_MARKERS = ("# Generation Aborted", "# Rationale Skipped", "[Rationale generation failed",
                               "# Generation Warning")
+# explain's failure note, which can sit below a banner (a session-cap run's
+# "# Partial Program — Session Cap"), so it is looked for anywhere
+_RATIONALE_FAILED_NOTE = "[Rationale generation failed"
 
 
 def is_resumable(program) -> bool:
@@ -57,7 +60,8 @@ def is_resumable(program) -> bool:
     if not isinstance(params, dict) or not params.get("resume"):
         return False
     rationale = (program.get("rationale") or "").lstrip()
-    return not rationale or rationale.startswith(_STOPPED_RATIONALE_MARKERS)
+    return (not rationale or rationale.startswith(_STOPPED_RATIONALE_MARKERS)
+            or _RATIONALE_FAILED_NOTE in rationale)
 
 
 async def get_program(conn, program_id: int) -> dict | None:
