@@ -1607,3 +1607,52 @@ if __name__ == "__main__":
         detail = f"  → {r[2]}" if len(r) > 2 else ""
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {skipped} skipped, {failed} failed")
+
+# ── SHARE-1: downloadable shareable page ────────────────────────────────────────
+
+def _share_data(n=1):
+    progs = [{"id": 40 + i, "name": f"Block {i}", "phase": "accumulation", "status": "draft", "duration_weeks": 5,
+              "sessions_per_week": 4, "start_date": "2026-10-11", "rationale": "**Why** this block.",
+              "coach": None, "model": "openai/gpt-6.1-sol", "macrocycle": None, "macrocycle_block_index": None,
+              "generation_cost_usd": 0.2, "sessions": []} for i in range(n)]
+    return {"athlete": {"name": "T", "level": "advanced", "bodyweight_kg": 77.0, "weight_class": "81",
+                        "training_age_years": 3.0, "sessions_per_week": 4, "technical_faults": []},
+            "maxes": {"Snatch": 70.5}, "previous": None, "programs": progs}
+
+
+def test_share_page_downloads_a_self_contained_file():
+    with patch("web.queries.share.build_share_data", return_value=_share_data(2)) as build, \
+         patch("web.queries.dashboard.get_athlete_timezone", return_value="UTC"):
+        r = _client.get("/program/share.html", params=[("ids", 40), ("ids", 41)])
+    assert r.status_code == 200
+    assert build.call_args.args[1:] == (1, [40, 41])            # the session's athlete, the requested ids
+    assert r.headers["content-disposition"] == 'attachment; filename="oly-program-40-41.html"'
+    assert "<title>Oly Agent · 2 programs, side by side</title>" in r.text
+    assert "url('data:font/woff2;base64," in r.text and "/static/" not in r.text   # no requests
+    assert '"name": "Block 1"' in r.text and "openai/gpt-6.1-sol" in r.text
+    assert "\\u003cstrong" not in r.text and "**Why** this block." in r.text   # raw data; the page renders it
+
+
+def test_share_page_is_404_for_a_program_that_is_not_yours():
+    with patch("web.queries.share.build_share_data", return_value=None):
+        r = _client.get("/program/share.html", params=[("ids", 999)])
+    assert r.status_code == 404
+
+
+def test_share_page_caps_the_number_of_programs():
+    with patch("web.queries.share.build_share_data") as build:
+        r = _client.get("/program/share.html", params=[("ids", i) for i in range(1, 9)])
+    assert r.status_code == 422 and not build.called
+
+
+def test_share_page_needs_at_least_one_id():
+    assert _client.get("/program/share.html").status_code == 422
+
+
+def test_program_actions_link_to_the_share_page():
+    with patch("web.queries.program.get_program", return_value=_program()), \
+         patch("web.queries.program.get_program_weeks", return_value=_week_data()), \
+         patch("web.queries.program.get_program_volume_by_week", return_value=[]):
+        r = _client.get("/program/1")
+    assert 'href="/program/share.html?ids=1"' in r.text
+

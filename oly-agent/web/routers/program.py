@@ -1,8 +1,12 @@
 # web/routers/program.py
+import base64
 import logging
+import re
+from functools import lru_cache
+from pathlib import Path
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Form, HTTPException, Request
+from fastapi import APIRouter, Depends, Form, HTTPException, Query, Request
 from fastapi.responses import HTMLResponse
 from web.auth import get_current_athlete_id
 from web.deps import get_db, limiter
@@ -22,6 +26,54 @@ async def program_list(
     programs = await q.get_all_programs(conn, athlete_id)
     logger.info(f"Program list: {len(programs)} programs for athlete {athlete_id}")
     return templates.TemplateResponse(request, "program_list.html", {"request": request, "programs": programs})
+
+
+@lru_cache(maxsize=1)
+def _inline_font_css() -> str:
+    """static/fonts.css with every woff2 inlined as a data URI, so an exported
+    page renders in the app's fonts with no requests (SHARE-1)."""
+    static = Path(__file__).resolve().parent.parent / "static"
+    css = (static / "fonts.css").read_text(encoding="utf-8")
+
+    def inline(match):
+        data = base64.b64encode((static / "fonts" / match.group(1)).read_bytes()).decode()
+        return f"url('data:font/woff2;base64,{data}')"
+    return re.sub(r"url\('/static/fonts/([\w.-]+\.woff2)'\)", inline, css)
+
+
+@router.get("/share.html", response_class=HTMLResponse)
+@limiter.limit("10/minute")
+async def share_page(
+    request: Request,
+    ids: Annotated[list[int], Query(min_length=1)],
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
+    """One self-contained HTML file for one or more of the athlete's programs —
+    the shareable page, downloaded (SHARE-1). 404 if any id isn't theirs."""
+    from web.app import templates
+    from web.queries import dashboard as dq
+    from web.queries import share as qs
+
+    from shared.timeutil import today_in_tz
+    if len(set(ids)) > qs.MAX_SHARED_PROGRAMS:
+        raise HTTPException(status_code=422, detail=f"Export at most {qs.MAX_SHARED_PROGRAMS} programs at once")
+    data = await qs.build_share_data(conn, athlete_id, ids)
+    if data is None:
+        raise HTTPException(status_code=404, detail="Program not found")
+    programs = data["programs"]
+    heading = programs[0]["name"] if len(programs) == 1 else f"{len(programs)} programs, side by side"
+    models = {p["model"] for p in programs if p.get("model")}
+    today = today_in_tz(await dq.get_athlete_timezone(conn, athlete_id))
+    response = templates.TemplateResponse(request, "share_page.html", {
+        "request": request, "data": data, "title": f"Oly Agent · {heading}", "heading": heading,
+        "exported_on": today.strftime("%d %b %Y"), "athlete_name": data["athlete"].get("name"),
+        "model": models.pop() if len(models) == 1 else None, "font_css": _inline_font_css(),
+    })
+    slug = "-".join(str(p["id"]) for p in programs)
+    response.headers["Content-Disposition"] = f'attachment; filename="oly-program-{slug}.html"'
+    logger.info(f"Share page exported: athlete {athlete_id}, programs {slug}")
+    return response
 
 
 @router.get("/{program_id}", response_class=HTMLResponse)
