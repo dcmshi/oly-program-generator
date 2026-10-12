@@ -31,6 +31,7 @@ import logging
 import re
 import sys
 import time
+from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
@@ -184,7 +185,15 @@ def run_model(model: str, sections: list[dict], reference: dict) -> dict:
     from config import Settings
     from pipeline import parse_program_template_text
 
-    from shared.llm import billed_cost, create_llm_client, estimate_cost, usage_tokens
+    from shared.llm import (
+        LLMRefusal,
+        billed_cost,
+        create_llm_client,
+        estimate_cost,
+        is_refusal,
+        message_text,
+        usage_tokens,
+    )
 
     settings = Settings(llm_model=model)
     model_id = settings.llm_model
@@ -193,12 +202,17 @@ def run_model(model: str, sections: list[dict], reference: dict) -> dict:
     rows = []
     for sec in sections:
         ref = refs[sec["id"]]
-        usage = {"input": 0, "output": 0, "cost": 0.0, "calls": 0, "billed": True}
+        usage = {"input": 0, "output": 0, "cost": 0.0, "calls": 0, "billed": True, "stops": [], "declined": 0}
 
         def on_message(msg, usage=usage):
             u = usage_tokens(msg.usage)
             billed = billed_cost(msg.usage)
             usage["calls"] += 1
+            usage["stops"].append(str(getattr(msg, "stop_reason", None)))
+            try:
+                usage["declined"] += is_refusal(msg, message_text(msg))
+            except LLMRefusal:
+                usage["declined"] += 1
             usage["input"] += u["input"]
             usage["output"] += u["output"]
             if billed is None:
@@ -217,6 +231,7 @@ def run_model(model: str, sections: list[dict], reference: dict) -> dict:
         rows.append({"section": sec["id"], **score, "errors": errors,
                      "empty": not _weeks(parsed) and bool(ref["weeks_required"]),
                      "latency_s": round(dt, 1), "calls": usage["calls"],
+                     "stop_reasons": usage["stops"], "declined": usage["declined"],
                      "input_tokens": usage["input"], "output_tokens": usage["output"],
                      "cost_usd": round(usage["cost"], 4), "cost_billed": usage["billed"],
                      "parsed": parsed})
@@ -248,6 +263,8 @@ def _totals(rows: list[dict]) -> dict:
         "spot_total": sum(r["spot_total"] for r in rows),
         "intensity_over_cap": sum(r["intensity_over_cap"] for r in rows),
         "failed_calls": sum(len(r["errors"]) for r in rows),
+        "declined_calls": sum(r.get("declined", 0) for r in rows),
+        "stop_reasons": dict(Counter(s for r in rows for s in r.get("stop_reasons", []))),
         "empty_sections": sum(r["empty"] for r in rows),
         "latency_s": round(sum(r["latency_s"] for r in rows), 1),
         "cost_usd": round(sum(r["cost_usd"] for r in rows), 4),
@@ -312,6 +329,9 @@ def print_table(results: list[dict], n: int, out: Path | None) -> None:
               f" {t['exercises_ok']:>2}/{n:<2} {t['exercises_off_by']:>7} {t['spot_passed']:>3}/{t['spot_total']:<3}"
               f" {t['intensity_over_cap']:>5} {t['failed_calls']:>5} {t['empty_sections']:>6} {t['latency_s']:>6.0f}"
               f" {t['cost_usd']:>7.3f}")
+    for r in results:
+        t = r["totals"]
+        print(f"  {r['model']}: declined {t.get('declined_calls', 0)}, stop reasons {t.get('stop_reasons', {})}")
     if out:
         print(f"\nfull results: {out}")
 

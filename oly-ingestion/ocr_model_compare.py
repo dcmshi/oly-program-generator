@@ -131,7 +131,10 @@ def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict]) -> d
             with fitz.open(by_name[g["book"]]) as doc:
                 params = ext._ocr_request(doc, start, end)
             msg = create_message_growing(ext._client, label=f"compare OCR {model_id} {g['label']}", **params)
-            pages = ext._ocr_response_pages(msg, start, end)
+            stop_reason = getattr(msg, "stop_reason", None)
+            ext.refused_pages = set()
+            pages = ext._ocr_response_pages(msg, start, end)   # a decline comes back as blank pages
+            declined = bool(ext.refused_pages)
             u = usage_tokens(msg.usage)
             billed = billed_cost(msg.usage)
             cost = billed if billed is not None else estimate_cost(
@@ -140,8 +143,10 @@ def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict]) -> d
             error = None
         except Exception as e:                           # noqa: BLE001 — a failed group is a result
             pages, u, cost, billed, error = [""] * GROUP, {"input": 0, "output": 0}, 0.0, None, str(e)
+            stop_reason, declined = None, False
         dt = time.perf_counter() - t0
         groups.append({"label": g["label"], "pages": pages, "latency_s": round(dt, 1),
+                       "stop_reason": stop_reason, "declined": declined,
                        "input_tokens": u["input"], "output_tokens": u["output"],
                        "cost_usd": round(cost, 4), "cost_billed": billed is not None, "error": error})
         logger.info(f"{model_id} {g['label']}: {sum(1 for p in pages if p.strip())}/{GROUP} pages, "
@@ -172,6 +177,8 @@ def score(results: list[dict], plan: list[dict]) -> None:
         r["totals"] = {
             "pages": len(peers_all), "lost_pages": lost, "suspect_pages": suspects,
             "failed_groups": sum(1 for g in r["groups"] if g["error"]),
+            "declined_groups": sum(1 for g in r["groups"] if g.get("declined")),
+            "stop_reasons": dict(Counter(str(g.get("stop_reason")) for g in r["groups"] if not g["error"])),
             "peer_agreement": round(statistics.mean(peers_all), 3) if peers_all else 0.0,
             "cache_agreement": round(statistics.mean(cache_agree), 3) if cache_agree else 0.0,
             "number_recall": round(statistics.mean(recalls), 3) if recalls else None,
@@ -214,14 +221,17 @@ def main() -> None:
     args.out.write_text(json.dumps({"groups": [{k: v for k, v in g.items() if k != "cached"} for g in plan],
                                     "results": results}, indent=1, ensure_ascii=False), encoding="utf-8")
 
-    print(f"\n{'model':<32} {'pages':>5} {'lost':>5} {'susp':>5} {'fail':>5} {'peer agr':>9} {'cache agr':>10} "
+    print(f"\n{'model':<32} {'pages':>5} {'lost':>5} {'susp':>5} {'fail':>5} {'decl':>5} {'peer agr':>9} {'cache agr':>10} "
           f"{'num rec':>8} {'garbled':>8} {'sec':>6} {'$':>7}")
     for r in results:
         t = r["totals"]
         rec = f"{t['number_recall']:.3f}" if t["number_recall"] is not None else "—"
         print(f"{r['model']:<32} {t['pages']:>5} {t['lost_pages']:>5} {t['suspect_pages']:>5} {t['failed_groups']:>5} "
+              f"{t['declined_groups']:>5} "
               f"{t['peer_agreement']:>9.3f} {t['cache_agreement']:>10.3f} {rec:>8} {t['garbled_mean']:>8.4f} "
               f"{t['latency_s']:>6.0f} {t['cost_usd']:>7.3f}")
+    for r in results:
+        print(f"  {r['model']}: stop reasons {r['totals']['stop_reasons']}")
     print(f"\ncache transcriptions by: {sorted({g['cache_model'] for g in plan})}; full results: {args.out}")
 
 
