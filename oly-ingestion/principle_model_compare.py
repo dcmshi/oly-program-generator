@@ -35,7 +35,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))  # repo root for shared.*
 from principle_audit import (
     SOURCE_FILES,
     audit_principle,
-    fetch_web_text,
+    fetch_web_article,
     file_text,
     match_source_files,
     resolve_source_ids,
@@ -75,7 +75,9 @@ def densest_window(text: str, size: int = _PRINCIPLE_WINDOW) -> str:
 def pick_windows(cur) -> list[dict]:
     """The densest window of each BOOK_SOURCES file (Medvedev from its OCR
     text reconstruction, not the scan) and of the most number-dense article
-    per WEB_HOSTS host that can still be fetched."""
+    per WEB_HOSTS host that can still be fetched. A host whose fetch fails
+    transiently is skipped outright — walking every article of an unreachable
+    site took 9 hours of timeouts (2026-10-12)."""
     files = source_files()
     windows = []
     ids = resolve_source_ids(cur, BOOK_SOURCES)
@@ -98,10 +100,13 @@ def pick_windows(cur) -> list[dict]:
     for host in WEB_HOSTS:
         for sid, url, title, _pct in rows:
             if host in (url or ""):
-                text = fetch_web_text(url)
+                text, permanent = fetch_web_article(url)
                 if text:
                     windows.append({"label": f"web:{host.split('.')[0]}:{sid}", "source_id": sid,
                                     "title": title, "text": densest_window(text)})
+                    break
+                if not permanent:
+                    logger.warning(f"{host} unreachable ({url}) — no web window for it this run")
                     break
     return windows
 
@@ -181,6 +186,8 @@ def main() -> None:
     ap.add_argument("--model", action="append", required=True)
     ap.add_argument("--out", type=Path, required=True)
     args = ap.parse_args()
+    import ingest_web
+    ingest_web.configure_web_fetching()          # robots, throttle, page cache (WEB-POLITE)
 
     conn = psycopg2.connect(Settings().database_url)
     windows = pick_windows(conn.cursor())

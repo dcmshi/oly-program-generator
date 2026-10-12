@@ -64,7 +64,7 @@ class PDFExtractor:
             anthropic_client: Optional Anthropic client instance. When provided,
                               used as a last-resort OCR fallback for image-only PDFs.
             vision_model:     Model id for vision OCR — required, pass
-                              `settings.llm_model` (no hard-coded default: a
+                              `settings.vision_model` (no hard-coded default: a
                               Claude id is wrong under the OpenRouter provider,
                               and it also keys the OCR cache).
             batch:            Send every page group of the document as one Message

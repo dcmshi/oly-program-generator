@@ -67,7 +67,7 @@ TABLES = {
 
 
 def patched_html() -> str:
-    resp, _ = w._get_with_retry(URL)
+    resp, _ = w._get_with_retry(URL, cache=True)
     assert resp is not None, f"could not fetch {URL}"
     soup = BeautifulSoup(resp.text, "html.parser")
     done = set()
@@ -92,6 +92,7 @@ def build_article() -> dict:
 
 
 if __name__ == "__main__":
+    w.configure_web_fetching()
     article = build_article()
     if "--ingest" not in sys.argv:
         print(article["title"], "|", article["author"], "|", len(article["text"].split()), "words\n")
