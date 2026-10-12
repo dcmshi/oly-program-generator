@@ -499,6 +499,7 @@ class IngestionPipeline:
                         stats["ocr_pages"] = ocr_report["pages"]
                         stats["ocr_pages_suspect"] = ocr_report["pages_suspect"]
                         stats["ocr_pages_unresolved"] = ocr_report["pages_unresolved"]
+                        stats["ocr_pages_refused"] = ocr_report.get("pages_refused", [])
                         stats["ocr_verdicts"] = ocr_report["verdicts"]
                 elif source.path.suffix in (".html", ".htm"):
                     from extractors.html_extractor import extract_text_from_html

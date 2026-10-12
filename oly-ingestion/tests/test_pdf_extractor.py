@@ -481,3 +481,36 @@ def test_vision_model_is_required():
     with pytest.raises(TypeError):
         PDFExtractor(None, "claude-sonnet-5")          # keyword-only
     assert PDFExtractor(vision_model="moonshotai/kimi-k3")._vision_model == "moonshotai/kimi-k3"
+
+
+def test_declined_ocr_group_becomes_blank_pages_not_text():
+    """MODEL-4: Sonnet 5.5 answered a transcription request with "I can't
+    transcribe these pages …" (stop_reason end_turn). Stored as page text it
+    would be chunked into the corpus; it must come back as blank pages, which
+    the OCR-QA gate re-OCRs singly and reports, and be listed as refused."""
+    from types import SimpleNamespace
+
+    def reply(text, stop="end_turn"):
+        return SimpleNamespace(stop_reason=stop, content=[SimpleNamespace(type="text", text=text)] if text else [])
+
+    ex = PDFExtractor(anthropic_client=MagicMock(), vision_model="m")
+    decline = ("I can't transcribe these pages. They look like scanned pages from a published weightlifting "
+               "training text, and reproducing their full text would mean copying a copyrighted work at length.")
+    assert ex._ocr_response_pages(reply(decline), 0, 3) == ["", "", ""]
+    assert ex.refused_pages == {1, 2, 3}
+    assert ex._ocr_response_pages(reply("", stop="refusal"), 5, 7) == ["", ""]      # empty refusal
+    assert ex.refused_pages == {1, 2, 3, 6, 7}
+    # a real transcription is never a decline, even when a page opens like one
+    page = "=== Page 9 ===\nI can't stress enough how a verbatim log of every session matters."
+    assert ex._ocr_response_pages(reply(page), 8, 9) == ["I can't stress enough how a verbatim log of every session matters."]
+    assert 9 not in ex.refused_pages
+
+
+def test_declined_blank_pages_are_not_cached():
+    cache = MagicMock()
+    ex = PDFExtractor(anthropic_client=MagicMock(), vision_model="m")
+    ex.refused_pages = {2}
+    ex._cache_put(cache, 1, "")          # page 2, declined, still blank → asked again next run
+    ex._cache_put(cache, 1, "recovered") # recovered by the single-page retry → cached
+    ex._cache_put(cache, 4, "")          # an ordinary blank page → cached as before
+    assert [c.args for c in cache.put.call_args_list] == [(1, "recovered"), (4, "")]

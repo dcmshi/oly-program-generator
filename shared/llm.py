@@ -392,6 +392,26 @@ def message_text(response) -> str:
     return text
 
 
+_REFUSAL_OPENER_RE = re.compile(
+    r"^\W*(?:sorry\b|i\s+(?:can'?t|cannot|can\s+not|won'?t|am\s+(?:not\s+able|unable))\b|"
+    r"i[’']?m\s+(?:not\s+able|unable|sorry)\b)", re.IGNORECASE)
+_REFUSAL_TOPIC_RE = re.compile(r"copyright|transcri|reproduc|verbatim|word[- ]for[- ]word", re.IGNORECASE)
+
+
+def is_refusal(response=None, text: str | None = None) -> bool:
+    """True when a reply declines the task instead of doing it: stop_reason
+    'refusal', or text that opens with a decline ("I can't transcribe these
+    pages …") and is about copying the source. Some models answer a request
+    to transcribe a published book this way with stop_reason 'end_turn'
+    (Sonnet 5.5, MODEL-4) — stored as page text, it would enter the corpus."""
+    if response is not None and getattr(response, "stop_reason", None) == "refusal":
+        return True
+    if text is None:
+        return False
+    head = text.lstrip()[:600]
+    return bool(_REFUSAL_OPENER_RE.search(head) and _REFUSAL_TOPIC_RE.search(head))
+
+
 def usage_tokens(usage) -> dict[str, int]:
     """input / output / cache_read / cache_creation token counts from a usage object.
 

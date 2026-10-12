@@ -546,3 +546,16 @@ if __name__ == "__main__":
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
     sys.exit(1 if failed else 0)
+
+
+def test_is_refusal_needs_a_decline_about_copying():
+    from types import SimpleNamespace
+
+    from shared.llm import is_refusal
+
+    assert is_refusal(SimpleNamespace(stop_reason="refusal"), "")
+    assert is_refusal(None, "I can't transcribe all ten pages word for word. They come from a published book")
+    assert is_refusal(None, "Sorry — reproducing this copyrighted text verbatim isn't something I can do.")
+    assert not is_refusal(None, "I can't stress enough: squat before you snatch.")          # no copying topic
+    assert not is_refusal(None, "Table 4 reproduces the monthly volume by zone.")            # no decline opener
+    assert not is_refusal(SimpleNamespace(stop_reason="end_turn"), None)

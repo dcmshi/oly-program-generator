@@ -32,7 +32,9 @@ from shared.constants import (
 )
 from shared.llm import (
     BatchRequestFailed,
+    LLMRefusal,
     create_message_growing,
+    is_refusal,
     message_text,
     request_extras,
     run_message_batch,
@@ -88,6 +90,7 @@ class PDFExtractor:
         self._postcorrect_model = postcorrect_model
         self.heartbeat = None            # optional callable(pages_done, pages_total) — set by the pipeline per run
         self.last_ocr_report: dict | None = None   # OCR-QA report of the last _extract_with_vision
+        self.refused_pages: set[int] = set()        # 1-based pages a model declined to transcribe
 
     def extract(self, path: Path, max_pages: int = 0) -> list[str]:
         """Extract text from a PDF, returning a list of page texts.
@@ -225,6 +228,7 @@ class PDFExtractor:
 
         # ING-M5: pages already transcribed for this exact file + model come
         # from the cache; only page groups with a missing page go to the model.
+        self.refused_pages = set()
         cache = None
         if self._ocr_cache:
             from extractors.ocr_cache import OcrCache
@@ -275,7 +279,7 @@ class PDFExtractor:
                         progress.tick(done_pages, f"({sum(len(t) for t in batch_texts):,} chars in pages {start + 1}–{end})")
                         if cache is not None:            # save per group: a killed run keeps its pages
                             for i, text in zip(range(start, end), batch_texts, strict=True):
-                                cache.put(i, text)
+                                self._cache_put(cache, i, text)
                             cache.save()
                         if self.heartbeat is not None:   # liveness in ingestion_runs without watching spend
                             try:
@@ -287,7 +291,7 @@ class PDFExtractor:
         for i, text in fresh:
             pages[i] = text
             if cache is not None:
-                cache.put(i, text)
+                self._cache_put(cache, i, text)
 
         # OCR quality gate (OCR-QA). No reference exists for a scan, so every
         # page is scored on signals that need none (processors/ocr_quality.py:
@@ -328,6 +332,7 @@ class PDFExtractor:
                         cache.put(q.index, text)
             report = summarize(qualities)
             report["verdicts"] = verdicts
+            report["pages_refused"] = sorted(self.refused_pages)
             report["pages_unresolved"] = sorted(
                 p for p, v in verdicts.items() if v.startswith("disagree") or not pages.get(p - 1, "").strip()
             )
@@ -346,6 +351,11 @@ class PDFExtractor:
 
         doc.close()
         return [pages[i] for i in range(n_pages) if pages.get(i, "").strip()]
+
+    def _cache_put(self, cache, index: int, text: str) -> None:
+        """Cache a page — except a declined one still blank, so the next run asks again."""
+        if text.strip() or index + 1 not in self.refused_pages:
+            cache.put(index, text)
 
     def _ocr_groups_batched(self, doc, groups: list[tuple[int, int]]) -> list[str]:
         """OCR every page group through one Message Batch (COST-1).
@@ -398,7 +408,19 @@ class PDFExtractor:
                 f"_VISION_BATCH_SIZE (currently {_VISION_BATCH_SIZE})."
             )
 
-        raw = message_text(response)
+        # A declined group (stop_reason 'refusal', or a decline written as the
+        # answer — "I can't transcribe these pages …" with no page headers)
+        # becomes blank pages, never page text: the OCR-QA gate then re-OCRs
+        # each page alone and reports the ones still unresolved (MODEL-4).
+        try:
+            raw = message_text(response)
+        except LLMRefusal:
+            raw = None
+        if raw is None or ("=== Page" not in raw and is_refusal(response, raw)):
+            logger.warning(f"Vision OCR: the model declined pages {start + 1}–{end} "
+                           f"({(raw or 'stop_reason=refusal').strip()[:120]!r}) — treated as blank")
+            self.refused_pages.update(range(start + 1, end + 1))
+            return [""] * (end - start)
         return self._split_page_responses(raw, list(range(start, end)))
 
     @staticmethod
