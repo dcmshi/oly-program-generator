@@ -154,7 +154,8 @@ def run(
                 snap)
         else:
             program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks, block=mc_block,
-                                phase=forced_phase)
+                                phase=forced_phase,
+                                intensity_cap=coach_constraints.intensity_cap if coach_constraints else None)
         logger.info("Step 2 complete", extra={"step": "plan", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         if dry_run:
@@ -473,6 +474,11 @@ def _add_max_test_session(conn, program_id: int, athlete_context: AthleteContext
     wants_max_test = {"always": True, "never": False}.get(
         max_test_pref, bool(PHASE_PROFILES.get(program_plan.phase, {}).get("includes_max_test")))
     if not wants_max_test or peak_week is None:
+        return
+    cap = (_coach_record(athlete_context) or {}).get("intensity_cap")
+    if cap is not None and cap < 100:
+        # a max single is 100% — the coach capped the block below that
+        logger.info(f"  Max test skipped — coach intensity cap {cap}%")
         return
     max_test_day = compute_max_test_day(program_plan.session_templates, program_plan.sessions_per_week)
     logger.info(f"  Building max test session W{peak_week}D{max_test_day}")
