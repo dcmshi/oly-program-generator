@@ -8,6 +8,7 @@ Usage:
 """
 
 import argparse
+import dataclasses
 import json
 import logging
 import sys
@@ -16,6 +17,7 @@ import time
 from concurrent.futures import ThreadPoolExecutor
 from dataclasses import asdict, dataclass, field
 from datetime import date
+from decimal import Decimal
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
@@ -26,7 +28,7 @@ from explain import explain
 from generate import build_session_prompt, generate_session_with_retries
 from macrocycle import create_macrocycle, load_macrocycle, next_block_index, plan_blocks
 from macrocycle import macrocycle_weeks as macrocycle_weeks_for
-from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate
+from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
 from phase_profiles import PHASE_PROFILES
 from plan import plan
 from principle_matcher import build_session_state, select_principles
@@ -65,6 +67,7 @@ def run(
     macrocycle_weeks: int | None = None,
     macrocycle_id: int | None = None,
     coach: dict | None = None,
+    resume_program_id: int | None = None,
 ) -> int | None:
     """Generate a complete training program for the given athlete.
 
@@ -92,6 +95,14 @@ def run(
             override the profile for this program only, applied right after
             ASSESS; a forced `phase` is ignored when a macrocycle block sets it.
             Stored as generation_params.coach.
+        resume_program_id: Continue an aborted / failed draft of this athlete
+            (RESUME-1) instead of creating a program: the plan, coach brief,
+            session cap and effective maxes come from the draft's
+            generation_params.resume, sessions already saved are kept (and
+            replayed into each week's running state), failed (empty) ones are
+            regenerated, spend so far counts against the cost limit, and EXPLAIN
+            runs over the whole program. The other generation arguments are
+            ignored.
 
     Returns:
         program_id of the created program, or None on failure / dry-run.
@@ -105,6 +116,12 @@ def run(
     exercise_lookup = {r["name"].lower(): r["id"] for r in exercise_rows}
 
     try:
+        resume = None
+        if resume_program_id is not None:
+            resume = _load_resume(conn, resume_program_id, athlete_id)
+            coach, max_sessions = resume["coach"], resume["max_sessions"]
+            new_macrocycle, macrocycle_id = False, None
+
         # ── Step 1: ASSESS ────────────────────────────────────
         logger.info(f"=== Step 1: ASSESS (athlete {athlete_id}) ===")
         _t0 = time.perf_counter()
@@ -128,8 +145,16 @@ def run(
         if forced_phase and mc_block is not None:
             logger.warning(f"Coach phase {forced_phase} ignored — the macrocycle block sets the phase")
             forced_phase = None
-        program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks, block=mc_block,
-                            phase=forced_phase)
+        if resume is not None:
+            # the draft's own plan, exactly: principles / chunks are reloaded,
+            # the weekly targets and session layout come from the snapshot
+            snap = resume["plan"]
+            program_plan = _apply_plan_snapshot(
+                plan(athlete_context, conn, settings, block={"phase": snap["phase"], "weeks": snap["duration_weeks"]}),
+                snap)
+        else:
+            program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks, block=mc_block,
+                                phase=forced_phase)
         logger.info("Step 2 complete", extra={"step": "plan", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         if dry_run:
@@ -140,16 +165,26 @@ def run(
         # In realization, use target maxes (from athlete_goals) for weight
         # calculations instead of current maxes, so percentages reflect
         # competition-day intensity. Other phases always use current maxes.
-        effective_maxes = apply_projected_maxes(
+        effective_maxes = (resume["effective_maxes"] if resume is not None else apply_projected_maxes(
             athlete_context.maxes,
             athlete_context.active_goal,
             program_plan.phase,
-        )
+        ))
 
-        # ── Create program record ─────────────────────────────
+        # ── Create program record (or reopen the draft) ───────
         llm_client = create_llm_client(settings)
-        program_id = _create_program_record(conn, athlete_id, athlete_context, program_plan, settings, max_sessions,
-                                            macrocycle=(mc_id, mc_index) if mc_id is not None else None)
+        saved_sessions: dict[tuple[int, int], dict] = {}
+        saved_max_test = None
+        prior_spend = 0.0
+        if resume is not None:
+            program_id = resume_program_id
+            saved_sessions, saved_max_test, prior_spend = _reopen_draft(conn, program_id)
+        else:
+            program_id = _create_program_record(
+                conn, athlete_id, athlete_context, program_plan, settings, max_sessions,
+                macrocycle=(mc_id, mc_index) if mc_id is not None else None,
+                resume_record={"coach": coach, "max_sessions": max_sessions,
+                               "plan": _plan_snapshot(program_plan), "effective_maxes": effective_maxes})
 
         # ── Step 3: RETRIEVE ──────────────────────────────────
         logger.info("=== Step 3: RETRIEVE ===")
@@ -170,8 +205,10 @@ def run(
             program_plan=program_plan, retrieval_context=retrieval_context,
             effective_maxes=effective_maxes, exercise_lookup=exercise_lookup,
             llm_client=llm_client, vector_loader=vector_loader, deadline=deadline,
-            cost_limit=cost_limit, spend=_SpendGuard(cost_limit),
+            cost_limit=cost_limit, spend=_SpendGuard(cost_limit), saved_sessions=saved_sessions,
         )
+        if resume is not None:
+            g.spend.preload(prior_spend, len(saved_sessions))
 
         days_per_week = len(program_plan.session_templates)
         total_planned = len(program_plan.weekly_targets) * days_per_week
@@ -193,6 +230,8 @@ def run(
             next_week = program_plan.weekly_targets[max_sessions // days_per_week].week_number
             next_day = program_plan.session_templates[max_sessions % days_per_week].day_number
             logger.info(f"  Session cap reached ({max_sessions}); stopping before W{next_week}D{next_day}")
+        elif saved_max_test is not None:
+            all_sessions_data.append(saved_max_test)        # resumed: built before the abort
         else:
             _add_max_test_session(conn, program_id, athlete_context, program_plan, exercise_lookup, all_sessions_data)
 
@@ -239,6 +278,10 @@ def run(
         logger.error(f"Generation stopped: {e}")
         conn.rollback()
         return None
+    except ResumeError as e:
+        logger.error(f"Cannot resume: {e}")
+        conn.rollback()
+        return None
     except Exception as e:
         import traceback
         logger.error(f"Generation failed: {e}\n{traceback.format_exc()}")
@@ -255,8 +298,11 @@ def run(
 
 def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContext, program_plan: ProgramPlan,
                            settings: Settings, max_sessions: int | None,
-                           macrocycle: tuple[int, int] | None = None) -> int:
-    """INSERT the draft generated_programs row and commit; returns its id."""
+                           macrocycle: tuple[int, int] | None = None,
+                           resume_record: dict | None = None) -> int:
+    """INSERT the draft generated_programs row and commit; returns its id.
+    `resume_record` (RESUME-1) is stored as generation_params.resume — what
+    `run(resume_program_id=…)` needs to continue the draft exactly."""
     # recorded-only, not the estimation-merged dict: else a later real max
     # replacing an estimate reads as "strength progress" (audit5-L3)
     maxes_snapshot = athlete_context.recorded_maxes or athlete_context.maxes
@@ -291,7 +337,8 @@ def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContex
                 "effort": settings.generation_effort or None,
                 **({"coach": _coach_record(athlete_context)} if _coach_record(athlete_context) else {}),
                 **({"max_sessions": max_sessions} if max_sessions is not None else {}),
-            }),
+                **({"resume": resume_record} if resume_record is not None else {}),
+            }, default=str),
             macrocycle[0] if macrocycle else None,
             macrocycle[1] if macrocycle else None,
         ),
@@ -299,6 +346,92 @@ def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContex
     conn.commit()
     logger.info(f"Created program record: id={program_id}", extra={"program_id": program_id})
     return program_id
+
+
+# ── Resume (RESUME-1) ──────────────────────────────────────────
+
+MAX_TEST_LABEL = "Max Testing — Snatch & Clean & Jerk"
+_PLAN_SNAPSHOT_FIELDS = ("phase", "duration_weeks", "sessions_per_week", "deload_week",
+                         "intensity_ceiling_override", "max_complexity")
+
+
+class ResumeError(ValueError):
+    """The program can't be resumed (not this athlete's, not a draft, or made
+    before generation_params.resume existed)."""
+
+
+def _plan_snapshot(program_plan: ProgramPlan) -> dict:
+    """The plan's shape — everything generation reads except the principle and
+    chunk lists, which a resume reloads."""
+    return {
+        **{f: getattr(program_plan, f) for f in _PLAN_SNAPSHOT_FIELDS},
+        "weekly_targets": [asdict(w) for w in program_plan.weekly_targets],
+        "session_templates": [asdict(t) for t in program_plan.session_templates],
+    }
+
+
+def _apply_plan_snapshot(program_plan: ProgramPlan, snap: dict) -> ProgramPlan:
+    return dataclasses.replace(
+        program_plan,
+        **{f: snap[f] for f in _PLAN_SNAPSHOT_FIELDS if f in snap},
+        weekly_targets=[WeekTarget(**w) for w in snap["weekly_targets"]],
+        session_templates=[SessionTemplate(**t) for t in snap["session_templates"]],
+    )
+
+
+def _load_resume(conn, program_id: int, athlete_id: int) -> dict:
+    rows = fetch_all(conn, "SELECT athlete_id, status, generation_params FROM generated_programs WHERE id = %s",
+                     (program_id,))
+    if not rows or rows[0]["athlete_id"] != athlete_id:
+        raise ResumeError(f"Program {program_id} not found for athlete {athlete_id}")
+    if rows[0]["status"] != "draft":
+        raise ResumeError(f"Program {program_id} is {rows[0]['status']}, not a draft — only a draft can be resumed")
+    params = rows[0]["generation_params"] or {}
+    if isinstance(params, str):
+        params = json.loads(params)
+    resume = params.get("resume")
+    if not resume:
+        raise ResumeError(f"Program {program_id} was generated before resume support — generate a new program")
+    return resume
+
+
+def _reopen_draft(conn, program_id: int) -> tuple[dict, dict | None, float]:
+    """(saved sessions by (week, day), the max-test session or None, spend so
+    far). Sessions stored empty (generation failed) are deleted so they are
+    generated again."""
+    sessions = fetch_all(conn, "SELECT id, week_number, day_number, session_label FROM program_sessions "
+                               "WHERE program_id = %s ORDER BY week_number, day_number, id", (program_id,))
+    exercises = fetch_all(conn, """
+        SELECT se.* FROM session_exercises se JOIN program_sessions ps ON ps.id = se.session_id
+        WHERE ps.program_id = %s ORDER BY se.session_id, se.exercise_order""", (program_id,))
+    by_session: dict[int, list[dict]] = {}
+    for ex in exercises:
+        by_session.setdefault(ex["session_id"], []).append(
+            {k: (float(v) if isinstance(v, Decimal) else v)     # numeric columns arrive as Decimal
+             for k, v in ex.items() if k not in ("id", "session_id", "created_at")})
+    saved: dict[tuple[int, int], dict] = {}
+    max_test, empty = None, []
+    for s in sessions:
+        row = {"week": s["week_number"], "day": s["day_number"], "label": s["session_label"],
+               "session_id": s["id"], "exercises": by_session.get(s["id"], [])}
+        if s["session_label"] == MAX_TEST_LABEL:
+            max_test = row
+        elif not row["exercises"]:
+            empty.append(s["id"])
+        else:
+            saved[(s["week_number"], s["day_number"])] = row
+    if empty:
+        execute(conn, "DELETE FROM program_sessions WHERE id = ANY(%s) AND NOT EXISTS "
+                      "(SELECT 1 FROM training_logs tl WHERE tl.session_id = program_sessions.id)", (empty,))
+    spent = fetch_all(conn, "SELECT COALESCE(SUM(estimated_cost_usd), 0) AS spent FROM generation_log "
+                            "WHERE program_id = %s", (program_id,))[0]["spent"]
+    execute(conn, "UPDATE generated_programs SET generation_params = generation_params || "
+                  "jsonb_build_object('resumed_at', COALESCE(generation_params->'resumed_at', '[]'::jsonb) "
+                  "|| to_jsonb(NOW()::text)), updated_at = NOW() WHERE id = %s", (program_id,))
+    conn.commit()
+    logger.info(f"Resuming program {program_id}: {len(saved)} session(s) kept, {len(empty)} failed one(s) "
+                f"to regenerate, ${float(spent):.4f} spent so far")
+    return saved, max_test, float(spent)
 
 
 def _abort_reason(outcomes: list, n_sessions: int, total_planned: int,
@@ -346,7 +479,7 @@ def _add_max_test_session(conn, program_id: int, athlete_context: AthleteContext
     max_test_exercises = _build_max_test_session(athlete_context, exercise_lookup)
     max_test_template = SessionTemplate(
         day_number=max_test_day,
-        label="Max Testing — Snatch & Clean & Jerk",
+        label=MAX_TEST_LABEL,
         primary_movement="snatch",
         secondary_movements=["clean"],
         session_volume_share=0.0,
@@ -479,6 +612,12 @@ class _SpendGuard:
         with self._lock:
             self._in_flight -= 1
 
+    def preload(self, spent: float, sessions: int) -> None:
+        """A resumed draft's earlier spend counts against the limit (RESUME-1)."""
+        with self._lock:
+            self.spent += spent
+            self._completed += sessions
+
     def stop(self) -> None:
         self._stop.set()
 
@@ -559,6 +698,9 @@ class _GenerationRun:
     cost_limit: float
     spend: "_SpendGuard"
     session_context_cache: dict[str, list[dict]] = field(default_factory=dict)  # query → chunks (RAG-H4)
+    # RESUME-1: {(week, day): {"session_id", "label", "exercises"}} already saved
+    # in the draft being resumed — replayed, never regenerated
+    saved_sessions: dict[tuple[int, int], dict] = field(default_factory=dict)
     available_exercise_names: list[str] = field(init=False)
     fault_exercise_names: list[str] | None = field(init=False)
 
@@ -635,6 +777,7 @@ def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], block_te
         wt.week_number: {
             t.day_number: _session_chunks(g, wt, t)
             for t in g.program_plan.session_templates[:limit]
+            if (wt.week_number, t.day_number) not in g.saved_sessions
         }
         for wt, limit in rest
     }
@@ -647,17 +790,26 @@ def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], block_te
                    for wt, limit in rest]
         try:
             for fut in futures:  # week order: rows are inserted by (week, day)
+                failed = False
                 try:
                     out = fut.result()
-                except Exception as e:
+                except BaseException as e:
+                    if not fut.done():
+                        raise               # interrupted while waiting (Ctrl-C), not a worker error
                     error = error or e
-                    continue
-                if error is None:
-                    for session, template in zip(out.sessions, out.templates, strict=True):
+                    # RESUME-1: keep what the failed week did finish, so a resume
+                    # doesn't pay for it again (FlexUnavailable is a BaseException)
+                    out, failed = getattr(e, "partial_week", None), True
+                    if out is None:
+                        continue
+                # completed weeks are saved even after another week failed (RESUME-1)
+                for session, template in zip(out.sessions, out.templates, strict=True):
+                    if session.get("session_id") is None:          # replayed sessions are saved already
                         session["session_id"] = _save_session(
                             conn, g.program_id, session["week"], session["day"],
                             template, session["exercises"],
                         )
+                if not failed:
                     outcomes.append(out)
         except BaseException:
             g.spend.stop()  # a failed save: stop the workers before the pool joins them
@@ -700,17 +852,57 @@ def _generate_week(g: _GenerationRun, week_target, conn, day_limit: int, block_t
     """
     week = _WeekState()
     outcome = _WeekOutcome(week_target.week_number)
-    for session_template in g.program_plan.session_templates[:day_limit]:
-        if g.spend.stopped():
-            break  # another week hit the deadline / cost limit / an error
-        logger.info(
-            f"  Generating W{week_target.week_number}D{session_template.day_number}: {session_template.label}"
-        )
-        prefetched_chunks = prefetched[session_template.day_number] if prefetched is not None else None
-        if not _generate_session(g, conn, week_target, session_template, week, outcome,
-                                 block_templates.get(session_template.day_number), prefetched_chunks, save):
-            break
+    try:
+        for session_template in g.program_plan.session_templates[:day_limit]:
+            saved = g.saved_sessions.get((week_target.week_number, session_template.day_number))
+            if saved is not None:
+                _replay_saved_session(g, week_target, session_template, week, outcome, saved)
+                continue
+            if g.spend.stopped():
+                break  # another week hit the deadline / cost limit / an error
+            logger.info(
+                f"  Generating W{week_target.week_number}D{session_template.day_number}: {session_template.label}"
+            )
+            prefetched_chunks = prefetched[session_template.day_number] if prefetched is not None else None
+            if not _generate_session(g, conn, week_target, session_template, week, outcome,
+                                     block_templates.get(session_template.day_number), prefetched_chunks, save):
+                break
+    except BaseException as e:
+        try:
+            e.partial_week = outcome    # RESUME-1: the main thread saves what finished
+        except AttributeError:
+            pass
+        raise
     return outcome
+
+
+def _replay_saved_session(g: _GenerationRun, week_target, session_template, week: _WeekState,
+                          outcome: "_WeekOutcome", saved: dict) -> None:
+    """A session the resumed draft already holds (RESUME-1): no LLM call — its
+    exercises feed the week's Prilepin running total and already-prescribed
+    list exactly as if it had just been generated, and it joins the outcome
+    (with its session_id, so nothing saves it again)."""
+    logger.info(f"  W{week_target.week_number}D{session_template.day_number}: kept from the draft")
+    validation = validate_session(
+        session_exercises=saved["exercises"],
+        week_target=asdict(week_target),
+        active_principles=[],
+        athlete=g.athlete_context.athlete,
+        week_cumulative_reps=week.cumulative_reps,
+        week_already_prescribed=week.already_prescribed,
+    )
+    for zone, reps in validation.session_comp_reps.items():
+        week.cumulative_reps[zone] = week.cumulative_reps.get(zone, 0) + reps
+    for ex in saved["exercises"]:
+        week.already_prescribed.append({**ex, "day_number": session_template.day_number})
+    outcome.sessions.append({
+        "week": week_target.week_number,
+        "day": session_template.day_number,
+        "label": saved.get("label") or session_template.label,
+        "session_id": saved["session_id"],
+        "exercises": saved["exercises"],
+    })
+    outcome.templates.append(session_template)
 
 
 def _session_chunks(g: _GenerationRun, week_target, session_template) -> list[dict]:
@@ -1211,6 +1403,8 @@ if __name__ == "__main__":
     parser.add_argument("--macrocycle", type=int, nargs="?", const=0, default=None, metavar="WEEKS",
                         help="Plan a macrocycle to the goal's competition date (else WEEKS, default "
                              "MACROCYCLE_WEEKS_DEFAULT) and generate its first block (PLAN-3e)")
+    parser.add_argument("--resume", type=int, default=None, metavar="PROGRAM_ID",
+                        help="continue an aborted / failed draft of this athlete (RESUME-1)")
     parser.add_argument("--macrocycle-id", type=int, default=None,
                         help="Generate the next block of this macrocycle (PLAN-3e)")
     args = parser.parse_args()
@@ -1219,7 +1413,7 @@ if __name__ == "__main__":
     program_id = run(args.athlete_id, settings, dry_run=args.dry_run, duration_weeks=args.weeks,
                      new_macrocycle=args.macrocycle is not None,
                      macrocycle_weeks=args.macrocycle or None,
-                     macrocycle_id=args.macrocycle_id)
+                     macrocycle_id=args.macrocycle_id, resume_program_id=args.resume)
 
     if program_id:
         print(f"\nProgram generated: id={program_id}")

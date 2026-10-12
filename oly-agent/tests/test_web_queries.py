@@ -345,7 +345,19 @@ def test_worker_passes_deadline_to_orchestrator():
     assert captured.get("deadline") is not None, \
         "worker must pass a monotonic deadline (WEB-M8 — thread outlives job_timeout)"
     assert captured["macro"] == {"new_macrocycle": False, "macrocycle_weeks": None, "macrocycle_id": None,
-                                 "coach": None}
+                                 "coach": None, "resume_program_id": None}
+
+
+def test_worker_passes_the_program_to_resume():
+    """RESUME-1: the program page's "Resume generation" reaches orchestrator.run."""
+    import asyncio
+    from unittest.mock import patch
+
+    from web import worker
+    seen = []
+    with patch("orchestrator.run", side_effect=lambda *a, **kw: seen.append(kw) or 7):
+        asyncio.run(worker.run_generation({}, 1, resume_program_id=7))
+    assert seen[0]["resume_program_id"] == 7
 
 
 def test_worker_passes_coach_constraints_to_orchestrator():

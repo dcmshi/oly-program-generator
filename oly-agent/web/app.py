@@ -26,6 +26,7 @@ from web.async_db import close_async_pool, init_async_pool
 from web.deps import get_settings, limiter
 from web.jobs import close_arq_pool, init_arq_pool
 from web.logging_config import configure_logging, request_id_var
+from web.queries.program import is_resumable
 from web.routers import admin as admin_router
 from web.routers import auth as auth_router
 from web.routers import dashboard, generate, log_session, program
@@ -305,6 +306,7 @@ def _option_label(value) -> str:
     return _OPTION_LABELS.get(value, str(value).replace("_", " "))
 
 
+templates.env.filters["resumable"] = is_resumable   # RESUME-1: the "Resume generation" button
 templates.env.filters["option_label"] = _option_label   # the coach brief on the program page (COACH-1)
 templates.env.globals["equipment_options"] = EQUIPMENT_OPTIONS
 templates.env.globals["fault_options"]     = FAULT_OPTIONS

@@ -4,6 +4,16 @@
      re-run. oob=True when it rides along with another swap. -->
 <div id="program-actions"{% if oob %} hx-swap-oob="true"{% endif %}
      class="flex items-center gap-2 flex-wrap print:hidden">
+  {% if program|resumable %}
+  {# RESUME-1: the generation stopped early — continue it instead of starting over #}
+  <button hx-post="/program/{{ program.id }}/resume"
+          hx-target="#resume-status"
+          hx-swap="innerHTML"
+          hx-confirm="Resume generation? Sessions already generated are kept; only the missing ones are paid for."
+          class="bg-navy-700 text-white text-sm px-4 py-2 rounded-lg hover:bg-navy-800">
+    Resume generation
+  </button>
+  {% endif %}
   {% if program.status == 'draft' %}
   <button hx-post="/program/{{ program.id }}/activate"
           hx-target="#program-actions"
@@ -58,4 +68,5 @@
     </svg>
     Share page
   </a>
+  <div id="resume-status" class="w-full"></div>
 </div>

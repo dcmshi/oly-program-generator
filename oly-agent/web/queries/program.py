@@ -40,6 +40,26 @@ def _representative_reps_per_set(spec) -> float | None:
         return None
 
 
+# What a stopped generation leaves in the rationale (orchestrator._abort_reason,
+# _explain_program, explain's failure note, _prefix_rationale_warnings).
+_STOPPED_RATIONALE_MARKERS = ("# Generation Aborted", "# Rationale Skipped", "[Rationale generation failed",
+                              "# Generation Warning")
+
+
+def is_resumable(program) -> bool:
+    """A draft whose generation stopped early and can be continued (RESUME-1):
+    it carries generation_params.resume (made after resume support) and either
+    has no rationale yet (the run raised, or is still running) or one that
+    says it stopped / left sessions empty."""
+    if not program or program.get("status") != "draft":
+        return False
+    params = program.get("generation_params") or {}
+    if not isinstance(params, dict) or not params.get("resume"):
+        return False
+    rationale = (program.get("rationale") or "").lstrip()
+    return not rationale or rationale.startswith(_STOPPED_RATIONALE_MARKERS)
+
+
 async def get_program(conn, program_id: int) -> dict | None:
     from web.async_db import async_fetch_one
     return await async_fetch_one(

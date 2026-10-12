@@ -184,6 +184,36 @@ async def _advance_macrocycle(program, outcome, athlete_id: int, request: Reques
     return result
 
 
+@router.post("/{program_id}/resume", response_class=HTMLResponse)
+@limiter.limit("5/minute")
+async def resume_generation(
+    program_id: int,
+    request: Request,
+    conn=Depends(get_db),
+    athlete_id: int = Depends(get_current_athlete_id),
+):
+    """RESUME-1: continue a draft whose generation stopped early — sessions
+    already saved are kept, the rest are generated, the rationale is rewritten."""
+    from web import jobs
+    from web.app import templates
+    program = await q.get_program(conn, program_id)
+    if not program or program["athlete_id"] != athlete_id:
+        raise HTTPException(status_code=404, detail="Program not found")
+    if not q.is_resumable(program):
+        raise HTTPException(status_code=409, detail="This program has nothing to resume")
+    try:
+        job_id = await jobs.submit_generation(athlete_id, request_id=getattr(request.state, "request_id", "-"),
+                                              resume_program_id=program_id)
+    except jobs.GenerationInFlightError:
+        return HTMLResponse(
+            '<div class="text-amber-700 text-sm">A program generation is already running for your account — '
+            "wait for it to finish, then resume.</div>", status_code=409)
+    logger.info(f"Resume submitted: job_id={job_id}, program={program_id}, athlete={athlete_id}")
+    return templates.TemplateResponse(request, "partials/generate_result.html", {
+        "request": request, "job_id": job_id, "job": {"status": "running"},
+    })
+
+
 @router.delete("/{program_id}", response_class=HTMLResponse)
 @limiter.limit("10/minute")
 async def delete_program(
