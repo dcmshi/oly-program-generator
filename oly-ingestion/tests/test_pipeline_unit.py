@@ -264,6 +264,36 @@ def test_continuation_deduplicates_seen_weeks():
     assert 3 in week_numbers
 
 
+def test_week_split_across_windows_keeps_its_later_days():
+    """ING-EVAL-1: the first window ended inside week 2 (Day 1 only); the
+    continuation re-reads week 2 whole. Its missing days are merged into the
+    parsed week instead of the whole week being dropped as already seen, and
+    the continuation is asked from the week before the possibly partial one."""
+    ex = [{"name": "Snatch", "sets": 3, "reps": 2}]
+    whole = ex + [{"name": "Back Squat", "sets": 5, "reps": 3}]
+    first = {"weeks": [
+        {"week_number": 1, "sessions": [{"day": "Day 1", "exercises": ex}, {"day": "Day 2", "exercises": ex}]},
+        {"week_number": 2, "sessions": [{"day": "Day 1", "exercises": ex}]},           # cut off mid-day
+    ]}
+    continuation = {"weeks": [
+        {"week_number": 2, "sessions": [{"day": "Day 1", "exercises": whole}, {"day": "Day 2", "exercises": ex}]},
+        {"week_number": 3, "sessions": [{"day": "Day 1", "exercises": ex}]},
+    ]}
+    mock_client = MagicMock()
+    mock_client.messages.create.side_effect = [
+        _make_llm_response(first), _make_llm_response(continuation),
+        _make_llm_response({"weeks": []}), _make_llm_response({"weeks": []}),
+    ]
+    result = _call(_make_pipeline(mock_client), _make_section("x " * 3000))
+
+    weeks = {w["week_number"]: w for w in result["program_structure"]["weeks"]}
+    assert [s["day"] for s in weeks[2]["sessions"]] == ["Day 1", "Day 2"]
+    assert len(weeks[2]["sessions"][0]["exercises"]) == 2, "the cut-off day is replaced by the whole re-read"
+    assert 3 in weeks and list(weeks) == [1, 2, 3]
+    second_prompt = mock_client.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
+    assert "weeks 1–1." in second_prompt
+
+
 def test_duration_weeks_inferred_from_weeks_count():
     """When LLM returns duration_weeks=0, it is inferred from len(weeks)."""
     llm_data = {
@@ -359,6 +389,7 @@ if __name__ == "__main__":
         ("Short section: single LLM call", test_short_section_single_llm_call),
         ("Long section: continuation triggered", test_long_section_triggers_continuation),
         ("Continuation: deduplicates seen weeks", test_continuation_deduplicates_seen_weeks),
+        ("Week split across windows keeps its later days (ING-EVAL-1)", test_week_split_across_windows_keeps_its_later_days),
         ("duration_weeks=0: inferred from len(weeks)", test_duration_weeks_inferred_from_weeks_count),
         ("sessions_per_week=0: inferred from first week", test_sessions_per_week_inferred_from_first_week),
         ("LLM failure: returns safe empty structure", test_llm_failure_returns_empty_structure),

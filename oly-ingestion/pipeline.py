@@ -223,6 +223,145 @@ TEXT:
 Respond ONLY with valid JSON, no other text."""
 
 
+_TEMPLATE_WINDOW_CHARS = 5000
+_TEMPLATE_WINDOW_OVERLAP = 500
+_TEMPLATE_MAX_EMPTY_WINDOWS = 2   # tolerate prose-only windows between week blocks
+
+
+def _merge_split_week(weeks: list, repeats: list) -> int:
+    """Merge a continuation's re-read of the last parsed week into it: days the
+    week doesn't have are appended, a day it has with fewer exercises (cut off
+    at the window edge) is replaced. Returns how many sessions changed."""
+    if not repeats or not weeks or not isinstance(weeks[-1], dict):
+        return 0
+    target = weeks[-1]
+    if target.get("week_number") != repeats[0].get("week_number"):
+        target = next((w for w in weeks if isinstance(w, dict)
+                       and w.get("week_number") == repeats[0].get("week_number")), None)
+        if target is None:
+            return 0
+    sessions = target.setdefault("sessions", [])
+    have = {str(s.get("day", "")).strip().lower(): i for i, s in enumerate(sessions) if isinstance(s, dict)}
+    added = 0
+    for w in repeats:
+        for s in w.get("sessions") or []:
+            day = str(s.get("day", "")).strip().lower() if isinstance(s, dict) else ""
+            if not day or not s.get("exercises"):
+                continue
+            if day not in have:
+                have[day] = len(sessions)
+                sessions.append(s)
+                added += 1
+            elif len(s["exercises"]) > len(sessions[have[day]].get("exercises") or []):
+                # the earlier window was cut off inside this day — the re-read is whole
+                sessions[have[day]] = s
+                added += 1
+    return added
+
+
+def parse_program_template_text(client, model: str, max_tokens: int, content: str, label: str,
+                                on_message=None, errors: list | None = None) -> dict:
+    """Parse one program-template section into `{duration_weeks, …, weeks: [...]}`.
+
+    Sections over `_TEMPLATE_WINDOW_CHARS` are read in overlapping windows: the
+    first with `_PROGRAM_PARSE_PROMPT` (metadata + first weeks), the rest with
+    `_PROGRAM_CONTINUATION_PROMPT` (weeks after the last one seen). The ingest
+    path and `template_model_compare.py` (ING-EVAL-1) both call this, so the
+    eval measures exactly what an ingest sends. `on_message(message)` sees every
+    reply (for usage / cost); `errors` collects the failures the ingest only logs.
+    """
+    def _llm_call(prompt: str, schema: dict) -> dict:
+        # Structured JSON out: no thinking (Sonnet 5 would otherwise run
+        # adaptive by default), the reply constrained to `schema`
+        # (STRUCT-1), and a budget that grows on truncation — a 5k-char
+        # program window overran 4,096 output tokens on the 2026-09-16
+        # re-ingest ("Expecting ',' delimiter … char 13792").
+        message = create_message_growing(
+            client,
+            model=model,
+            max_tokens=max_tokens,
+            messages=[{"role": "user", "content": prompt}],
+            label=f"Program template parse '{label}'",
+            **json_schema_kwargs(schema, thinking_kwargs(model, "disabled")),
+        )
+        if on_message:
+            on_message(message)
+        return parse_llm_json(message_text(message))
+
+    def _failed(what: str, e: Exception) -> None:
+        logger.warning(f"Program template {what} failed for '{label}': {e}")
+        if errors is not None:
+            errors.append(f"{what}: {e}")
+
+    # --- First chunk: full parse for metadata + initial weeks ---
+    parsed = {}
+    try:
+        parsed = _llm_call(_PROGRAM_PARSE_PROMPT.format(text=content[:_TEMPLATE_WINDOW_CHARS]),
+                           PROGRAM_TEMPLATE_SCHEMA)
+    except Exception as e:
+        _failed("parsing", e)
+    if not isinstance(parsed, dict):
+        parsed = {}
+
+    # An explicit '"weeks": null' (or non-list junk) must not TypeError the
+    # template away at len()/comprehension time downstream (audit4; same
+    # input class as the null dims/week_number fixes).
+    if not isinstance(parsed.get("weeks"), list):
+        parsed.pop("weeks", None)
+
+    # --- Continuation chunks for oversized sections ---
+    # Run even when the first window parsed to {} — a section can open with
+    # 5k of prose before the week blocks; gating on parsed["weeks"] dropped
+    # every later week in that case (ING-L4). _TEMPLATE_MAX_EMPTY_WINDOWS bounds the scan.
+    if len(content) > _TEMPLATE_WINDOW_CHARS:
+        parsed.setdefault("weeks", [])
+        # is-not-None: a null week_number here hit max({1, None}) below —
+        # TypeError outside the try, whole template lost (audit3-L2)
+        seen_weeks = {
+            w["week_number"] for w in parsed["weeks"]
+            if isinstance(w, dict) and w.get("week_number") is not None
+        }
+        step = _TEMPLATE_WINDOW_CHARS - _TEMPLATE_WINDOW_OVERLAP
+        offset = step
+        empty_streak = 0
+        while offset < len(content):
+            last_week = max(seen_weeks, default=0)
+            chunk = content[offset : offset + _TEMPLATE_WINDOW_CHARS]
+            try:
+                # The window before this one may have ended inside `last_week`,
+                # so ask from the week before it and merge that week's missing
+                # days: dropping every seen week lost the tail of any week split
+                # across a window boundary (ING-EVAL-1: Everett's 12-week sample
+                # parsed 34 of 36 sessions under every model).
+                continuation = _llm_call(
+                    _PROGRAM_CONTINUATION_PROMPT.format(last_week=max(last_week - 1, 0), text=chunk),
+                    PROGRAM_CONTINUATION_SCHEMA,
+                )
+                # require week_number: the seen_weeks.update below does a
+                # bare w["week_number"] — a malformed week without the key
+                # would KeyError the whole template away (audit2-L2)
+                weeks = [w for w in continuation.get("weeks", [])
+                         if isinstance(w, dict) and w.get("week_number") is not None]
+                new_weeks = [w for w in weeks if w["week_number"] not in seen_weeks]
+                merged = _merge_split_week(parsed["weeks"], [w for w in weeks if w["week_number"] == last_week])
+            except Exception as e:
+                _failed("continuation", e)
+                break
+            if new_weeks or merged:
+                empty_streak = 0
+                parsed["weeks"].extend(new_weeks)
+                seen_weeks.update(w["week_number"] for w in new_weeks)
+            else:
+                # A window of prose between week blocks yields nothing — keep
+                # scanning; only stop after several empty windows in a row.
+                # Breaking on the first dropped all later weeks (I-L1).
+                empty_streak += 1
+                if empty_streak >= _TEMPLATE_MAX_EMPTY_WINDOWS:
+                    break
+            offset += step
+    return parsed
+
+
 @dataclass
 class SourceDocument:
     path: Path
@@ -618,88 +757,11 @@ class IngestionPipeline:
         metadata + initial weeks; subsequent chunks are parsed with a continuation
         prompt that extracts only weeks after the last seen week_number.
         """
-        CHUNK_SIZE = 5000
-        OVERLAP = 500
-        content = section.content
-        client = self.principle_extractor._get_client()
-
-        def _llm_call(prompt: str, schema: dict) -> dict:
-            # Structured JSON out: no thinking (Sonnet 5 would otherwise run
-            # adaptive by default), the reply constrained to `schema`
-            # (STRUCT-1), and a budget that grows on truncation — a 5k-char
-            # program window overran 4,096 output tokens on the 2026-09-16
-            # re-ingest ("Expecting ',' delimiter … char 13792").
-            model = getattr(self.settings, "template_model", "") or self.settings.llm_model
-            message = create_message_growing(
-                client,
-                model=model,
-                max_tokens=self.settings.llm_max_tokens,
-                messages=[{"role": "user", "content": prompt}],
-                label=f"Program template parse '{source.title}'",
-                **json_schema_kwargs(schema, thinking_kwargs(model, "disabled")),
-            )
-            return parse_llm_json(message_text(message))
-
-        # --- First chunk: full parse for metadata + initial weeks ---
-        parsed = {}
-        try:
-            parsed = _llm_call(_PROGRAM_PARSE_PROMPT.format(text=content[:CHUNK_SIZE]), PROGRAM_TEMPLATE_SCHEMA)
-        except Exception as e:
-            logger.warning(f"Program template parsing failed for '{source.title}': {e}")
-
-        # An explicit '"weeks": null' (or non-list junk) must not TypeError the
-        # template away at len()/comprehension time downstream (audit4; same
-        # input class as the null dims/week_number fixes).
-        if not isinstance(parsed.get("weeks"), list):
-            parsed.pop("weeks", None)
-
-        # --- Continuation chunks for oversized sections ---
-        # Run even when the first window parsed to {} — a section can open with
-        # 5k of prose before the week blocks; gating on parsed["weeks"] dropped
-        # every later week in that case (ING-L4). MAX_EMPTY bounds the scan.
-        if len(content) > CHUNK_SIZE:
-            parsed.setdefault("weeks", [])
-            # is-not-None: a null week_number here hit max({1, None}) below —
-            # TypeError outside the try, whole template lost (audit3-L2)
-            seen_weeks = {
-                w["week_number"] for w in parsed["weeks"]
-                if isinstance(w, dict) and w.get("week_number") is not None
-            }
-            offset = CHUNK_SIZE - OVERLAP
-            MAX_EMPTY = 2  # tolerate prose-only windows between week blocks
-            empty_streak = 0
-            while offset < len(content):
-                last_week = max(seen_weeks, default=0)
-                chunk = content[offset : offset + CHUNK_SIZE]
-                try:
-                    continuation = _llm_call(
-                        _PROGRAM_CONTINUATION_PROMPT.format(last_week=last_week, text=chunk),
-                        PROGRAM_CONTINUATION_SCHEMA,
-                    )
-                    # require week_number: line 551's seen_weeks.update does a
-                    # bare w["week_number"] — a malformed week without the key
-                    # would KeyError the whole template away (audit2-L2)
-                    new_weeks = [
-                        w for w in continuation.get("weeks", [])
-                        if isinstance(w, dict)
-                        and w.get("week_number") is not None
-                        and w["week_number"] not in seen_weeks
-                    ]
-                except Exception as e:
-                    logger.warning(f"Program template continuation failed for '{source.title}': {e}")
-                    break
-                if new_weeks:
-                    empty_streak = 0
-                    parsed["weeks"].extend(new_weeks)
-                    seen_weeks.update(w["week_number"] for w in new_weeks)
-                else:
-                    # A window of prose between week blocks yields nothing — keep
-                    # scanning; only stop after several empty windows in a row.
-                    # Breaking on the first dropped all later weeks (I-L1).
-                    empty_streak += 1
-                    if empty_streak >= MAX_EMPTY:
-                        break
-                offset += CHUNK_SIZE - OVERLAP
+        model = getattr(self.settings, "template_model", "") or self.settings.llm_model
+        parsed = parse_program_template_text(
+            self.principle_extractor._get_client(), model, self.settings.llm_max_tokens,
+            section.content, source.title,
+        )
 
         program_structure = {k: v for k, v in parsed.items() if k not in PROGRAM_TEMPLATE_COLUMN_KEYS}
 
