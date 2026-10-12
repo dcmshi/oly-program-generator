@@ -99,3 +99,12 @@ def test_render_group_renders_only_gutter_pages_as_halves():
     with patch.object(ext, "_render_png", return_value=b"P"), \
          patch.object(ext, "_render_spread", return_value=(b"L", b"R")):
         assert ext._render_group(None, 0, 3) == [b"P", (b"L", b"R"), b"P"]
+
+
+def test_ocr_reply_pages_are_dehyphenated():
+    from types import SimpleNamespace as NS
+    ext = _extractor()
+    reply = NS(stop_reason="end_turn", content=[NS(type="text", text=(
+        "=== Page 89 ===\nwith a dumb-\nbell and the Snatch-\nBalance\n=== Page 90 ===\nplain"))])
+    pages = ext._ocr_response_pages(reply, 88, 90)
+    assert pages == ["with a dumbbell and the Snatch-\nBalance", "plain"]

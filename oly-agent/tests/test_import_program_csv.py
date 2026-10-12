@@ -290,12 +290,13 @@ def test_write_program_inserts_sessions_exercises_logs_and_outcome():
     assert len(log_ex) == n_exercises
 
     program_params = ret.call_args_list[0].args[2]
-    assert program_params[0] == 1 and program_params[1] == "Imported" and program_params[3] == 2   # duration_weeks
-    assert program_params[4] == 2                                                                 # sessions_per_week
-    assert program_params[6] == date(2026, 7, 12)                                                 # end_date
-    assert '"password_hash"' not in program_params[7] and '"level": "intermediate"' in program_params[7]
-    assert '"snatch": 70.0' in program_params[8]
-    assert '"source": "csv_import"' in program_params[9] and '"file": "sheet.csv"' in program_params[9]
+    assert program_params[0] == 1 and program_params[1] == "Imported" and program_params[2] == "completed"
+    assert program_params[4] == 2                                                                 # duration_weeks
+    assert program_params[5] == 2                                                                 # sessions_per_week
+    assert program_params[7] == date(2026, 7, 12)                                                 # end_date
+    assert '"password_hash"' not in program_params[8] and '"level": "intermediate"' in program_params[8]
+    assert '"snatch": 70.0' in program_params[9]
+    assert '"source": "csv_import"' in program_params[10] and '"file": "sheet.csv"' in program_params[10]
 
     # session_exercises: Back Squat 4x3 @80% of 150 → 120 kg; Box Jumps unloaded → no weight
     se = [c.args[2] for c in ret.call_args_list if "INSERT INTO session_exercises" in c.args[1]]

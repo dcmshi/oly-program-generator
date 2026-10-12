@@ -404,6 +404,7 @@ oly-program-generator/
     ├── phase_profiles.py · phase_progression.py · session_templates.py
     ├── feedback.py · log.py         # Outcome summary + max promotion · training-log CLI
     ├── import_program_csv.py        # Import a coach-written program CSV as a completed program
+    ├── import_program_md.py         # Import a coach-written Markdown/text program to train (--activate)
     ├── setup_auth.py
     ├── eval/                        # Retrieval + model evaluation harness
     │   ├── build_golden.py · run_eval.py · metrics.py · queries.py
