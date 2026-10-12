@@ -195,6 +195,27 @@ def test_gpt_sol_caps_reasoning_drops_temperature_and_asks_for_flex():
     assert billed_cost(None) is None
 
 
+def test_estimate_prices_a_standard_tier_fallback_at_the_standard_rate():
+    """The table holds Sol's flex rate; a call OpenRouter reports as served at
+    standard processing (`usage.service_tier`) is estimated at 2x. The billed
+    figure, when present, wins and already reflects the tier."""
+    from types import SimpleNamespace
+
+    from shared.llm import estimate_cost, served_tier
+
+    sol = "openai/gpt-6.1-sol"
+    flex = estimate_cost(1_000, 1_000, sol)
+    assert estimate_cost(1_000, 1_000, sol, service_tier="flex") == flex
+    assert estimate_cost(1_000, 1_000, sol, service_tier="standard") == 2 * flex
+    assert estimate_cost(1_000, 1_000, sol, service_tier="standard", billed_usd=0.07) == 0.07
+    kimi = "moonshotai/kimi-k3"
+    assert estimate_cost(1_000, 1_000, kimi, service_tier="standard") == estimate_cost(1_000, 1_000, kimi)
+
+    assert served_tier(SimpleNamespace(service_tier="standard")) == "standard"
+    assert served_tier(SimpleNamespace(model_extra={"service_tier": "flex"})) == "flex"
+    assert served_tier(SimpleNamespace(model_extra={})) is None
+    assert served_tier(None) is None
+
 def test_error_in_a_200_body_is_retried_and_flex_falls_back_to_standard():
     """OpenRouter delivers a provider failure as a 200 `{"type": "error"}` body,
     which the SDK parses as a Message with content None (read as an empty

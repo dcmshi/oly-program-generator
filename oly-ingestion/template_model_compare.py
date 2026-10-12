@@ -192,6 +192,7 @@ def run_model(model: str, sections: list[dict], reference: dict) -> dict:
         estimate_cost,
         is_refusal,
         message_text,
+        served_tier,
         usage_tokens,
     )
 
@@ -218,7 +219,7 @@ def run_model(model: str, sections: list[dict], reference: dict) -> dict:
             if billed is None:
                 usage["billed"] = False
             usage["cost"] += billed if billed is not None else estimate_cost(
-                u["input"], u["output"], model_id,
+                u["input"], u["output"], model_id, service_tier=served_tier(msg.usage),
                 cache_read_tokens=u["cache_read"], cache_creation_tokens=u["cache_creation"])
 
         errors: list[str] = []

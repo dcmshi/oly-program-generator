@@ -120,7 +120,14 @@ def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reas
     from config import Settings
     from extractors.pdf_extractor import PDFExtractor
 
-    from shared.llm import billed_cost, create_llm_client, create_message_growing, estimate_cost, usage_tokens
+    from shared.llm import (
+        billed_cost,
+        create_llm_client,
+        create_message_growing,
+        estimate_cost,
+        served_tier,
+        usage_tokens,
+    )
 
     settings = Settings(vision_model=model)
     model_id = settings.vision_model
@@ -144,7 +151,7 @@ def run_model(model: str, books: list[tuple[Path, dict]], plan: list[dict], reas
             u = usage_tokens(msg.usage)
             billed = billed_cost(msg.usage)
             cost = billed if billed is not None else estimate_cost(
-                u["input"], u["output"], model_id,
+                u["input"], u["output"], model_id, service_tier=served_tier(msg.usage),
                 cache_read_tokens=u["cache_read"], cache_creation_tokens=u["cache_creation"])
             error = None
         except Exception as e:                           # noqa: BLE001 — a failed group is a result

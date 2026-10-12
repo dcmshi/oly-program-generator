@@ -51,7 +51,8 @@ MODEL_PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
     # Kimi K3: the cheapest-input providers that price routing lands on (2026-10-11);
     # it was 1.70 / 8.50 under OpenRouter's load balancing.
     "moonshotai/kimi-k3": (0.80, 13.50),
-    # OpenAI via OpenRouter, flex tier (MODEL-3, 2026-10-11; standard is 2 / 10)
+    # OpenAI via OpenRouter, flex tier (MODEL-3, 2026-10-11; standard is 2 / 10 —
+    # FLEX_STANDARD_MULTIPLIER, applied by estimate_cost(service_tier="standard"))
     "openai/gpt-6.1-sol": (1.00, 5.00),
 }
 DEFAULT_PRICING_PER_MTOK = MODEL_PRICING_PER_MTOK["claude-sonnet-4-6"]
@@ -98,6 +99,10 @@ _CLAUDE_EFFORT_CAPPED_PREFIXES = ("claude-sonnet-5-5",)
 # OpenAI's flex tier: half the standard rate for slower, best-effort serving.
 # OpenRouter's price sort doesn't pick it on its own; the request has to ask.
 _FLEX_TIER_PREFIXES = ("openai/",)
+# The table prices _FLEX_TIER_PREFIXES models at the flex rate; a call served at
+# standard processing (flex unavailable → fallback, or no price routing) costs
+# this much more. OpenRouter reports the tier as `usage.service_tier`.
+FLEX_STANDARD_MULTIPLIER = 2.0
 # OpenAI's strict structured outputs reject an optional property ("'required'
 # ... must include every key in properties"); our schemas use Anthropic's
 # dialect, which allows them. `create_message_with_retries` translates.
@@ -448,6 +453,15 @@ def is_refusal(response=None, text: str | None = None) -> bool:
     return bool(_REFUSAL_OPENER_RE.search(head) and _REFUSAL_TOPIC_RE.search(head))
 
 
+def served_tier(usage) -> str | None:
+    """The service tier that served a call (`"flex"` / `"standard"` / …) as
+    OpenRouter reports it on `usage.service_tier`, else None."""
+    tier = getattr(usage, "service_tier", None)
+    if tier is None:
+        tier = (getattr(usage, "model_extra", None) or {}).get("service_tier")
+    return tier if isinstance(tier, str) and tier else None
+
+
 def usage_tokens(usage) -> dict[str, int]:
     """input / output / cache_read / cache_creation token counts from a usage object.
 
@@ -716,6 +730,7 @@ def estimate_cost(
     cache_read_tokens: int = 0,
     cache_creation_tokens: int = 0,
     billed_usd: float | None = None,
+    service_tier: str | None = None,
 ) -> float:
     """Estimate USD cost for a single LLM call at the model's list price.
 
@@ -723,11 +738,17 @@ def estimate_cost(
     rate was a module constant). Pass the cache token counts too when the call
     used prompt caching — `input_tokens` alone excludes the cached prefix.
     `billed_usd` (from `billed_cost`, OpenRouter's own figure) wins when given:
-    with price routing the serving provider's rate isn't the table's.
+    with price routing the serving provider's rate isn't the table's — and it
+    already reflects the tier. Without it, `service_tier` (`served_tier(usage)`)
+    prices a flex-table model served at standard processing at
+    FLEX_STANDARD_MULTIPLIER × the table rate; None assumes flex.
     """
     if billed_usd is not None:
         return billed_usd
     in_rate, out_rate = pricing_for(model)
+    if (service_tier and service_tier != "flex" and model
+            and model.startswith(_FLEX_TIER_PREFIXES)):
+        in_rate, out_rate = in_rate * FLEX_STANDARD_MULTIPLIER, out_rate * FLEX_STANDARD_MULTIPLIER
     return (
         input_tokens * in_rate
         + cache_read_tokens * in_rate * CACHE_READ_MULTIPLIER
