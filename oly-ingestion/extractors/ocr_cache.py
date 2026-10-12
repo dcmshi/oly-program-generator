@@ -60,6 +60,14 @@ class OcrCache:
     def put(self, page_index: int, text: str) -> None:
         self._data["pages"][str(page_index)] = text
 
+    # The OCR-QA gate's extra views of a suspect page (RESUME-1): cached so a
+    # re-ingest, or a run resumed after an abort, doesn't pay for them again.
+    def get_view(self, page_index: int, view: int) -> str | None:
+        return self._data.get("views", {}).get(f"{page_index}:{view}")
+
+    def put_view(self, page_index: int, view: int, text: str) -> None:
+        self._data.setdefault("views", {})[f"{page_index}:{view}"] = text
+
     def save(self) -> None:
         self.path.parent.mkdir(parents=True, exist_ok=True)
         self.path.write_text(json.dumps(self._data, ensure_ascii=False), encoding="utf-8")
