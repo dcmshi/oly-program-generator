@@ -41,3 +41,65 @@ def test_plan_skips_marked_duplicates():
     sys.path.insert(0, str(Path(__file__).parent.parent.parent / "oly-agent"))
     import plan
     assert "duplicate_of IS NULL" in inspect.getsource(plan._load_principles)
+
+
+# ── Jev score cache ──────────────────────────────────────────────────────────
+
+def _states():
+    a = {"principle_name": "Deload every fourth week", "condition": {}, "recommendation": {"volume_modifier": 0.6},
+         "rationale": "r1"}
+    b = {**a, "principle_name": "Fourth-week deload"}
+    c = {**a, "principle_name": "Taper 10 days out"}
+    return [pair_state(a, b), pair_state(a, c)]
+
+
+def test_score_cache_reuses_scores_and_rejudges_only_new_or_edited_pairs(tmp_path):
+    from dedupe_principles import ScoreCache, judge_with_cache
+
+    calls = []
+
+    def fake_judge(states, on_result=None):
+        calls.append(len(states))
+        out = {}
+        for i, _s in enumerate(states):
+            out[i] = 0.9 - 0.1 * i
+            on_result(i, out[i])
+        return out
+
+    path = tmp_path / "scores.jsonl"
+    cache = ScoreCache(path)
+    first = judge_with_cache(_states(), cache, judge=fake_judge)
+    cache.close()
+    assert first == {0: 0.9, 1: 0.8} and calls == [2]
+
+    # a fresh process: both pairs from the file, no judge call
+    cache = ScoreCache(path)
+    assert judge_with_cache(_states(), cache, judge=fake_judge) == first and calls == [2]
+
+    # an edited rule (new rationale) changes that pair's key — only it is judged again
+    edited = _states()
+    edited[1]["principle_B"]["rationale"] = "rewritten by a re-ingest"
+    probs = judge_with_cache(edited, cache, judge=fake_judge)
+    cache.close()
+    assert calls == [2, 1] and probs == {0: 0.9, 1: 0.9}
+
+
+def test_score_cache_skips_a_torn_line_and_keeps_scores_of_a_failed_run(tmp_path):
+    from dedupe_principles import ScoreCache, judge_with_cache, pair_key
+
+    path = tmp_path / "scores.jsonl"
+    key = pair_key(_states()[0])
+    path.write_text(f'{{"key": "{key}", "p": 0.75}}\n{{"key": "torn', encoding="utf-8")
+    cache = ScoreCache(path)
+    assert key in cache and cache[key] == 0.75 and len(cache.scores) == 1
+
+    def dies_after_one(states, on_result=None):
+        on_result(0, 0.4)
+        raise RuntimeError("network")
+
+    try:
+        judge_with_cache(list(reversed(_states())), cache, judge=dies_after_one)
+    except RuntimeError:
+        pass
+    cache.close()
+    assert len(ScoreCache(path).scores) == 2          # the score that landed before the failure is kept
