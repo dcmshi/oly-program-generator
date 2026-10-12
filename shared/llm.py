@@ -36,6 +36,7 @@ MODEL_PRICING_PER_MTOK: dict[str, tuple[float, float]] = {
     "claude-sonnet-4-5": (3.0, 15.0),
     "claude-sonnet-4-6": (3.0, 15.0),
     "claude-sonnet-5": (2.0, 10.0),
+    "claude-sonnet-5-5": (2.0, 10.0),
     "claude-opus-4-5": (5.0, 25.0),
     "claude-opus-4-6": (5.0, 25.0),
     "claude-opus-4-7": (5.0, 25.0),
@@ -88,6 +89,9 @@ _REASONING_MANDATORY_PREFIXES = ("z-ai/glm-",)
 # nearest thing to off. A budget there still spent 34.
 _EFFORT_CAPPED_PREFIXES = ("openai/gpt-",)
 _EFFORT_CAP = "low"
+# Sonnet 5.5 400s on `disabled` the same way ("Reasoning is mandatory for this
+# endpoint and cannot be disabled", 2026-10-12) — the same adaptive + low cap.
+_CLAUDE_EFFORT_CAPPED_PREFIXES = ("claude-sonnet-5-5",)
 # OpenAI's flex tier: half the standard rate for slower, best-effort serving.
 # OpenRouter's price sort doesn't pick it on its own; the request has to ask.
 _FLEX_TIER_PREFIXES = ("openai/",)
@@ -227,7 +231,8 @@ def thinking_kwargs(model: str | None, mode: str = "", effort: str = "") -> dict
                          (they need the retired budget_tokens form)
             "disabled" → `thinking={"type": "disabled"}` on default-on models only; 4.x
                          is already off when the field is omitted, and Fable can't be
-                         turned off — both are silently no-ops
+                         turned off — both are silently no-ops; models that reject it
+                         (Sonnet 5.5, GPT Sol) get adaptive + effort low instead
     effort: "" | low | medium | high | xhigh | max → `output_config={"effort": …}` on 4.6+
     Raises ValueError on an unknown value, or on disabled + xhigh/max (a 400 on Opus 5).
     """
@@ -257,6 +262,10 @@ def thinking_kwargs(model: str | None, mode: str = "", effort: str = "") -> dict
                 kwargs["output_config"] = {"effort": effort}
         return kwargs
     if not _has_prefix(model, _ADAPTIVE_THINKING_PREFIXES):
+        return kwargs
+    if mode == "disabled" and _has_prefix(model, _CLAUDE_EFFORT_CAPPED_PREFIXES):
+        kwargs["thinking"] = {"type": "adaptive"}
+        kwargs["output_config"] = {"effort": effort or _EFFORT_CAP}
         return kwargs
     if mode == "adaptive":
         kwargs["thinking"] = {"type": "adaptive"}

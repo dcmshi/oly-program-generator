@@ -251,6 +251,12 @@ def test_thinking_kwargs_per_model_family():
         "thinking": {"type": "disabled"}, "output_config": {"effort": "low"}}
     assert thinking_kwargs("claude-opus-5", "DISABLED") == {"thinking": {"type": "disabled"}}
     assert thinking_kwargs("claude-fable-5-1", "disabled") == {}          # cannot be turned off
+    # Sonnet 5.5 400s on disabled → adaptive + effort low, under either provider's id
+    for sonnet55 in ("claude-sonnet-5-5", "anthropic/claude-sonnet-5.5"):
+        assert thinking_kwargs(sonnet55, "disabled") == {
+            "thinking": {"type": "adaptive"}, "output_config": {"effort": "low"}}
+    assert thinking_kwargs("claude-sonnet-5-5", "adaptive", "medium") == {
+        "thinking": {"type": "adaptive"}, "output_config": {"effort": "medium"}}
     for bad in (("claude-sonnet-5", "budget", ""), ("claude-sonnet-5", "", "ultra"),
                 ("claude-opus-5", "disabled", "max")):
         try:
