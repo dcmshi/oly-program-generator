@@ -59,7 +59,7 @@ size.
 | 24 | Charniga — *Weightlifting Training and Biomechanics* | EPUB (Kobo) | 804 | theory_heavy | 113 | 0 |
 | 25 | Charniga — *There Is No System* | EPUB (Kobo) | 805 | theory_heavy | 56 (14 deduped vs the Wayback essays) | 26 (+2 templates) |
 | 26 | Charniga — *A De-Masculinization of Strength* | EPUB (Kobo) | 806 | theory_heavy | 101 | 0 |
-| 27 | Kono — *Weightlifting, Olympic Style* (2010) | PDF (vision OCR, scan) | 807 | programming | 194 (+7) | 174 (+2 templates) |
+| 27 | Kono — *Weightlifting, Olympic Style* (2010) | PDF (vision OCR, scan; re-OCR'd with GPT-6.1 Sol 2026-10-12) | 807 | programming | 230 (+8) | 113 |
 | 28 | Cissik — blog summary of Medvedyev's *A System of Multi-Year Training* (2026), stopgap for row 8 below | Web + 7 hand-transcribed table images (`sources/url_lists/cissik_medvedyev.py`) | 808 | web (dynamic) | 4 | 52 (14 recommendations cleared 2026-09-22 — see note) |
 | 29 | AUD-5 open-access papers (12, Europe PMC JATS): deload — Bell 2023 Delphi consensus, Rogerson 2024 survey, Coleman 2024 RCT; sleep — Doherty 2021; injury — Lee 2026 youth/adult surveillance, Huebner 2022 older lifters, Tung 2024 systematic review; RIR-RPE — Helms 2016; female athletes — Colenso-Semple 2023 menstrual cycle; concurrent training — Schumann 2022; ISSN protein 2017 and caffeine 2021 position stands | Europe PMC text | 809–820 | research (the first papers to actually get it — see note) | 379 (+37) | 32 |
 
