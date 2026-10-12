@@ -44,7 +44,7 @@ async def _on_startup(ctx) -> None:
 
 async def run_generation(ctx, athlete_id: int, dry_run: bool = False, request_id: str = "-",
                          duration_weeks: int | None = None, macrocycle: dict | None = None,
-                         coach: dict | None = None) -> dict:
+                         coach: dict | None = None, resume_program_id: int | None = None) -> dict:
     """Generate a program for the given athlete.
 
     Runs the synchronous orchestrator in a thread so the event loop stays free.
@@ -67,7 +67,8 @@ async def run_generation(ctx, athlete_id: int, dry_run: bool = False, request_id
         return orchestrator.run(athlete_id, Settings(), dry_run=dry_run, deadline=deadline,
                                 duration_weeks=duration_weeks,
                                 new_macrocycle=bool(mc.get("new")), macrocycle_weeks=mc.get("weeks"),
-                                macrocycle_id=mc.get("id"), coach=coach)
+                                macrocycle_id=mc.get("id"), coach=coach,
+                                resume_program_id=resume_program_id)
 
     try:
         loop = asyncio.get_running_loop()

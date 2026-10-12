@@ -1656,3 +1656,49 @@ def test_program_actions_link_to_the_share_page():
         r = _client.get("/program/1")
     assert 'href="/program/share.html?ids=1"' in r.text
 
+
+
+# ── RESUME-1: resume a stopped generation ────────────────────────────────────
+
+_RESUMABLE = {"generation_params": {"resume": {"plan": {}}}}
+
+
+def test_is_resumable_only_for_stopped_drafts_with_a_resume_record():
+    from web.queries.program import is_resumable
+    assert is_resumable(_program("draft", **_RESUMABLE))                                  # raised: no rationale
+    assert is_resumable(_program("draft", rationale="# Generation Aborted — Cost Limit\n…", **_RESUMABLE))
+    assert is_resumable(_program("draft", rationale="# Generation Warning\n2 session(s)…", **_RESUMABLE))
+    assert is_resumable(_program("draft", rationale="[Rationale generation failed: flex]", **_RESUMABLE))
+    assert not is_resumable(_program("draft", rationale="# Overview\nA finished program.", **_RESUMABLE))
+    assert not is_resumable(_program("active", **_RESUMABLE))
+    assert not is_resumable(_program("draft", generation_params={"model": "m"}))   # made before RESUME-1
+    assert not is_resumable(None)
+
+
+def test_program_resume_submits_a_resume_job_and_shows_the_button():
+    with patch("web.queries.program.get_program", return_value=_program("draft", **_RESUMABLE)), \
+         patch("web.jobs.submit_generation", return_value="job9") as submit:
+        r = _client.post("/program/1/resume")
+    assert r.status_code == 200 and "job9" in r.text
+    assert submit.call_args.kwargs["resume_program_id"] == 1
+    from web.app import templates
+    html = templates.get_template("partials/program_actions.html").render(program=_program("draft", **_RESUMABLE))
+    assert "/program/1/resume" in html
+    html = templates.get_template("partials/program_actions.html").render(
+        program=_program("draft", rationale="# Overview\nDone.", **_RESUMABLE))
+    assert "/program/1/resume" not in html
+
+
+def test_program_resume_rejects_unowned_finished_or_busy():
+    with patch("web.queries.program.get_program", return_value=_program("draft", athlete_id=2, **_RESUMABLE)), \
+         patch("web.jobs.submit_generation") as submit:
+        assert _client.post("/program/1/resume").status_code == 404
+    submit.assert_not_called()
+    with patch("web.queries.program.get_program",
+               return_value=_program("draft", rationale="# Overview\nDone.", **_RESUMABLE)):
+        assert _client.post("/program/1/resume").status_code == 409
+    from web import jobs as _jobs
+    with patch("web.queries.program.get_program", return_value=_program("draft", **_RESUMABLE)), \
+         patch("web.jobs.submit_generation", side_effect=_jobs.GenerationInFlightError("busy")):
+        r = _client.post("/program/1/resume")
+    assert r.status_code == 409 and "already running" in r.text

@@ -964,3 +964,117 @@ def test_concurrent_save_failure_stops_every_week():
         else:
             raise AssertionError("expected the save error to propagate")
     assert g.spend.stopped()
+
+
+# ── RESUME-1: resume an aborted draft ─────────────────────────────────────────
+
+import pytest  # noqa: E402
+
+
+def _saved(week, day, sid):
+    return {"week": week, "day": day, "label": "Snatch + Squat", "session_id": sid,
+            "exercises": _generation_result().exercises}
+
+
+def _resume_record(plan_):
+    from orchestrator import _plan_snapshot
+    return {"coach": None, "max_sessions": None, "plan": _plan_snapshot(plan_),
+            "effective_maxes": {"snatch": 100.0, "clean_and_jerk": 125.0}}
+
+
+def test_plan_snapshot_round_trips_the_generation_shape():
+    from orchestrator import _apply_plan_snapshot, _plan_snapshot
+    original = _multi_week_plan(3, 2)
+    original.deload_week, original.intensity_ceiling_override = 3, 82.5
+    rebuilt = _apply_plan_snapshot(_program_plan(), _plan_snapshot(original))
+    assert rebuilt.weekly_targets == original.weekly_targets
+    assert rebuilt.session_templates == original.session_templates
+    assert (rebuilt.duration_weeks, rebuilt.sessions_per_week, rebuilt.deload_week,
+            rebuilt.intensity_ceiling_override) == (3, 2, 3, 82.5)
+
+
+def test_new_programs_store_the_resume_record():
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(2, 2)})
+        assert run(1, _settings(), week_concurrency=1) == 42
+    insert = next(c for c in mocks["execute_returning"].call_args_list if "generated_programs" in c.args[1])
+    params = json.loads(insert.args[2][8])
+    assert params["resume"]["plan"]["duration_weeks"] == 2
+    assert len(params["resume"]["plan"]["weekly_targets"]) == 2
+    assert params["resume"]["effective_maxes"] == {"snatch": 100.0, "clean_and_jerk": 125.0}
+
+
+def test_resume_generates_only_the_missing_sessions_and_explains_the_whole_program():
+    """Saved W1D1, W1D2, W2D1 are replayed (no LLM call, no INSERT); W2D2 and
+    week 3 are generated; EXPLAIN sees all six in order; earlier spend is
+    preloaded into the guard; the plan comes from the snapshot."""
+    plan_ = _multi_week_plan(3, 2)
+    saved = {(1, 1): _saved(1, 1, 7), (1, 2): _saved(1, 2, 8), (2, 1): _saved(2, 1, 9)}
+    for concurrency in (1, 4):
+        calls = []
+        with ExitStack() as stack:
+            mocks = _full_mock_stack(stack, overrides={"plan": _program_plan()})
+            mocks["generate"].side_effect = _gen_side_effect(calls)
+            load = stack.enter_context(patch("orchestrator._load_resume", return_value=_resume_record(plan_)))
+            stack.enter_context(patch("orchestrator._reopen_draft", return_value=(dict(saved), None, 0.03)))
+            assert run(1, _settings(), resume_program_id=55, week_concurrency=concurrency) == 55
+        load.assert_called_once()
+        assert mocks["plan"].call_args.kwargs["block"] == {"phase": "accumulation", "weeks": 3}
+        assert sorted((w, d) for w, d, _, _ in calls) == [(2, 2), (3, 1), (3, 2)], concurrency
+        assert _session_insert_slots(mocks) == [(2, 2), (3, 1), (3, 2)]
+        assert not any("generated_programs" in c.args[1] and "INSERT" in c.args[1]
+                       for c in mocks["execute_returning"].call_args_list)
+        sessions = mocks["explain"].call_args.kwargs["program_sessions"]
+        assert [(s["week"], s["day"]) for s in sessions] == [(w, d) for w in (1, 2, 3) for d in (1, 2)]
+        assert [s["session_id"] for s in sessions[:3]] == [7, 8, 9]
+        # week 2's generated session saw the replayed W2D1 in its already-prescribed list
+        w2d2 = next(c for c in mocks["generate"].call_args_list if c.kwargs["week_number"] == 2)
+        assert any(ex.get("day_number") == 1 for ex in w2d2.kwargs["week_already_prescribed"])
+
+
+def test_resume_refuses_another_athletes_or_a_non_draft_program():
+    from orchestrator import ResumeError, _load_resume
+    conn = MagicMock()
+    with patch("orchestrator.fetch_all", return_value=[{"athlete_id": 2, "status": "draft",
+                                                       "generation_params": {"resume": {"x": 1}}}]):
+        with pytest.raises(ResumeError):
+            _load_resume(conn, 5, athlete_id=1)
+    with patch("orchestrator.fetch_all", return_value=[{"athlete_id": 1, "status": "active",
+                                                       "generation_params": {"resume": {"x": 1}}}]):
+        with pytest.raises(ResumeError):
+            _load_resume(conn, 5, athlete_id=1)
+    with patch("orchestrator.fetch_all", return_value=[{"athlete_id": 1, "status": "draft",
+                                                       "generation_params": '{"model": "m"}'}]):
+        with pytest.raises(ResumeError, match="before resume support"):
+            _load_resume(conn, 5, athlete_id=1)
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        assert run(1, _settings(), resume_program_id=5) is None      # fetch_all → [] → not found
+    mocks["generate"].assert_not_called()
+
+
+def test_an_aborted_concurrent_run_keeps_every_finished_session():
+    """A worker week that aborts (FlexUnavailable) keeps the sessions it did
+    finish, and weeks that completed are saved too — a resume then pays only
+    for the rest."""
+    from shared.llm import FlexUnavailable
+    others_done = threading.Event()
+    finished = []
+    lock = threading.Lock()
+
+    def _fake(**kw):
+        w, d = kw["week_number"], kw["day_number"]
+        if (w, d) == (3, 2):
+            assert others_done.wait(10)
+            raise FlexUnavailable("standard not approved")
+        with lock:
+            finished.append((w, d))
+            if {(2, 2), (4, 2)} <= set(finished):
+                others_done.set()
+        return _generation_result()
+
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(4, 2)})
+        mocks["generate"].side_effect = _fake
+        assert run(1, _settings(), week_concurrency=4) is None
+    assert sorted(_session_insert_slots(mocks)) == [(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (4, 1), (4, 2)]
