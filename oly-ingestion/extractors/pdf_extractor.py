@@ -58,7 +58,8 @@ class PDFExtractor:
 
     def __init__(self, anthropic_client=None, *, vision_model: str,
                  batch: bool = False, ocr_cache: bool = True, force_vision: bool = False,
-                 ocr_postcorrect: bool = False, postcorrect_model: str | None = None):
+                 ocr_postcorrect: bool = False, postcorrect_model: str | None = None,
+                 split_spreads: bool = True):
         """
         Args:
             anthropic_client: Optional Anthropic client instance. When provided,
@@ -80,6 +81,10 @@ class PDFExtractor:
                               corrected text is kept only if the garbled share
                               drops and the length stays within ±10 %. Off by
                               default — post-correction can also hallucinate.
+            split_spreads:    In a scan of open-book spreads, send each page with
+                              a gutter as a left and a right half image
+                              (extractors/spreads.py, OCR-ROLE part 2b). Pages
+                              already in the OCR cache are not re-OCR'd.
         """
         self._client = anthropic_client
         self._vision_model = vision_model
@@ -88,6 +93,8 @@ class PDFExtractor:
         self._force_vision = force_vision
         self._ocr_postcorrect = ocr_postcorrect
         self._postcorrect_model = postcorrect_model
+        self._split_spreads = split_spreads
+        self._gutters: dict[int, float] = {}       # page index → gutter fraction, for the current document
         self.heartbeat = None            # optional callable(pages_done, pages_total) — set by the pipeline per run
         self.last_ocr_report: dict | None = None   # OCR-QA report of the last _extract_with_vision
         self.refused_pages: set[int] = set()        # 1-based pages a model declined to transcribe
@@ -225,6 +232,13 @@ class PDFExtractor:
         n_pages = len(doc)
         if max_pages:
             n_pages = min(n_pages, max_pages)
+        self._gutters = {}
+        if self._split_spreads:
+            from extractors.spreads import spread_gutters
+            self._gutters = spread_gutters(doc, n_pages)
+            if self._gutters:
+                logger.info(f"Vision OCR: {len(self._gutters)} of {n_pages} pages are two-page spreads — "
+                            f"each is sent as a left and a right half")
 
         # ING-M5: pages already transcribed for this exact file + model come
         # from the cache; only page groups with a missing page go to the model.
@@ -401,7 +415,7 @@ class PDFExtractor:
         return pages
 
     def _ocr_batch(self, doc, start: int, end: int, dpi: int = 150, view: int = 0,
-                   images: list[bytes] | None = None) -> list[str]:
+                   images: list[bytes | tuple[bytes, bytes]] | None = None) -> list[str]:
         """Send a batch of pages to Claude vision and return extracted text per page."""
         response = create_message_growing(
             self._client, label=f"Vision OCR pages {start + 1}–{end}",
@@ -485,35 +499,51 @@ class PDFExtractor:
         logger.info(f"  Vision OCR: page {index + 1} post-correction rejected (garbled {before:.0%} → {after:.0%}, length ×{ratio:.2f})")
         return None
 
-    def _render_group(self, doc, start: int, end: int, dpi: int = 150, view: int = 0) -> list[bytes]:
+    def _render_group(self, doc, start: int, end: int, dpi: int = 150,
+                      view: int = 0) -> list[bytes | tuple[bytes, bytes]]:
         """PNGs for one page group — always on the main thread (PyMuPDF documents
-        are not thread-safe); the request itself can then go to a worker."""
-        return [self._render_png(doc, i, dpi, view) for i in range(start, end)]
+        are not thread-safe); the request itself can then go to a worker. A
+        two-page spread is a (left, right) pair split at its gutter."""
+        return [self._render_spread(doc, i, dpi, view) if i in self._gutters else self._render_png(doc, i, dpi, view)
+                for i in range(start, end)]
+
+    def _render_spread(self, doc, index: int, dpi: int, view: int) -> tuple[bytes, bytes]:
+        """Left and right halves of a spread page, each at the full DPI."""
+        import fitz
+        page = doc[index]
+        r = page.rect
+        x = r.x0 + r.width * self._gutters[index]
+        mat = fitz.Matrix(dpi / 72, dpi / 72)
+        if view:
+            mat = mat.prerotate(OCR_VIEW_ROTATIONS_DEG[(view - 1) % len(OCR_VIEW_ROTATIONS_DEG)])
+        return tuple(page.get_pixmap(matrix=mat, clip=clip).tobytes("png")
+                     for clip in (fitz.Rect(r.x0, r.y0, x, r.y1), fitz.Rect(x, r.y0, r.x1, r.y1)))
 
     def _ocr_request(self, doc, start: int, end: int, dpi: int = 150, view: int = 0,
-                     images: list[bytes] | None = None) -> dict:
+                     images: list[bytes | tuple[bytes, bytes]] | None = None) -> dict:
         """messages.create kwargs for one group of rendered pages."""
         # Build the message content: alternating page-number labels and images
         content = []
         page_indices = list(range(start, end))
         images = images if images is not None else self._render_group(doc, start, end, dpi, view)
 
+        def image_block(png: bytes) -> dict:
+            return {"type": "image",
+                    "source": {"type": "base64", "media_type": "image/png",
+                               "data": base64.standard_b64encode(png).decode()}}
+
+        has_spread = False
         for i, png in zip(page_indices, images, strict=True):
             # Render at 150 DPI — good balance of legibility vs token cost
-            b64 = base64.standard_b64encode(png).decode()
-
-            content.append({
-                "type": "text",
-                "text": f"Page {i + 1}:",
-            })
-            content.append({
-                "type": "image",
-                "source": {
-                    "type": "base64",
-                    "media_type": "image/png",
-                    "data": b64,
-                },
-            })
+            if isinstance(png, tuple):        # a two-page spread, split at the gutter (OCR-ROLE 2b)
+                has_spread = True
+                content.append({"type": "text", "text": f"Page {i + 1} (two-page spread), left half:"})
+                content.append(image_block(png[0]))
+                content.append({"type": "text", "text": f"Page {i + 1} (two-page spread), right half:"})
+                content.append(image_block(png[1]))
+                continue
+            content.append({"type": "text", "text": f"Page {i + 1}:"})
+            content.append(image_block(png))
 
         content.append({
             "type": "text",
@@ -521,7 +551,9 @@ class PDFExtractor:
                 "Extract all text from each page above exactly as it appears. "
                 "Preserve paragraph breaks with blank lines. "
                 "For each page, start with a line '=== Page N ===' then the text. "
-                "Do not summarise, interpret, or add any commentary — only the raw text."
+                + ("A page shown as a left and a right half is one page: write its left half in full, "
+                   "then its right half, under that page's single header. " if has_spread else "")
+                + "Do not summarise, interpret, or add any commentary — only the raw text."
             ),
         })
 

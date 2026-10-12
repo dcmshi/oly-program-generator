@@ -375,7 +375,7 @@ def test_vision_uses_the_page_cache_and_only_transcribes_missing_groups(tmp_path
     cache.save()
     assert cache.path.name == file_sha256(pdf) + ".json"
 
-    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="claude-sonnet-5")
+    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="claude-sonnet-5", split_spreads=False)
     doc = MagicMock()
     doc.__len__ = lambda self: 7
     calls = []
@@ -397,7 +397,7 @@ def test_vision_uses_the_page_cache_and_only_transcribes_missing_groups(tmp_path
     assert len(OcrCache(pdf, "moonshotai/kimi-k3", cache_dir=tmp_path / "cache")) == 0   # model change → re-OCR
 
     # --no-ocr-cache: everything is transcribed and nothing is written
-    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="claude-sonnet-5", ocr_cache=False)
+    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="claude-sonnet-5", ocr_cache=False, split_spreads=False)
     calls.clear()
     with patch.dict(sys.modules, {"fitz": fz}), patch.object(extractor, "_ocr_batch", side_effect=fake_ocr):
         extractor._extract_with_vision(pdf)
@@ -426,7 +426,7 @@ def test_vision_retries_blank_pages_singly(tmp_path):
     the recovered text is used and cached, a page still blank is reported."""
     pdf = tmp_path / "scan.pdf"
     pdf.write_bytes(b"%PDF-1.4 fake")
-    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="m", ocr_cache=False)
+    extractor = PDFExtractor(anthropic_client=MagicMock(), vision_model="m", ocr_cache=False, split_spreads=False)
     doc = MagicMock()
     doc.__len__ = lambda self: 5
     calls = []
