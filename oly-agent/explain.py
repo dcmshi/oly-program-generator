@@ -22,6 +22,7 @@ from shared.llm import (
     estimate_cost,
     message_text,
     sampling_kwargs,
+    served_tier,
     thinking_kwargs,
 )
 
@@ -87,7 +88,7 @@ def explain(
         rationale = message_text(response).strip()
         cost = estimate_cost(
             response.usage.input_tokens, response.usage.output_tokens, settings.explanation_model,
-            billed_usd=billed_cost(response.usage),
+            billed_usd=billed_cost(response.usage), service_tier=served_tier(response.usage),
         )
         logger.info(
             f"Generated rationale ({len(rationale)} chars, "

@@ -58,6 +58,7 @@ from shared.llm import (
     json_schema_kwargs,
     message_text,
     sampling_kwargs,
+    served_tier,
     thinking_kwargs,
     usage_tokens,
 )
@@ -1040,12 +1041,12 @@ def generate_session_with_retries(
     (``_log_generation``).
     """
     # the current attempt's cache tokens and billed cost, for its log row
-    attempt_cache = {"read": 0, "creation": 0, "billed": None}
+    attempt_cache = {"read": 0, "creation": 0, "billed": None, "tier": None}
 
     def _log(*args, **kwargs):
         _log_generation(*args, retrieval_set=retrieval_set, cache_read_tokens=attempt_cache["read"],
                         cache_creation_tokens=attempt_cache["creation"], billed_usd=attempt_cache["billed"],
-                        **kwargs)
+                        service_tier=attempt_cache["tier"], **kwargs)
 
     max_attempts = settings.max_generation_retries + settings.max_parse_retries
     current_prompt = prompt
@@ -1098,7 +1099,8 @@ def generate_session_with_retries(
             total_cache_read += usage["cache_read"]
             total_cache_creation += usage["cache_creation"]
             billed = billed_cost(response.usage)
-            attempt_cache.update(read=usage["cache_read"], creation=usage["cache_creation"], billed=billed)
+            attempt_cache.update(read=usage["cache_read"], creation=usage["cache_creation"], billed=billed,
+                                 tier=served_tier(response.usage))
             total_billed = None if billed is None or total_billed is None else total_billed + billed
         except Exception as e:
             logger.error(f"  LLM API error (attempt {attempt}): {e}")
@@ -1264,6 +1266,7 @@ def _log_generation(
     input_tokens, output_tokens, status,
     validation_errors=None, error_message=None, retrieval_set=None,
     cache_read_tokens=0, cache_creation_tokens=0, validation_warnings=None, billed_usd=None,
+    service_tier=None,
 ):
     """Insert a row into generation_log (incl. the labelled retrieval set — RAG-M5).
 
@@ -1275,7 +1278,8 @@ def _log_generation(
     ``_validation_warnings`` is null when Step 5 didn't run on the attempt.
     """
     cost = estimate_cost(input_tokens, output_tokens, model, cache_read_tokens=cache_read_tokens,
-                         cache_creation_tokens=cache_creation_tokens, billed_usd=billed_usd)
+                         cache_creation_tokens=cache_creation_tokens, billed_usd=billed_usd,
+                         service_tier=service_tier)
     parsed_response = (
         json.dumps({"exercises": parsed, "_validation_warnings": validation_warnings})
         if parsed else None

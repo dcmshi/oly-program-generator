@@ -49,7 +49,15 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
 
 from shared.config import Settings
 from shared.db import execute, fetch_all, get_connection
-from shared.llm import EFFORT_LEVELS, THINKING_MODES, billed_cost, estimate_cost, thinking_kwargs, usage_tokens
+from shared.llm import (
+    EFFORT_LEVELS,
+    THINKING_MODES,
+    billed_cost,
+    estimate_cost,
+    served_tier,
+    thinking_kwargs,
+    usage_tokens,
+)
 
 logger = logging.getLogger(__name__)
 
@@ -156,6 +164,7 @@ class CallRecorder:
                     usage["input"], usage["output"], model,
                     cache_read_tokens=usage["cache_read"],
                     cache_creation_tokens=usage["cache_creation"],
+                    service_tier=served_tier(getattr(response, "usage", None)),
                 ),
             ))
             return response
