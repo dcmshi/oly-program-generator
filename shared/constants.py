@@ -334,6 +334,14 @@ LLM_REQUEST_TIMEOUT_S: float = 300.0
 # OpenRouter caps new accounts at 20 rpm for Claude Haiku.
 RATE_LIMIT_RETRY_S: float = 15.0
 RATE_LIMIT_MAX_WAITS: int = 20
+# OpenAI's flex tier can be unavailable for hours (2026-10-12: ~10:44 onward,
+# 20 of 25 Kono OCR groups). A flex-unavailable reply is free, so it is retried
+# on flex FLEX_UNAVAILABLE_RETRIES times, FLEX_UNAVAILABLE_RETRY_S apart, before
+# FLEX_FALLBACK decides (ask / standard / fail); "wait" at the prompt sleeps
+# FLEX_UNAVAILABLE_WAIT_S and tries flex again.
+FLEX_UNAVAILABLE_RETRIES: int = 2
+FLEX_UNAVAILABLE_RETRY_S: float = 30.0
+FLEX_UNAVAILABLE_WAIT_S: float = 300.0
 OCR_REQUEST_TIMEOUT_S: float = 240.0
 OCR_REQUEST_ATTEMPTS: int = 4
 # Page groups OCR'd concurrently (OCR-PERF). Four keeps well under OpenRouter's

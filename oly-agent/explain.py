@@ -17,6 +17,7 @@ from models import AthleteContext, ProgramPlan
 
 from shared.constants import LLM_MAX_TOKENS_CEILING
 from shared.llm import (
+    FlexUnavailable,
     billed_cost,
     create_message_with_retries,
     estimate_cost,
@@ -96,7 +97,7 @@ def explain(
             f"~${cost:.4f})"
         )
         return rationale, response.usage.input_tokens, response.usage.output_tokens, cost
-    except Exception as e:
+    except (Exception, FlexUnavailable) as e:   # a declined standard-tier fallback keeps the program
         logger.error(f"Explain step failed after retries: {e}")
         return f"[Rationale generation failed: {e}]", 0, 0, 0.0
 

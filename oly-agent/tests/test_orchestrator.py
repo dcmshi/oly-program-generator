@@ -402,6 +402,19 @@ def test_exception_in_generate_returns_none():
     assert result is None
 
 
+def test_flex_abort_in_generate_fails_the_program_cleanly():
+    """FlexUnavailable is a BaseException (standard pricing not approved): the
+    run stops, rolls back and returns None like any failure — it must not
+    escape to the worker or be retried per session."""
+    from shared.llm import FlexUnavailable
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        mocks["generate"].side_effect = FlexUnavailable("flex down, standard not approved")
+        result = run(1, _settings())
+    assert result is None
+    mocks["conn"].rollback.assert_called()
+
+
 def test_conn_always_closed():
     """DB connection is closed even when an exception is raised."""
     with ExitStack() as stack:

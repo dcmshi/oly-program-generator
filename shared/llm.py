@@ -6,6 +6,8 @@ LLM client initialization. Single Anthropic client shared across agent steps.
 import json
 import logging
 import re
+import sys
+import threading
 import time
 
 from anthropic import Anthropic
@@ -207,6 +209,73 @@ def _error_body(response):
 def _is_flex_unavailable(exc: "LLMErrorResponse") -> bool:
     msg = str(exc.error.get("message", "")).lower()
     return "flex" in msg or "standard processing" in msg
+
+
+class FlexUnavailable(BaseException):  # noqa: N818 — an operator stop, like KeyboardInterrupt
+    """The flex tier stayed unavailable and standard processing (2x) was not
+    approved (FLEX_FALLBACK). A BaseException on purpose, like
+    KeyboardInterrupt: it is a decision to stop the run, so the per-section /
+    per-attempt `except Exception` handlers (which log and carry on) must not
+    swallow it. `pipeline.ingest` marks the run failed (resumable) and
+    re-raises; `orchestrator.run` fails the program; EXPLAIN records it in the
+    rationale."""
+
+
+# One decision per process: once the operator chose standard or abort, every
+# later flex failure (any thread) follows it without asking again.
+_flex_lock = threading.Lock()
+_flex_decision: dict[str, object] = {"choice": None, "waited_at": 0.0}
+
+
+def _stdin_is_interactive() -> bool:
+    try:
+        return bool(sys.stdin) and sys.stdin.isatty()
+    except (AttributeError, ValueError, OSError):
+        return False
+
+
+def _flex_fallback_choice(policy: str, model: str, exc: "LLMErrorResponse", seen_wait: float) -> str:
+    """"standard" (re-send at standard processing) or "wait" (retry flex after
+    a pause), or raise FlexUnavailable. The lock makes every thread that hits
+    an outage block on the one prompt — the pipeline stops until answered.
+    `seen_wait` is the last wait this caller already retried after: a newer
+    one (another thread chose "wait" meanwhile) means retry flex, not re-ask."""
+    from shared.constants import FLEX_UNAVAILABLE_WAIT_S
+
+    abort_msg = (f"Flex tier unavailable for {model} ({exc}) and standard processing (2x the flex price) "
+                 f"was not approved. Retry later, or set FLEX_FALLBACK=standard to pay standard pricing.")
+    with _flex_lock:
+        choice = _flex_decision["choice"]
+        if choice == "standard" or policy == "standard":
+            return "standard"
+        if choice == "abort":
+            raise FlexUnavailable(abort_msg)
+        if float(_flex_decision["waited_at"]) > seen_wait:
+            return "wait"                      # another thread chose to wait meanwhile — retry flex, don't re-ask
+        if policy == "fail" or not _stdin_is_interactive():
+            _flex_decision["choice"] = "abort"
+            logger.error(abort_msg)
+            raise FlexUnavailable(abort_msg)
+        while True:
+            sys.stderr.write(
+                f"\n*** Flex tier unavailable for {model}: {exc}\n"
+                f"    [s] continue at standard processing (2x price) for the rest of this run\n"
+                f"    [w] wait {FLEX_UNAVAILABLE_WAIT_S:.0f}s and retry flex\n"
+                f"    [a] abort (default)\n    > ")
+            sys.stderr.flush()
+            answer = (sys.stdin.readline() or "a").strip().lower()[:1] or "a"
+            if answer == "s":
+                _flex_decision["choice"] = "standard"
+                return "standard"
+            if answer == "a":
+                _flex_decision["choice"] = "abort"
+                raise FlexUnavailable(abort_msg)
+            if answer == "w":
+                break
+        logger.warning(f"Flex tier unavailable — waiting {FLEX_UNAVAILABLE_WAIT_S:.0f}s before retrying flex")
+        time.sleep(FLEX_UNAVAILABLE_WAIT_S)
+        _flex_decision["waited_at"] = time.monotonic()
+        return "wait"
 
 
 def billed_cost(usage) -> float | None:
@@ -486,19 +555,29 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
 
     Retries connection errors, timeouts, rate limits, 5xx/overloaded
     responses and errors delivered in a 200 body (`LLMErrorResponse`). When the
-    flex tier itself is unavailable the call is re-sent at standard processing
-    at once (twice the price, billed as such) without spending an attempt.
+    flex tier itself is unavailable the call is retried on flex
+    (FLEX_UNAVAILABLE_RETRIES, free) and then the client's `flex_fallback`
+    policy decides — ask on the terminal / standard / fail — before anything
+    is sent at standard processing (twice the price); none of it spends an
+    attempt. A refusal to pay standard raises FlexUnavailable.
     Non-retryable API errors (auth, bad request) raise immediately, as does the
     last error once attempts are exhausted.
     """
     from anthropic import APIConnectionError, APIStatusError
 
-    from shared.constants import RATE_LIMIT_MAX_WAITS, RATE_LIMIT_RETRY_S
+    from shared.constants import (
+        FLEX_UNAVAILABLE_RETRIES,
+        FLEX_UNAVAILABLE_RETRY_S,
+        RATE_LIMIT_MAX_WAITS,
+        RATE_LIMIT_RETRY_S,
+    )
 
     last_exc = None
     attempt = 0
     rate_limit_waits = 0
     flex = True
+    flex_retries = 0
+    seen_wait = float(_flex_decision["waited_at"])
     while True:
         attempt += 1
         try:
@@ -512,9 +591,21 @@ def create_message_with_retries(client, *, max_attempts: int = 3, base_delay: fl
         except LLMErrorResponse as e:
             last_exc = e
             if flex and _is_flex_unavailable(e) and request.get("extra_body", {}).get("service_tier") == "flex":
+                attempt -= 1
+                if flex_retries < FLEX_UNAVAILABLE_RETRIES and _flex_decision["choice"] != "standard":
+                    flex_retries += 1
+                    logger.warning(f"Flex tier unavailable ({e}); retrying flex in {FLEX_UNAVAILABLE_RETRY_S:.0f}s "
+                                   f"({flex_retries}/{FLEX_UNAVAILABLE_RETRIES})")
+                    time.sleep(FLEX_UNAVAILABLE_RETRY_S)
+                    continue
+                choice = _flex_fallback_choice(getattr(client, "flex_fallback", "ask") or "ask",
+                                               kwargs.get("model", "?"), e, seen_wait)
+                if choice == "wait":
+                    flex_retries = 0
+                    seen_wait = float(_flex_decision["waited_at"])
+                    continue
                 logger.warning(f"Flex tier unavailable ({e}) — re-sending at standard processing")
                 flex = False
-                attempt -= 1
                 continue
         except APIConnectionError as e:  # includes APITimeoutError
             last_exc = e
@@ -712,6 +803,7 @@ def create_llm_client(settings) -> Anthropic:
             timeout=LLM_REQUEST_TIMEOUT_S, max_retries=0,   # our wrapper retries, with logging
         )
         client.openrouter_routing = openrouter_routing(getattr(settings, "openrouter_provider_sort", ""))
+        client.flex_fallback = getattr(settings, "flex_fallback", "") or "ask"
         return client
     if provider != "anthropic":
         raise ValueError(f"LLM_PROVIDER must be one of {PROVIDERS}, got {provider!r}")
