@@ -77,6 +77,7 @@ CHUNK_PROFILES = {
 SOURCE_PROFILE_MAP = {
     "Olympic Weightlifting: A Complete Guide": SourceProfile.PROGRAMMING_FOCUSED,
     "Weightlifting Programming": SourceProfile.PROGRAMMING_FOCUSED,
+    "Snatch Error Correction Manual": SourceProfile.PROGRAMMING_FOCUSED,
     "Scientific Principles of Hypertrophy Training": SourceProfile.PROGRAMMING_FOCUSED,
     "Intervention": SourceProfile.PROGRAMMING_FOCUSED,
     "Managing the Training of Weightlifters": SourceProfile.DATA_HEAVY_SOVIET,
