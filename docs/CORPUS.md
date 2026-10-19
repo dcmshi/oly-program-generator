@@ -63,6 +63,7 @@ size.
 | 27 | Kono — *Weightlifting, Olympic Style* (2010) | PDF (vision OCR, scan; re-OCR'd with GPT-6.1 Sol 2026-10-12) | 807 | programming | 230 (+8) | 113 |
 | 28 | Cissik — blog summary of Medvedyev's *A System of Multi-Year Training* (2026), stopgap for row 8 below | Web + 7 hand-transcribed table images (`sources/url_lists/cissik_medvedyev.py`) | 808 | web (dynamic) | 4 | 52 (14 recommendations cleared 2026-09-22 — see note) |
 | 29 | AUD-5 open-access papers (12, Europe PMC JATS): deload — Bell 2023 Delphi consensus, Rogerson 2024 survey, Coleman 2024 RCT; sleep — Doherty 2021; injury — Lee 2026 youth/adult surveillance, Huebner 2022 older lifters, Tung 2024 systematic review; RIR-RPE — Helms 2016; female athletes — Colenso-Semple 2023 menstrual cycle; concurrent training — Schumann 2022; ISSN protein 2017 and caffeine 2021 position stands | Europe PMC text | 809–820 | research (the first papers to actually get it — see note) | 379 (+37) | 32 |
+| 30 | Everett — *Snatch Error Correction Manual* (Catalyst, 2018 PDF) | PDF (text layer, `--contextualize`) | 852 | programming | 34 (25 `fault_correction`, 9 `concept`; 0 quarantined) | 17 (13 `technique`) |
 
 Papers (#16, #17, #29): until 2026-09-22 `pipeline.py --type article` sized every article by word count and never consulted `SOURCE_PROFILE_MAP`, so rows 16–17 were chunked with the web profiles despite being mapped to `research`; `_select_chunker` now lets a mapped title win (#29 is the first batch on `research` 700/150). Rows 16–17 keep their chunks until a re-ingest. #29 yielded few principles (32 from 12 papers) — reviews and surveys state findings, not rules.
 
@@ -105,6 +106,7 @@ for new books, and make the `--title` you pass match the `SOURCE_PROFILE_MAP` ke
 | 22 | `Tudor Bompa, Carlo Buzzichelli - Periodization of Strength Training for Sports (2021, 4th ed, Human Kinetics).epub` |
 | 23–26 | `Ilya Zhekov, Andrew Charniga - Weightlifting Training and Technique (2020, Sportivny Press).epub`, `Andrew Charniga - {Weightlifting Training and Biomechanics, There Is No System, A De-Masculinization of Strength} (2019, Sportivny Press).epub` |
 | 27 | `Tommy Kono - Weightlifting, Olympic Style (2010, Hawaii Kono Weightlifting, scan).pdf` |
+| 30 | `Greg Everett - Snatch Error Correction Manual (2018, Catalyst Athletics).pdf` |
 | 16–17 | `research/<Author Year - short title (journal)>.pdf|.txt` |
 
 `sources` rows with no chunks, kept for the run history: 3 and 53 (March 2026 Laputin attempts;
