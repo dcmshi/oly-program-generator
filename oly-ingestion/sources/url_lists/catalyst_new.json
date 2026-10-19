@@ -1,0 +1,8 @@
+{
+ "author": "",
+ "note": "Catalyst articles on the /articles/ index but in none of the six crawled section listings (2026-10-19). Catalyst URLs in a list go through fetch_article.",
+ "urls": [
+  "https://www.catalystathletics.com/article/2261/Better-Snatch-Overhead-Stability/",
+  "https://www.catalystathletics.com/article/2273/Leg-Drive-Makes-Hip-Extension-Work/"
+ ]
+}
