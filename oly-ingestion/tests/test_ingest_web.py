@@ -811,3 +811,48 @@ def test_requests_to_one_host_are_spaced_by_the_larger_of_interval_and_crawl_del
         assert waits == [10.0, 10.0]
     finally:
         w._policy = w._WebPolicy()
+
+
+def _rate_limited(retry_after):
+    resp = _mk_resp(status=429, raise_http=True)
+    resp.headers = {"Retry-After": retry_after}
+    return resp
+
+
+def test_retry_after_is_honoured_on_a_429(tmp_path):
+    import ingest_web as w
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    responses = iter([_rate_limited("20"), _mk_resp(text="ok")])
+    try:
+        with patch.object(w.SESSION, "get", side_effect=lambda url, **kw: _mk_resp(status=404)
+                          if url.endswith("/robots.txt") else next(responses)),              patch("time.sleep") as sleep:
+            resp, _ = w._get_with_retry("https://a.test/x")
+        assert resp.text == "ok"
+        assert 20 in [c.args[0] for c in sleep.call_args_list]         # not the 2 s backoff
+    finally:
+        w._policy = w._WebPolicy()
+
+
+def test_a_long_retry_after_leaves_the_host_for_the_next_run(tmp_path):
+    import ingest_web as w
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    try:
+        with patch.object(w.SESSION, "get", side_effect=lambda url, **kw: _mk_resp(status=404)
+                          if url.endswith("/robots.txt") else _rate_limited("3600")) as get,              patch("time.sleep") as sleep:
+            assert w._get_with_retry("https://a.test/1") == (None, False)
+            assert w._get_with_retry("https://a.test/2") == (None, False)
+        sleep.assert_not_called()
+        assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt", "https://a.test/1"]
+    finally:
+        w._policy = w._WebPolicy()
+
+
+def test_rate_limited_robots_marks_the_host_down(tmp_path):
+    import ingest_web as w
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    try:
+        with patch.object(w.SESSION, "get", return_value=_mk_resp(status=429)) as get:
+            assert w._get_with_retry("https://a.test/1") == (None, False)
+        assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt"]
+    finally:
+        w._policy = w._WebPolicy()

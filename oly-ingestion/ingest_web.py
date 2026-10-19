@@ -126,6 +126,7 @@ SESSION.headers.update({
 # callers and the unit tests from sleeping or writing a cache.
 WEB_CACHE_DIR = Path(__file__).parent / "sources" / ".web_cache"   # gitignored with the sources
 WEB_MIN_REQUEST_INTERVAL_S = 3.0
+RETRY_AFTER_MAX_S = 300.0          # longest Retry-After we wait out; beyond it the host is left for the next run
 
 
 class _WebPolicy:
@@ -177,8 +178,12 @@ def _robots_for(url: str) -> RobotFileParser | None:
     _throttle(host)
     try:
         resp = SESSION.get(f"{parts.scheme}://{parts.netloc}/robots.txt", timeout=15)
-        if resp.status_code >= 500:
+        if resp.status_code >= 500 or resp.status_code == 429:
+            # 429 is a rate limit, not "no robots.txt" — back off like a 5xx
             rp.disallow_all = True
+            if resp.status_code == 429:
+                logger.warning(f"robots.txt rate-limited (429) for {host} — no requests to it this run")
+                _policy.down_hosts.add(host)
         elif resp.status_code >= 400:
             rp = None
         else:
@@ -651,6 +656,22 @@ def collect_charniga_urls() -> list[tuple[str, str]]:
 _RETRYABLE_HTTP_STATUSES = {403, 408, 429, 500, 502, 503, 504}
 
 
+def _retry_after_s(resp) -> float | None:
+    """Seconds a 429/503 asks us to wait (Retry-After: delta-seconds or an
+    HTTP date); None when absent or unparseable."""
+    value = (getattr(resp, "headers", None) or {}).get("Retry-After")
+    if not isinstance(value, str) or not value.strip():
+        return None
+    value = value.strip()
+    if value.isdigit():
+        return float(value)
+    try:
+        from email.utils import parsedate_to_datetime
+        return max(0.0, (parsedate_to_datetime(value) - datetime.now(UTC)).total_seconds())
+    except (TypeError, ValueError):
+        return None
+
+
 def _get_with_retry(url: str, timeout: int = 30, attempts: int = 3, params: dict | None = None,
                     cache: bool = False):
     """GET with exponential backoff on transient failures (Wayback + live sites).
@@ -700,10 +721,15 @@ def _get_with_retry(url: str, timeout: int = 30, attempts: int = 3, params: dict
                 logger.warning(f"Permanent HTTP {status} for {url}")
                 return None, True
             err = e
+            retry_after = _retry_after_s(e.response)
         except requests.RequestException as e:
             err = e
+            retry_after = None
         if attempt < attempts:
-            wait = 2 ** attempt
+            if retry_after is not None and retry_after > RETRY_AFTER_MAX_S:
+                logger.warning(f"{host} asks for a {retry_after:.0f}s pause — leaving it for the next run")
+                break
+            wait = max(2 ** attempt, retry_after or 0)
             logger.warning(f"Fetch failed ({err}); retrying in {wait}s ({attempt}/{attempts})")
             time.sleep(wait)
     logger.warning(f"Transient failure persists for {url} — leaving pending for next run")
