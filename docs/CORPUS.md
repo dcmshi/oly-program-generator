@@ -37,7 +37,7 @@ size.
 | 1 | Everett — *Olympic Weightlifting* | EPUB | 507 | programming | 587 | 76 |
 | 2 | Zatsiorsky — *Science and Practice of Strength Training* | PDF | 51 | theory_heavy | 333 (was 430 page-chunks; 22.6 paras/chunk) | 347 |
 | 3 | Drechsler — *Weightlifting Encyclopedia* | PDF | 52 | theory_heavy | 790 (was 603 page-chunks; 14.6 paras/chunk) | 459 |
-| 4 | Catalyst Athletics articles | Web | — (415 rows with chunks) | web (dynamic) | 1,055 (was 446) | 495 |
+| 4 | Catalyst Athletics articles (2026-10-19: + #2261, #2273 via `url_lists/catalyst_new.json`, + 9 of 30 *General Training* articles — section 1 crawled from now on, the 21 off-topic CrossFit/fitness posts marked done unfetched) | Web | — (415 rows with chunks, + 11) | web (dynamic) | 1,055 (was 446) + 31 | 495 |
 | 5 | Laputin — *Managing the Training of Weightlifters* | PDF (vision OCR) | 499 | soviet | 101 (was 110; 8.9 paras/chunk) | 125 |
 | 6 | Takano — *Weightlifting Programming* | PDF | 2 | programming | 106 (was 218; 8.7 paras/chunk) | 141 |
 | 7 | Medvedev — *A Program of Multi-Year Training in Weightlifting* (1986; the `sources` row was titled *A System of…* until 2026-09-20) | PDF (vision OCR) | 501 | soviet | 141 (+2 quarantined; was 613 × 324 chars before the 2026-09-20 session-label fix) | 188 (+18 templates) |
