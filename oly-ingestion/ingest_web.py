@@ -29,6 +29,7 @@ Usage:
     python ingest_web.py                        # all Catalyst priority categories
     python ingest_web.py --categories technique program_design
     python ingest_web.py --limit 20             # cap for testing
+    python ingest_web.py --new-only             # only articles newer than the newest ingested
     python ingest_web.py --dry-run              # collect URLs, no ingestion
     python ingest_web.py --site charniga --dry-run   # enumerate Wayback URLs
     python ingest_web.py --site charniga             # ingest Charniga essays
@@ -316,6 +317,79 @@ def collect_category_urls(section_id: int, section_name: str) -> list[str]:
         time.sleep(0.5)
 
     return list(dict.fromkeys(urls))  # global dedupe
+
+
+# ── New articles only (--new-only) ─────────────────────────────
+# The section listings lag the site: a new article sits on the /articles/ index
+# before it is filed under a section (#2273 on 2026-10-19 had an empty category
+# in its <title> and was in no listing). --new-only walks that index newest
+# first, stops at the first page holding nothing newer than the newest article
+# already ingested, and keeps the candidates whose page category is a crawled
+# section or not filed yet. Each candidate's page is fetched with cache=True,
+# so the ingest that follows reads the same copy.
+CATALYST_INDEX_URL = f"{BASE_URL}/articles/"
+NEW_ONLY_MAX_INDEX_PAGES = 10
+_ARTICLE_ID_RE = re.compile(r"/article/(\d+)/")
+_CATALYST_TITLE_CATEGORY_RE = re.compile(r" - ((?:(?! - ).)*?)\s*-\s+Catalyst Athletics", re.S)
+
+
+def catalyst_article_id(url: str) -> int | None:
+    m = _ARTICLE_ID_RE.search(url)
+    return int(m.group(1)) if m else None
+
+
+def catalyst_page_category(html: str) -> str | None:
+    """The section name in a Catalyst article's <title> (`<Title> by <Author> -
+    <Category> - Catalyst Athletics | …`): '' when the site hasn't filed the
+    article yet, None when the title has another shape."""
+    m = re.search(r"<title>(.*?)</title>", html, re.S | re.I)
+    if not m:
+        return None
+    cat = _CATALYST_TITLE_CATEGORY_RE.search(m.group(1))
+    return cat.group(1).strip() if cat else None
+
+
+def collect_new_catalyst_urls(known_urls: set[str], category_names: set[str]) -> list[tuple[str, str]]:
+    """(url, category) for index articles newer than every known one, in a
+    crawled section or not yet filed."""
+    newest = max((catalyst_article_id(u) or 0 for u in known_urls), default=0)
+    logger.info(f"Newest ingested Catalyst article: #{newest}")
+    candidates: dict[int, str] = {}
+    previous: list[str] = []
+    for page in range(NEW_ONLY_MAX_INDEX_PAGES):
+        resp, _ = _get_with_retry(f"{CATALYST_INDEX_URL}?start={page * _CATALYST_PAGE_SIZE}", timeout=15)
+        if resp is None:
+            raise RuntimeError("Catalyst article index unavailable — nothing collected, re-run later")
+        links = list(dict.fromkeys(
+            href if href.startswith("http") else BASE_URL + href
+            for href in (a["href"] for a in BeautifulSoup(resp.text, "lxml").find_all("a", href=True))
+            if _ARTICLE_ID_RE.search(href)
+        ))
+        if not links or links == previous:        # the end, or an index that ignores ?start=
+            break
+        newer = [u for u in links if (catalyst_article_id(u) or 0) > newest]
+        for u in newer:
+            candidates.setdefault(catalyst_article_id(u), u)
+        if not newer:
+            break
+        previous = links
+
+    selected = []
+    for aid in sorted(candidates):
+        url = candidates[aid]
+        resp, _ = _get_with_retry(url, timeout=15, cache=True)
+        if resp is None:
+            logger.warning(f"#{aid} unavailable this run — left for the next one ({url})")
+            continue
+        category = catalyst_page_category(resp.text)
+        if category == "":
+            logger.info(f"#{aid} is not filed under a section yet — taking it ({url})")
+            selected.append((url, "Uncategorised"))
+        elif category in category_names:
+            selected.append((url, category))
+        else:
+            logger.info(f"#{aid} skipped: category {category!r} is not crawled ({url})")
+    return selected
 
 
 # ── Article header boilerplate (RAG-L11) ───────────────────────
@@ -972,6 +1046,9 @@ def main():
         default=list(CATALYST_CATEGORIES.keys()),
         help="Catalyst categories to ingest (default: all; ignored for --site charniga)",
     )
+    parser.add_argument("--new-only", action="store_true",
+                        help="Catalyst: only articles newer than the newest one ingested, from the /articles/ "
+                             "index (catches articles not yet filed under a section) — no section-listing walk")
     parser.add_argument("--limit", type=int, default=0,
                         help="Max articles to ingest (0 = no limit, useful for testing)")
     parser.add_argument("--dry-run", action="store_true",
@@ -989,6 +1066,8 @@ def main():
     parser.add_argument("--no-web-cache", action="store_true",
                         help="Fetch every article live instead of from sources/.web_cache (WEB-POLITE)")
     args = parser.parse_args()
+    if args.new_only and args.site != "catalyst":
+        parser.error("--new-only is Catalyst-only")
     configure_web_fetching(cache_dir=None if args.no_web_cache else WEB_CACHE_DIR)
 
     # ── Collect URLs (per-site) ──
@@ -1004,6 +1083,13 @@ def main():
         progress_file = URL_LIST_PROGRESS_FILE
         all_urls = load_url_list(args.url_file)      # meta = author
         logger.info(f"Loaded {len(all_urls)} URLs from {args.url_file}")
+    elif args.new_only:
+        progress_file = PROGRESS_FILE
+        all_urls = collect_new_catalyst_urls(
+            load_progress(progress_file), {CATALYST_CATEGORIES[k]["name"] for k in args.categories})
+        if not all_urls:
+            logger.info("No new Catalyst articles.")
+            return
     else:
         progress_file = PROGRESS_FILE
         all_urls = []  # (url, category_name)
