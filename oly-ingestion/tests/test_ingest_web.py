@@ -856,3 +856,57 @@ def test_rate_limited_robots_marks_the_host_down(tmp_path):
         assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt"]
     finally:
         w._policy = w._WebPolicy()
+
+
+def _catalyst_title(title, category):
+    return f"<html><head><title>{title} by Greg Everett - {category} - Catalyst Athletics | Olympic Weightlifting</title></head></html>"
+
+
+def test_catalyst_page_category_reads_the_title():
+    import ingest_web as w
+    assert w.catalyst_page_category(_catalyst_title("Everett Volume Squat Cycle", "Weightlifting Program Design"))         == "Weightlifting Program Design"
+    assert w.catalyst_page_category(_catalyst_title("Snatch - The Basics", "General Training")) == "General Training"
+    assert w.catalyst_page_category(
+        "<title>Leg Drive Makes Hip Extension Work by Greg Everett -  - Catalyst Athletics | Olympic Weightlifting</title>") == ""
+    assert w.catalyst_page_category("<title>Something else</title>") is None
+
+
+def test_new_only_takes_newer_articles_in_crawled_or_unfiled_sections(tmp_path):
+    import ingest_web as w
+    base = w.BASE_URL
+    index0 = "".join(f'<a href="/article/{i}/A{i}/">x</a>' for i in (2276, 2275, 2274, 2273, 2272))
+    index1 = "".join(f'<a href="/article/{i}/A{i}/">x</a>' for i in (2271, 2270))
+    pages = {
+        f"{w.CATALYST_INDEX_URL}?start=0": index0,
+        f"{w.CATALYST_INDEX_URL}?start=10": index1,
+        f"{base}/article/2274/A2274/": _catalyst_title("Pulls", "Olympic Weightlifting Technique"),
+        f"{base}/article/2275/A2275/": _catalyst_title("Interview", "Interviews"),
+        f"{base}/article/2276/A2276/": _catalyst_title("New", ""),
+    }
+    known = {f"{base}/article/2273/A2273/", f"{base}/article/100/Old/"}
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    try:
+        with patch.object(w.SESSION, "get", side_effect=_policy_get(None, pages)) as get:
+            got = w.collect_new_catalyst_urls(known, {"Olympic Weightlifting Technique"})
+        assert got == [(f"{base}/article/2274/A2274/", "Olympic Weightlifting Technique"),
+                       (f"{base}/article/2276/A2276/", "Uncategorised")]
+        fetched = [c.args[0] for c in get.call_args_list]
+        assert f"{w.CATALYST_INDEX_URL}?start=10" in fetched          # page 0 still had newer ids
+        assert not any("/article/2272/" in u or "/article/2271/" in u for u in fetched)
+        assert len(list(tmp_path.glob("*.json"))) == 3                # candidate pages cached for the ingest
+    finally:
+        w._policy = w._WebPolicy()
+
+
+def test_new_only_stops_when_the_index_ignores_pagination(tmp_path):
+    import ingest_web as w
+    same = '<a href="/article/2280/X/">x</a>'
+    w.configure_web_fetching(cache_dir=tmp_path, min_interval_s=0)
+    try:
+        with patch.object(w.SESSION, "get", side_effect=lambda url, **kw: _mk_resp(status=404)
+                          if url.endswith("/robots.txt") else _mk_resp(text=same if "/articles/" in url
+                          else _catalyst_title("X", "Interviews"))) as get:
+            assert w.collect_new_catalyst_urls({f"{w.BASE_URL}/article/2279/Y/"}, {"Olympic Weightlifting Technique"}) == []
+        assert sum("/articles/?start=" in c.args[0] for c in get.call_args_list) == 2
+    finally:
+        w._policy = w._WebPolicy()

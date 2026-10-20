@@ -157,6 +157,7 @@ file stays empty until the process exits.
 | `--categories technique` | `ingest_web.py` | Restrict to one category instead of all priority categories |
 | `--site charniga` | `ingest_web.py` | Crawl Charniga via the Wayback CDX index instead of Catalyst |
 | `--site urls --url-file sources/url_lists/<name>.json` | `ingest_web.py` | Ingest a curated URL list from any site (SBS, JTS, Pendlay); generic WordPress-style extraction, progress in `sources/urls_progress.json` |
+| `--new-only` | `ingest_web.py` | Catalyst top-up: only articles newer than the newest one in `sources/catalyst_progress.json`, from the `/articles/` index (catches articles not yet filed under a section; keeps crawled sections + unfiled ones). Usually 2–3 requests when nothing is new; combine with `--dry-run` to preview |
 | `--limit 20` | `ingest_web.py` | Cap article count for a smoke test |
 | `--dry-run` | `ingest_web.py` | Collect URLs only, ingest nothing |
 | `--delay SECONDS` | `ingest_web.py` | Pause between article requests (default 1.0) |
