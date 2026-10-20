@@ -104,6 +104,10 @@ CATALYST_CATEGORIES = {
         "section": 10,
         "name": "Mobility, Prep, Recovery & Injury",
     },
+    "general_training": {          # added 2026-10-19: technique-heavy (#2261 Better Snatch Overhead Stability)
+        "section": 1,
+        "name": "General Training",
+    },
 }
 
 BOT_UA_TOKEN = "OlyIngestionBot"          # the product token robots.txt rules are matched against
