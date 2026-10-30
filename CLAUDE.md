@@ -20,6 +20,7 @@ Read these rather than re-deriving them; update them when the underlying thing c
 | `docs/PROGRAMMING_ASSUMPTIONS.md` | Audit of every hard-coded programming decision (block length, phase curves, session layouts, Prilepin) with the lever to make each flexible — TODO PLAN-1 / PLAN-2 |
 | `docs/RETRIEVAL_EVAL.md` | Retrieval-quality baseline — the graded, gated harness is `oly-agent/eval/` (`build_golden` → `golden.json`, `run_eval` vs `baseline.json`); rebuild the golden set after any corpus change and re-run after any retrieval change |
 | `docs/RAG_RESEARCH.md` | RAG / ingestion / vector-DB review against current practice (2026-09-15): gap matrix, probe evidence, and the ordered remediation plan behind the RAG-* items in `TODO.md` |
+| `docs/AGENTIC_PLANNING.md` | Agentic planning design (2026-10-30, revised from a Kimi K3 draft): why the single sequential ReAct loop was set aside, the staged plan — whole-program audit → block design before generation → audit-driven repair → triggered session tool loop — and the gates behind the AGENT-* items in `TODO.md` |
 | `docs/CONTRIBUTING.md` | Security audit, scaling checklist, coverage |
 | `docs/DB-MACHINE-RUNBOOK.md` | Historical — the ops replay list from when a second corpus machine was expected; everything in it has run here. Read-only |
 | `TODO.md` | Current audit findings and their status |
