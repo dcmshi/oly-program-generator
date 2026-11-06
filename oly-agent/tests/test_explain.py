@@ -73,7 +73,7 @@ def _plan(phase="accumulation", duration_weeks=4, deload_week=4):
 
 def _sessions():
     return [{
-        "week_number": 1, "day_number": 1,
+        "week": 1, "day": 1, "label": "Snatch + Squat",
         "exercises": [
             {"exercise_name": "Snatch", "sets": 5, "reps": 3,
              "intensity_pct": 75, "intensity_reference": "snatch"},
@@ -209,7 +209,7 @@ def test_explain_keeps_temperature_on_sonnet_4_6():
 
     explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
     kwargs = mock_client.messages.create.call_args[1]
-    assert kwargs["temperature"] == 0.7 and kwargs["max_tokens"] == 1024
+    assert kwargs["temperature"] == 0.7 and kwargs["max_tokens"] == 2048   # config default (CLEAN-8)
     assert "thinking" not in kwargs and "output_config" not in kwargs
 
 
@@ -243,7 +243,7 @@ def test_explain_retries_with_a_bigger_budget_when_truncated():
     mock_client.messages.create.side_effect = [truncated, ok]
     rationale, in_tok, out_tok, _cost = explain(_ctx(), _plan(), _sessions(), mock_client, _FakeSettings())
     assert rationale == "Full rationale." and out_tok == 400
-    assert [c.kwargs["max_tokens"] for c in mock_client.messages.create.call_args_list] == [1024, 2048]
+    assert [c.kwargs["max_tokens"] for c in mock_client.messages.create.call_args_list] == [2048, 4096]
 
 
 def test_explain_gives_up_growing_at_the_ceiling():
@@ -281,6 +281,63 @@ def test_explain_prompt_mentions_the_previous_block():
     assert "Previous program: none — first program" in _build_explain_prompt(_ctx(), _plan(), _sessions())
 
 
+# ── AGENT-0b: EXPLAIN sees every session ─────────────────────────────────────
+
+def _ex(name, sets, reps, pct, ref, **kw):
+    return {"exercise_name": name, "sets": sets, "reps": reps, "intensity_pct": pct,
+            "intensity_reference": ref, **kw}
+
+
+def test_program_view_has_one_line_per_session_in_order_without_warmups():
+    from explain import program_view_lines
+
+    sessions = [
+        {"week": 2, "day": 1, "label": "Snatch", "exercises": [_ex("Snatch", 5, 2, 80, "snatch")]},
+        {"week": 1, "day": 2, "label": "Clean", "exercises": [
+            _ex("Clean", 2, 2, 55, "clean"),                         # warm-up ramp
+            _ex("Clean + Front Squat", 4, 3, 75, "clean", complex_id=7, notes="complex 1+2"),
+            _ex("Plank", 3, 30, None, None, rpe_target=7)]},
+        {"week": 1, "day": 1, "label": "Snatch", "exercises": [_ex("Snatch", 5, 3, 75, "snatch")]},
+    ]
+    assert program_view_lines(sessions).splitlines() == [
+        "W1 D1 Snatch: Snatch 5×3 @75%",
+        "W1 D2 Clean: Clean + Front Squat 4×(1+2) @75%; Plank 3×30 RPE 7",
+        "W2 D1 Snatch: Snatch 5×2 @80%",
+    ]
+
+
+def test_program_view_shortens_lines_then_cuts_the_tail_past_the_cap():
+    from explain import program_view_lines
+
+    from shared.constants import EXPLAIN_EXERCISES_PER_SESSION_WHEN_CAPPED as keep
+
+    exs = [_ex(f"Exercise {i}", 4, 3, 75, "back_squat") for i in range(6)]
+    sessions = [{"week": w, "day": 1, "exercises": exs} for w in range(1, 5)]
+    full = program_view_lines(sessions)
+    capped = program_view_lines(sessions, max_chars=len(full) - 1)
+    assert all(f"+{6 - keep} more" in line for line in capped.splitlines())
+    first = capped.splitlines()[0]
+    cut = program_view_lines(sessions, max_chars=len(first) * 2 + 2)
+    assert cut.splitlines()[-1] == "(… 2 more sessions not shown)"
+    assert program_view_lines([]) == "(no sessions generated)"
+
+
+def test_explain_prompt_shows_later_weeks_not_just_a_sample():
+    sessions = _sessions() + [{"week": 4, "day": 1, "label": "Deload",
+                               "exercises": [_ex("Power Snatch", 3, 2, 70, "snatch")]}]
+    prompt = _build_explain_prompt(_ctx(), _plan(), sessions)
+    assert "Sample Session" not in prompt
+    assert "W4 D1 Deload: Power Snatch 3×2 @70%" in prompt
+
+
+def test_explain_max_tokens_falls_back_to_the_config_default():
+    """CLEAN-8: a settings object without the field used to get 1,024."""
+    from explain import _explanation_max_tokens
+
+    from shared.config import Settings
+    assert _explanation_max_tokens(object()) == Settings.explanation_max_tokens == 2048
+
+
 if __name__ == "__main__":
     for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
         _test(name, fn)
@@ -291,3 +348,13 @@ if __name__ == "__main__":
         detail = f"  → {r[2]}" if len(r) > 2 else ""
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
+
+
+def test_explain_prompt_carries_the_audit_summary():
+    report = {"counts": {"error": 1, "warning": 0, "info": 0},
+              "findings": [{"severity": "error", "check": "block_shape", "week": 4, "day": None,
+                            "exercise": None, "message": "deload has 60 comp-lift reps, not fewer than week 3's 55"}]}
+    prompt = _build_explain_prompt(_ctx(), _plan(), _sessions(), report)
+    assert "## Program Audit" in prompt
+    assert "error [block_shape] W4 deload has 60 comp-lift reps" in prompt
+    assert "## Program Audit" not in _build_explain_prompt(_ctx(), _plan(), _sessions())

@@ -192,6 +192,26 @@ def _wave_deload_weeks(duration_weeks: int, deload_every_weeks: int | None) -> l
     return [*mids, duration_weeks]
 
 
+def wave_anchor_weeks(weekly_targets: list) -> dict[int, int]:
+    """{week_number: the week that anchors it} (DOG-2e). Used by the
+    orchestrator to schedule waves and by `program_audit` to judge drift per wave.
+
+    A block is one wave anchored on its first week, unless it has a deload
+    before its last week: the first non-deload week after a deload then
+    starts a new wave and anchors the weeks up to the next one. A deload
+    week belongs to the wave it closes. 8 weeks, deloads 4 and 8 →
+    weeks 1–4 on 1, 5–8 on 5; no mid-block deload → every week on the first.
+    """
+    anchors: dict[int, int] = {}
+    anchor, after_deload = None, False
+    for wt in weekly_targets:
+        if anchor is None or (after_deload and not wt.is_deload):
+            anchor, after_deload = wt.week_number, False
+        anchors[wt.week_number] = anchor
+        after_deload = after_deload or bool(wt.is_deload)
+    return anchors
+
+
 def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str,
                          deload_every_weeks: int | None = None, deload_style: str = "volume") -> list[dict]:
     """Build WeekTarget dicts from a phase profile.

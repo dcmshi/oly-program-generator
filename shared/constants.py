@@ -47,6 +47,11 @@ MAX_PREVIOUS_PROGRAM_TOP_SETS: int = 5
 # coach brief, accessory catalogue, fault names) and went 24/24 first-try, so
 # 20k warned on every session. It now flags growth past today's prompt.
 PROMPT_LENGTH_WARN_CHARS: int = 24_000
+# EXPLAIN's view of the program (AGENT-0b): one line per session, warm-ups left
+# out. 24 sessions × ~170 chars ≈ 4k; past the cap, lines keep only their first
+# EXPLAIN_EXERCISES_PER_SESSION_WHEN_CAPPED exercises, then the tail is cut.
+EXPLAIN_PROGRAM_VIEW_MAX_CHARS: int = 8_000
+EXPLAIN_EXERCISES_PER_SESSION_WHEN_CAPPED: int = 3
 # When a call stops on `max_tokens`, the next attempt doubles its budget up to
 # this ceiling. On Sonnet 5 / Opus 5 adaptive thinking counts against
 # max_tokens, so a 4,096 budget can be spent before any text is emitted;
@@ -162,6 +167,17 @@ CLEAN_AND_JERK_MAX_REPS: int = 2         # a C&J rep is a clean plus a jerk; the
 DOSING_VOLUME_TOLERANCE: float = 0.15     # session comp reps within ±15 % of the target are left alone
 DOSING_MAX_SETS: int = 8                  # sets added to reach the target stop here (catalogue max for the lifts)
 DOSING_RPE_PER_PCT: float = 0.1           # RPE moves 0.1 per % of load the dosing pass changes
+
+# ── Whole-program audit (AGENT-0a, oly-agent/program_audit.py) ──
+# Weekly comp-lift reps further than DOSING_VOLUME_TOLERANCE from the summed
+# session targets are a warning; further than this, an error.
+AUDIT_VOLUME_ERROR_FRACTION: float = 0.40
+AUDIT_CEILING_SLACK_PCT: float = 0.5      # rounding slack before a set counts as over the ceiling
+# A week whose plan raises the ceiling but whose top comp-lift set falls by
+# more than this (or the reverse on volume, by DOSING_VOLUME_TOLERANCE) is a
+# block-shape warning.
+AUDIT_INTENSITY_SLACK_PCT: float = 2.5
+AUDIT_SUMMARY_MAX_FINDINGS: int = 8       # errors / warnings listed in the EXPLAIN prompt
 
 # ── Phase advancement & outcome adjustments ─────────────────────
 # Used by plan._advance_phase / plan._apply_outcome_adjustments and mirrored

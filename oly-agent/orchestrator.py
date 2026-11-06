@@ -30,8 +30,10 @@ from macrocycle import create_macrocycle, load_macrocycle, next_block_index, pla
 from macrocycle import macrocycle_weeks as macrocycle_weeks_for
 from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
 from phase_profiles import PHASE_PROFILES
+from phase_profiles import wave_anchor_weeks as _wave_anchor_weeks
 from plan import plan
 from principle_matcher import build_session_state, select_principles
+from program_audit import audit_program, load_citation_context, load_program_sessions, session_plans_from_plan
 from retrieve import build_session_query, retrieve, retrieve_session_context
 from validate import validate_session
 from weight_resolver import apply_projected_maxes, attach_source_chunk_ids, resolve_exercise_ids, resolve_weights
@@ -257,10 +259,13 @@ def run(
                 f"Re-run generation or fill the sessions in manually."
             )
 
+        # ── Whole-program audit (AGENT-0a) — deterministic, never fails the program
+        audit = _audit_program(g, conn, program_id, max_sessions if capped else None)
+
         # ── Step 6: EXPLAIN ───────────────────────────────────
         logger.info("=== Step 6: EXPLAIN ===")
         _t0 = time.perf_counter()
-        rationale, cumulative_cost = _explain_program(g, all_sessions_data, cumulative_cost)
+        rationale, cumulative_cost = _explain_program(g, all_sessions_data, cumulative_cost, audit)
         rationale = _prefix_rationale_warnings(
             rationale, max_sessions if capped else None, len(all_sessions_data), total_planned, failed_sessions,
             flagged_sessions,
@@ -528,7 +533,42 @@ def _add_max_test_session(conn, program_id: int, athlete_context: AthleteContext
     })
 
 
-def _explain_program(g: "_GenerationRun", all_sessions_data: list[dict], cumulative_cost: float) -> tuple[str, float]:
+def _audit_program(g: "_GenerationRun", conn, program_id: int, max_sessions: int | None) -> dict | None:
+    """Run `program_audit` over the stored program (sessions as saved, the max
+    test and resumed sessions included) and store the report in
+    generation_params.audit. Any failure is logged and returns None — the
+    audit never fails a program or triggers a paid call (AGENT-0a)."""
+    try:
+        plans = session_plans_from_plan(g.program_plan, g.athlete_context.level)
+        if max_sessions is not None:
+            plans = plans[:max_sessions]
+        sessions = load_program_sessions(conn, program_id, fetch=fetch_all)
+        retrieval_sets, chunk_texts = load_citation_context(conn, program_id, fetch=fetch_all)
+        athlete = g.athlete_context.athlete if isinstance(g.athlete_context.athlete, dict) else {}
+        report = audit_program(
+            sessions, plans,
+            coach=_coach_record(g.athlete_context),
+            avoid=(athlete.get("exercise_preferences") or {}).get("avoid") or [],
+            faults=list(g.athlete_context.technical_faults or []),
+            retrieval_sets=retrieval_sets, chunk_texts=chunk_texts,
+        )
+        execute(conn, "UPDATE generated_programs SET generation_params = "
+                      "COALESCE(generation_params, '{}'::jsonb) || jsonb_build_object('audit', %s::jsonb) "
+                      "WHERE id = %s", (json.dumps(report, default=str), program_id))
+        conn.commit()
+        logger.info(f"Program audit: {report['counts']}", extra={"program_id": program_id})
+        return report
+    except Exception as e:                      # noqa: BLE001 — the audit is advisory
+        logger.warning(f"Program audit failed (non-fatal): {e}")
+        try:
+            conn.rollback()
+        except Exception:                       # noqa: BLE001
+            pass
+        return None
+
+
+def _explain_program(g: "_GenerationRun", all_sessions_data: list[dict], cumulative_cost: float,
+                     audit: dict | None = None) -> tuple[str, float]:
     """Step 6: (rationale, cumulative cost including the explain call)."""
     if cumulative_cost > g.cost_limit:
         # Generation landed at/over the limit — don't spend more on the
@@ -546,6 +586,7 @@ def _explain_program(g: "_GenerationRun", all_sessions_data: list[dict], cumulat
         program_sessions=all_sessions_data,
         llm_client=g.llm_client,
         settings=g.settings,
+        audit=audit,
     )
     # The explain call is paid too — count it (AGT-L7); billed when OpenRouter says
     return rationale, cumulative_cost + explain_cost
@@ -731,25 +772,6 @@ class _BlockAnchor:
         """build_session_prompt's block-template arguments for this day."""
         return {"block_template": self.templates.get(day_number),
                 "block_anchor_week": self.week, "new_wave": self.new_wave}
-
-
-def _wave_anchor_weeks(weekly_targets: list) -> dict[int, int]:
-    """{week_number: the week that anchors it} (DOG-2e).
-
-    A block is one wave anchored on its first week, unless it has a deload
-    before its last week: the first non-deload week after a deload then
-    starts a new wave and anchors the weeks up to the next one. A deload
-    week belongs to the wave it closes. 8 weeks, deloads 4 and 8 →
-    weeks 1–4 on 1, 5–8 on 5; no mid-block deload → every week on the first.
-    """
-    anchors: dict[int, int] = {}
-    anchor, after_deload = None, False
-    for wt in weekly_targets:
-        if anchor is None or (after_deload and not wt.is_deload):
-            anchor, after_deload = wt.week_number, False
-        anchors[wt.week_number] = anchor
-        after_deload = after_deload or bool(wt.is_deload)
-    return anchors
 
 
 def _waves(scheduled: list[tuple], anchors: dict[int, int]) -> list[list[tuple]]:
