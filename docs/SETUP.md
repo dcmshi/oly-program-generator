@@ -360,6 +360,7 @@ oly-program-generator/
 │   ├── config.py                    # Shim re-exporting shared/config.py
 │   ├── pipeline.py                  # EPUB / PDF / article ingestion orchestrator
 │   ├── ingest_web.py                # Web ingestion (Catalyst · Charniga via Wayback · curated URL lists)
+│   ├── web_fetch.py                 # Polite fetching for every web path: robots.txt, spacing, page cache (WEB-POLITE)
 │   ├── kobo_import.py               # Kobo .acsm → DRM-free EPUB via Calibre (docs/KOBO-IMPORT.md)
 │   ├── retag_chunks.py              # Re-tag stored chunks after KEYWORD_TO_TOPIC changes
 │   ├── relabel_chunk_types.py       # Re-label chunk_type with the light model or Jev

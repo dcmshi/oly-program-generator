@@ -42,3 +42,17 @@ def test_jats_to_text_renders_headings_paragraphs_tables_and_drops_references():
     for dropped in ("Reference One", "Footnote to drop", "[]", "[,]", "f1.jpg"):
         assert dropped not in text, dropped
     assert text.endswith("\n") and "\n\n\n" not in text
+
+
+def test_fetch_goes_through_the_polite_fetcher():
+    """CLEAN-6: no private requests.get loop — web_fetch._get_with_retry, cached."""
+    from unittest.mock import MagicMock, patch
+
+    import pytest
+    from extractors.jats_extractor import JatsFetchError, fetch_jats
+
+    with patch("web_fetch._get_with_retry", return_value=(MagicMock(text="<article/>"), False)) as get:
+        assert fetch_jats("PMC1") == "<article/>"
+    assert get.call_args.kwargs["cache"] is True and "PMC1/fullTextXML" in get.call_args.args[0]
+    with patch("web_fetch._get_with_retry", return_value=(None, True)), pytest.raises(JatsFetchError, match="not available"):
+        fetch_jats("PMC2")

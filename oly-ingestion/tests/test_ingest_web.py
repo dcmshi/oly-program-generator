@@ -13,6 +13,7 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import web_fetch
 from ingest_web import ingest_article
 
 _ARTICLE = {"title": "T", "author": "A", "text": "some article text", "url": "http://x/article/1/"}
@@ -698,7 +699,7 @@ def _policy_get(robots_text, pages):
 
 def test_policy_off_by_default_makes_no_robots_request():
     import ingest_web as w
-    w._policy = w._WebPolicy()
+    web_fetch._policy = web_fetch._WebPolicy()
     with patch.object(w.SESSION, "get", side_effect=_policy_get(None, {"https://a.test/x": "page"})) as get:
         resp, _ = w._get_with_retry("https://a.test/x", cache=True)
     assert resp.text == "page" and [c.args[0] for c in get.call_args_list] == ["https://a.test/x"]
@@ -714,7 +715,7 @@ def test_robots_disallow_is_permanent_and_never_fetches_the_page(tmp_path):
         assert resp is None and permanent is True
         assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt"]
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def test_article_page_is_cached_and_a_rerun_reads_the_copy(tmp_path):
@@ -733,7 +734,7 @@ def test_article_page_is_cached_and_a_rerun_reads_the_copy(tmp_path):
             w._get_with_retry("https://a.test/list")                            # listings are never cached
         assert len(list(tmp_path.glob("*.json"))) == 1
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def test_unanswering_host_is_not_contacted_again_this_run(tmp_path):
@@ -750,7 +751,7 @@ def test_unanswering_host_is_not_contacted_again_this_run(tmp_path):
         fetched = [c.args[0] for c in get.call_args_list]
         assert fetched.count("https://a.test/1") == 3 and "https://a.test/2" not in fetched
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def test_unreachable_robots_marks_the_host_down(tmp_path):
@@ -763,7 +764,7 @@ def test_unreachable_robots_marks_the_host_down(tmp_path):
             assert w._get_with_retry("https://a.test/2") == (None, False)
         assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt"]
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def test_requests_to_one_host_are_spaced_by_the_larger_of_interval_and_crawl_delay(tmp_path):
@@ -783,7 +784,7 @@ def test_requests_to_one_host_are_spaced_by_the_larger_of_interval_and_crawl_del
         waits = [round(c.args[0], 1) for c in slept.call_args_list]
         assert waits == [10.0, 10.0]
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def _rate_limited(retry_after):
@@ -803,7 +804,7 @@ def test_retry_after_is_honoured_on_a_429(tmp_path):
         assert resp.text == "ok"
         assert 20 in [c.args[0] for c in sleep.call_args_list]         # not the 2 s backoff
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def test_a_long_retry_after_leaves_the_host_for_the_next_run(tmp_path):
@@ -817,7 +818,7 @@ def test_a_long_retry_after_leaves_the_host_for_the_next_run(tmp_path):
         sleep.assert_not_called()
         assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt", "https://a.test/1"]
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def test_rate_limited_robots_marks_the_host_down(tmp_path):
@@ -828,7 +829,7 @@ def test_rate_limited_robots_marks_the_host_down(tmp_path):
             assert w._get_with_retry("https://a.test/1") == (None, False)
         assert [c.args[0] for c in get.call_args_list] == ["https://a.test/robots.txt"]
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def _catalyst_title(title, category):
@@ -868,7 +869,7 @@ def test_new_only_takes_newer_articles_in_crawled_or_unfiled_sections(tmp_path):
         assert not any("/article/2272/" in u or "/article/2271/" in u for u in fetched)
         assert len(list(tmp_path.glob("*.json"))) == 3                # candidate pages cached for the ingest
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
 
 
 def test_new_only_stops_when_the_index_ignores_pagination(tmp_path):
@@ -882,4 +883,4 @@ def test_new_only_stops_when_the_index_ignores_pagination(tmp_path):
             assert w.collect_new_catalyst_urls({f"{w.BASE_URL}/article/2279/Y/"}, {"Olympic Weightlifting Technique"}) == []
         assert sum("/articles/?start=" in c.args[0] for c in get.call_args_list) == 2
     finally:
-        w._policy = w._WebPolicy()
+        web_fetch._policy = web_fetch._WebPolicy()
