@@ -12,10 +12,6 @@ overrides; tests that need a provider set it explicitly.
 """
 
 import os
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 
 import shared.config  # noqa: E402,F401  (loads .env once)
 

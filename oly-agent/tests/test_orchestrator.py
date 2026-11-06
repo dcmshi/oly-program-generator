@@ -5,7 +5,7 @@ Tests for the orchestrator's run() pipeline.
 All steps (assess, plan, retrieve, generate, validate, explain) are mocked.
 No live DB, LLM, or API keys required.
 
-Run: python tests/test_orchestrator.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_orchestrator.py
 """
 
 import json
@@ -15,27 +15,13 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-RESULTS = []
 _INTEGRATION = os.getenv("INTEGRATION_TESTS", "").lower() in ("1", "true")
 
 
 class _Skip(Exception):
     pass
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except _Skip as e:
-        RESULTS.append(("SKIP", name, str(e)))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
 
 
 def _integration_only():
@@ -161,7 +147,7 @@ _PATCHES = {
     "get_connection":               "orchestrator.get_connection",
     "make_vector_loader":           "orchestrator._make_vector_loader",
     "fetch_all":                    "orchestrator.fetch_all",
-    "execute_returning":            "orchestrator.execute_returning",
+    "execute_returning":            "program_store.execute_returning",   # the writer (CLEAN-2)
     "execute":                      "orchestrator.execute",
     "assess":                       "orchestrator.assess",
     "plan":                         "orchestrator.plan",
@@ -224,14 +210,32 @@ def _full_mock_stack(stack: ExitStack, overrides: dict = None) -> dict:
             m = stack.enter_context(patch(target, return_value=rv))
         mocks[key] = m
 
+    # CLEAN-2: program_store reads the exercise catalogue with its own fetch_all;
+    # share the mock so the call order and routing stay as before
+    stack.enter_context(patch("program_store.fetch_all", mocks["fetch_all"]))
     # get_connection returns the conn object directly
     mocks["get_connection"].return_value = mock_conn
     mocks["conn"] = mock_conn
     return mocks
 
 
+def _anchor_view(call) -> tuple:
+    """(the day's block template, anchor week, new wave) a build_session_prompt
+    call received through its BlockAnchor (CLEAN-4)."""
+    anchor = call.kwargs.get("block_anchor")
+    day = call.kwargs["session_template"].day_number
+    return (anchor.templates.get(day), anchor.week, anchor.new_wave) if anchor else (None, 1, False)
+
+
+def _row_inserts(mocks) -> int:
+    """generated_programs + program_sessions INSERTs (program_store also returns
+    each session_exercises id, CLEAN-2 — those aren't counted here)."""
+    return sum("session_exercises" not in c.args[1] for c in mocks["execute_returning"].call_args_list)
+
+
 # ── Tests ─────────────────────────────────────────────────────────────────────
 
+from models import BlockAnchor
 from orchestrator import run
 
 
@@ -442,7 +446,7 @@ def test_no_max_test_for_accumulation():
         run(1, _settings())
     # execute_returning called once for the program INSERT, once for the session INSERT
     # (no extra max_test session)
-    assert mocks["execute_returning"].call_count == 2  # program + 1 session
+    assert _row_inserts(mocks) == 2  # program + 1 session
 
 
 def test_multi_week_program_generates_correct_session_count():
@@ -469,7 +473,7 @@ def test_multi_week_program_generates_correct_session_count():
 # ── audit5 agent-M1: athlete_snapshot must not persist credentials ────────────
 
 def test_athlete_snapshot_excludes_credentials():
-    from orchestrator import _build_athlete_snapshot
+    from program_store import athlete_snapshot as _build_athlete_snapshot
     athlete = {
         "id": 1, "name": "Test", "level": "intermediate",
         "password_hash": "$2b$12$secret", "username": "test",
@@ -571,7 +575,7 @@ def test_max_sessions_caps_generation_and_labels_the_partial_draft():
     assert mocks["generate"].call_count == 2
     assert mocks["explain"].call_count == 1
     # program row + 2 sessions, no max-test session
-    assert mocks["execute_returning"].call_count == 3
+    assert _row_inserts(mocks) == 3
     rationale_writes = [
         c for c in mocks["execute"].call_args_list
         if len(c.args) >= 3 and "rationale" in c.args[1]
@@ -582,8 +586,8 @@ def test_max_sessions_caps_generation_and_labels_the_partial_draft():
     assert "2 of 4 planned sessions" in stored
     assert "Test rationale text." in stored     # EXPLAIN output kept below the banner
 
-    params = mocks["execute_returning"].call_args_list[0].args[2]
-    generation_params = json.loads(params[-3])   # then macrocycle_id, block index
+    params = next(c for c in mocks["execute_returning"].call_args_list if "generated_programs" in c.args[1]).args[2]
+    generation_params = json.loads(params[10])   # program_store.insert_program order
     assert generation_params["max_sessions"] == 2
     assert generation_params["thinking"] == "disabled" and generation_params["effort"] is None   # production default
 
@@ -593,24 +597,11 @@ def test_generation_params_record_thinking_and_effort():
         mocks = _full_mock_stack(stack)
         run(1, Settings(cost_limit_per_program=1.0, generation_model="claude-sonnet-5",
                         generation_thinking="disabled", generation_effort="low"))
-    params = mocks["execute_returning"].call_args_list[0].args[2]
-    generation_params = json.loads(params[-3])   # then macrocycle_id, block index
+    params = next(c for c in mocks["execute_returning"].call_args_list if "generated_programs" in c.args[1]).args[2]
+    generation_params = json.loads(params[10])   # program_store.insert_program order
     assert generation_params["model"] == "claude-sonnet-5"
     assert (generation_params["thinking"], generation_params["effort"]) == ("disabled", "low")
     assert "max_sessions" not in generation_params
-
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    skipped = sum(1 for r in RESULTS if r[0] == "SKIP")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {skipped} skipped, {failed} failed")
 
 
 # ── RAG-H3: principles are selected per session ──────────────────────────────
@@ -834,7 +825,7 @@ def test_week1_block_template_reaches_later_weeks_only():
             mocks["generate"].side_effect = _gen_side_effect()
             run(1, _settings(), week_concurrency=concurrency)
         by_slot = {
-            (c.kwargs["week_number"], c.kwargs["session_template"].day_number): c.kwargs.get("block_template")
+            (c.kwargs["week_number"], c.kwargs["session_template"].day_number): _anchor_view(c)[0]
             for c in mocks["build_session_prompt"].call_args_list
         }
         assert by_slot[(1, 1)] is None and by_slot[(1, 2)] is None
@@ -870,7 +861,7 @@ def test_block_template_section_renders_below_the_static_marker():
         week_number=2, duration_weeks=4, already_prescribed=[], session_rep_target=15,
         cumulative_comp_reps=0, context_chunks=[],
     )
-    with_anchor = build_session_prompt(**kwargs, block_template="Snatch 4x3 @ 75%")
+    with_anchor = build_session_prompt(**kwargs, block_anchor=BlockAnchor(templates={1: "Snatch 4x3 @ 75%"}))
     without = build_session_prompt(**kwargs)
     marker = with_anchor.index(PROMPT_STATIC_DYNAMIC_MARKER)
     assert with_anchor.index("## Block Template (Week 1, Day 1)") > marker
@@ -951,14 +942,15 @@ def test_add_max_test_session_saves_on_the_peak_week_after_the_last_day():
 def test_concurrent_save_failure_stops_every_week():
     """A failed INSERT on the main thread must set the stop flag before the pool
     joins its workers, then propagate."""
-    from orchestrator import _BlockAnchor, _run_weeks_concurrently, _WeekOutcome
+    from models import BlockAnchor
+    from orchestrator import _run_weeks_concurrently, _WeekOutcome
     g = _generation_run()
     out = _WeekOutcome(2, sessions=[{"week": 2, "day": 1, "exercises": []}], templates=[_session_template(1)])
     with patch("orchestrator.retrieve_session_context", return_value=[]), \
          patch("orchestrator._week_worker", return_value=out), \
          patch("orchestrator._save_session", side_effect=RuntimeError("insert failed")):
         try:
-            _run_weeks_concurrently(g, MagicMock(), [(_week_target(2), 2), (_week_target(3), 2)], _BlockAnchor(), 2)
+            _run_weeks_concurrently(g, MagicMock(), [(_week_target(2), 2), (_week_target(3), 2)], BlockAnchor(), 2)
         except RuntimeError as e:
             assert "insert failed" in str(e)
         else:
@@ -998,7 +990,7 @@ def test_new_programs_store_the_resume_record():
         mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(2, 2)})
         assert run(1, _settings(), week_concurrency=1) == 42
     insert = next(c for c in mocks["execute_returning"].call_args_list if "generated_programs" in c.args[1])
-    params = json.loads(insert.args[2][8])
+    params = json.loads(insert.args[2][10])    # program_store.insert_program order
     assert params["resume"]["plan"]["duration_weeks"] == 2
     assert len(params["resume"]["plan"]["weekly_targets"]) == 2
     assert params["resume"]["effective_maxes"] == {"snatch": 100.0, "clean_and_jerk": 125.0}
@@ -1136,21 +1128,22 @@ def test_block_template_rotation_wording_only_on_a_new_wave():
         athlete_context=_athlete_context(), week_target=_week_target(5),
         session_template=_session_template(1), retrieval_context=retrieval,
         week_number=5, duration_weeks=8, already_prescribed=[], session_rep_target=15,
-        cumulative_comp_reps=0, context_chunks=[], block_template="Snatch 4x3 @ 75%",
+        cumulative_comp_reps=0, context_chunks=[],
     )
-    default = build_session_prompt(**kwargs)
+    days = {1: "Snatch 4x3 @ 75%"}
+    default = build_session_prompt(**kwargs, block_anchor=BlockAnchor(templates=days))
     # the defaults are the pre-DOG-2e prompt, byte for byte
-    assert build_session_prompt(**kwargs, block_anchor_week=1, new_wave=False) == default
+    assert build_session_prompt(**kwargs, block_anchor=BlockAnchor(1, days, False)) == default
     assert _block_template_section("X", 2) == _block_template_section("X", 2, 1, False)
     assert "rotate variants" not in default
 
-    rotate = build_session_prompt(**kwargs, block_anchor_week=1, new_wave=True)
+    rotate = build_session_prompt(**kwargs, block_anchor=BlockAnchor(1, days, True))
     assert "## Block Template (Week 1, Day 1) — new wave: rotate variants\n" in rotate
     assert "Week 1 prescribed this day as: Snatch 4x3 @ 75%" in rotate
     assert "rotate variants: swap the competition-lift variants and the accessories" in rotate
     assert "keep the same exercise selection" not in rotate
 
-    later = build_session_prompt(**kwargs, block_anchor_week=5)
+    later = build_session_prompt(**kwargs, block_anchor=BlockAnchor(5, days))
     assert "## Block Template (Week 5, Day 1)\nWeek 5 prescribed this day as: Snatch 4x3 @ 75%" in later
     assert "keep the same exercise selection and order" in later and "rotate variants" not in later
 
@@ -1184,7 +1177,7 @@ def test_mid_block_deload_regenerates_the_anchor_after_it():
 
         by_slot = {
             (c.kwargs["week_number"], c.kwargs["session_template"].day_number):
-                (c.kwargs.get("block_template"), c.kwargs.get("block_anchor_week"), c.kwargs.get("new_wave"))
+                _anchor_view(c)
             for c in mocks["build_session_prompt"].call_args_list
         }
         for d in (1, 2):
@@ -1207,7 +1200,7 @@ def test_no_mid_block_deload_keeps_every_week_on_week_1():
         later = [c for c in mocks["build_session_prompt"].call_args_list if c.kwargs["week_number"] > 1]
         assert len(later) == 6
         for c in later:
-            assert (c.kwargs["block_template"], c.kwargs["block_anchor_week"], c.kwargs["new_wave"]) == (
+            assert _anchor_view(c) == (
                 "Lift W1 4x3 @ 75%", 1, False)
 
 
@@ -1234,7 +1227,7 @@ def test_resume_anchors_the_new_wave_on_a_saved_week_without_an_llm_call():
         assert len(prompts) == 6
         for c in prompts:
             assert c.kwargs["week_number"] >= 6
-            assert (c.kwargs["block_template"], c.kwargs["block_anchor_week"], c.kwargs["new_wave"]) == (
+            assert _anchor_view(c) == (
                 "Saved W5 4x3 @ 75%", 5, False)
 
 
@@ -1266,7 +1259,7 @@ def test_resume_of_a_pre_dog2e_draft_keeps_every_week_on_the_first():
         prompts = mocks["build_session_prompt"].call_args_list
         assert len(prompts) == 6
         for c in prompts:
-            assert (c.kwargs["block_template"], c.kwargs["block_anchor_week"], c.kwargs["new_wave"]) == (
+            assert _anchor_view(c) == (
                 "Saved W1 4x3 @ 75%", 1, False)
 
 

@@ -17,7 +17,6 @@ from unittest.mock import MagicMock, patch
 
 import pytest
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import import_program_csv as ipc
@@ -278,9 +277,13 @@ def test_write_program_inserts_sessions_exercises_logs_and_outcome():
     exercise_rows = [{"id": 7, "name": "Muscle Snatch"}, {"id": 39, "name": "Back Squat"}, {"id": 1, "name": "Snatch"},
                      {"id": 44, "name": "Clean & Jerk"}]
     conn = MagicMock()
+    import program_store
+
+    fetch = MagicMock(side_effect=[max_rows, exercise_rows])
+    ret = MagicMock(side_effect=lambda *a, **k: next(ids))
     with patch.object(ipc, "fetch_one", return_value=athlete), \
-         patch.object(ipc, "fetch_all", side_effect=[max_rows, exercise_rows]), \
-         patch.object(ipc, "execute_returning", side_effect=lambda *a, **k: next(ids)) as ret, \
+         patch.object(ipc, "fetch_all", fetch), patch.object(program_store, "fetch_all", fetch), \
+         patch.object(ipc, "execute_returning", ret), patch.object(program_store, "execute_returning", ret), \
          patch.object(ipc, "execute") as execute, \
          patch("feedback.compute_outcome") as compute_outcome, \
          patch("feedback.save_outcome") as save_outcome:

@@ -42,19 +42,16 @@ from dataclasses import dataclass
 from datetime import date
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import program_store
 from import_program_csv import (
     Day,
     ParsedProgram,
     Prescription,
     Week,
-    catalogue_name_for,
     clamp_intensity,
     find_previous_import,
-    hang_variant_for,
-    intensity_reference_for,
     parse_reps_cell,
     print_dry_run,
     write_program,
@@ -62,6 +59,11 @@ from import_program_csv import (
 
 from shared.config import Settings
 from shared.db import execute, fetch_all, get_connection
+from shared.exercise_aliases import MD_ABBREVIATIONS as _ABBREVIATIONS
+from shared.exercise_aliases import MD_ALIASES as _MD_ALIASES
+from shared.exercise_aliases import MD_OF_REFS as _OF_REFS
+from shared.exercise_aliases import catalogue_name_for, hang_variant_for, intensity_reference_for
+from shared.program_sql import ACTIVATE_DRAFT, SUPERSEDE_OTHER_ACTIVE, psycopg, psycopg_params
 
 logger = logging.getLogger(__name__)
 
@@ -77,37 +79,6 @@ _SCHEME_RE = re.compile(
     r"(sec|s|/s|/side)?\b\s*(.*)$", re.I)                 # unit, then whatever is left
 _MAX_RE = re.compile(r"^(\d+)\s*x\s*(max|submaximal)\b\s*(.*)$", re.I)
 _PLAIN_SPLIT_RE = re.compile(r"^(?P<name>.*?[A-Za-z)])\s+(?P<spec>\d.*)$")
-
-# Whole-word abbreviations in Paul's notation → catalogue words.
-_ABBREVIATIONS = [
-    (r"\bFSQ\b", "Front Squat"), (r"\bSN\b", "Snatch"), (r"\bCL\b", "Clean"), (r"\bSQ\b", "Squat"),
-    (r"\bSq\b", "Squat"), (r"\bExt\b", "Extension"), (r"\bOH\b", "Overhead"), (r"\bPP\b", "Push Press"),
-    (r"\bRev\b", "Reverse"), (r"^Front \+", "Front Squat +"),
-]
-# Names the CSV alias map doesn't know, checked first (lowercased, expanded).
-# None = deliberately no catalogue match (the CSV map's "clean" substring
-# would otherwise file an RDL "(% of Clean)" under Clean).
-_MD_ALIASES: list[tuple[str, str | None]] = [
-    ("snatch grip rdl", "Snatch Grip Romanian Deadlift"),
-    ("rdl", "Romanian Deadlift"),          # seeded by migration 0023
-    ("no foot snatch", "No Feet Snatch"),
-    ("no foot clean", "Clean & Jerk"),
-    ("deficit snatch extension", "Snatch Pull from Deficit"),
-    ("deficit clean extension", None),
-    ("deficit snatch", "Snatch from Deficit"),
-    ("block snatch", "Block Snatch (knee)"),
-    ("block clean extension", "Clean Extension"),
-    ("block clean", "Block Clean (knee)"),
-    ("hang snatch", "Hang Snatch (above knee)"),
-    ("bulgarian split", "Bulgarian Split Squat"),
-    ("box jumps", "Box Jump"),
-    ("pendlay row", "Pendlay Row"),
-    ("bent over bb row", "Barbell Row"),
-    ("back extension", "Back Extension"),
-]
-_OF_REFS = {"cl": "clean", "clean": "clean", "sn": "snatch", "snatch": "snatch", "pp": "push_press",
-            "jerk": "jerk", "fsq": "front_squat", "bsq": "back_squat"}
-
 
 @dataclass
 class MdDay(Day):
@@ -284,10 +255,9 @@ def activate(conn, program_id: int, athlete_id: int) -> list[int]:
     superseded = [r["id"] for r in fetch_all(
         conn, "SELECT id FROM generated_programs WHERE athlete_id = %s AND status = 'active' AND id != %s",
         (athlete_id, program_id))]
-    execute(conn, "UPDATE generated_programs SET status = 'superseded', updated_at = NOW() "
-                  "WHERE athlete_id = %s AND status = 'active' AND id != %s", (athlete_id, program_id))
-    execute(conn, "UPDATE generated_programs SET status = 'active', updated_at = NOW() "
-                  "WHERE id = %s AND athlete_id = %s AND status = 'draft'", (program_id, athlete_id))
+    params = psycopg_params(athlete_id, program_id)
+    execute(conn, psycopg(SUPERSEDE_OTHER_ACTIVE), params)      # one SQL text with the web app (CLEAN-3)
+    execute(conn, psycopg(ACTIVATE_DRAFT), params)
     conn.commit()
     return superseded
 
@@ -312,7 +282,7 @@ def main(argv: list[str] | None = None) -> int:
     name = args.name or f"{args.file.stem} (Paul, imported)"
     conn = get_connection(Settings().database_url)
     try:
-        lookup = {r["name"].lower(): r["id"] for r in fetch_all(conn, "SELECT id, name FROM exercises")}
+        lookup = program_store.exercise_lookup(conn)
         if args.dry_run:
             unmapped = resolve_ids(program, lookup)
             print_dry_run(program, None)

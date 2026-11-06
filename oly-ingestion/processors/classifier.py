@@ -14,12 +14,9 @@ The classifier uses a two-pass approach:
 
 import logging
 import re
-import sys
 from dataclasses import dataclass, field
 from enum import Enum
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.sectioning import MARKDOWN_HEADING_RE_SRC, merge_small_sections, split_oversized_sections
 from shared.constants import CLASSIFIER_LLM_MAX_TOKENS, JEV_CLASSIFY_MIN_CONFIDENCE
 from shared.llm import (

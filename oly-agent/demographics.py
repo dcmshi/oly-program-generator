@@ -7,11 +7,7 @@ Athlete Profile line of the session prompt, and the session-query qualifier.
 Pure functions — no DB, no web imports.
 """
 
-import sys
 from datetime import date
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.constants import (
     AGE_BAND_MASTERS,

@@ -31,7 +31,6 @@ from collections import Counter, defaultdict
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 REPEAT_SESSION_FRACTION = 0.5    # a chunk in at least this share of sessions is "repeated"
 

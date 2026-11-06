@@ -5,7 +5,7 @@ Tests for the ASSESS step (assess.py).
 Pure-logic tests (estimate_missing_maxes) need no DB or API keys.
 assess() tests mock fetch_one / fetch_all to avoid DB dependency.
 
-Run: python tests/test_assess.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_assess.py
 """
 
 import sys
@@ -13,22 +13,9 @@ from datetime import date, timedelta
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from assess import MAX_ESTIMATION_RATIOS, assess, estimate_missing_maxes
-
-RESULTS = []
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, str(e)))
-
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -296,15 +283,3 @@ def test_assess_without_previous_program_makes_no_structure_queries():
         with patch("assess.fetch_all", side_effect=[[], []]) as fa:
             ctx = assess(1, None)
     assert ctx.previous_program is None and fa.call_count == 2
-
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")

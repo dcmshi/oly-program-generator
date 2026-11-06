@@ -16,10 +16,7 @@ loads .env). Import lazily — the SDK is an ingestion dependency only.
 
 import asyncio
 import logging
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.schema_enums import CHUNK_TYPES
 
 logger = logging.getLogger(__name__)

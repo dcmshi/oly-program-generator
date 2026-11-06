@@ -8,11 +8,8 @@ by 40-60% while maintaining intensity above 90%" into queryable rules.
 """
 
 import logging
-import sys
 from dataclasses import dataclass
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.constants import PRINCIPLE_EMPTY_RETRIES, PRINCIPLE_EMPTY_RETRY_MIN_CHARS
 from shared.llm import (
     BatchRequestFailed,

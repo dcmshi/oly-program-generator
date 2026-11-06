@@ -58,6 +58,7 @@ from shared.llm import (
     thinking_kwargs,
     usage_tokens,
 )
+from shared.program_sql import DELETE_STATEMENTS, psycopg, psycopg_params
 
 logger = logging.getLogger(__name__)
 
@@ -355,18 +356,9 @@ def delete_programs(database_url: str, program_ids: list[int]) -> None:
         return
     conn = get_connection(database_url)
     try:
-        execute(conn, """
-            UPDATE training_log_exercises SET session_exercise_id = NULL
-            WHERE session_exercise_id IN (
-                SELECT se.id FROM session_exercises se
-                JOIN program_sessions ps ON ps.id = se.session_id
-                WHERE ps.program_id = ANY(%s))
-        """, (program_ids,))
-        execute(conn, """
-            UPDATE training_logs SET session_id = NULL
-            WHERE session_id IN (SELECT id FROM program_sessions WHERE program_id = ANY(%s))
-        """, (program_ids,))
-        n = execute(conn, "DELETE FROM generated_programs WHERE id = ANY(%s)", (program_ids,))
+        n = 0
+        for sql in DELETE_STATEMENTS:           # one SQL text with the web delete (CLEAN-3)
+            n = execute(conn, psycopg(sql), psycopg_params(list(program_ids), None))
         conn.commit()
         logger.info(f"Deleted {n} baseline program(s): {program_ids}")
     finally:

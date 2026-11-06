@@ -43,7 +43,6 @@ prescription (as performed: same sets/reps/weight, ``make_rate`` =
 
 import argparse
 import csv
-import json
 import logging
 import re
 import sys
@@ -51,16 +50,25 @@ from dataclasses import dataclass, field
 from datetime import date, timedelta
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import program_store
+
 from shared.config import Settings
+from shared.constants import STORABLE_INTENSITY_PCT_MAX
 from shared.db import execute, execute_returning, fetch_all, fetch_one, get_connection
+from shared.exercise_aliases import (  # noqa: F401 — re-exported for import_program_md and the tests
+    EXACT_ALIASES,
+    SUBSTRING_ALIASES,
+    catalogue_name_for,
+    hang_variant_for,
+    intensity_reference_for,
+)
 from shared.exercise_mapping import COMP_LIFT_REFS
 
 logger = logging.getLogger(__name__)
 
-INTENSITY_PCT_CEILING = 120.0      # session_exercises CHECK (intensity_pct <= 120)
+INTENSITY_PCT_CEILING = STORABLE_INTENSITY_PCT_MAX   # session_exercises CHECK (intensity_pct <= 120)
 DEFAULT_PHASE = "general_prep"
 DEFAULT_NAME = "General Strength — 3 Block / 11W (imported)"
 
@@ -170,164 +178,7 @@ def clamp_intensity(pct: float | None) -> tuple[float | None, str | None]:
     return pct, None
 
 
-# ── Exercise name → intensity reference / catalogue id ───────────────────────
-
-def intensity_reference_for(name: str) -> str | None:
-    """Which athlete max a percentage on this row refers to (pipeline keys)."""
-    n = name.lower()
-    if "% of cl" in n:
-        return "clean"
-    if "% of msn" in n or ("muscle snatch" in n and ("1rm" in n or "heavy single" in n)):
-        return "muscle_snatch"
-    if "clean" in n or n.startswith("cl "):
-        return "clean_and_jerk" if "jerk" in n else "clean"
-    if "jerk" in n:
-        return "jerk"
-    if "push press" in n:
-        return "push_press"
-    if "back squat" in n:
-        return "back_squat"
-    if "front squat" in n:
-        return "front_squat"
-    if "snatch" in n or n.startswith("sn ") or n.startswith("power sn"):
-        return "snatch"
-    if "mid grip deadlift" in n:
-        return "clean"
-    return None
-
-
-# Sheet name (lowercased) → catalogue name. Complexes take the primary lift.
-# Substring rules run after exact matches; unmatched → exercise_id NULL.
-EXACT_ALIASES: dict[str, str] = {
-    "hang snatch": "Hang Snatch (above knee)",
-    "no foot snatch": "No Feet Snatch",
-    "sn balance": "Snatch Balance",
-    "snatch extension from deficit": "Snatch Pull from Deficit",
-    "snatch grip deadlift": "Snatch Deadlift",
-    "sn grip rdl": "Snatch Grip Romanian Deadlift",
-    "block power snatch + oh sq": "Power Snatch from Blocks (knee)",
-    "block snatch": "Block Snatch (knee)",
-    "block snatch (above knee)": "Block Snatch (above knee)",
-    "block clean (at knee)": "Block Clean (knee)",
-    "block clean (above knee)": "Block Clean (above knee)",
-    "mid grip deadlift": "Deadlift",
-    "stiff leg deadlift (% of cl)": "Stiff-Leg Deadlift",
-    "jerk from rack": "Jerk",
-    "jerk dips": "Jerk Dip",
-    "btn push press": "Push Press Behind the Neck",
-    "block power clean + push press": "Power Clean",
-    "clean & jerk": "Clean & Jerk",
-    "close stance back squat": "Close-Stance Back Squat",
-    "partial back squat (1/4 squat)": "Quarter Squat",
-    "1+1/4 front squat": "1¼ Front Squat",
-    "box jumps": "Box Jump",
-    "broad jumps": "Broad Jump",
-    "vertical jumps": "Vertical Jump",
-    "jumping squats": "Jumping Squat",
-    "bb rows": "Barbell Row",
-    "pendlay rows": "Pendlay Row",
-    "back extensions": "Back Extension",
-    "bulgarian split squats": "Bulgarian Split Squat",
-    # Accessories seeded by migration 0023 (DOG-2f) — names from the 646 Beginner Program
-    "strict press": "Strict Press",
-    "press": "Strict Press",
-    "behind the neck press": "Behind the Neck Press",
-    "snatch grip behind the neck press": "Snatch Grip Behind the Neck Press",
-    "snatch push press": "Snatch Push Press",           # else the "snatch" substring rule catches it
-    "good morning": "Good Morning",
-    "good mornings": "Good Morning",
-    "planks": "Plank",
-    "walking lunges": "Walking Lunge",
-    "bb step ups": "Step-Up",
-    "delt flyes": "Rear Delt Fly",
-    "deltoid flyes": "Rear Delt Fly",
-    "db delt flyes": "Rear Delt Fly",
-    "bent over db flyes": "Rear Delt Fly",
-    "banded tricep extensions": "Triceps Extension",
-    "db skull crushers": "Triceps Extension",
-    "barbell squat jumps": "Jumping Squat",
-    "bb squat jumps": "Jumping Squat",
-    "bent over bb rows": "Barbell Row",
-}
-SUBSTRING_ALIASES: list[tuple[str, str]] = [
-    # (needle in lowercased name, catalogue name) — first hit wins
-    ("clean deadlift + clean + jerk", "Clean & Jerk"),
-    ("power clean + jerk", "Clean & Jerk"),
-    ("power clean + fsq + jerk", "Clean & Jerk"),
-    ("power clean + power jerk", "Clean & Jerk"),
-    ("clean + jerk", "Clean & Jerk"),
-    ("clean + fsq + jerk", "Clean & Jerk"),
-    ("muscle snatch", "Muscle Snatch"),
-    ("power snatch from deficit", "Power Snatch from Deficit"),
-    ("power snatch", "Power Snatch"),
-    ("power sn ", "Power Snatch"),
-    ("snatch extension + snatch", "Snatch"),
-    ("snatch pull to hip + snatch", "Snatch"),
-    ("snatch pull to hip", "Snatch Pull to Hip"),      # before "extension": the first movement names a complex
-    ("sn pull to hip", "Snatch Pull to Hip"),
-    ("snatch extension", "Snatch Extension"),
-    ("sn extension", "Snatch Extension"),
-    ("snatch deadlift", "Snatch Deadlift"),
-    ("snatch from deficit", "Snatch from Deficit"),
-    ("snatch pull", "Snatch Pull"),                     # "Tempo Snatch Pull" was stored as Snatch
-    ("snatch push press", "Snatch Push Press"),
-    ("pressing snatch balance", "Pressing Snatch Balance"),
-    ("snatch balance", "Snatch Balance"),             # "Hang Snatch Balance" was stored as Snatch
-    ("shrug", "Shrug"),
-    ("snatch", "Snatch"),
-    ("power clean from deficit", "Power Clean from Deficit"),
-    ("power clean", "Power Clean"),
-    ("clean extension", "Clean Extension"),
-    ("cl extension", "Clean Extension"),
-    ("clean pull to hip", "Clean Pull to Hip"),
-    ("clean deadlift", "Clean Deadlift"),
-    ("clean from deficit", "Clean from Deficit"),
-    ("clean & jerk", "Clean & Jerk"),                  # "Hang Clean & Jerk" was stored as Clean
-    ("clean and jerk", "Clean & Jerk"),
-    ("clean pull", "Clean Pull"),                       # "Clean Pull to Contact Point" was stored as Clean
-    ("clean", "Clean"),
-    ("power jerk", "Power Jerk"),
-    ("jerk", "Jerk"),
-    ("push press", "Push Press"),
-    ("back squat", "Back Squat"),
-    ("front squat", "Front Squat"),
-]
-
-
-# A hang derivative that is not the lift itself: "Hang Clean Deadlift", "Hang Snatch
-# Balance", "Snatch Grip Hang Shrug", "Hang Clean & Jerk" keep their own mapping.
-_HANG_NOT_THE_LIFT = ("pull", "extension", "high", "deadlift", "rdl", "balance", "shrug", "jerk", "press", "squat")
-
-
-def hang_variant_for(name: str) -> str | None:
-    """A hang snatch / clean → its catalogue row by height, before the substring
-    rules collapse it onto the full lift ("Hang Clean (below knee)" was stored as
-    Clean, "Hang Power Snatch" as Power Snatch). The catalogue has the hang
-    power lifts above the knee only, so a below-knee power hang falls through."""
-    n = name.lower()
-    if "hang" not in n or "+" in n or "muscle" in n or any(w in n for w in _HANG_NOT_THE_LIFT):
-        return None
-    lift = "Snatch" if "snatch" in n else ("Clean" if "clean" in n else None)
-    if lift is None:
-        return None
-    below = "below knee" in n or "below the knee" in n
-    if "power" in n:
-        return None if below else f"Hang Power {lift} (above knee)"
-    return f"Hang {lift} ({'below' if below else 'above'} knee)"
-
-
-def catalogue_name_for(name: str) -> str | None:
-    n = name.lower().strip()
-    if n in EXACT_ALIASES:
-        return EXACT_ALIASES[n]
-    hang = hang_variant_for(n)
-    if hang:
-        return hang
-    for needle, target in SUBSTRING_ALIASES:
-        if needle in n:
-            return target
-    return None
-
+# ── Exercise name → catalogue id (the vocabulary is shared/exercise_aliases.py) ──
 
 def resolve_catalogue_ids(program: ParsedProgram, exercise_lookup: dict[str, int]) -> list[str]:
     """Fill exercise_id via the alias map; return the sheet names left unmapped."""
@@ -531,7 +382,6 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
     """Write the parsed program; `status` / `source` / `label_fn` / `rationale` /
     `resolve_fn` (name → catalogue id) let the Markdown importer (import_program_md.py) reuse it for a program
     that is about to be trained rather than a completed one."""
-    from orchestrator import _build_athlete_snapshot, _estimate_duration
     from weight_resolver import build_maxes_dict, resolve_weights
 
     athlete = fetch_one(conn, "SELECT * FROM athletes WHERE id = %s", (athlete_id,))
@@ -543,27 +393,21 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
         WHERE am.athlete_id = %s AND am.max_type = 'current'
     """, (athlete_id,))
     maxes = build_maxes_dict(max_rows)
-    exercise_lookup = {r["name"].lower(): r["id"] for r in fetch_all(conn, "SELECT id, name FROM exercises")}
+    exercise_lookup = program_store.exercise_lookup(conn)
     unmapped = (resolve_fn or resolve_catalogue_ids)(program, exercise_lookup)
     if unmapped:
         logger.info(f"{len(unmapped)} sheet name(s) have no catalogue match (stored with NULL exercise_id): {unmapped}")
 
     weeks = len(program.weeks)
     end_date = start_date + timedelta(days=7 * weeks - 1)
-    program_id = execute_returning(conn, """
-        INSERT INTO generated_programs
-            (athlete_id, name, status, phase, duration_weeks, sessions_per_week,
-             start_date, end_date, athlete_snapshot, maxes_snapshot, generation_params, rationale)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-    """, (
-        athlete_id, name, status, phase, weeks, program.sessions_per_week, start_date, end_date,
-        json.dumps(_build_athlete_snapshot(athlete), default=str),
-        json.dumps(maxes),
-        json.dumps({"source": source, "file": source_name, "model": None,
-                    "imported_on": date.today().isoformat()}),
-        rationale if rationale is not None else rationale_text(program, source_name),
-    ))
+    program_id = program_store.insert_program(
+        conn, athlete_id=athlete_id, name=name, status=status, phase=phase, duration_weeks=weeks,
+        sessions_per_week=program.sessions_per_week, start_date=start_date, end_date=end_date,
+        athlete=athlete, maxes_snapshot=maxes,
+        generation_params={"source": source, "file": source_name, "model": None,
+                           "imported_on": date.today().isoformat()},
+        rationale=rationale if rationale is not None else rationale_text(program, source_name),
+    )
 
     for week, day in program.sessions:
         exercises = [{
@@ -580,22 +424,9 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
                 notes += f", avg {day.avg_intensity:g}%"
             if day.volume is not None:
                 notes += f", volume {day.volume}"
-        session_id = execute_returning(conn, """
-            INSERT INTO program_sessions
-                (program_id, week_number, day_number, session_label, estimated_duration_minutes, focus_area, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-        """, (program_id, week.number, day.number, (label_fn or session_label)(week, day),
-              _estimate_duration(exercises), focus_area(day), notes))
-        se_ids = []
-        for ex in exercises:
-            se_ids.append(execute_returning(conn, """
-                INSERT INTO session_exercises
-                    (session_id, exercise_order, exercise_id, exercise_name, sets, reps,
-                     intensity_pct, intensity_reference, absolute_weight_kg, is_max_attempt, notes)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-            """, (session_id, ex["exercise_order"], ex["exercise_id"], ex["exercise_name"], ex["sets"],
-                  ex["reps"], ex["intensity_pct"], ex["intensity_reference"], ex["absolute_weight_kg"],
-                  ex["is_max_attempt"], ex["notes"])))
+        session_id, se_ids = program_store.insert_session(
+            conn, program_id, week.number, day.number, label=(label_fn or session_label)(week, day),
+            focus_area=focus_area(day), exercises=exercises, notes=notes)
         if log_as_completed:
             log_id = execute_returning(conn, """
                 INSERT INTO training_logs (athlete_id, session_id, log_date)
@@ -667,7 +498,7 @@ def main(argv: list[str] | None = None) -> int:
     conn = get_connection(settings.database_url)
     try:
         if args.dry_run:
-            lookup = {r["name"].lower(): r["id"] for r in fetch_all(conn, "SELECT id, name FROM exercises")}
+            lookup = program_store.exercise_lookup(conn)
             print_dry_run(program, lookup)
             previous = find_previous_import(conn, args.athlete_id, source_name)
             if previous:

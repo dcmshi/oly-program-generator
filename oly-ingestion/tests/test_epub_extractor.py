@@ -5,7 +5,7 @@ Tests for the EPUB chapter extractor.
 All tests mock ebooklib so no real .epub file is needed.
 bs4 must be installed (it is a pipeline dependency).
 
-Run: python tests/test_epub_extractor.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_epub_extractor.py
 """
 
 import sys
@@ -13,18 +13,6 @@ from pathlib import Path
 from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-
-RESULTS = []
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
 
 
 # ── Helpers ───────────────────────────────────────────────────────────────────
@@ -292,14 +280,3 @@ def test_many_p_tags_all_preserved_as_separate_paragraphs():
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")

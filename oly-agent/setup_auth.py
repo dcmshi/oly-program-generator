@@ -5,14 +5,11 @@ Usage:
     cd oly-agent
     PYTHONUTF8=1 uv run python setup_auth.py --athlete-id 1 --username david --password secret
 
-Run once per athlete after applying auth_migration.sql.
+Run once per athlete after `make migrate` (the auth columns are in the Alembic chain).
 """
 
 import argparse
 import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from web.auth import hash_password
 

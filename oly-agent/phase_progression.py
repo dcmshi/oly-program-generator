@@ -8,10 +8,7 @@ which is exactly how the realization→accumulation logic drifted (A-H3). Both n
 call decide_next_phase() / compute_load_adjustments() so they cannot diverge.
 """
 
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.constants import (
     ADJUST_RPE_DEVIATION,

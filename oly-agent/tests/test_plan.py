@@ -6,31 +6,18 @@ _select_phase_and_duration is pure — tested directly.
 plan() cold-start and standard paths tested with a mocked DB (fetch_all patched
 to return [] for the principles query, avoiding any live connection).
 
-Run: python tests/test_plan.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_plan.py
 """
 
 import sys
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext
 from plan import _advance_phase, _apply_outcome_adjustments, _select_phase_and_duration, plan
 from schemas import OutcomeSummary
-
-RESULTS = []
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, str(e)))
-
 
 # ── Fixtures ────────────────────────────────────────────────────────────────
 
@@ -421,18 +408,6 @@ def test_outcome_nudges_are_proportional_to_the_miss():
 
 
 # ── Runner ───────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")
-
 
 # ── RAG-H3: principle candidates ─────────────────────────────────────────────
 

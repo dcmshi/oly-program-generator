@@ -167,3 +167,15 @@ class ProgramOutcome:
     make_rate_trend: str = "stable"
 
     athlete_feedback: str | None = None  # free text from training_logs
+
+
+@dataclass(frozen=True)
+class BlockAnchor:
+    """What one week's session prompts are anchored on (AUD-4, DOG-2e): the
+    anchor week's same-day session summaries, and whether this week opens a
+    new wave (shown the previous wave's anchor, asked to rotate variants).
+    The default — no templates — is week 1's. Moved from the orchestrator
+    (CLEAN-4) so build_session_prompt takes it whole."""
+    week: int = 1
+    templates: dict[int, str] = field(default_factory=dict)
+    new_wave: bool = False

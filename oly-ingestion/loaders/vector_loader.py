@@ -12,9 +12,7 @@ Handles:
 import hashlib
 import logging
 import re
-import sys
 from collections import OrderedDict
-from pathlib import Path
 from typing import Any
 
 import psycopg2
@@ -22,7 +20,6 @@ from pgvector.psycopg2 import register_vector
 from processors.chunker import Chunk
 from processors.tokens import truncate_to_tokens
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.constants import (
     CHUNK_TITLE_MAX_CHARS,
     CHUNK_TYPE_PREFERENCE_BOOST,

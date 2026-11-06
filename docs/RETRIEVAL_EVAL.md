@@ -384,7 +384,7 @@ is almost always relevant; recall grows with `top_k`, not with ranking changes.
 
 ## Legacy 22-query report (print-only)
 
-Run: `cd oly-ingestion && PYTHONUTF8=1 uv run python tests/test_retrieval_eval.py [--dense-only]`
+`oly-ingestion/tests/test_retrieval_eval.py` was deleted on 2026-11-06 (CLEAN-11): the graded harness in `oly-agent/eval/` replaced it. The numbers below are kept as history.
 
 Since 2026-09-15 this report also searches under production settings (hybrid +
 session preference); the 2026-03-18 numbers below were taken unfiltered and

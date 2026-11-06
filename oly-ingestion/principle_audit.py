@@ -50,7 +50,6 @@ from dataclasses import dataclass
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))  # repo root for shared.*
 
 from shared.constants import SCAN_TEXT_MIN_CHARS_PER_PAGE  # noqa: E402 — after the sys.path setup
 

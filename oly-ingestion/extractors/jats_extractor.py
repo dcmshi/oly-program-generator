@@ -19,23 +19,27 @@ import sys
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-import requests
-
 EUROPEPMC_FULLTEXT_URL = "https://www.ebi.ac.uk/europepmc/webservices/rest/{pmcid}/fullTextXML"
 _DROP_TAGS = {"ref-list", "xref", "fn-group", "author-notes", "back", "graphic", "inline-graphic", "alternatives",
               "supplementary-material", "table-wrap-foot", "disp-formula", "inline-formula"}
 
 
+class JatsFetchError(RuntimeError):
+    """Europe PMC didn't return the full text (permanent: no such PMCID / not
+    open access; transient: still failing after the retries)."""
+
+
 def fetch_jats(pmcid: str, timeout: int = 120, attempts: int = 4) -> str:
-    """Europe PMC answers 503 under load; retry with backoff before giving up."""
-    import time
-    for attempt in range(attempts):
-        resp = requests.get(EUROPEPMC_FULLTEXT_URL.format(pmcid=pmcid), timeout=timeout)
-        if resp.status_code < 500:
-            resp.raise_for_status()
-            return resp.text
-        time.sleep(3 * (attempt + 1))
-    resp.raise_for_status()
+    """The article's JATS XML through the polite fetcher (WEB-POLITE, CLEAN-6):
+    robots.txt, per-host spacing, Retry-After, backoff on Europe PMC's 503s
+    under load, and the page cache once `configure_web_fetching()` is on."""
+    from web_fetch import _get_with_retry
+
+    url = EUROPEPMC_FULLTEXT_URL.format(pmcid=pmcid)
+    resp, permanent = _get_with_retry(url, timeout=timeout, attempts=attempts, cache=True)
+    if resp is None:
+        kind = "not available" if permanent else "still failing after retries"
+        raise JatsFetchError(f"Europe PMC full text for {pmcid}: {kind} ({url})")
     return resp.text
 
 
@@ -122,6 +126,9 @@ def jats_to_text(xml: str) -> str:
 
 
 if __name__ == "__main__":
+    from web_fetch import configure_web_fetching
+
+    configure_web_fetching()
     pmcid, dest = sys.argv[1], Path(sys.argv[2])
     dest.write_text(jats_to_text(fetch_jats(pmcid)), encoding="utf-8")
     print(f"{pmcid} → {dest} ({dest.stat().st_size:,} bytes)")

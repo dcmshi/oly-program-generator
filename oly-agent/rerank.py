@@ -17,11 +17,7 @@ docs/RETRIEVAL_EVAL.md for the measurement that decided it).
 
 import json
 import logging
-import sys
 import threading
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.constants import RERANK_MAX_ATTEMPTS, RERANK_MAX_TOKENS, RERANK_SNIPPET_CHARS, RERANK_TOP_N
 from shared.excerpt import focused_excerpt

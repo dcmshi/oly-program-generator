@@ -1,12 +1,14 @@
 # tests/test_principle_extractor.py
 """
-Integration tests for PrincipleExtractor against the live Anthropic API.
+Integration tests for PrincipleExtractor against the live LLM provider
+(`LLM_PROVIDER`: OpenRouter by default, or Anthropic). Not in the Makefile's
+no-key list — every test makes a paid call.
 
 Requires:
-  - ANTHROPIC_API_KEY set in .env
+  - the provider's key in .env (OPENROUTER_API_KEY, or ANTHROPIC_API_KEY)
   - Docker Postgres running (for the load_into_db test)
 
-Run: PYTHONUTF8=1 uv run python tests/test_principle_extractor.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_principle_extractor.py
 """
 
 import sys
@@ -204,29 +206,3 @@ def test_load_extracted_principles_into_db():
     loader.conn.commit()
     cur.close()
     loader.close()
-
-
-# ── Runner ─────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    tests = [
-        test_extracts_principles_from_peaking_passage,
-        test_extracts_volume_intensity_rules,
-        test_returns_empty_for_non_programming_text,
-        test_extracts_multiple_principles_from_deload_passage,
-        test_recommendation_fields_are_valid,
-        test_load_extracted_principles_into_db,
-    ]
-    passed = failed = 0
-    for test in tests:
-        try:
-            test()
-            print(f"  PASS  {test.__name__}")
-            passed += 1
-        except Exception as e:
-            print(f"  FAIL  {test.__name__}: {e}")
-            import traceback
-
-            traceback.print_exc()
-            failed += 1
-    print(f"\n{passed} passed, {failed} failed")

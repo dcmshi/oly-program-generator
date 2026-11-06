@@ -5,8 +5,8 @@ Tests for retag_chunks.retag().
 Mock-based tests cover all logic paths without a live DB.
 The live DB integration test requires INTEGRATION_TESTS=1.
 
-Run: python tests/test_retag_chunks.py
-     INTEGRATION_TESTS=1 python tests/test_retag_chunks.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_retag_chunks.py
+     INTEGRATION_TESTS=1 PYTHONUTF8=1 uv run pytest tests/test_retag_chunks.py
 """
 
 import os
@@ -16,24 +16,11 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-RESULTS = []
 _INTEGRATION = os.getenv("INTEGRATION_TESTS", "").lower() in ("1", "true")
 
 
 class _Skip(Exception):
     pass
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except _Skip as e:
-        RESULTS.append(("SKIP", name, str(e)))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
 
 
 def _integration_only():
@@ -261,15 +248,3 @@ def test_integration_retag_dry_run_does_not_modify_db():
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    skipped = sum(1 for r in RESULTS if r[0] == "SKIP")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {skipped} skipped, {failed} failed")

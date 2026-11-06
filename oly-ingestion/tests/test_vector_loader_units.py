@@ -5,7 +5,7 @@ No-key unit tests for VectorLoader pure helpers.
 Covers the dedup partition behind I-M9 (single existing-hash lookup + intra-batch
 dedup) and I-M5 (accurate skipped count). No DB or OPENAI_API_KEY needed.
 
-Run: python tests/test_vector_loader_units.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_vector_loader_units.py
 """
 
 import sys
@@ -14,19 +14,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from loaders.vector_loader import VectorLoader
-
-RESULTS = []
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
-
 
 # chunk objects are opaque to the partitioner — plain strings stand in.
 
@@ -330,16 +317,3 @@ def test_lexical_weight_zero_skips_the_lexical_leg():
     vl.similarity_search("snatch pull prilepin", top_k=5, hybrid=True, lexical_weight=0)
     sql = next(c.args[0] for c in cur.execute.call_args_list if "FROM knowledge_chunks" in c.args[0])
     assert "lex AS" not in sql and "tsv" not in sql
-
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")
-    sys.exit(1 if failed else 0)

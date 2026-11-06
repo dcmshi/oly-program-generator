@@ -22,10 +22,7 @@ shows) is untouched. The generated `tsv` column already includes it.
 """
 
 import logging
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.chunker import Chunk
 from shared.constants import CONTEXTUALIZE_CONCURRENCY
 from shared.llm import create_message_with_retries, message_text, thinking_kwargs

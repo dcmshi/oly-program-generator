@@ -11,11 +11,7 @@ Usage:
 """
 
 import argparse
-import sys
 from datetime import date, datetime, timedelta
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.config import Settings
 from shared.db import execute, execute_returning, fetch_all, fetch_one, get_connection
@@ -33,19 +29,6 @@ def _prompt(label: str, default=None, cast=str) -> str | None:
     except (ValueError, TypeError):
         print(f"    Invalid input, using default: {default}")
         return default
-
-
-def _prompt_required(label: str, cast=str):
-    """Prompt user until a non-empty value is entered."""
-    while True:
-        raw = input(f"  {label}: ").strip()
-        if raw:
-            try:
-                return cast(raw)
-            except (ValueError, TypeError):
-                print("    Invalid input, try again.")
-        else:
-            print("    This field is required.")
 
 
 def _fmt_date(d) -> str:

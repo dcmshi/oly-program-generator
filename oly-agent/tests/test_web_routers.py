@@ -6,7 +6,7 @@ Authentication uses a properly signed session cookie (same as real sessions)
 so the auth middleware works correctly without patching internals.
 All tests are mock-based — no live DB or API keys required.
 
-Run: python tests/test_web_routers.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_web_routers.py
 """
 
 import base64
@@ -16,29 +16,15 @@ import sys
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from fastapi.testclient import TestClient
 
-RESULTS = []
 _INTEGRATION = os.getenv("INTEGRATION_TESTS", "").lower() in ("1", "true")
 
 
 class _Skip(Exception):
     pass
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except _Skip as e:
-        RESULTS.append(("SKIP", name, str(e)))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
 
 
 def _integration_only():
@@ -938,6 +924,7 @@ def test_limiter_serves_requests_when_redis_is_down():
     constructor never fires — with REDIS_URL set and Redis down, the first
     request to any limited route (login included) raised ConnectionError → 500.
     The limiter must degrade to in-memory counters and still enforce limits."""
+    import redis
     from fastapi import FastAPI, Request
     from slowapi import _rate_limit_exceeded_handler
     from slowapi.errors import RateLimitExceeded
@@ -947,6 +934,11 @@ def test_limiter_serves_requests_when_redis_is_down():
     dead.redis_url = "redis://127.0.0.1:6399"  # nothing is listening here
     with patch("web.deps.get_settings", return_value=dead):
         lim = _init_limiter()
+
+    # Refuse the socket at once: a real connect to a closed Windows port waits
+    # out redis-py's retries, which made this test take ~6 s (CLEAN-11).
+    def _refused(*_a, **_k):
+        raise redis.exceptions.ConnectionError("Connection refused (mocked)")
 
     probe = FastAPI()
     probe.state.limiter = lim
@@ -958,7 +950,8 @@ def test_limiter_serves_requests_when_redis_is_down():
         return {"ok": True}
 
     client = TestClient(probe)
-    codes = [client.get("/probe").status_code for _ in range(3)]
+    with patch("redis.connection.AbstractConnection.connect", _refused):
+        codes = [client.get("/probe").status_code for _ in range(3)]
     assert codes[:2] == [200, 200], f"Redis outage must not break the route, got {codes}"
     assert codes[2] == 429, f"limits must still be enforced in memory, got {codes}"
 
@@ -1638,18 +1631,6 @@ def test_generation_conflict_returns_a_showable_message():
 
 # ── Runner ─────────────────────────────────────────────────────────────────────
 
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    skipped = sum(1 for r in RESULTS if r[0] == "SKIP")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {skipped} skipped, {failed} failed")
-
 # ── SHARE-1: downloadable shareable page ────────────────────────────────────────
 
 def _share_data(n=1):
@@ -1697,7 +1678,6 @@ def test_program_actions_link_to_the_share_page():
          patch("web.queries.program.get_program_volume_by_week", return_value=[]):
         r = _client.get("/program/1")
     assert 'href="/program/share.html?ids=1"' in r.text
-
 
 
 # ── RESUME-1: resume a stopped generation ────────────────────────────────────

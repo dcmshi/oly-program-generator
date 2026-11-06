@@ -16,7 +16,6 @@ from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from generate import (
@@ -26,7 +25,7 @@ from generate import (
     parse_llm_response,
     validate_exercise_names,
 )
-from models import AthleteContext, RetrievalContext, SessionTemplate, WeekTarget
+from models import AthleteContext, BlockAnchor, RetrievalContext, SessionTemplate, WeekTarget
 
 from shared.constants import MAX_RECENT_LOGS_IN_PROMPT
 
@@ -1711,7 +1710,8 @@ def _golden_rich_prompt():
         session_rep_target=8, cumulative_comp_reps=10,
         effective_maxes={"snatch": 115.0, "clean_and_jerk": 140.0, "back_squat": 190.0, "clean_pull": 160.0},
         phase="realization", sessions_per_week=4, active_principles=principles,
-        context_chunks=chunks, block_template="Snatch 5x2 @75%; Snatch Pull 4x3 @95%",
+        context_chunks=chunks,
+        block_anchor=BlockAnchor(templates={3: "Snatch 5x2 @75%; Snatch Pull 4x3 @95%"}),
     )
 
 
@@ -1949,7 +1949,7 @@ def test_large_prompt_warns(caplog):
     from generate import _warn_if_prompt_large
 
     from shared.constants import PROMPT_LENGTH_WARN_CHARS
-    with caplog.at_level(logging.WARNING, logger="generate"):
+    with caplog.at_level(logging.WARNING, logger="session_prompt"):   # CLEAN-4: the builder moved
         _warn_if_prompt_large("x" * PROMPT_LENGTH_WARN_CHARS, 1, 1)
         assert not caplog.records
         _warn_if_prompt_large("x" * (PROMPT_LENGTH_WARN_CHARS + 1), 1, 1)

@@ -7,10 +7,6 @@ imported mid-migration.
 """
 
 import os
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 # The compose stack's PgBouncer listens on local 5432; Postgres direct is 5433.
 _LOCAL_HOSTNAMES = ("localhost", "127.0.0.1", "::1")

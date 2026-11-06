@@ -4,30 +4,16 @@ Tests for shared/formulas.py — round_kg() and estimate_session_minutes().
 These back the R1/R2 refactor that removed three duplicate rounding copies and
 two duplicate duration formulas.
 
-Run: python tests/test_formulas.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_formulas.py
 """
 
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.constants import SECONDS_PER_SET
 from shared.formulas import estimate_session_minutes, round_kg
-
-RESULTS = []
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
-
 
 # ── round_kg ──────────────────────────────────────────────────────────────────
 
@@ -95,16 +81,3 @@ def test_plan_weekly_budget_scales_with_frequency():
     w3 = next(w for w in three.weekly_targets if not w.is_deload)
     assert 50 <= w4.total_competition_lift_reps <= 100, w4
     assert w3.total_competition_lift_reps < w4.total_competition_lift_reps
-
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")
-    sys.exit(1 if failed else 0)

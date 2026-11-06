@@ -33,7 +33,6 @@ def make_chunk(raw: str, chapter: str = "Test Chapter", topics: list[str] | None
             "section_title": "Test Section",
             "chunk_type": "concept",
             "page_number": 1,
-            "athlete_level_relevance": "intermediate",
         },
         token_count=len(raw.split()),
         topics=topics or ["snatch", "technique"],
@@ -195,6 +194,8 @@ def test_similarity_search_with_filters():
 
     vl.load_chunks([chunk], source_id=sid)
 
+    # `chunk_types=` is the hard filter similarity_search still offers for ad-hoc
+    # queries; production retrieval uses preferred_chunk_types (RAG-H2).
     # Filter for 'methodology' — our chunk is 'fault_correction', should be excluded
     results_other = vl.similarity_search(
         "back squat strength training",

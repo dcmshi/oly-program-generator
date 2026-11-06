@@ -28,10 +28,16 @@ Edit `.env` and fill in real values — at minimum `POSTGRES_PASSWORD`, `SECRET_
 ### 2. Install dependencies + start infrastructure
 
 ```bash
-make sync     # uv sync for both subsystems
+make sync     # uv sync for both subsystems (shared/ comes along as an editable path dependency)
 make up       # docker compose up -d (Postgres + PgBouncer + Redis)
 make migrate  # alembic upgrade head (creates all tables + seed data)
 ```
+
+> **Packaging (CLEAN-5):** `shared/` has its own `pyproject.toml` and both
+> subsystems install it editable (`[tool.uv.sources]`), so `import shared…`
+> needs no `sys.path` line. The local embedder's `sentence-transformers` (and
+> torch) is an optional extra: `uv sync --extra local-embed` in the subsystem
+> that runs `EMBEDDING_PROVIDER=local`.
 
 > **Migrations against a non-local database:** `make migrate` rewrites
 > `localhost:5432` → `:5433` to bypass the local PgBouncer (transaction pooling
@@ -248,9 +254,9 @@ Tests that need a live DB or API keys are not included in `make test` — run th
 cd oly-agent     && uv run pytest tests/test_feedback.py
 cd oly-ingestion && uv run pytest tests/test_structured_loader.py
 cd oly-ingestion && uv run pytest tests/test_vector_loader.py       # OPENAI_API_KEY
-cd oly-ingestion && uv run pytest tests/test_principle_extractor.py # ANTHROPIC_API_KEY
+cd oly-ingestion && uv run pytest tests/test_principle_extractor.py # the LLM provider's key
 cd oly-ingestion && uv run pytest tests/test_pipeline.py            # both keys, e2e
-cd oly-ingestion && uv run pytest tests/test_retrieval_eval.py      # both keys, quality baseline
+# retrieval quality: oly-agent/eval/ (run_eval vs baseline.json) — docs/RETRIEVAL_EVAL.md
 ```
 
 A few tests inside otherwise-mocked files need real API calls or a live DB.
@@ -323,17 +329,16 @@ oly-program-generator/
 ├── TODO.md                          # Current audit findings and their status
 ├── TODO-audit-2026-07-03.md         # Older audit + roadmap #17–#23
 ├── ruff.toml                        # Lint config (ruff version pinned in the Makefile)
-├── schema.sql · athlete_schema.sql · auth_migration.sql
-│                                    # Pre-Alembic DDL, reference only — the migrations are the source of truth
 ├── .github/workflows/ci.yml         # CI: lint + the no-key test suites
 ├── .claude/skills/kobo-import/      # Claude Code skill wrapping kobo_import.py
 ├── screenshots/                     # README screenshots
 ├── docs/
 │   ├── SETUP.md                     # This file — setup, DB ops, ingestion, CLI, tests, backup
-│   ├── SCHEMA.md                    # ER diagrams + table reference (21 tables)
+│   ├── SCHEMA.md                    # ER diagrams + table reference (Alembic is the source of truth)
 │   ├── CORPUS.md                    # Ingested + planned sources, chunk-size profiles, SOURCE_PROFILE_MAP
 │   ├── RETRIEVAL_EVAL.md            # Retrieval-quality baseline and the eval gate
 │   ├── RAG_RESEARCH.md              # RAG / ingestion / vector-DB review and remediation plan (RAG-* items)
+│   ├── AGENTIC_PLANNING.md          # Agentic planning design and the gates behind the AGENT-* items
 │   ├── PROGRAMMING_ASSUMPTIONS.md   # Audit of hard-coded programming decisions (PLAN-1 / PLAN-2)
 │   ├── KOBO-IMPORT.md               # Kobo purchase → clean EPUB (Calibre + DeACSM + DeDRM)
 │   ├── CONTRIBUTING.md              # Security audit, scaling checklist, coverage
@@ -344,12 +349,17 @@ oly-program-generator/
 ├── shared/                          # Imported by both subsystems
 │   ├── config.py                    # Settings dataclass (reads oly-ingestion/.env); provider-aware model defaults
 │   ├── constants.py                 # Project-wide numeric constants
+│   ├── checkpoint.py                # Resumable paid harnesses: <out>.partial.jsonl + --resume (RESUME-1)
+│   ├── excerpt.py                   # Query-focused chunk excerpts for the prompt (AUD-2)
 │   ├── db.py                        # psycopg2 fetch_one / fetch_all / execute helpers
 │   ├── llm.py                       # LLM client (Anthropic SDK → Anthropic or OpenRouter), request helpers, batches, cost
 │   ├── schema_enums.py              # Enum values for the structured-output schemas (mirrored against the migrations)
-│   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS
+│   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS, movement families
+│   ├── exercise_aliases.py          # Coach-sheet / note names → catalogue rows and max references (CLEAN-1)
 │   ├── formulas.py · timeutil.py    # Derived metrics · timezone-aware "today"
-│   └── prilepin.py                  # Zone lookup + per-session rep targets
+│   ├── prilepin.py                  # Zone lookup + per-session rep targets
+│   ├── program_sql.py               # Program delete / activate SQL, once for asyncpg and psycopg2 (CLEAN-3)
+│   └── volume_tables.py             # Selectable comp-lift volume tables: Prilepin / Medvedev (PLAN-3d)
 │
 ├── oly-ingestion/                   # Ingestion pipeline (CLI only)
 │   ├── pyproject.toml · uv.lock · requirements.txt
@@ -358,6 +368,7 @@ oly-program-generator/
 │   ├── config.py                    # Shim re-exporting shared/config.py
 │   ├── pipeline.py                  # EPUB / PDF / article ingestion orchestrator
 │   ├── ingest_web.py                # Web ingestion (Catalyst · Charniga via Wayback · curated URL lists)
+│   ├── web_fetch.py                 # Polite fetching for every web path: robots.txt, spacing, page cache (WEB-POLITE)
 │   ├── kobo_import.py               # Kobo .acsm → DRM-free EPUB via Calibre (docs/KOBO-IMPORT.md)
 │   ├── retag_chunks.py              # Re-tag stored chunks after KEYWORD_TO_TOPIC changes
 │   ├── relabel_chunk_types.py       # Re-label chunk_type with the light model or Jev
@@ -373,15 +384,17 @@ oly-program-generator/
 │   ├── eval_refs/                   # template_parse_reference.json (counts + spot facts; text stays in sources/eval/)
 │   ├── ocr_audit.py                 # Re-runs the OCR-QA checks on cached OCR output
 │   ├── eval_queries.py              # Original hand-written retrieval queries
-│   ├── schema.sql                   # Pre-Alembic ingestion DDL (reference only)
 │   ├── extractors/                  # pdf_extractor (PyMuPDF → pdfplumber → vision OCR) · epub_extractor ·
 │   │                                # html_extractor · jats_extractor (Europe PMC) · ocr_cache · page_text
 │   ├── processors/
 │   │   ├── classifier.py            # Heuristic (+ LLM / Jev) section routing
 │   │   ├── sectioning.py            # Section splitting, capping and fragment merging before classification
 │   │   ├── section_processor.py     # Per-section routing shared by both entry points
-│   │   ├── chunker.py               # Profile-aware chunking, SOURCE_PROFILE_MAP, topic tagging
+│   │   ├── chunker.py               # Profile-aware chunking, keep-together patterns, validate_chunk
+│   │   ├── source_profiles.py       # Chunk-size profiles + SOURCE_PROFILE_MAP (title → profile)
+│   │   ├── topic_tags.py            # KEYWORD_TO_TOPIC + keyword_tag (re-run retag_chunks.py after edits)
 │   │   ├── tokens.py                # tiktoken token counting
+│   │   ├── rep_notation.py          # Roman's fraction notation → `W kg (P%) × R reps × S sets` (DOG-2r)
 │   │   ├── contextualizer.py        # --contextualize retrieval-context prefixes
 │   │   ├── principle_extractor.py   # LLM if/then rule extraction (schema-constrained)
 │   │   ├── ocr_quality.py           # OCR-QA gate (suspect signals + multi-view agreement)
@@ -401,9 +414,17 @@ oly-program-generator/
     ├── pyproject.toml · uv.lock · alembic.ini
     ├── orchestrator.py              # Main pipeline runner (CLI entry point)
     ├── assess.py / plan.py / retrieve.py / generate.py / validate.py / explain.py
+    ├── session_prompt.py            # The session prompt: one _*_section helper per section (golden-pinned)
     ├── principle_matcher.py         # Evaluates principle conditions against one session
+    ├── dosing.py                    # Code sets the numbers: loads, reps per set, sets toward the target (DOSE-1)
+    ├── complexes.py                 # Exercise complexes: annotation, component counting, display (PLAN-3a)
+    ├── coach.py                     # Coach constraints applied to one program (COACH-1)
+    ├── macrocycle.py                # Macrocycle block layout, reflow after completion (PLAN-3e)
+    ├── demographics.py              # Age / age band from date of birth (AUD-5)
+    ├── rerank.py                    # Listwise reranker (built, off — RERANK_ENABLED)
     ├── weight_resolver.py           # LLM output → DB-ready values, [Cn] citations → source_chunk_ids
     ├── program_audit.py             # Whole-program audit before EXPLAIN → generation_params.audit (AGENT-0a)
+    ├── program_store.py             # The psycopg2 program writer shared by the orchestrator and importers
     ├── models.py · schemas.py       # Pipeline dataclasses · Pydantic models for JSONB columns
     ├── phase_profiles.py · phase_progression.py · session_templates.py
     ├── feedback.py · log.py         # Outcome summary + max promotion · training-log CLI
@@ -415,11 +436,14 @@ oly-program-generator/
     │   │                            # Golden set → golden.json, gated run vs baseline.json
     │   ├── judge_agreement.py · judge_adjudicate.py   # Judge selection (JUDGE-1) + per-judge golden_*.json
     │   ├── model_baseline.py        # Generation-model baseline runs (model_baseline_*.json)
+    │   ├── context_diversity.py     # Composed-context diversity metric (AUD-3)
+    │   ├── context_simulate.py      # Replays a program's session queries through compose_session_context
+    │   ├── openrouter_prices.py     # Every OpenRouter endpoint's price, quantization and schema support
     │   ├── dosing_report.py         # What DOSE-1 dosing did to generated programs (from generation_log)
     │   ├── program_audit.py         # AGENT-0a audit of stored programs (plan read back from the prompts)
     │   ├── program_diff.py          # Side-by-side program comparison
     │   └── program_export.py        # Standalone HTML / PDF export of a program
-    ├── migrations/                  # Alembic env + versions/ (0000 → 0017; `alembic history` for the chain)
+    ├── migrations/                  # Alembic env + versions/ (`alembic history` for the chain)
     ├── tests/                       # Unit + router tests (the Makefile lists which need no DB/keys)
     └── web/                         # FastAPI web UI
         ├── app.py                   # Application factory + middleware + Jinja2 filters
@@ -427,9 +451,10 @@ oly-program-generator/
         ├── worker.py · jobs.py      # ARQ worker entry point + job handler
         ├── auth.py · deps.py        # bcrypt auth · settings/db/limiter dependencies
         ├── formparse.py · options.py · logging_config.py
-        ├── routers/                 # auth · setup · dashboard · program · log_session
+        ├── coach_form.py            # Coach-mode form parsing, pre-filled from the profile (COACH-1)
+        ├── routers/                 # auth · setup · dashboard · program · log_session · coach
         │                            # generate · export · history · profile · admin · health
-        ├── queries/                 # Async DB query modules (one per router)
+        ├── queries/                 # Async DB query modules (one per router; share.py builds the share page)
         ├── tailwind/                # Tailwind source (input.css, tailwind.config.js palette, package.json),
         │                            # build_palette.py (tints + contrast audit), build_fonts.py
         ├── static/                  # Committed build output: tailwind.css, fonts.css + fonts/*.woff2,

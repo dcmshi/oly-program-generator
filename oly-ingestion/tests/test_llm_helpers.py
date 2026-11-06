@@ -3,7 +3,7 @@
 No-key unit tests for the shared LLM JSON parser (I-L8) and the principle
 extractor's windowing (I-M8).
 
-Run: python tests/test_llm_helpers.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_llm_helpers.py
 """
 
 import json
@@ -11,24 +11,10 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 
 from processors.principle_extractor import _PRINCIPLE_WINDOW, PrincipleExtractor
 
 from shared.llm import parse_llm_json
-
-RESULTS = []
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
-
 
 # ── parse_llm_json (I-L8) ─────────────────────────────────────────────────────
 
@@ -681,19 +667,6 @@ def test_extract_batch_windows_per_key_and_tolerates_a_failed_window():
     assert captured["s1-w0"]["thinking"] == {"type": "disabled"}
     assert [p.principle_name for p in out["s1"]] == ["Deload every 4th week", "Other"]
     assert out["s2"] == []
-
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")
-    sys.exit(1 if failed else 0)
 
 
 def test_is_refusal_needs_a_decline_about_copying():

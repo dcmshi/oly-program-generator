@@ -23,11 +23,8 @@ books already ingested.
 
 import re
 import statistics
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.constants import (  # noqa: E402
     OCR_ECHO_JACCARD,
     OCR_GARBLED_RATIO_MAX,

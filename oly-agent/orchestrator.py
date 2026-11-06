@@ -20,15 +20,14 @@ from datetime import date
 from decimal import Decimal
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
+import program_store
 from assess import assess
 from coach import CoachConstraints, apply_constraints
 from explain import explain
 from generate import build_session_prompt, generate_session_with_retries
 from macrocycle import create_macrocycle, load_macrocycle, next_block_index, plan_blocks
 from macrocycle import macrocycle_weeks as macrocycle_weeks_for
-from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
+from models import AthleteContext, BlockAnchor, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
 from phase_profiles import PHASE_PROFILES
 from phase_profiles import wave_anchor_weeks as _wave_anchor_weeks
 from plan import plan
@@ -44,10 +43,9 @@ from shared.constants import (
     GENERATION_WEEK_CONCURRENCY,
     MAX_CONTEXT_CHUNKS,
     MAX_PRINCIPLES_IN_PROMPT,
-    MIN_SESSION_DURATION_MINUTES,
 )
-from shared.db import execute, execute_returning, fetch_all, get_connection
-from shared.formulas import estimate_session_minutes, round_kg
+from shared.db import execute, fetch_all, get_connection
+from shared.formulas import round_kg
 from shared.llm import FlexUnavailable, create_llm_client, estimate_cost
 
 logging.basicConfig(
@@ -115,8 +113,7 @@ def run(
     vector_loader = _make_vector_loader(settings)
 
     # ── Build exercise lookup (name -> id) ────────────────────
-    exercise_rows = fetch_all(conn, "SELECT id, name FROM exercises")
-    exercise_lookup = {r["name"].lower(): r["id"] for r in exercise_rows}
+    exercise_lookup = program_store.exercise_lookup(conn)
 
     try:
         resume = None
@@ -136,30 +133,13 @@ def run(
         logger.info("Step 1 complete", extra={"step": "assess", "duration_seconds": round(time.perf_counter() - _t0, 2)})
 
         # ── Step 2: PLAN ──────────────────────────────────────
-        logger.info("=== Step 2: PLAN ===")
-        _t0 = time.perf_counter()
-        mc_id, mc_index, mc_block = None, None, None
-        if new_macrocycle or macrocycle_id is not None:
-            mc_id, mc_index, mc_block = _macrocycle_block(conn, athlete_id, athlete_context, macrocycle_id,
-                                                          macrocycle_weeks, dry_run)
-            if mc_block is None:
-                return None
-        forced_phase = coach_constraints.phase if coach_constraints else None
-        if forced_phase and mc_block is not None:
-            logger.warning(f"Coach phase {forced_phase} ignored — the macrocycle block sets the phase")
-            forced_phase = None
-        if resume is not None:
-            # the draft's own plan, exactly: principles / chunks are reloaded,
-            # the weekly targets and session layout come from the snapshot
-            snap = resume["plan"]
-            program_plan = _apply_plan_snapshot(
-                plan(athlete_context, conn, settings, block={"phase": snap["phase"], "weeks": snap["duration_weeks"]}),
-                snap)
-        else:
-            program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks, block=mc_block,
-                                phase=forced_phase,
-                                intensity_cap=coach_constraints.intensity_cap if coach_constraints else None)
-        logger.info("Step 2 complete", extra={"step": "plan", "duration_seconds": round(time.perf_counter() - _t0, 2)})
+        planned = _plan_or_resume(conn, settings, athlete_id, athlete_context, coach_constraints, resume,
+                                  new_macrocycle=new_macrocycle, macrocycle_id=macrocycle_id,
+                                  macrocycle_weeks=macrocycle_weeks, duration_weeks=duration_weeks,
+                                  dry_run=dry_run)
+        if planned is None:
+            return None
+        program_plan, macrocycle = planned
 
         if dry_run:
             _print_plan(athlete_context, program_plan)
@@ -186,7 +166,7 @@ def run(
         else:
             program_id = _create_program_record(
                 conn, athlete_id, athlete_context, program_plan, settings, max_sessions,
-                macrocycle=(mc_id, mc_index) if mc_id is not None else None,
+                macrocycle=macrocycle,
                 resume_record={"coach": coach, "max_sessions": max_sessions,
                                "plan": _plan_snapshot(program_plan), "effective_maxes": effective_maxes})
 
@@ -218,72 +198,11 @@ def run(
 
         days_per_week = len(program_plan.session_templates)
         total_planned = len(program_plan.weekly_targets) * days_per_week
-        # max_sessions keeps the first N sessions in (week, day) order
-        capped = max_sessions is not None and max_sessions < total_planned
         concurrency = max(1, GENERATION_WEEK_CONCURRENCY if week_concurrency is None else week_concurrency)
         outcomes = _run_weeks(g, conn, _schedule_weeks(program_plan, max_sessions), concurrency)
 
-        all_sessions_data: list[dict] = [s for o in outcomes for s in o.sessions]
-        failed_sessions: list[str] = [f for o in outcomes for f in o.failed]
-        flagged_sessions: list[str] = [f for o in outcomes for f in o.flagged]
-        cumulative_cost = g.spend.spent
-
-        reason = _abort_reason(outcomes, len(all_sessions_data), total_planned, cost_limit, cumulative_cost)
-        if reason is not None:
-            _mark_program_draft(conn, program_id, reason=reason)
-            return program_id
-
-        if capped:
-            next_week = program_plan.weekly_targets[max_sessions // days_per_week].week_number
-            next_day = program_plan.session_templates[max_sessions % days_per_week].day_number
-            logger.info(f"  Session cap reached ({max_sessions}); stopping before W{next_week}D{next_day}")
-        elif saved_max_test is not None:
-            all_sessions_data.append(saved_max_test)        # resumed: built before the abort
-        else:
-            _add_max_test_session(conn, program_id, athlete_context, program_plan, exercise_lookup, all_sessions_data)
-
-        logger.info("Step 4+5 complete", extra={
-            "step": "generate_validate",
-            "program_id": program_id,
-            "duration_seconds": round(time.perf_counter() - _t_gen_start, 2),
-            "total_cost_usd": round(cumulative_cost, 4),
-        })
-
-        # Sessions that exhausted their retries were stored empty. The program
-        # stays in 'draft' (its creation status); surface the gap loudly here
-        # and in the rationale below so it isn't activated with holes in it.
-        if failed_sessions:
-            logger.error(
-                f"Program {program_id} incomplete: {len(failed_sessions)} session(s) "
-                f"failed generation ({', '.join(failed_sessions)}). "
-                f"Re-run generation or fill the sessions in manually."
-            )
-
-        # ── Whole-program audit (AGENT-0a) — deterministic, never fails the program
-        audit = _audit_program(g, conn, program_id, max_sessions if capped else None)
-
-        # ── Step 6: EXPLAIN ───────────────────────────────────
-        logger.info("=== Step 6: EXPLAIN ===")
-        _t0 = time.perf_counter()
-        rationale, cumulative_cost = _explain_program(g, all_sessions_data, cumulative_cost, audit)
-        rationale = _prefix_rationale_warnings(
-            rationale, max_sessions if capped else None, len(all_sessions_data), total_planned, failed_sessions,
-            flagged_sessions,
-        )
-        execute(
-            conn,
-            "UPDATE generated_programs SET rationale = %s, updated_at = NOW() WHERE id = %s",
-            (rationale, program_id),
-        )
-        conn.commit()
-
-        logger.info("Step 6 complete", extra={"step": "explain", "program_id": program_id, "duration_seconds": round(time.perf_counter() - _t0, 2)})
-        logger.info(
-            f"Program {program_id} complete. "
-            f"Total cost: ${cumulative_cost:.4f}",
-            extra={"program_id": program_id, "total_cost_usd": round(cumulative_cost, 4)},
-        )
-        return program_id
+        return _finish_program(g, conn, outcomes, total_planned=total_planned, max_sessions=max_sessions,
+                               saved_max_test=saved_max_test, t_gen_start=_t_gen_start)
 
     except FlexUnavailable as e:
         logger.error(f"Generation stopped: {e}")
@@ -317,42 +236,30 @@ def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContex
     # recorded-only, not the estimation-merged dict: else a later real max
     # replacing an estimate reads as "strength progress" (audit5-L3)
     maxes_snapshot = athlete_context.recorded_maxes or athlete_context.maxes
-    athlete_snapshot = _build_athlete_snapshot(athlete_context.athlete)
-
-    program_id = execute_returning(
+    program_id = program_store.insert_program(
         conn,
-        """
-        INSERT INTO generated_programs
-            (athlete_id, name, status, phase, duration_weeks,
-             sessions_per_week, start_date,
-             athlete_snapshot, maxes_snapshot, generation_params,
-             macrocycle_id, macrocycle_block_index)
-        VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        (
-            athlete_id,
-            f"{program_plan.phase.replace('_', ' ').title()} Block"
-            + (f" {macrocycle[1] + 1} of macrocycle" if macrocycle else "") + f" — {date.today()}",
-            program_plan.phase,
-            program_plan.duration_weeks,
-            program_plan.sessions_per_week,
-            date.today(),
-            json.dumps(athlete_snapshot, default=str),
-            json.dumps(maxes_snapshot),
-            json.dumps({
-                "model": settings.generation_model,
-                "temperature": settings.generation_temperature,
-                "top_k": settings.vector_search_top_k,
-                "thinking": settings.generation_thinking or None,
-                "effort": settings.generation_effort or None,
-                **({"coach": _coach_record(athlete_context)} if _coach_record(athlete_context) else {}),
-                **({"max_sessions": max_sessions} if max_sessions is not None else {}),
-                **({"resume": resume_record} if resume_record is not None else {}),
-            }, default=str),
-            macrocycle[0] if macrocycle else None,
-            macrocycle[1] if macrocycle else None,
-        ),
+        athlete_id=athlete_id,
+        name=(f"{program_plan.phase.replace('_', ' ').title()} Block"
+              + (f" {macrocycle[1] + 1} of macrocycle" if macrocycle else "") + f" — {date.today()}"),
+        status="draft",
+        phase=program_plan.phase,
+        duration_weeks=program_plan.duration_weeks,
+        sessions_per_week=program_plan.sessions_per_week,
+        start_date=date.today(),
+        athlete=athlete_context.athlete,
+        maxes_snapshot=maxes_snapshot,
+        generation_params={
+            "model": settings.generation_model,
+            "temperature": settings.generation_temperature,
+            "top_k": settings.vector_search_top_k,
+            "thinking": settings.generation_thinking or None,
+            "effort": settings.generation_effort or None,
+            **({"coach": _coach_record(athlete_context)} if _coach_record(athlete_context) else {}),
+            **({"max_sessions": max_sessions} if max_sessions is not None else {}),
+            **({"resume": resume_record} if resume_record is not None else {}),
+        },
+        macrocycle_id=macrocycle[0] if macrocycle else None,
+        macrocycle_block_index=macrocycle[1] if macrocycle else None,
     )
     conn.commit()
     logger.info(f"Created program record: id={program_id}", extra={"program_id": program_id})
@@ -402,6 +309,111 @@ def _apply_plan_snapshot(program_plan: ProgramPlan, snap: dict) -> ProgramPlan:
         weekly_targets=[WeekTarget(**w) for w in snap["weekly_targets"]],
         session_templates=[SessionTemplate(**t) for t in snap["session_templates"]],
     )
+
+
+def _plan_or_resume(conn, settings, athlete_id: int, athlete_context, coach_constraints, resume: dict | None, *,
+                    new_macrocycle: bool, macrocycle_id: int | None, macrocycle_weeks: int | None,
+                    duration_weeks: int | None, dry_run: bool) -> tuple | None:
+    """Step 2: PLAN — rebuilt from the draft's snapshot on a resume, else
+    planned (for a macrocycle block when asked; a coach's forced phase yields
+    to the block). Returns (plan, (macrocycle id, block index) or None), or
+    None when the macrocycle has no block left to plan (CLEAN-4)."""
+    logger.info("=== Step 2: PLAN ===")
+    _t0 = time.perf_counter()
+    mc_id, mc_index, mc_block = None, None, None
+    if new_macrocycle or macrocycle_id is not None:
+        mc_id, mc_index, mc_block = _macrocycle_block(conn, athlete_id, athlete_context, macrocycle_id,
+                                                      macrocycle_weeks, dry_run)
+        if mc_block is None:
+            return None
+    forced_phase = coach_constraints.phase if coach_constraints else None
+    if forced_phase and mc_block is not None:
+        logger.warning(f"Coach phase {forced_phase} ignored — the macrocycle block sets the phase")
+        forced_phase = None
+    if resume is not None:
+        # the draft's own plan, exactly: principles / chunks are reloaded,
+        # the weekly targets and session layout come from the snapshot
+        snap = resume["plan"]
+        program_plan = _apply_plan_snapshot(
+            plan(athlete_context, conn, settings, block={"phase": snap["phase"], "weeks": snap["duration_weeks"]}),
+            snap)
+    else:
+        program_plan = plan(athlete_context, conn, settings, duration_weeks=duration_weeks, block=mc_block,
+                            phase=forced_phase,
+                            intensity_cap=coach_constraints.intensity_cap if coach_constraints else None)
+    logger.info("Step 2 complete", extra={"step": "plan", "duration_seconds": round(time.perf_counter() - _t0, 2)})
+    return program_plan, ((mc_id, mc_index) if mc_id is not None else None)
+
+
+def _finish_program(g: "_GenerationRun", conn, outcomes: list, *, total_planned: int, max_sessions: int | None,
+                    saved_max_test: dict | None, t_gen_start: float) -> int:
+    """After the weeks: a deadline / cost abort keeps the draft with its reason;
+    otherwise the max-test session, the audit (AGENT-0a) and EXPLAIN, and the
+    rationale with its warnings. Returns the program id (CLEAN-4)."""
+    program_id, program_plan = g.program_id, g.program_plan
+    days_per_week = len(program_plan.session_templates)
+    capped = max_sessions is not None and max_sessions < total_planned
+    all_sessions_data: list[dict] = [s for o in outcomes for s in o.sessions]
+    failed_sessions: list[str] = [f for o in outcomes for f in o.failed]
+    flagged_sessions: list[str] = [f for o in outcomes for f in o.flagged]
+    cumulative_cost = g.spend.spent
+
+    reason = _abort_reason(outcomes, len(all_sessions_data), total_planned, g.cost_limit, cumulative_cost)
+    if reason is not None:
+        _mark_program_draft(conn, program_id, reason=reason)
+        return program_id
+
+    if capped:
+        next_week = program_plan.weekly_targets[max_sessions // days_per_week].week_number
+        next_day = program_plan.session_templates[max_sessions % days_per_week].day_number
+        logger.info(f"  Session cap reached ({max_sessions}); stopping before W{next_week}D{next_day}")
+    elif saved_max_test is not None:
+        all_sessions_data.append(saved_max_test)        # resumed: built before the abort
+    else:
+        _add_max_test_session(conn, program_id, g.athlete_context, program_plan, g.exercise_lookup, all_sessions_data)
+
+    logger.info("Step 4+5 complete", extra={
+        "step": "generate_validate",
+        "program_id": program_id,
+        "duration_seconds": round(time.perf_counter() - t_gen_start, 2),
+        "total_cost_usd": round(cumulative_cost, 4),
+    })
+
+    # Sessions that exhausted their retries were stored empty. The program
+    # stays in 'draft' (its creation status); surface the gap loudly here
+    # and in the rationale below so it isn't activated with holes in it.
+    if failed_sessions:
+        logger.error(
+            f"Program {program_id} incomplete: {len(failed_sessions)} session(s) "
+            f"failed generation ({', '.join(failed_sessions)}). "
+            f"Re-run generation or fill the sessions in manually."
+        )
+
+    # ── Whole-program audit (AGENT-0a) — deterministic, never fails the program
+    audit = _audit_program(g, conn, program_id, max_sessions if capped else None)
+
+    # ── Step 6: EXPLAIN ───────────────────────────────────
+    logger.info("=== Step 6: EXPLAIN ===")
+    _t0 = time.perf_counter()
+    rationale, cumulative_cost = _explain_program(g, all_sessions_data, cumulative_cost, audit)
+    rationale = _prefix_rationale_warnings(
+        rationale, max_sessions if capped else None, len(all_sessions_data), total_planned, failed_sessions,
+        flagged_sessions,
+    )
+    execute(
+        conn,
+        "UPDATE generated_programs SET rationale = %s, updated_at = NOW() WHERE id = %s",
+        (rationale, program_id),
+    )
+    conn.commit()
+
+    logger.info("Step 6 complete", extra={"step": "explain", "program_id": program_id, "duration_seconds": round(time.perf_counter() - _t0, 2)})
+    logger.info(
+        f"Program {program_id} complete. "
+        f"Total cost: ${cumulative_cost:.4f}",
+        extra={"program_id": program_id, "total_cost_usd": round(cumulative_cost, 4)},
+    )
+    return program_id
 
 
 def _load_resume(conn, program_id: int, athlete_id: int) -> dict:
@@ -758,22 +770,6 @@ def _block_templates_from(week: _WeekOutcome) -> dict[int, str]:
     return out
 
 
-@dataclass(frozen=True)
-class _BlockAnchor:
-    """What one week's prompts are anchored on (AUD-4, DOG-2e): the anchor
-    week's same-day summaries, and whether this week opens a new wave (shown
-    the previous wave's anchor, asked to rotate variants). The default — no
-    templates — is week 1's."""
-    week: int = 1
-    templates: dict[int, str] = field(default_factory=dict)
-    new_wave: bool = False
-
-    def prompt_kwargs(self, day_number: int) -> dict:
-        """build_session_prompt's block-template arguments for this day."""
-        return {"block_template": self.templates.get(day_number),
-                "block_anchor_week": self.week, "new_wave": self.new_wave}
-
-
 def _waves(scheduled: list[tuple], anchors: dict[int, int]) -> list[list[tuple]]:
     """`scheduled` split into consecutive waves; each wave's first entry is
     its anchor week (scheduled is a (week, day)-ordered prefix of the plan)."""
@@ -873,7 +869,7 @@ def _run_weeks(g: _GenerationRun, conn, scheduled: list[tuple], concurrency: int
     week, so its remaining weeks match the ones already saved.
     """
     outcomes: list[_WeekOutcome] = []
-    head_anchor = _BlockAnchor()        # wave 1's first week has no template
+    head_anchor = BlockAnchor()        # wave 1's first week has no template
     targets = g.program_plan.weekly_targets
     anchors = (_wave_anchor_weeks(targets) if g.anchor_scheme == ANCHOR_SCHEME_WAVES
                else {wt.week_number: targets[0].week_number for wt in targets})
@@ -882,7 +878,7 @@ def _run_weeks(g: _GenerationRun, conn, scheduled: list[tuple], concurrency: int
             break
         (head, head_limit), rest = wave[0], wave[1:]
         outcomes.append(_generate_week(g, head, conn, head_limit, head_anchor))
-        anchor = _BlockAnchor(head.week_number, _block_templates_from(outcomes[-1]))
+        anchor = BlockAnchor(head.week_number, _block_templates_from(outcomes[-1]))
         if rest and not g.spend.stopped():
             if concurrency == 1 or len(rest) == 1:
                 for wt, limit in rest:
@@ -895,7 +891,7 @@ def _run_weeks(g: _GenerationRun, conn, scheduled: list[tuple], concurrency: int
     return outcomes
 
 
-def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], anchor: _BlockAnchor,
+def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], anchor: BlockAnchor,
                             concurrency: int) -> list["_WeekOutcome"]:
     """Weeks 2..N on a thread pool; sessions are saved here, on the main
     thread's connection, in (week, day) order. Re-raises the first worker error
@@ -948,7 +944,7 @@ def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], anchor: 
     return outcomes
 
 
-def _week_worker(g: _GenerationRun, week_target, day_limit: int, anchor: _BlockAnchor,
+def _week_worker(g: _GenerationRun, week_target, day_limit: int, anchor: BlockAnchor,
                  prefetched: dict[int, list[dict]]) -> "_WeekOutcome":
     # Own psycopg2 connection per worker — never share one
     # across threads. It carries only generation_log writes.
@@ -968,7 +964,7 @@ def _week_worker(g: _GenerationRun, week_target, day_limit: int, anchor: _BlockA
         worker_conn.close()
 
 
-def _generate_week(g: _GenerationRun, week_target, conn, day_limit: int, anchor: _BlockAnchor,
+def _generate_week(g: _GenerationRun, week_target, conn, day_limit: int, anchor: BlockAnchor,
                    prefetched: dict[int, list[dict]] | None = None, save: bool = True) -> "_WeekOutcome":
     """Generate one week's sessions in day order on `conn`.
 
@@ -1127,7 +1123,7 @@ def _resolve_session_exercises(g: _GenerationRun, exercises: list[dict], week_nu
 
 
 def _generate_session(g: _GenerationRun, conn, week_target, session_template, week: _WeekState,
-                      outcome: "_WeekOutcome", anchor: _BlockAnchor,
+                      outcome: "_WeekOutcome", anchor: BlockAnchor,
                       prefetched_chunks: list[dict] | None, save: bool) -> bool:
     """Prompt → guards → generate/validate → resolve → save one session.
 
@@ -1171,7 +1167,7 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
         sessions_per_week=g.program_plan.sessions_per_week,
         active_principles=session_principles,
         context_chunks=session_chunks,
-        **anchor.prompt_kwargs(day_number),
+        block_anchor=anchor,
     )
 
     if not _admit_session(g, outcome, week_number, day_number):
@@ -1262,15 +1258,6 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
 # copying password_hash/username/is_admin into a second table retained old
 # hashes past password changes and exposed them to any program-page/export
 # view (audit5-M1).
-_SNAPSHOT_EXCLUDE = frozenset({
-    "created_at", "updated_at", "password_hash", "username", "is_admin",
-})
-
-
-def _build_athlete_snapshot(athlete: dict) -> dict:
-    return {k: v for k, v in athlete.items() if k not in _SNAPSHOT_EXCLUDE}
-
-
 def compute_peak_week(weekly_targets):
     """The last non-deload week's number, or None when every week is a deload.
 
@@ -1385,64 +1372,13 @@ def _build_max_test_session(
 def _save_session(
     conn, program_id, week_number, day_number, session_template, exercises
 ) -> int:
-    """Persist a program session + its exercises to the DB."""
-    session_id = execute_returning(
-        conn,
-        """
-        INSERT INTO program_sessions
-            (program_id, week_number, day_number, session_label,
-             estimated_duration_minutes, focus_area)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        (
-            program_id, week_number, day_number,
-            session_template.label,
-            _estimate_duration(exercises),
-            session_template.primary_movement,
-        ),
+    """Persist a program session + its exercises (program_store, CLEAN-2) and commit."""
+    session_id, _ = program_store.insert_session(
+        conn, program_id, week_number, day_number,
+        label=session_template.label, focus_area=session_template.primary_movement, exercises=exercises,
     )
-
-    for ex in exercises:
-        execute(
-            conn,
-            """
-            INSERT INTO session_exercises
-                (session_id, exercise_order, exercise_id, exercise_name,
-                 sets, reps, intensity_pct, intensity_reference, absolute_weight_kg,
-                 rpe_target, rest_seconds, is_max_attempt,
-                 selection_rationale, source_principle_ids, source_chunk_ids,
-                 complex_id, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            (
-                session_id,
-                ex.get("exercise_order"),
-                ex.get("exercise_id"),
-                ex.get("exercise_name"),
-                ex.get("sets"),
-                ex.get("reps"),
-                ex.get("intensity_pct"),
-                ex.get("intensity_reference"),
-                ex.get("absolute_weight_kg"),
-                ex.get("rpe_target"),
-                ex.get("rest_seconds"),
-                ex.get("is_max_attempt", False),
-                ex.get("selection_rationale"),
-                ex.get("source_principle_ids") or [],
-                ex.get("source_chunk_ids") or [],
-                ex.get("complex_id"),
-                ex.get("notes"),
-            ),
-        )
-
     conn.commit()
     return session_id
-
-
-def _estimate_duration(exercises: list[dict]) -> int:
-    """Rough session duration estimate in minutes (floored at the minimum)."""
-    return max(MIN_SESSION_DURATION_MINUTES, round(estimate_session_minutes(exercises)))
 
 
 def _mark_program_draft(conn, program_id: int, reason: str | None = None):

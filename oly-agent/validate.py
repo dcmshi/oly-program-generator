@@ -19,11 +19,7 @@ Checks, one function each, run in this order by validate_session (AUD-6):
   13. Squat / pull load vs the week's strength curve (PLAN-3c)    warning
 """
 
-import sys
 from collections import Counter
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from complexes import comp_reps_per_set, counts_as_competition_lift, reps_for_prilepin
 from models import ValidationResult
@@ -35,8 +31,11 @@ from shared.constants import (
     MAX_ACCESSORY_SESSIONS_PER_WEEK,
     MAX_RPE_TARGET,
     PRILEPIN_HARD_CAP_MULTIPLIER,
+    PRILEPIN_PER_SET_SEVERITY,
+    RPE_FLOOR_BY_INTENSITY,
     SESSION_DURATION_TOLERANCE,
     SQUAT_MAX_REFS,
+    STORABLE_INTENSITY_PCT_MAX,
     STRENGTH_CURVE_TOLERANCE_PCT,
     SUPRAMAX_INTENSITY_WARN_PCT,
     WARMUP_INTENSITY_CUTOFF_PCT,
@@ -123,10 +122,10 @@ def _check_db_constraints(session_exercises: list[dict], errors: list[str]) -> N
         if pct_raw is not None:
             try:
                 pct_val = float(pct_raw)
-                if pct_val <= 0 or pct_val > 120:
+                if pct_val <= 0 or pct_val > STORABLE_INTENSITY_PCT_MAX:
                     errors.append(
                         f"{name}: intensity_pct {pct_val:g} outside the storable range "
-                        f"(0, 120] — use null for unloaded work"
+                        f"(0, {STORABLE_INTENSITY_PCT_MAX:g}] — use null for unloaded work"
                     )
             except (TypeError, ValueError):
                 errors.append(f"{name}: intensity_pct {pct_raw!r} is not numeric")
@@ -276,16 +275,18 @@ def _check_reps_per_set(session_exercises: list[dict], errors: list[str], warnin
         # a complex: the largest competition-lift component (the Snatch ×1 in
         # Snatch + OHS 1+2), not the complex's 3 total reps (PLAN-3a)
         reps = reps_for_prilepin(ex)
-        if pct >= 90 and reps > 2:
-            errors.append(
-                f"{ex.get('exercise_name')}: {reps} reps at {pct}% — "
-                f"Prilepin allows max 2 reps/set above 90%"
-            )
-        elif pct >= 80 and reps > 4:
-            warnings.append(
-                f"{ex.get('exercise_name')}: {reps} reps at {pct}% — "
-                f"Prilepin suggests max 4 reps/set in 80-90% zone"
-            )
+        zone = get_prilepin_zone(pct)
+        severity = PRILEPIN_PER_SET_SEVERITY.get(zone or "")
+        data = get_prilepin_data(zone) if severity else None
+        if not data or reps <= data["reps_per_set_high"]:
+            continue
+        cap = data["reps_per_set_high"]
+        if severity == "error":
+            errors.append(f"{ex.get('exercise_name')}: {reps} reps at {pct}% — "
+                          f"Prilepin allows max {cap} reps/set above {zone.split('-')[0]}%")
+        else:
+            warnings.append(f"{ex.get('exercise_name')}: {reps} reps at {pct}% — "
+                            f"Prilepin suggests max {cap} reps/set in {zone}% zone")
 
 
 def _check_avoid_list(session_exercises: list[dict], athlete: dict, errors: list[str]) -> None:
@@ -389,16 +390,17 @@ def _check_rpe_vs_intensity(session_exercises: list[dict], warnings: list[str]) 
             rpe = float(rpe)
         except (TypeError, ValueError):
             continue
-        if pct >= 90 and rpe < 8.0:
-            warnings.append(
-                f"{ex.get('exercise_name')} at {pct}% has RPE target {rpe:.1f} — "
-                f"intensity ≥90% typically warrants RPE 8.0+"
-            )
-        elif pct >= 80 and rpe < 7.0:
-            warnings.append(
-                f"{ex.get('exercise_name')} at {pct}% has RPE target {rpe:.1f} — "
-                f"intensity 80–90% typically warrants RPE 7.0+"
-            )
+        upper = None
+        for floor_pct, min_rpe in RPE_FLOOR_BY_INTENSITY:      # heaviest band first
+            if pct >= floor_pct:
+                if rpe < min_rpe:
+                    band = f"≥{floor_pct:g}%" if upper is None else f"{floor_pct:g}–{upper:g}%"
+                    warnings.append(
+                        f"{ex.get('exercise_name')} at {pct}% has RPE target {rpe:.1f} — "
+                        f"intensity {band} typically warrants RPE {min_rpe:.1f}+"
+                    )
+                break
+            upper = floor_pct
 
 
 def _check_fault_coverage(session_exercises: list[dict], athlete: dict,

@@ -7,20 +7,16 @@ and recent training logs to build an AthleteContext object.
 """
 
 import logging
-import sys
 from datetime import date, timedelta
-from pathlib import Path
 
 # Make shared/ importable when running from oly-agent/ or the repo root
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from demographics import age_band, age_from_dob
 from models import AthleteContext
 from weight_resolver import build_maxes_dict
 
 from shared.constants import COLD_START_MAX_RECENCY_DAYS, MAX_PREVIOUS_PROGRAM_EXERCISES, MAX_PREVIOUS_PROGRAM_TOP_SETS
 from shared.db import fetch_all, fetch_one
-from shared.exercise_mapping import to_intensity_ref
+from shared.exercise_mapping import CLEAN_MAX_REFS, to_intensity_ref
 from shared.formulas import round_kg
 from shared.timeutil import today_in_tz
 
@@ -194,7 +190,7 @@ def has_recent_tested_maxes(max_rows: list[dict], today: date,
         if achieved is None or (today - achieved).days > days:
             continue
         recent.add(to_intensity_ref(r.get("name") or ""))
-    return "snatch" in recent and bool(recent & {"clean_and_jerk", "clean"})
+    return "snatch" in recent and bool(recent & CLEAN_MAX_REFS)
 
 def athlete_demographics(athlete: dict, today: date | None = None) -> dict:
     """AthleteContext demographic fields from an athletes row (AUD-5).

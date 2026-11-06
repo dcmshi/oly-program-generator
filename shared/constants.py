@@ -168,6 +168,27 @@ DOSING_VOLUME_TOLERANCE: float = 0.15     # session comp reps within ±15 % of t
 DOSING_MAX_SETS: int = 8                  # sets added to reach the target stop here (catalogue max for the lifts)
 DOSING_RPE_PER_PCT: float = 0.1           # RPE moves 0.1 per % of load the dosing pass changes
 
+# ── Coach constraints (oly-agent/coach.py, web/coach_form.py) ──
+COACH_NOTE_MAX_CHARS: int = 1500
+COACH_SESSIONS_PER_WEEK_RANGE: tuple[int, int] = (1, 7)
+# Highest % of max a coach may cap the competition lifts at. Below 60 the
+# whole block would sit in the deload zone (Prilepin starts at 55).
+INTENSITY_CAP_RANGE: tuple[int, int] = (60, 100)
+# eval/build_golden.py: one grading reply (a JSON list of {id, grade} for a batch)
+GOLDEN_GRADER_MAX_TOKENS: int = 512
+
+# ── Session validation (oly-agent/validate.py) ──
+# Prilepin zones whose per-set rep limit (PRILEPIN_ZONES[*]["reps_per_set"][1],
+# shared/prilepin.py) validate enforces on the competition lifts, and how hard:
+# above 90 % an error, 80–90 % a warning; lighter zones aren't checked per set.
+PRILEPIN_PER_SET_SEVERITY: dict[str, str] = {"90-100": "error", "80-90": "warning"}
+# (% of max, lowest plausible RPE target): a heavier set with a lower RPE
+# target is warned about as miscalibrated. Heaviest band first.
+RPE_FLOOR_BY_INTENSITY: tuple[tuple[float, float], ...] = ((90.0, 8.0), (80.0, 7.0))
+# session_exercises CHECK (intensity_pct <= 120): validate rejects above it,
+# the CSV importer clamps to it.
+STORABLE_INTENSITY_PCT_MAX: float = 120.0
+
 # ── Whole-program audit (AGENT-0a, oly-agent/program_audit.py) ──
 # Weekly comp-lift reps further than DOSING_VOLUME_TOLERANCE from the summed
 # session targets are a warning; further than this, an error.
@@ -258,6 +279,12 @@ MAX_PRINCIPLES_PER_CATEGORY: int = 3
 # then the maxes are trustworthy and the cap only held a tested lifter back
 # (PLAN-3b, assumption 3.3). Level ceilings (LEVEL_PHASE_OVERRIDES) still apply.
 COLD_START_MAX_RECENCY_DAYS: int = 90
+COLD_START_CEILING_PCT: float = 80.0             # first-program ceiling without recently tested maxes
+COLD_START_CEILING_BEGINNER_PCT: float = 75.0
+COLD_START_MAX_WEEKS: int = 4                    # a first program's block length cap
+EXERCISE_COMPLEXITY_MAX: int = 5                 # exercises.complexity_level scale (no cap)
+COLD_START_MAX_COMPLEXITY: int = 3               # first program: catalogue capped at this complexity
+COLD_START_MAX_COMPLEXITY_BEGINNER: int = 2
 # validate.py check 13 (PLAN-3c): a squat / pull more than this many points
 # outside the week's STRENGTH_CURVE band warns (never errors — no paid retry).
 STRENGTH_CURVE_TOLERANCE_PCT: float = 5.0
@@ -284,16 +311,6 @@ YOUTH_PRINCIPLE_NAME_PATTERNS: tuple[str, ...] = (
     r"\bage \d+ and under",
 )
 YOUTH_PRINCIPLE_AGE_BANDS: tuple[str, ...] = ("youth", "junior")
-# With athletes.olympic_lifting_experience set, a principle that recommends
-# avoiding a competition lift *and* is gated on novice level or training age
-# (the "learn the basics first" rules: 5073, 5074, 5079, 1829 …) is skipped.
-# Bans gated on phase, injury or movement (transition months, knee rehab)
-# still apply.
-COMP_LIFT_AVOID_NAMES: frozenset[str] = frozenset({
-    "snatch", "clean_and_jerk", "clean and jerk", "clean & jerk", "clean", "jerk",
-    "full snatch", "full clean", "olympic lifts", "competition lifts", "classic lifts",
-})
-NOVICE_LEVELS: frozenset[str] = frozenset({"beginner", "novice", "youth"})
 PRINCIPLE_RATIONALE_PROMPT_CHARS: int = 150  # rationale shown per principle line
 # DOG-2l: recommendation keys never shown in the session prompt. The extractor
 # records `total_reps_max` with no scope, and the corpus uses it per set (447: 4),

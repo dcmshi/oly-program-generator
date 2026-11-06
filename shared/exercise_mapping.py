@@ -34,6 +34,19 @@ EXERCISE_NAME_TO_INTENSITY_REF: dict[str, str] = {
 # Competition lift intensity_reference values — used for Prilepin volume counting,
 # intensity floor warnings, and competition-lifts-first principle checking.
 COMP_LIFT_REFS: frozenset[str] = frozenset({"snatch", "clean_and_jerk", "clean"})
+# References whose max is a clean max (a jerk max is not): with a snatch, they
+# make an athlete's maxes "recently tested" (assess.has_recent_tested_maxes).
+CLEAN_MAX_REFS: frozenset[str] = frozenset({"clean_and_jerk", "clean"})
+
+# With athletes.olympic_lifting_experience set, a principle that recommends
+# avoiding a competition lift *and* is gated on novice level or training age
+# (the "learn the basics first" rules: 5073, 5074, 5079, 1829 …) is skipped.
+# Bans gated on phase, injury or movement (transition months, knee rehab)
+# still apply.
+COMP_LIFT_AVOID_NAMES: frozenset[str] = frozenset({
+    "snatch", "clean_and_jerk", "clean and jerk", "clean & jerk", "clean", "jerk",
+    "full snatch", "full clean", "olympic lifts", "competition lifts", "classic lifts",
+})  # moved from shared/constants.py (CLEAN-1: a vocabulary, not a number)
 
 # The full classic lifts by catalogue name (lowercase) — not their power / hang /
 # muscle variants. Their reps per set follow CLASSIC_LIFT_REPS_PER_SET.

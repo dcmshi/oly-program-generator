@@ -12,14 +12,9 @@ Also loads available exercises and substitution mappings.
 
 import logging
 import math
-import sys
 import threading
-from decimal import Decimal
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from collections import Counter
+from decimal import Decimal
 
 from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
 

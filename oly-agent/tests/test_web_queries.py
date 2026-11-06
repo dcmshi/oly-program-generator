@@ -6,7 +6,7 @@ Tests for web query/job helpers touched by the web LOW batch:
   - W-L7: _parse_log_date clamping
   - W-INFO: prefillExercise uses data-* attributes, not JS-string interpolation
 
-Run: python tests/test_web_queries.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_web_queries.py
 """
 
 import asyncio
@@ -16,7 +16,6 @@ from datetime import UTC, date, timedelta
 from pathlib import Path
 from unittest.mock import AsyncMock, MagicMock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 import web.jobs as jobs
@@ -26,19 +25,6 @@ from web.routers.dashboard import _current_week
 
 from shared.constants import MAX_LOG_BACKFILL_DAYS
 from shared.timeutil import today_in_tz
-
-RESULTS = []
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
-
 
 # ── W-L6: _representative_reps_per_set ───────────────────────────────────────
 
@@ -1223,18 +1209,6 @@ def test_adherence_track_clips_overflow():
         "the adherence track needs overflow-hidden as a second line of defence"
 
 
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")
-    sys.exit(1 if failed else 0)
-
 # ── SHARE-1: share page data ───────────────────────────────────────────────────
 
 def test_share_sources_resolve_citation_labels_to_titles():
@@ -1262,4 +1236,3 @@ def test_share_data_refuses_programs_of_another_athlete():
     with patch("web.async_db.async_fetch_all", fake_all):
         assert asyncio.run(qs.build_share_data(MagicMock(), 1, [40, 99])) is None
         assert asyncio.run(qs.build_share_data(MagicMock(), 1, [])) is None
-

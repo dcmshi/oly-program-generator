@@ -4,7 +4,7 @@ Tests for extractors/html_extractor.py.
 
 No API keys or DB needed — uses temporary HTML files written to disk.
 
-Run: python tests/test_html_extractor.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_html_extractor.py
 """
 
 import sys
@@ -14,17 +14,6 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from extractors.html_extractor import block_text, extract_text_from_html
-
-RESULTS = []
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, str(e)))
 
 
 def _write_html(content: str) -> Path:
@@ -136,7 +125,6 @@ def test_collapses_excessive_blank_lines():
     <html><body><p>Para one</p>
 
 
-
     <p>Para two</p></body></html>""")
     text = extract_text_from_html(p)
     # Should not have more than 2 consecutive newlines
@@ -220,14 +208,3 @@ def test_inline_tags_still_not_broken():
 
 
 # ── Runner ───────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")

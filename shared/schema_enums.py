@@ -1,8 +1,8 @@
 """Postgres enum values that prompts and JSON-schema constraints reference (STRUCT-1).
 
-These mirror `CREATE TYPE … AS ENUM` in `schema.sql` (ingestion) and the
-athlete_level enum in the agent's baseline migration; `test_schema_enums.py`
-parses `schema.sql` and asserts each tuple matches, so the two can't drift.
+These mirror the `CREATE TYPE … AS ENUM` statements in the Alembic migrations
+(`oly-agent/migrations/versions/`); `test_schema_enums.py` reads the
+migrations and asserts each tuple matches, so the two can't drift.
 Ingestion uses them to constrain LLM output (`output_config.format`), which
 is what stops the model padding a condition with `"novice"` or `"peaking"`
 (values the matcher can't evaluate) or inventing a `principle_category`
@@ -22,6 +22,10 @@ PRINCIPLE_CATEGORIES: tuple[str, ...] = (
     "volume", "intensity", "frequency", "exercise_selection", "periodization",
     "peaking", "recovery", "technique", "load_progression", "deload",
 )
+# Principle conditions that mean "a novice": the enum's `beginner` plus the
+# free-text levels the extractor also writes (`novice`, `youth`), which are not
+# athlete_level enum values. Moved from shared/constants.py (CLEAN-1).
+NOVICE_LEVELS: frozenset[str] = frozenset({"beginner", "novice", "youth"})
 RULE_TYPES: tuple[str, ...] = ("hard_constraint", "guideline", "heuristic")
 CHUNK_TYPES: tuple[str, ...] = (
     "concept", "methodology", "periodization", "programming_rationale",
