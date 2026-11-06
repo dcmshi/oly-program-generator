@@ -47,6 +47,11 @@ MAX_PREVIOUS_PROGRAM_TOP_SETS: int = 5
 # coach brief, accessory catalogue, fault names) and went 24/24 first-try, so
 # 20k warned on every session. It now flags growth past today's prompt.
 PROMPT_LENGTH_WARN_CHARS: int = 24_000
+# EXPLAIN's view of the program (AGENT-0b): one line per session, warm-ups left
+# out. 24 sessions × ~170 chars ≈ 4k; past the cap, lines keep only their first
+# EXPLAIN_EXERCISES_PER_SESSION_WHEN_CAPPED exercises, then the tail is cut.
+EXPLAIN_PROGRAM_VIEW_MAX_CHARS: int = 8_000
+EXPLAIN_EXERCISES_PER_SESSION_WHEN_CAPPED: int = 3
 # When a call stops on `max_tokens`, the next attempt doubles its budget up to
 # this ceiling. On Sonnet 5 / Opus 5 adaptive thinking counts against
 # max_tokens, so a 4,096 budget can be spent before any text is emitted;

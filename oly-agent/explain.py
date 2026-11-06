@@ -13,9 +13,17 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from coach import coach_prompt_section
+from complexes import prescription_label
+from generate import _setting_str
 from models import AthleteContext, ProgramPlan
 
-from shared.constants import LLM_MAX_TOKENS_CEILING
+from shared.config import Settings
+from shared.constants import (
+    EXPLAIN_EXERCISES_PER_SESSION_WHEN_CAPPED,
+    EXPLAIN_PROGRAM_VIEW_MAX_CHARS,
+    LLM_MAX_TOKENS_CEILING,
+)
+from shared.exercise_mapping import is_warmup_set
 from shared.llm import (
     FlexUnavailable,
     billed_cost,
@@ -102,14 +110,61 @@ def explain(
         return f"[Rationale generation failed: {e}]", 0, 0, 0.0
 
 
-def _setting_str(settings, name: str) -> str:
-    value = getattr(settings, name, "")
-    return value if isinstance(value, str) else ""
-
-
 def _explanation_max_tokens(settings) -> int:
-    value = getattr(settings, "explanation_max_tokens", 1024)
-    return value if isinstance(value, int) and not isinstance(value, bool) else 1024
+    """The configured budget; a partial / mocked settings object gets the
+    config default (2,048), not the 1,024 that Sonnet 5 rationales overran."""
+    default = Settings.explanation_max_tokens
+    value = getattr(settings, "explanation_max_tokens", default)
+    return value if isinstance(value, int) and not isinstance(value, bool) else default
+
+
+def _intensity_label(ex: dict) -> str:
+    pct = ex.get("intensity_pct")
+    if pct is not None:
+        try:
+            return f" @{float(pct):g}%"
+        except (TypeError, ValueError):
+            pass
+    rpe = ex.get("rpe_target")
+    return f" RPE {rpe}" if rpe is not None else ""
+
+
+def _exercise_label(ex: dict) -> str:
+    return f"{ex.get('exercise_name')} {prescription_label(ex)}{_intensity_label(ex)}"
+
+
+def _session_line(session: dict, max_exercises: int | None = None) -> str:
+    working = [ex for ex in session.get("exercises") or []
+               if not is_warmup_set(ex.get("intensity_reference"), ex.get("intensity_pct"))]
+    shown = working if max_exercises is None else working[:max_exercises]
+    body = "; ".join(_exercise_label(ex) for ex in shown) or "(no exercises)"
+    if len(shown) < len(working):
+        body += f"; +{len(working) - len(shown)} more"
+    label = f" {session['label']}" if session.get("label") else ""
+    return f"W{session.get('week', '?')} D{session.get('day', '?')}{label}: {body}"
+
+
+def program_view_lines(program_sessions: list[dict],
+                       max_chars: int = EXPLAIN_PROGRAM_VIEW_MAX_CHARS) -> str:
+    """Every session as one line, in (week, day) order, so the rationale can
+    describe the progression the program actually has (AGENT-0b — it used to
+    see four exercises of Week 1 Day 1). Over `max_chars`, each line keeps its
+    first EXPLAIN_EXERCISES_PER_SESSION_WHEN_CAPPED exercises; still over, the
+    tail is cut with a count of the sessions left out."""
+    if not program_sessions:
+        return "(no sessions generated)"
+    ordered = sorted(program_sessions, key=lambda s: (s.get("week") or 0, s.get("day") or 0))
+    lines = [_session_line(s) for s in ordered]
+    if sum(len(line) + 1 for line in lines) > max_chars:
+        lines = [_session_line(s, EXPLAIN_EXERCISES_PER_SESSION_WHEN_CAPPED) for s in ordered]
+    kept, used = [], 0
+    for i, line in enumerate(lines):
+        if used + len(line) + 1 > max_chars:
+            kept.append(f"(… {len(lines) - i} more sessions not shown)")
+            break
+        kept.append(line)
+        used += len(line) + 1
+    return "\n".join(kept)
 
 
 def _previous_block_summary(prev: dict | None) -> str:
@@ -163,14 +218,7 @@ def _build_explain_prompt(
         )
     weeks_summary = "\n".join(week_lines)
 
-    # Summarize exercise selection across the program (first session as example)
-    first_session = program_sessions[0] if program_sessions else {}
-    first_exercises = first_session.get("exercises", [])
-    sample_exercises = "\n".join(
-        f"  {ex.get('exercise_name')} {ex.get('sets')}x{ex.get('reps')} "
-        f"@ {ex.get('intensity_pct')}% ({ex.get('intensity_reference')})"
-        for ex in first_exercises[:4]
-    )
+    program_view = program_view_lines(program_sessions)
 
     # weeks_to_comp == 0 (meet within a week) is the most time-critical case, so
     # it must NOT be treated as "no date" — only None means unset (A-M8).
@@ -201,12 +249,12 @@ Duration: {plan.duration_weeks} weeks
 Weekly progression:
 {weeks_summary}
 
-## Sample Session (Week 1, Day 1)
-{sample_exercises}
+## Sessions (every session, warm-up sets left out; sets×reps @ % of max)
+{program_view}
 {coach}
 ## Write an explanation covering:
 1. Why this training phase was selected for this athlete's goal and timeline
-2. How volume and intensity progress across the weeks (and why)
+2. How volume and intensity progress across the weeks (and why) — describe only what the sessions above show
 3. Key exercise choices — what they target and why they matter for this athlete
 4. What the athlete should expect to feel week by week (energy, soreness, performance)
 5. What signals would indicate the program needs adjustment (RPE consistently too high, missing lifts, etc.)
