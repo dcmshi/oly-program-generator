@@ -330,10 +330,11 @@ oly-program-generator/
 ├── screenshots/                     # README screenshots
 ├── docs/
 │   ├── SETUP.md                     # This file — setup, DB ops, ingestion, CLI, tests, backup
-│   ├── SCHEMA.md                    # ER diagrams + table reference (21 tables)
+│   ├── SCHEMA.md                    # ER diagrams + table reference (Alembic is the source of truth)
 │   ├── CORPUS.md                    # Ingested + planned sources, chunk-size profiles, SOURCE_PROFILE_MAP
 │   ├── RETRIEVAL_EVAL.md            # Retrieval-quality baseline and the eval gate
 │   ├── RAG_RESEARCH.md              # RAG / ingestion / vector-DB review and remediation plan (RAG-* items)
+│   ├── AGENTIC_PLANNING.md          # Agentic planning design and the gates behind the AGENT-* items
 │   ├── PROGRAMMING_ASSUMPTIONS.md   # Audit of hard-coded programming decisions (PLAN-1 / PLAN-2)
 │   ├── KOBO-IMPORT.md               # Kobo purchase → clean EPUB (Calibre + DeACSM + DeDRM)
 │   ├── CONTRIBUTING.md              # Security audit, scaling checklist, coverage
@@ -344,12 +345,15 @@ oly-program-generator/
 ├── shared/                          # Imported by both subsystems
 │   ├── config.py                    # Settings dataclass (reads oly-ingestion/.env); provider-aware model defaults
 │   ├── constants.py                 # Project-wide numeric constants
+│   ├── checkpoint.py                # Resumable paid harnesses: <out>.partial.jsonl + --resume (RESUME-1)
+│   ├── excerpt.py                   # Query-focused chunk excerpts for the prompt (AUD-2)
 │   ├── db.py                        # psycopg2 fetch_one / fetch_all / execute helpers
 │   ├── llm.py                       # LLM client (Anthropic SDK → Anthropic or OpenRouter), request helpers, batches, cost
 │   ├── schema_enums.py              # Enum values for the structured-output schemas (mirrored against the migrations)
 │   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS
 │   ├── formulas.py · timeutil.py    # Derived metrics · timezone-aware "today"
-│   └── prilepin.py                  # Zone lookup + per-session rep targets
+│   ├── prilepin.py                  # Zone lookup + per-session rep targets
+│   └── volume_tables.py             # Selectable comp-lift volume tables: Prilepin / Medvedev (PLAN-3d)
 │
 ├── oly-ingestion/                   # Ingestion pipeline (CLI only)
 │   ├── pyproject.toml · uv.lock · requirements.txt
@@ -382,6 +386,7 @@ oly-program-generator/
 │   │   ├── section_processor.py     # Per-section routing shared by both entry points
 │   │   ├── chunker.py               # Profile-aware chunking, SOURCE_PROFILE_MAP, topic tagging
 │   │   ├── tokens.py                # tiktoken token counting
+│   │   ├── rep_notation.py          # Roman's fraction notation → `W kg (P%) × R reps × S sets` (DOG-2r)
 │   │   ├── contextualizer.py        # --contextualize retrieval-context prefixes
 │   │   ├── principle_extractor.py   # LLM if/then rule extraction (schema-constrained)
 │   │   ├── ocr_quality.py           # OCR-QA gate (suspect signals + multi-view agreement)
@@ -402,6 +407,12 @@ oly-program-generator/
     ├── orchestrator.py              # Main pipeline runner (CLI entry point)
     ├── assess.py / plan.py / retrieve.py / generate.py / validate.py / explain.py
     ├── principle_matcher.py         # Evaluates principle conditions against one session
+    ├── dosing.py                    # Code sets the numbers: loads, reps per set, sets toward the target (DOSE-1)
+    ├── complexes.py                 # Exercise complexes: annotation, component counting, display (PLAN-3a)
+    ├── coach.py                     # Coach constraints applied to one program (COACH-1)
+    ├── macrocycle.py                # Macrocycle block layout, reflow after completion (PLAN-3e)
+    ├── demographics.py              # Age / age band from date of birth (AUD-5)
+    ├── rerank.py                    # Listwise reranker (built, off — RERANK_ENABLED)
     ├── weight_resolver.py           # LLM output → DB-ready values, [Cn] citations → source_chunk_ids
     ├── program_audit.py             # Whole-program audit before EXPLAIN → generation_params.audit (AGENT-0a)
     ├── models.py · schemas.py       # Pipeline dataclasses · Pydantic models for JSONB columns
@@ -415,11 +426,14 @@ oly-program-generator/
     │   │                            # Golden set → golden.json, gated run vs baseline.json
     │   ├── judge_agreement.py · judge_adjudicate.py   # Judge selection (JUDGE-1) + per-judge golden_*.json
     │   ├── model_baseline.py        # Generation-model baseline runs (model_baseline_*.json)
+    │   ├── context_diversity.py     # Composed-context diversity metric (AUD-3)
+    │   ├── context_simulate.py      # Replays a program's session queries through compose_session_context
+    │   ├── openrouter_prices.py     # Every OpenRouter endpoint's price, quantization and schema support
     │   ├── dosing_report.py         # What DOSE-1 dosing did to generated programs (from generation_log)
     │   ├── program_audit.py         # AGENT-0a audit of stored programs (plan read back from the prompts)
     │   ├── program_diff.py          # Side-by-side program comparison
     │   └── program_export.py        # Standalone HTML / PDF export of a program
-    ├── migrations/                  # Alembic env + versions/ (0000 → 0017; `alembic history` for the chain)
+    ├── migrations/                  # Alembic env + versions/ (`alembic history` for the chain)
     ├── tests/                       # Unit + router tests (the Makefile lists which need no DB/keys)
     └── web/                         # FastAPI web UI
         ├── app.py                   # Application factory + middleware + Jinja2 filters
@@ -427,9 +441,10 @@ oly-program-generator/
         ├── worker.py · jobs.py      # ARQ worker entry point + job handler
         ├── auth.py · deps.py        # bcrypt auth · settings/db/limiter dependencies
         ├── formparse.py · options.py · logging_config.py
-        ├── routers/                 # auth · setup · dashboard · program · log_session
+        ├── coach_form.py            # Coach-mode form parsing, pre-filled from the profile (COACH-1)
+        ├── routers/                 # auth · setup · dashboard · program · log_session · coach
         │                            # generate · export · history · profile · admin · health
-        ├── queries/                 # Async DB query modules (one per router)
+        ├── queries/                 # Async DB query modules (one per router; share.py builds the share page)
         ├── tailwind/                # Tailwind source (input.css, tailwind.config.js palette, package.json),
         │                            # build_palette.py (tints + contrast audit), build_fonts.py
         ├── static/                  # Committed build output: tailwind.css, fonts.css + fonts/*.woff2,

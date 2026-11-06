@@ -152,7 +152,7 @@ flowchart LR
 
 ---
 
-## Database Schema (21 tables)
+## Database Schema (23 tables)
 
 Core relationships only; the full table reference is [docs/SCHEMA.md](docs/SCHEMA.md), and the Alembic migrations in `oly-agent/migrations/versions/` are the source of truth.
 
