@@ -70,7 +70,8 @@ Athlete 4 (Rich, coach-managed under `dshi`): beginner, 35, ~80 kg, no tested ma
     - or have `focused_excerpt` drop fraction-bar lines.
 
     Rewriting keeps the information. Re-run `build_golden --extend` if they're re-embedded.
-- [ ] **DOG-2s — the golden set predates the 2026-10-19 ingest.** `run_eval` passes but sits close to the gate:
+- [x] ✅ 2026-11-06 **DOG-2s — the golden set predates the 2026-10-19 ingest.** Fixed. `build_golden --extend` graded the 40 new candidates (17 rated 2, 19 rated 1, 4 rated 0), and `run_eval` on the extended set reads nDCG@5 0.801 and nrecall@5 0.646. Fault is 0.767, session 0.919, and legacy and limiter are unchanged. Every family is at or above the old gate, so `golden.json` is promoted and `baseline.json` re-frozen (docs/RETRIEVAL_EVAL.md, 2026-11-06).
+  Was: `run_eval` passed but sat close to the gate:
   - Overall nDCG@5 is 0.780 and normalised recall@5 0.625, against a baseline of 0.795 / 0.640 and a tolerance of 0.02. The fault family accounts for most of the gap: 0.756 → 0.693.
   - Cause: the *Snatch Error Correction Manual* chunks (13710–13724, ingested 2026-10-19) now fill fault queries' top 5, but `golden.json` was built on 2026-10-12, so they're ungraded and score 0. DOG-2r's rewrite isn't the cause: none of its 6 chunks reaches a fault query's top 5.
   - Fix: run `eval/build_golden --extend` (paid; light judge, ungraded candidates only), then `run_eval`. Re-freeze the baseline (`--update-baseline`) only if the gap closes.
