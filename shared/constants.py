@@ -123,6 +123,27 @@ TRAINING_PREFERENCE_OPTIONS: dict[str, tuple[str, ...]] = {
 TRAINING_PREFERENCE_DEFAULTS: dict[str, str] = {"warmups": "prescribed", "deload_style": "volume", "max_test": "auto",
                                                 "volume_table": "prilepin"}
 DELOAD_EVERY_WEEKS_OPTIONS: tuple[int, ...] = (3, 4, 5, 6)   # extra deload weeks inside a long block; blank = only the last week
+# DOG-2d: a block longer than its phase profile with a deload cadence runs as
+# waves of (N-1) loading weeks + 1 deload; wave k starts k × this many % points
+# above wave 1 (floor and ceiling, before level adjustments / caps), so each
+# wave resumes above the last instead of repeating it.
+BLOCK_WAVE_STEP_PCT: int = 2
+
+# ── Dosing (code sets the numbers, the model picks the exercises) ──
+# Reps per set on the full classic lifts (snatch, clean, jerk, clean & jerk —
+# CLASSIC_LIFT_NAMES), separate from the week's range, which keeps governing
+# their power / hang / muscle variants. Sources: [221] / [671] Zatsiorsky —
+# "typical repetitions range from 1 to 3, with 2 reps being most common (60 %
+# of sets)"; [447] / [448] Takano — classic-lift sets "rarely exceed 4", 4 only
+# on preparation days. A beginner without olympic_lifting_experience keeps the
+# week's range (Medvedev's learning-stage 6 × 50–60 %, [1603] / [2403]).
+CLASSIC_LIFT_REPS_PER_SET: dict[str, tuple[int, int]] = {
+    "general_prep": (2, 3), "accumulation": (2, 3), "intensification": (1, 3), "realization": (1, 2),
+}
+CLEAN_AND_JERK_MAX_REPS: int = 2          # a C&J rep is a clean plus a jerk; the catalogue row is 1–2
+DOSING_VOLUME_TOLERANCE: float = 0.15     # session comp reps within ±15 % of the target are left alone
+DOSING_MAX_SETS: int = 8                  # sets added to reach the target stop here (catalogue max for the lifts)
+DOSING_RPE_PER_PCT: float = 0.1           # RPE moves 0.1 per % of load the dosing pass changes
 
 # ── Phase advancement & outcome adjustments ─────────────────────
 # Used by plan._advance_phase / plan._apply_outcome_adjustments and mirrored
@@ -216,7 +237,38 @@ INJURY_PRINCIPLE_TERMS: tuple[str, ...] = (
     "injur", "rehab", "return to sport", "return to training", "surgery", "post-op",
     "tendinopathy", "tendinitis", "tendonitis",
 )
+# The same gap for age: the vocabulary has no age key, so "[1376] Youth Volume
+# and Intensity Moderation" is stored as {"athlete_level": ["beginner"]} and
+# reached a 35-year-old (program 53, 2026-11-03). A principle whose *name*
+# matches one of these patterns is only selected for an athlete in
+# YOUTH_PRINCIPLE_AGE_BANDS; unknown age is treated as adult. Name only: ~30
+# general rules (warm-ups, loading tables) mention youth or juniors in passing
+# in their rationale.
+YOUTH_PRINCIPLE_NAME_PATTERNS: tuple[str, ...] = (
+    r"\byouth", r"\bchild", r"\badolescen", r"\bteen", r"\bkids?\b", r"\bpubert", r"\bpubesc",
+    r"\byoung\b", r"\bjunior", r"\bschool[- ]age", r"\bgrowth (plate|cartilage)", r"\bu1\d\b",
+    r"\bage \d+ and under",
+)
+YOUTH_PRINCIPLE_AGE_BANDS: tuple[str, ...] = ("youth", "junior")
+# With athletes.olympic_lifting_experience set, a principle that recommends
+# avoiding a competition lift *and* is gated on novice level or training age
+# (the "learn the basics first" rules: 5073, 5074, 5079, 1829 …) is skipped.
+# Bans gated on phase, injury or movement (transition months, knee rehab)
+# still apply.
+COMP_LIFT_AVOID_NAMES: frozenset[str] = frozenset({
+    "snatch", "clean_and_jerk", "clean and jerk", "clean & jerk", "clean", "jerk",
+    "full snatch", "full clean", "olympic lifts", "competition lifts", "classic lifts",
+})
+NOVICE_LEVELS: frozenset[str] = frozenset({"beginner", "novice", "youth"})
 PRINCIPLE_RATIONALE_PROMPT_CHARS: int = 150  # rationale shown per principle line
+# DOG-2l: recommendation keys never shown in the session prompt. The extractor
+# records `total_reps_max` with no scope, and the corpus uses it per set (447: 4),
+# per session (630: 10), per mesocycle (556: 908) and per year (1649: 435). The
+# model read a bare number as a session cap: [700] "50" (about 100-rep sets)
+# held program 56 to ~40 reps a session. Code sets the volume (DOSE-1). The
+# rationale still reaches the prompt. A rule left with nothing else to
+# recommend is not selected.
+PROMPT_HIDDEN_RECOMMENDATION_KEYS: frozenset[str] = frozenset({"total_reps_max"})
 
 # ── Session context assembly (RAG-H4) ───────────────────────────
 # Retrieval runs per session (query keyed by template + phase + intensity
@@ -400,6 +452,16 @@ SEX_QUERY_QUALIFIERS: dict[str, str] = {
 CLASSIFIER_LLM_MAX_TOKENS: int = 128
 # relabel_chunk_types.py: one reply labels a group of chunks (index → type).
 RELABEL_MAX_TOKENS: int = 1024
+# DOG-2g: oly-ingestion/mine_accessories.py — a light-model pass that lists the
+# accessory exercises each prose chunk names. A candidate enters `exercises`
+# only when this many distinct sources name it, the same bar migration 0023
+# used for its hand-picked rows.
+ACCESSORY_MINE_MIN_SOURCES: int = 6
+ACCESSORY_MINE_MIN_PRESCRIPTIONS: int = 2      # mentions with sets/reps before a typical value is set
+ACCESSORY_MINE_PASSAGES_PER_CALL: int = 5     # amortises the ≈2.4k-token schema overhead
+ACCESSORY_MINE_PASSAGE_CHARS: int = 4000      # chunk median ≈ 3.8k chars
+ACCESSORY_MINE_MAX_TOKENS: int = 2048
+ACCESSORY_MINE_CONCURRENCY: int = 4
 # --ocr-postcorrect: one page of corrected text (a dense page is ~2k chars).
 OCR_POSTCORRECT_MAX_TOKENS: int = 4096
 # infer_chunk_type scans the section title plus this many leading content

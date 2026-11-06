@@ -36,7 +36,7 @@ PHASE_SEQUENCE = ["general_prep", "accumulation", "intensification", "realizatio
 def decide_next_phase(
     prev_phase: str | None,
     adherence_pct: float,
-    avg_make_rate: float,
+    avg_make_rate: float | None,
     avg_rpe_deviation: float,
 ) -> tuple[str, bool, str]:
     """Decide the next training phase.
@@ -48,8 +48,11 @@ def decide_next_phase(
     Rules: advance only when adherence ≥ threshold AND make rate ≥ threshold and
     RPE deviation is not excessive; realization always rebuilds with accumulation
     (never repeats peaking, even when overreached — that's the A-H3 fix).
+    ``avg_make_rate is None`` means no make rate was logged: the make-rate test is
+    skipped (neutral, like missing RPE), never read as a 0 % make rate (DOG-2h).
     """
-    ready = adherence_pct >= ADVANCE_MIN_ADHERENCE_PCT and avg_make_rate >= ADVANCE_MIN_MAKE_RATE
+    make_ok = avg_make_rate is None or avg_make_rate >= ADVANCE_MIN_MAKE_RATE
+    ready = adherence_pct >= ADVANCE_MIN_ADHERENCE_PCT and make_ok
     rpe_blocked = avg_rpe_deviation > ADVANCE_MAX_RPE_DEVIATION
 
     if prev_phase not in PHASE_SEQUENCE:
@@ -68,7 +71,7 @@ def decide_next_phase(
 
 def compute_load_deltas(
     adherence_pct: float,
-    avg_make_rate: float,
+    avg_make_rate: float | None,
     avg_rpe_deviation: float,
 ) -> tuple[float, float, list[str]]:
     """Next-program load nudges implied by the previous outcome (PLAN-2 §1.8):
@@ -78,7 +81,9 @@ def compute_load_deltas(
     to be applied flat: adherence 69 % is −1 %, 40 % is −10 %; make rate 0.74 is
     −0.4 pts, 0.50 is −3; RPE deviation 1.1 is −0.4 %, 2.0+ is −5 %. The
     "excellent" boost stays a flat +2 %. The single source for plan (numbers)
-    and feedback (labels) — they can't drift.
+    and feedback (labels) — they can't drift. With no make rate logged
+    (``avg_make_rate is None``) neither the make-rate cut nor the "excellent"
+    boost applies (DOG-2h).
     """
     vol_delta = 0.0
     int_delta = 0.0
@@ -88,7 +93,7 @@ def compute_load_deltas(
         d = -round(OUTCOME_VOLUME_STEP_ADHERENCE * miss, 3)
         vol_delta += d
         labels.append(f"Volume {d * 100:+.0f}% (low adherence)")
-    if avg_make_rate < ADVANCE_MIN_MAKE_RATE:
+    if avg_make_rate is not None and avg_make_rate < ADVANCE_MIN_MAKE_RATE:
         miss = min(1.0, (ADVANCE_MIN_MAKE_RATE - avg_make_rate) / OUTCOME_MAKE_RATE_FULL_MISS)
         d = -round(OUTCOME_INTENSITY_STEP_MAKE_RATE * miss, 1)
         int_delta += d
@@ -98,7 +103,8 @@ def compute_load_deltas(
         d = -round(OUTCOME_VOLUME_STEP_RPE * miss, 3)
         vol_delta += d
         labels.append(f"Volume {d * 100:+.0f}% (high RPE deviation)")
-    if adherence_pct >= EXCELLENT_ADHERENCE_PCT and avg_make_rate >= EXCELLENT_MAKE_RATE:
+    if (adherence_pct >= EXCELLENT_ADHERENCE_PCT and avg_make_rate is not None
+            and avg_make_rate >= EXCELLENT_MAKE_RATE):
         int_delta += OUTCOME_INTENSITY_BOOST_EXCELLENT
         labels.append(f"Intensity ceiling +{OUTCOME_INTENSITY_BOOST_EXCELLENT:.0f}% (excellent performance)")
     return round(vol_delta, 3), round(int_delta, 1), labels
@@ -106,7 +112,7 @@ def compute_load_deltas(
 
 def compute_load_adjustments(
     adherence_pct: float,
-    avg_make_rate: float,
+    avg_make_rate: float | None,
     avg_rpe_deviation: float,
 ) -> list[str]:
     """Human-readable nudges for the verdict (see compute_load_deltas)."""

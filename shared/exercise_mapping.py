@@ -5,6 +5,8 @@ Exercise name → intensity_reference mapping and competition lift sets.
 Single source of truth used by weight_resolver, validate, and feedback modules.
 """
 
+import re
+
 from shared.constants import WARMUP_VOLUME_EXCLUSION_PCT
 
 # Maps canonical DB exercise names to the intensity_reference key used by the agent.
@@ -33,6 +35,14 @@ EXERCISE_NAME_TO_INTENSITY_REF: dict[str, str] = {
 # intensity floor warnings, and competition-lifts-first principle checking.
 COMP_LIFT_REFS: frozenset[str] = frozenset({"snatch", "clean_and_jerk", "clean"})
 
+# The full classic lifts by catalogue name (lowercase) — not their power / hang /
+# muscle variants. Their reps per set follow CLASSIC_LIFT_REPS_PER_SET.
+CLASSIC_LIFT_NAMES: frozenset[str] = frozenset({"snatch", "clean", "jerk", "clean & jerk", "split jerk"})
+
+
+def is_classic_lift(exercise_name) -> bool:
+    return (exercise_name or "").strip().lower() in CLASSIC_LIFT_NAMES
+
 
 def to_intensity_ref(name: str) -> str:
     """Normalize a display exercise name to its intensity_reference key.
@@ -54,10 +64,54 @@ def to_intensity_ref(name: str) -> str:
 # being a competition lift.
 NON_COMP_LIFT_NAME_MARKERS: tuple[str, ...] = (
     "pull", "deadlift", "extension", "squat", "press", "balance", "rdl", "row", "good morning",
+    "shrug", "carry",
 )
 
 
 _MAIN_WORK_MARKERS = ("snatch", "clean", "jerk", "squat", "pull", "deadlift")
+
+
+# Movement family from an exercise name: (pattern, family), first match wins.
+# The accessory families come first and are word-bounded (DOG-2g). That way a
+# "Snatch Grip Romanian Deadlift" is a hinge, a "Pull-Up" a row, and "Jumping
+# Squat" a jump, matching how migration 0023 catalogued them. The lift
+# families keep their old substring match, so "Snatch Pull" stays snatch
+# family and "Clean Deadlift" clean.
+MOVEMENT_FAMILY_PATTERNS: tuple[tuple[re.Pattern, str], ...] = tuple(
+    (re.compile(p, re.I), fam) for p, fam in (
+        (r"\b(good mornings?|back extensions?|hyperextensions?|reverse hyper\w*|glute[- ]ham|romanian"
+         r"|rdls?|stiff[- ]leg\w*)\b", "hinge"),
+        (r"\b(rows?|pull[- ]?ups?|chin[- ]?ups?|pull ?downs?|rear delt\w*|face pulls?)\b", "row"),
+        (r"\b(planks?|sit[- ]?ups?|leg raises?|hollow (holds?|rocks?)|ab wheel|rollouts?|crunch\w*|pallof)\b", "core"),
+        (r"\b(carr(y|ies)|farmer\w*|yoke)\b", "carry"),
+        (r"\b(box jumps?|broad jumps?|depth jumps?|vertical jumps?|jumping|bound(s|ing)?|hops?|hopping)\b",
+         "plyometric"),
+        (r"snatch", "snatch"),
+        (r"clean", "clean"),
+        (r"jerk", "jerk"),
+        (r"squat|\blunges?\b|\bstep[- ]?ups?\b", "squat"),
+        (r"press|\bdips?\b|\btriceps\b|\bpush[- ]?ups?\b", "press"),
+        (r"pull|deadlift|\bshrugs?\b", "pull"),
+    )
+)
+ACCESSORY_FAMILIES: frozenset[str] = frozenset({"hinge", "row", "core", "carry", "plyometric"})
+
+
+def infer_movement_family(exercise_name) -> str | None:
+    """The `movement_family` enum value an exercise name implies, or None when
+    it names no movement ("Chapter 15", "Course Corrections")."""
+    name = exercise_name or ""
+    for pattern, family in MOVEMENT_FAMILY_PATTERNS:
+        if pattern.search(name):
+            return family
+    return None
+
+
+def needs_blocks(exercise_name) -> bool:
+    """True for a lift from blocks ("Block Snatch (knee)", "Power Snatch from
+    Blocks (knee)"). `retrieve` drops these for an athlete whose equipment has
+    no blocks (DOG-2n)."""
+    return "block" in (exercise_name or "").lower()
 
 
 def is_accessory(exercise_name) -> bool:

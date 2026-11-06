@@ -72,6 +72,7 @@ def _walk(node, path="$"):
 
 
 def _all_schemas() -> dict[str, dict]:
+    from mine_accessories import MINE_SCHEMA
     from pipeline import PROGRAM_CONTINUATION_SCHEMA, PROGRAM_TEMPLATE_SCHEMA
     from processors.classifier import ContentClassifier
     from processors.principle_extractor import PRINCIPLE_SCHEMA
@@ -82,6 +83,7 @@ def _all_schemas() -> dict[str, dict]:
         "PROGRAM_CONTINUATION_SCHEMA": PROGRAM_CONTINUATION_SCHEMA,
         "CLASSIFY_SCHEMA": ContentClassifier._CLASSIFY_SCHEMA,
         "RELABEL_SCHEMA": RELABEL_SCHEMA,
+        "MINE_SCHEMA": MINE_SCHEMA,
     }
 
 
@@ -136,3 +138,11 @@ def test_relabel_and_classifier_enums_match():
     assert set(labels["chunk_type"]["enum"]) == set(schema_enums.CHUNK_TYPES)
     assert set(ContentClassifier._CLASSIFY_SCHEMA["properties"]["content_type"]["enum"]) == {
         "prose", "principle", "mixed", "table", "program_template", "exercise_description"}
+
+
+def test_accessory_mining_families_are_db_enum_values():
+    """DOG-2g: mine_accessories inserts the model's family into exercises.movement_family."""
+    from mine_accessories import MINE_FAMILIES, MINE_SCHEMA
+    item = MINE_SCHEMA["properties"]["passages"]["items"]["properties"]["exercises"]["items"]["properties"]
+    assert set(item["movement_family"]["enum"]) == set(MINE_FAMILIES)
+    assert set(MINE_FAMILIES) <= set(schema_enums.MOVEMENT_FAMILIES)

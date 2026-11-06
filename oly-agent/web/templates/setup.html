@@ -178,6 +178,24 @@
                    class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
           </div>
 
+          {# Same field as profile.html — dates the athlete's age and "today". #}
+          <div>
+            <label class="block text-xs font-medium text-ink-sec mb-1" for="timezone">Timezone</label>
+            <input type="text" name="timezone" id="timezone" value="{{ form.get('timezone') or 'UTC' }}"
+                   placeholder="e.g. America/New_York" maxlength="64"
+                   class="w-full border border-line-dark rounded-lg px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-navy">
+            <p class="text-xs text-ink-faint mt-1">IANA name — used for week &amp; log-date math.</p>
+            {% if not form.get('timezone') %}
+            {# first render: start from the browser's zone (the server still validates it) #}
+            <script>
+              try {
+                const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+                if (tz) document.getElementById("timezone").value = tz;
+              } catch (e) { /* keep UTC */ }
+            </script>
+            {% endif %}
+          </div>
+
         </div>
 
         <!-- Equipment -->
@@ -215,6 +233,13 @@
               <option value="national"      {% if form.get('competition_experience') == 'national'      %}selected{% endif %}>National level</option>
               <option value="international" {% if form.get('competition_experience') == 'international' %}selected{% endif %}>International / elite</option>
             </select>
+          </div>
+          <div class="flex items-end">
+            <label class="flex items-center gap-2 text-sm text-ink-700">
+              <input type="checkbox" name="olympic_lifting_experience" {% if form.get('olympic_lifting_experience') %}checked{% endif %}
+                     class="rounded border-line-dark text-ink">
+              Has done Olympic lifting before <span class="text-ink-faint text-xs">(trained the snatch and clean &amp; jerk)</span>
+            </label>
           </div>
         </div>
 

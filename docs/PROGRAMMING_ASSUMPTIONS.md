@@ -62,6 +62,7 @@ ask it to.
 | ✅ | 1.1 | PLAN-1: `--weeks` / form field, `BLOCK_WEEKS_*` bounds + level defaults |
 | ✅ | 1.4, 3.5 | `exercise_preferences.prefs.deload_every_weeks`, `deload_style` (volume / intensity / none) → `build_weekly_targets` + prompt |
 | ✅ | 1.5, 1.6 | `phase_profiles.LEVEL_PHASE_OVERRIDES` (ceiling caps, floors, reps, volume) grounded in Medvedev / Vorobyev / Laputin principles |
+| ✅ | 1.5 | DOG-2d (2026-11-03): a block longer than its profile no longer repeats the profile's second half (8-week general prep plateaued from week 3). Without a deload cadence the working weeks are interpolated over the block; with `deload_every_weeks = N` it runs as waves of N−1 loading weeks + a deload, wave k raised `BLOCK_WAVE_STEP_PCT` × k; never two deloads back to back. Blocks at or under the profile length are unchanged |
 | ✅ | 1.8 | `phase_progression.compute_load_deltas` — proportional nudges, one source for plan + feedback |
 | ✅ | 2.1, 2.2, 2.3 | 2- and 6-day layouts; `lift_emphasis` flips the light day; shares per layout |
 | ✅ | 3.4, 3.8 | `prefs.warmups` (own / prescribed) → prompt rule; `prefs.max_test` (auto / always / never) → orchestrator |

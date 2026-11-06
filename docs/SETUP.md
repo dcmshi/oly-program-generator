@@ -364,6 +364,7 @@ oly-program-generator/
 │   ├── reembed.py                   # Re-embed chunks under a new embedding model (RAG-M8 / EMBED-1)
 │   ├── quarantine_chunks.py         # Jev junk pass — marks non-content chunks quarantined
 │   ├── dedupe_principles.py         # Marks restated principles duplicate_of their canonical twin
+│   ├── mine_accessories.py          # DOG-2g — accessory exercises named in prose → exercises (report, --apply)
 │   ├── principle_audit.py           # PRIN-AUDIT — strips principle numbers the source never states
 │   ├── principle_model_compare.py   # Head-to-head principle extraction across models (MODEL-2)
 │   ├── template_model_compare.py    # Template parsing across models vs a hand-checked reference (ING-EVAL-1)

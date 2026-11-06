@@ -92,6 +92,7 @@ async def update_profile(
         "lift_emphasis": lift_emphasis or "balanced",
         "strength_limiters": strength_limiters,
         "competition_experience": competition_experience or "none",
+        "olympic_lifting_experience": form.get("olympic_lifting_experience") == "on",
         "timezone": timezone.strip() or "UTC",
         # PLAN-2 training preferences → exercise_preferences["prefs"]; out-of-vocabulary
         # values fall back to the default rather than 500 (the JSONB has no CHECK).
@@ -118,14 +119,9 @@ async def update_profile(
     elif (biological_sex or "") not in _VALID_SEX:
         error = "Please select a valid biological sex."
     else:
-        try:
-            from zoneinfo import ZoneInfo
-            ZoneInfo(data["timezone"])
-        except Exception:
-            # A typo'd zone would be saved and silently ignored by the UTC
-            # fallback forever (WEB-L1) — reject it with a message instead.
-            error = (f"Unknown timezone '{data['timezone']}'. "
-                     f"Use an IANA name like America/New_York or Europe/Berlin.")
+        # shared with setup (web/options.py) — WEB-L1
+        from web.options import timezone_error
+        error = timezone_error(data["timezone"])
 
     if error:
         athlete = await q.get_athlete(conn, athlete_id)

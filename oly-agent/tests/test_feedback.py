@@ -79,7 +79,7 @@ def test_compute_outcome_aggregates_every_signal():
 def test_compute_outcome_with_no_logs_is_all_zero_and_stable():
     with _fake_db(prescribed=0, completed=0, program_row=None, phase_row=None):
         out = compute_outcome(7, 1, MagicMock())
-    assert out.adherence_pct == 0.0 and out.avg_rpe_deviation == 0.0 and out.avg_make_rate == 0.0
+    assert out.adherence_pct == 0.0 and out.avg_rpe_deviation == 0.0 and out.avg_make_rate is None
     assert out.make_rate_by_lift == {} and out.maxes_delta == {} and out.athlete_feedback is None
     assert out.rpe_trend == out.make_rate_trend == "stable"
     assert out.phase_verdict["prev_phase"] is None and out.phase_verdict["next_phase"] == "accumulation"
@@ -120,6 +120,31 @@ def test_save_outcome_without_a_verdict():
     with patch.object(feedback, "execute") as execute:
         save_outcome(outcome, MagicMock())
     assert json.loads(execute.call_args.args[2][0])["phase_verdict"] is None
+
+
+def test_no_make_rate_logged_is_neutral_not_zero():
+    """DOG-2h: make rate is optional in the log form. A block with RPE and
+    adherence but no make rate must advance like one with a passing make rate —
+    not repeat the phase and cut the next ceiling as if every lift was missed."""
+    with _fake_db(prescribed=16, completed=16, rpe_rows=[{"deviation": 0.2}] * 4, make_rows=[]):
+        out = compute_outcome(7, 1, MagicMock())
+    assert out.avg_make_rate is None
+    v = out.phase_verdict
+    assert v["advanced"] and v["next_phase"] == "intensification"
+    make = next(c for c in v["checks"] if c["metric"] == "Make rate")
+    assert make["skipped"] and make["passed"] and make["value"] is None and make["display"] == "not logged"
+    assert not any("make rate" in a for a in v["adjustments"])   # no cut, no "excellent" boost
+
+    # stored as null, and the stored summary reads back the same way plan reads it
+    with patch.object(feedback, "execute") as execute:
+        save_outcome(out, MagicMock())
+    summary = json.loads(execute.call_args.args[2][0])
+    assert summary["avg_make_rate"] is None
+    assert summary["phase_verdict"]["checks"][1]["skipped"] is True
+
+    # a low adherence still repeats — and the reason names only adherence
+    low = _compute_phase_verdict("accumulation", ADVANCE_MIN_ADHERENCE_PCT - 10, None, 0.2)
+    assert not low["advanced"] and "Make rate" not in low["reason"] and "Adherence" in low["reason"]
 
 
 def test_phase_verdict_statuses_and_reasons():

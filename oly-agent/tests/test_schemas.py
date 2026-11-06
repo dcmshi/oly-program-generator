@@ -31,6 +31,20 @@ def test_phase_check_rejects_missing_field():
         # missing value
 
 
+def test_phase_check_accepts_a_skipped_null_value():
+    # DOG-2h: no make rate logged → value None, skipped check
+    c = PhaseCheck(metric="Make rate", value=None, display="not logged", threshold="≥ 75%",
+                   passed=True, skipped=True)
+    assert c.value is None and c.skipped
+    assert PhaseCheck(metric="Adherence", value=85.0, display="85%", threshold="≥ 70%",
+                      passed=True).skipped is False
+
+
+def test_outcome_summary_keeps_an_explicit_null_make_rate():
+    assert OutcomeSummary.model_validate({"avg_make_rate": None}).avg_make_rate is None
+    assert OutcomeSummary.model_validate({}).avg_make_rate == 1.0      # absent key: old records
+
+
 # ── PhaseVerdict ─────────────────────────────────────────────────────────────
 
 _VERDICT_DICT = {

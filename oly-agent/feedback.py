@@ -93,8 +93,11 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         """,
         (program_id, list(COMP_LIFT_REFS)),
     )
+    # No make rate logged → None, not 0.0: the field is optional in the log
+    # form, and a 0 % reading would repeat the phase, cut the next ceiling and
+    # hold the macrocycle. Readers skip the make-rate test on None (DOG-2h).
     avg_make_rate = (
-        sum(r["make_rate"] for r in make_rows) / len(make_rows) if make_rows else 0.0
+        sum(r["make_rate"] for r in make_rows) / len(make_rows) if make_rows else None
     )
 
     # Per-lift make rate breakdown
@@ -211,7 +214,7 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         sessions_completed=sessions_completed,
         adherence_pct=round(adherence_pct, 1),
         avg_rpe_deviation=round(avg_rpe_deviation, 2),
-        avg_make_rate=round(avg_make_rate, 2),
+        avg_make_rate=round(avg_make_rate, 2) if avg_make_rate is not None else None,
         make_rate_by_lift=make_rate_by_lift,
         phase_verdict=phase_verdict,
         avg_weekly_reps=round(avg_weekly_reps, 1),
@@ -224,7 +227,7 @@ def compute_outcome(program_id: int, athlete_id: int, conn) -> ProgramOutcome:
         f"Program {program_id} outcome: "
         f"adherence={adherence_pct:.0f}%, "
         f"avg_rpe_dev={avg_rpe_deviation:+.2f}, "
-        f"avg_make_rate={avg_make_rate:.0%}, "
+        f"avg_make_rate={_pct(avg_make_rate)}, "
         f"maxes_delta={maxes_delta}"
     )
     return outcome
@@ -274,10 +277,15 @@ _PHASE_LABELS = {
 }
 
 
+def _pct(rate: float | None) -> str:
+    """A 0–1 rate as a percentage; "not logged" for None."""
+    return "not logged" if rate is None else f"{rate:.0%}"
+
+
 def _compute_phase_verdict(
     prev_phase: str | None,
     adherence_pct: float,
-    avg_make_rate: float,
+    avg_make_rate: float | None,
     avg_rpe_deviation: float,
 ) -> dict:
     """Report what phase comes next and why.
@@ -285,7 +293,10 @@ def _compute_phase_verdict(
     The phase decision + load adjustments come from phase_progression (shared
     with plan._advance_phase / _apply_outcome_adjustments) so the verdict shown
     to the athlete can't disagree with the program actually generated (A-H3).
+    ``avg_make_rate is None`` (nothing logged) makes the make-rate check a
+    skipped, neutral check — the same rule decide_next_phase applies (DOG-2h).
     """
+    make_logged = avg_make_rate is not None
     checks = [
         {
             "metric":    "Adherence",
@@ -296,10 +307,11 @@ def _compute_phase_verdict(
         },
         {
             "metric":    "Make rate",
-            "value":     round(avg_make_rate, 2),
-            "display":   f"{avg_make_rate:.0%}",
+            "value":     round(avg_make_rate, 2) if make_logged else None,
+            "display":   _pct(avg_make_rate),
             "threshold": f"≥ {ADVANCE_MIN_MAKE_RATE:.0%}",
-            "passed":    avg_make_rate >= ADVANCE_MIN_MAKE_RATE,
+            "passed":    not make_logged or avg_make_rate >= ADVANCE_MIN_MAKE_RATE,
+            "skipped":   not make_logged,
         },
         {
             "metric":    "RPE deviation",

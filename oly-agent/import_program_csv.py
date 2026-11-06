@@ -228,6 +228,26 @@ EXACT_ALIASES: dict[str, str] = {
     "pendlay rows": "Pendlay Row",
     "back extensions": "Back Extension",
     "bulgarian split squats": "Bulgarian Split Squat",
+    # Accessories seeded by migration 0023 (DOG-2f) — names from the 646 Beginner Program
+    "strict press": "Strict Press",
+    "press": "Strict Press",
+    "behind the neck press": "Behind the Neck Press",
+    "snatch grip behind the neck press": "Snatch Grip Behind the Neck Press",
+    "snatch push press": "Snatch Push Press",           # else the "snatch" substring rule catches it
+    "good morning": "Good Morning",
+    "good mornings": "Good Morning",
+    "planks": "Plank",
+    "walking lunges": "Walking Lunge",
+    "bb step ups": "Step-Up",
+    "delt flyes": "Rear Delt Fly",
+    "deltoid flyes": "Rear Delt Fly",
+    "db delt flyes": "Rear Delt Fly",
+    "bent over db flyes": "Rear Delt Fly",
+    "banded tricep extensions": "Triceps Extension",
+    "db skull crushers": "Triceps Extension",
+    "barbell squat jumps": "Jumping Squat",
+    "bb squat jumps": "Jumping Squat",
+    "bent over bb rows": "Barbell Row",
 }
 SUBSTRING_ALIASES: list[tuple[str, str]] = [
     # (needle in lowercased name, catalogue name) — first hit wins
@@ -249,6 +269,11 @@ SUBSTRING_ALIASES: list[tuple[str, str]] = [
     ("sn extension", "Snatch Extension"),
     ("snatch deadlift", "Snatch Deadlift"),
     ("snatch from deficit", "Snatch from Deficit"),
+    ("snatch pull", "Snatch Pull"),                     # "Tempo Snatch Pull" was stored as Snatch
+    ("snatch push press", "Snatch Push Press"),
+    ("pressing snatch balance", "Pressing Snatch Balance"),
+    ("snatch balance", "Snatch Balance"),             # "Hang Snatch Balance" was stored as Snatch
+    ("shrug", "Shrug"),
     ("snatch", "Snatch"),
     ("power clean from deficit", "Power Clean from Deficit"),
     ("power clean", "Power Clean"),
@@ -257,6 +282,9 @@ SUBSTRING_ALIASES: list[tuple[str, str]] = [
     ("clean pull to hip", "Clean Pull to Hip"),
     ("clean deadlift", "Clean Deadlift"),
     ("clean from deficit", "Clean from Deficit"),
+    ("clean & jerk", "Clean & Jerk"),                  # "Hang Clean & Jerk" was stored as Clean
+    ("clean and jerk", "Clean & Jerk"),
+    ("clean pull", "Clean Pull"),                       # "Clean Pull to Contact Point" was stored as Clean
     ("clean", "Clean"),
     ("power jerk", "Power Jerk"),
     ("jerk", "Jerk"),
@@ -266,10 +294,35 @@ SUBSTRING_ALIASES: list[tuple[str, str]] = [
 ]
 
 
+# A hang derivative that is not the lift itself: "Hang Clean Deadlift", "Hang Snatch
+# Balance", "Snatch Grip Hang Shrug", "Hang Clean & Jerk" keep their own mapping.
+_HANG_NOT_THE_LIFT = ("pull", "extension", "high", "deadlift", "rdl", "balance", "shrug", "jerk", "press", "squat")
+
+
+def hang_variant_for(name: str) -> str | None:
+    """A hang snatch / clean → its catalogue row by height, before the substring
+    rules collapse it onto the full lift ("Hang Clean (below knee)" was stored as
+    Clean, "Hang Power Snatch" as Power Snatch). The catalogue has the hang
+    power lifts above the knee only, so a below-knee power hang falls through."""
+    n = name.lower()
+    if "hang" not in n or "+" in n or "muscle" in n or any(w in n for w in _HANG_NOT_THE_LIFT):
+        return None
+    lift = "Snatch" if "snatch" in n else ("Clean" if "clean" in n else None)
+    if lift is None:
+        return None
+    below = "below knee" in n or "below the knee" in n
+    if "power" in n:
+        return None if below else f"Hang Power {lift} (above knee)"
+    return f"Hang {lift} ({'below' if below else 'above'} knee)"
+
+
 def catalogue_name_for(name: str) -> str | None:
     n = name.lower().strip()
     if n in EXACT_ALIASES:
         return EXACT_ALIASES[n]
+    hang = hang_variant_for(n)
+    if hang:
+        return hang
     for needle, target in SUBSTRING_ALIASES:
         if needle in n:
             return target

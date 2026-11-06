@@ -81,6 +81,7 @@ worker:
 AGENT_TESTS := \
 	tests/test_validate.py \
 	tests/test_phase_profiles.py \
+	tests/test_dosing.py \
 	tests/test_weight_resolver.py \
 	tests/test_generate_utils.py \
 	tests/test_assess.py \
@@ -136,6 +137,7 @@ INGESTION_TESTS := \
 	tests/test_vector_loader_units.py \
 	tests/test_page_text.py \
 	tests/test_relabel_chunk_types.py \
+	tests/test_mine_accessories.py \
 	tests/test_reembed.py \
 	tests/test_tokens.py \
 	tests/test_jats_extractor.py \

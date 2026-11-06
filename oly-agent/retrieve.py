@@ -36,6 +36,7 @@ from shared.constants import (
     VECTOR_SEARCH_MIN_SIMILARITY,
 )
 from shared.db import fetch_all
+from shared.exercise_mapping import needs_blocks
 from shared.prilepin import get_prilepin_data, get_prilepin_zone
 
 logger = logging.getLogger(__name__)
@@ -447,6 +448,15 @@ def retrieve(
         settings: Optional settings object. Reads ``vector_search_top_k`` (default 5).
     """
     top_k = getattr(settings, "vector_search_top_k", VECTOR_SEARCH_DEFAULT_TOP_K)
+    # DOG-2n: from-blocks lifts leave the catalogue for an athlete without
+    # blocks. The prompt then never lists them and name validation rejects
+    # them. A rule saying "no blocks" under a list that offered them cost
+    # prompt space and still let the model pick them.
+    has_blocks = "blocks" in (athlete_context.athlete.get("available_equipment") or [])
+
+    def _equipped(rows: list[dict]) -> list[dict]:
+        return rows if has_blocks else [r for r in rows if not needs_blocks(r.get("name"))]
+
     # ── Path A: Fault-based exercise lookup ──────────────────
     fault_exercises: dict[str, list[dict]] = {}
     if athlete_context.technical_faults:
@@ -472,6 +482,7 @@ def retrieve(
                 """,
                 (athlete_context.technical_faults, plan.max_complexity, family),
             )
+            rows = _equipped(rows)
             if rows:
                 fault_exercises[family] = rows
 
@@ -555,6 +566,7 @@ def retrieve(
         """,
         (plan.max_complexity,),
     )
+    available_exercises = _equipped(available_exercises)
 
     available_complexes = select_available_complexes(
         _fetch_complexes(conn, plan.max_complexity), available_exercises,

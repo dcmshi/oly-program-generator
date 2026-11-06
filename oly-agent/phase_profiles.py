@@ -9,6 +9,10 @@ Strength work (squats, pulls) follows similar curves with different
 absolute percentages resolved via intensity_reference.
 """
 
+import math
+
+from shared.constants import BLOCK_WAVE_STEP_PCT, CLASSIC_LIFT_REPS_PER_SET
+
 PHASE_PROFILES = {
     "accumulation": {
         "description": "Build work capacity with moderate loads. Volume is primary driver.",
@@ -114,6 +118,66 @@ LEVEL_PHASE_OVERRIDES: dict[str, dict[str, dict]] = {
 }
 
 
+def classic_reps_range(phase: str, week_range: list[int], athlete_level: str,
+                       olympic_lifting_experience: bool) -> list[int] | None:
+    """Reps per set on the full classic lifts for one week (CLASSIC_LIFT_REPS_PER_SET),
+    never above the week's own range; None for a beginner still learning the
+    lifts, who keeps the week's range on them too."""
+    if athlete_level == "beginner" and not olympic_lifting_experience:
+        return None
+    lo, hi = CLASSIC_LIFT_REPS_PER_SET.get(phase, (1, 3))
+    hi = min(hi, week_range[1])
+    return [min(lo, hi), hi]
+
+
+def _round_half_up(x: float) -> int:
+    return int(math.floor(x + 0.5))
+
+
+def _stretch_working_weeks(working: list[dict], n: int, shift: int = 0) -> list[dict]:
+    """The profile's working weeks interpolated onto `n` weeks.
+
+    Piecewise-linear through the profile points, first working week → last, so
+    a monotonic profile stays a monotonic ramp; with `n` below the profile's
+    count the ramp is sampled instead. Intensities are rounded to whole % and
+    raised by `shift`; reps come from the nearest profile week. n == 1 is the
+    ramp's first week.
+    """
+    last = len(working) - 1
+    out = []
+    for i in range(n):
+        x = i * last / (n - 1) if n > 1 and last > 0 else 0.0
+        lo = min(int(math.floor(x)), last)
+        hi = min(lo + 1, last)
+        frac = x - lo
+
+        def lerp(key: str, lo: int = lo, hi: int = hi, frac: float = frac) -> float:
+            return working[lo][key] + frac * (working[hi][key] - working[lo][key])
+
+        out.append({
+            "intensity_floor": _round_half_up(lerp("intensity_floor")) + shift,
+            "intensity_ceiling": _round_half_up(lerp("intensity_ceiling")) + shift,
+            "volume_modifier": round(lerp("volume_modifier"), 2),
+            "reps_per_set_range": list(working[min(_round_half_up(x), last)]["reps_per_set_range"]),
+        })
+    return out
+
+
+def _wave_deload_weeks(duration_weeks: int, deload_every_weeks: int | None) -> list[int]:
+    """Deload week numbers of a long block: every Nth week, plus the last.
+
+    A trailing partial wave with no loading week (duration ≡ 1 mod N) would put
+    two deloads back to back, so the last mid-block deload is dropped and the
+    final wave runs N loading weeks instead.
+    """
+    if not deload_every_weeks or deload_every_weeks < 2:
+        return [duration_weeks]
+    mids = list(range(deload_every_weeks, duration_weeks, deload_every_weeks))
+    if mids and duration_weeks - mids[-1] < 2:
+        mids.pop()
+    return [*mids, duration_weeks]
+
+
 def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str,
                          deload_every_weeks: int | None = None, deload_style: str = "volume") -> list[dict]:
     """Build WeekTarget dicts from a phase profile.
@@ -122,37 +186,54 @@ def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str,
     - Beginners:     intensity ceiling -4%, volume +10%
     - Advanced:      intensity ceiling +2%, volume -5%
     - Elite:         intensity ceiling +3%, volume -10%
+    then LEVEL_PHASE_OVERRIDES (`ceiling_cap`, `floor_min`, reps, volume) and
+    the floor ≤ ceiling − 4 band rule, on every week whatever its length.
 
     If duration_weeks differs from the profile default:
-    - Longer: repeat middle working weeks, push deload to end
     - Shorter: drop early ramp-up weeks, keep peak + deload
+    - Longer (DOG-2d — repeating the second half plateaued after week 3):
+      * no `deload_every_weeks`: the profile's working weeks are stretched by
+        linear interpolation over duration − 1 weeks (a monotonic ramp from
+        profile week 1 to the last working week), the profile's deload last.
+      * `deload_every_weeks = N`: waves of N−1 loading weeks + 1 deload. Each
+        wave's loading weeks are the working weeks interpolated onto its
+        length, and wave k (0-based) sits k × BLOCK_WAVE_STEP_PCT higher on
+        floor and ceiling; deloads copy the profile's deload week. The last
+        week is always a deload; a trailing partial wave is interpolated the
+        same way (one with no loading week folds into the previous wave).
+      * a profile with no deload week (intensification) is stretched over the
+        whole block and never gets one (A-L7), N or not.
 
-    Preferences (PLAN-2 §1.4 / §3.5): `deload_every_weeks` turns every Nth
-    working week of a long block into an extra deload (its intensity band and
-    volume copied from the profile's deload week); `deload_style="none"` drops
-    the deload flag so the last week is a normal working week.
+    Preferences (PLAN-2 §1.4 / §3.5): `deload_every_weeks` adds a deload every
+    Nth week (copied from the profile's deload week; at or under the profile
+    length the Nth working week is replaced, never the last week twice);
+    `deload_style="none"` drops the deload flag from the last week — its loads
+    stay the profile's deload week — while mid-block deloads keep theirs.
     """
     profile = PHASE_PROFILES[phase]
     base_weeks = list(profile["weeks"].items())
     deload_week = profile.get("deload_week")
+    wave_deloads: set[int] | None = None   # set only on the long path, which places its own deloads
 
     if duration_weeks > len(base_weeks):
-        working_weeks = [(k, v) for k, v in base_weeks if k != deload_week]
-        deload_data = [(k, v) for k, v in base_weeks if k == deload_week]
-
-        extra_needed = duration_weeks - len(base_weeks)
-        mid = len(working_weeks) // 2
-        repeat_pool = working_weeks[mid:]
-        extended = list(working_weeks)
-        for i in range(extra_needed):
-            extended.append(repeat_pool[i % len(repeat_pool)])
-        if deload_data:
-            extended.append(deload_data[0])
-            deload_week = duration_weeks   # the appended deload is now the last week
+        working = [v for k, v in base_weeks if k != deload_week]
+        deload_data = profile["weeks"].get(deload_week) if deload_week else None
+        if deload_data is None:
+            # Profile has no deload — stretch it over the block, don't fabricate one (A-L7)
+            extended = _stretch_working_weeks(working, duration_weeks)
+            wave_deloads = set()
         else:
-            deload_week = None             # profile has no deload — don't fabricate one (A-L7)
-
-        base_weeks = [(i + 1, data) for i, (_, data) in enumerate(extended)]
+            ends = _wave_deload_weeks(duration_weeks, deload_every_weeks)
+            extended, start = [], 1
+            for k, end in enumerate(ends):
+                extended += _stretch_working_weeks(working, end - start, shift=k * BLOCK_WAVE_STEP_PCT)
+                extended.append(deload_data)
+                start = end + 1
+            wave_deloads = set(ends)
+            if deload_style == "none":
+                wave_deloads.discard(duration_weeks)
+        deload_week = duration_weeks if duration_weeks in wave_deloads else None
+        base_weeks = [(i + 1, data) for i, data in enumerate(extended)]
 
     elif duration_weeks < len(base_weeks):
         trim = len(base_weeks) - duration_weeks
@@ -172,8 +253,11 @@ def build_weekly_targets(phase: str, duration_weeks: int, athlete_level: str,
     for week_num, week_data in base_weeks:
         if week_num > duration_weeks:
             break
-        is_deload = week_num == deload_week
-        if (deload_every_weeks and profile_deload is not None and not is_deload
+        if wave_deloads is not None:
+            is_deload = week_num in wave_deloads
+        else:
+            is_deload = week_num == deload_week
+        if (wave_deloads is None and deload_every_weeks and profile_deload is not None and not is_deload
                 and week_num % deload_every_weeks == 0 and week_num < duration_weeks):
             week_data, is_deload = profile_deload, True     # extra mid-block deload
         ceiling = min(week_data["intensity_ceiling"] + adj["intensity_offset"], 100)

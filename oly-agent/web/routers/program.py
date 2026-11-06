@@ -63,12 +63,11 @@ async def share_page(
         raise HTTPException(status_code=404, detail="Program not found")
     programs = data["programs"]
     heading = programs[0]["name"] if len(programs) == 1 else f"{len(programs)} programs, side by side"
-    models = {p["model"] for p in programs if p.get("model")}
     today = today_in_tz(await dq.get_athlete_timezone(conn, athlete_id))
     response = templates.TemplateResponse(request, "share_page.html", {
         "request": request, "data": data, "title": f"Oly Agent · {heading}", "heading": heading,
         "exported_on": today.strftime("%d %b %Y"), "athlete_name": data["athlete"].get("name"),
-        "model": models.pop() if len(models) == 1 else None, "font_css": _inline_font_css(),
+        "font_css": _inline_font_css(),
     })
     slug = "-".join(str(p["id"]) for p in programs)
     response.headers["Content-Disposition"] = f'attachment; filename="oly-program-{slug}.html"'
@@ -146,7 +145,8 @@ async def complete(
         raise HTTPException(status_code=409, detail="Only an active program can be completed")
     logger.info(f"Completing program {program_id} for athlete {athlete_id}")
     outcome = await q.complete_program(conn, program_id, athlete_id)
-    logger.info(f"Program {program_id} completed: adherence={outcome.adherence_pct}%, make_rate={outcome.avg_make_rate:.0%}")
+    make_rate = "not logged" if outcome.avg_make_rate is None else f"{outcome.avg_make_rate:.0%}"
+    logger.info(f"Program {program_id} completed: adherence={outcome.adherence_pct}%, make_rate={make_rate}")
     macro_next = await _advance_macrocycle(program, outcome, athlete_id, request) if program.get("macrocycle_id") else None
     return templates.TemplateResponse(request, "partials/outcome_summary.html", {
         "request": request, "outcome": outcome, "program_id": program_id, "macro_next": macro_next,

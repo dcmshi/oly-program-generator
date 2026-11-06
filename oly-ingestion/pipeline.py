@@ -31,6 +31,7 @@ from processors.section_processor import (  # noqa: F401 — CHUNK_TYPE_KEYWORDS
     run_quarantine_pass,
 )
 
+from shared.exercise_mapping import ACCESSORY_FAMILIES, infer_movement_family
 from shared.llm import (
     FlexUnavailable,
     create_llm_client,
@@ -55,18 +56,10 @@ logger = logging.getLogger(__name__)
 # Checked in order — first match wins. Extend this dict when adding new sources or
 # noticing systematic mis-classification in the retrieval eval.
 # Mirrors the pattern of KEYWORD_TO_TOPIC in processors/chunker.py.
-# Movement family inference for exercise descriptions.
-# Ordered list of (trigger_keywords, family_name) — first match wins.
-# "snatch" is checked before "pull" so "Snatch Pull" maps to the snatch family.
-EXERCISE_FAMILY_KEYWORDS: list[tuple[tuple[str, ...], str]] = [
-    (("snatch",), "snatch"),
-    (("clean",), "clean"),
-    (("jerk",), "jerk"),
-    (("squat",), "squat"),
-    (("press", "push press"), "press"),
-    (("pull", "deadlift", "rdl"), "pull"),
-]
-EXERCISE_FAMILY_DEFAULT = "accessory"
+# Movement family inference for exercise descriptions is
+# shared.exercise_mapping.infer_movement_family (MOVEMENT_FAMILY_PATTERNS):
+# the accessory families (hinge / row / core / carry / plyometric, DOG-2g)
+# first, then snatch before pull so "Snatch Pull" maps to the snatch family.
 
 # Name modifiers that mark an exercise as a variation of a competition lift.
 EXERCISE_VARIATION_MODIFIERS: frozenset[str] = frozenset({
@@ -856,22 +849,21 @@ class IngestionPipeline:
 
         name_lower = name.lower()
 
-        # Infer movement family — first match in EXERCISE_FAMILY_KEYWORDS wins.
-        # No match means the heading names no movement at all ("Chapter 15",
-        # "Course Corrections"); the default family is not a movement_family
-        # enum value, so the loader would reject the row anyway (Dan John
-        # re-ingest, 2026-09-16) — drop it here instead of logging an error.
-        family = EXERCISE_FAMILY_DEFAULT
-        for keywords, fam in EXERCISE_FAMILY_KEYWORDS:
-            if any(kw in name_lower for kw in keywords):
-                family = fam
-                break
-        if family == EXERCISE_FAMILY_DEFAULT:
+        # Infer movement family (shared.exercise_mapping.MOVEMENT_FAMILY_PATTERNS,
+        # first match wins). No match means the heading names no movement at
+        # all ("Chapter 15", "Course Corrections"); such a row is not an
+        # exercise (Dan John re-ingest, 2026-09-16) — drop it here instead of
+        # logging an error. Since DOG-2g accessories (rows, planks, good
+        # mornings, carries, jumps) have families too, not only the lifts.
+        family = infer_movement_family(name)
+        if family is None:
             logger.debug(f"Not cataloguing '{name}' as an exercise: no movement keyword")
             return {}
 
-        # Infer category from name modifiers and family
-        if any(kw in name_lower for kw in EXERCISE_VARIATION_MODIFIERS):
+        # Infer category from family and name modifiers
+        if family in ACCESSORY_FAMILIES:
+            category = "accessory"
+        elif any(kw in name_lower for kw in EXERCISE_VARIATION_MODIFIERS):
             category = "variation"
         elif family in EXERCISE_STRENGTH_FAMILIES:
             category = "strength"
@@ -895,7 +887,11 @@ class IngestionPipeline:
 # Section titles that name a whole movement, not an exercise: a book's "The
 # Pull" / "PULL" / "Squat" chapters were catalogued as exercises and then shown
 # to the generator as "The Pull [pull] — typical: None-None sets" (DOG-1).
-_GENERIC_MOVEMENT_HEADINGS = frozenset({"pull", "squat", "press", "lift", "lifts", "the lifts"})
+# DOG-2g added the accessory family words ("Rows", "Carries", "Jumps").
+_GENERIC_MOVEMENT_HEADINGS = frozenset({
+    "pull", "squat", "press", "lift", "lifts", "the lifts",
+    "row", "rows", "carry", "carries", "jump", "jumps", "jumping", "core", "abs", "accessories",
+})
 
 
 _CHAPTER_HEADING_RE = re.compile(r"^(chapter|part|section|appendix|lesson|week|day)\b", re.I)

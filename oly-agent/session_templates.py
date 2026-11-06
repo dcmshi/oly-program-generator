@@ -12,6 +12,10 @@ Each session template specifies:
 - Which movement family is primary (the competition lift)
 - What supporting work follows (squats, pulls, accessories)
 - What share of weekly volume this session carries
+- Which accessory families the day covers (DOG-2m). They rotate so that a
+  week covers hinge, upper back (row), press and core, plus carries from 3
+  days a week. Without them the model added one row or press per session
+  and left the hinge / core / carry rows of the catalogue unused.
 """
 
 SESSION_DISTRIBUTIONS = {
@@ -25,6 +29,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["clean", "squat"],
                 "session_volume_share": 0.50,
                 "notes": "Snatch emphasis, C&J at reduced intensity, back squat.",
+                "accessory_families": ["hinge", "row"],
             },
             {
                 "day_number": 2,
@@ -33,6 +38,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["snatch", "jerk", "squat"],
                 "session_volume_share": 0.50,
                 "notes": "C&J emphasis, snatch at reduced intensity, front squat.",
+                "accessory_families": ["core", "press"],
             },
         ],
     },
@@ -47,6 +53,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["squat"],
                 "session_volume_share": 0.35,
                 "notes": "Snatch emphasis day. Back squat or front squat after.",
+                "accessory_families": ["hinge", "core"],
             },
             {
                 "day_number": 2,
@@ -55,6 +62,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["jerk", "pull"],
                 "session_volume_share": 0.40,
                 "notes": "C&J emphasis. Pulling work supports clean positions.",
+                "accessory_families": ["row", "press"],
             },
             {
                 "day_number": 3,
@@ -63,6 +71,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["clean", "squat"],
                 "session_volume_share": 0.25,
                 "notes": "Lighter session. Both lifts at reduced intensity + squat.",
+                "accessory_families": ["core", "carry"],
             },
         ],
     },
@@ -77,6 +86,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["squat"],
                 "session_volume_share": 0.30,
                 "notes": "Primary snatch day. Heavy squat follows.",
+                "accessory_families": ["hinge", "core"],
             },
             {
                 "day_number": 2,
@@ -85,6 +95,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["jerk", "pull"],
                 "session_volume_share": 0.30,
                 "notes": "Primary C&J day. Clean pulls or snatch pulls after.",
+                "accessory_families": ["row", "carry"],
             },
             {
                 "day_number": 3,
@@ -93,6 +104,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["pull", "accessory"],
                 "session_volume_share": 0.20,
                 "notes": "Snatch variant work (hang, power, positional). Lighter day.",
+                "accessory_families": ["press", "core"],
             },
             {
                 "day_number": 4,
@@ -101,6 +113,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["jerk", "squat"],
                 "session_volume_share": 0.20,
                 "notes": "C&J variant or complex. Front squat emphasis.",
+                "accessory_families": ["hinge", "row"],
             },
         ],
     },
@@ -115,6 +128,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["squat"],
                 "session_volume_share": 0.25,
                 "notes": "Heavy snatch day. Back squat primary strength.",
+                "accessory_families": ["hinge", "core"],
             },
             {
                 "day_number": 2,
@@ -123,6 +137,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["jerk", "pull"],
                 "session_volume_share": 0.25,
                 "notes": "Heavy C&J day. Pulling work.",
+                "accessory_families": ["row", "carry"],
             },
             {
                 "day_number": 3,
@@ -131,6 +146,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["squat"],
                 "session_volume_share": 0.15,
                 "notes": "Lighter snatch work. Positional drills. Front squat.",
+                "accessory_families": ["core"],
             },
             {
                 "day_number": 4,
@@ -139,6 +155,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["jerk", "accessory"],
                 "session_volume_share": 0.15,
                 "notes": "Clean variants, jerk practice. Lighter session.",
+                "accessory_families": ["press", "row"],
             },
             {
                 "day_number": 5,
@@ -147,6 +164,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["clean", "squat"],
                 "session_volume_share": 0.20,
                 "notes": "Both lifts. Work to heavy singles or complexes. Squat.",
+                "accessory_families": ["hinge"],
             },
         ],
     },
@@ -161,6 +179,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["squat"],
                 "session_volume_share": 0.22,
                 "notes": "Heavy snatch day. Back squat.",
+                "accessory_families": ["hinge"],
             },
             {
                 "day_number": 2,
@@ -169,6 +188,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["jerk", "pull"],
                 "session_volume_share": 0.22,
                 "notes": "Heavy C&J day. Clean pulls.",
+                "accessory_families": ["row"],
             },
             {
                 "day_number": 3,
@@ -177,6 +197,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["squat", "pull"],
                 "session_volume_share": 0.14,
                 "notes": "Hang / block / power snatch, snatch pulls, front squat.",
+                "accessory_families": ["core"],
             },
             {
                 "day_number": 4,
@@ -185,6 +206,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["jerk", "accessory"],
                 "session_volume_share": 0.14,
                 "notes": "Power / hang clean, jerk from the rack, accessories.",
+                "accessory_families": ["press", "carry"],
             },
             {
                 "day_number": 5,
@@ -193,6 +215,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["clean", "squat"],
                 "session_volume_share": 0.16,
                 "notes": "Both lifts at moderate loads. Squat.",
+                "accessory_families": ["hinge", "row"],
             },
             {
                 "day_number": 6,
@@ -201,6 +224,7 @@ SESSION_DISTRIBUTIONS = {
                 "secondary_movements": ["snatch", "accessory"],
                 "session_volume_share": 0.12,
                 "notes": "Light positional work on both lifts, overhead and trunk accessories.",
+                "accessory_families": ["press", "core"],
             },
         ],
     },
@@ -222,12 +246,14 @@ _FLIPPED_DAY: dict[str, dict] = {
         "primary_movement": "snatch",
         "secondary_movements": ["squat", "accessory"],
         "notes": "Extra snatch day for a snatch-biased athlete: hang / block / power snatch, overhead work.",
+        "accessory_families": ["press", "core"],
     },
     "cj_biased": {
         "label": "Clean Variations + Jerk",
         "primary_movement": "clean",
         "secondary_movements": ["jerk", "pull"],
         "notes": "Extra C&J day for a C&J-biased athlete: power / hang clean, jerk from the rack, clean pulls.",
+        "accessory_families": ["row", "hinge"],
     },
 }
 

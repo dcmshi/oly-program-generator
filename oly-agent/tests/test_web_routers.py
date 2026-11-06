@@ -992,6 +992,20 @@ def test_complete_emits_single_oob_status_badge():
     assert "completed" in body
 
 
+def test_complete_with_no_make_rate_logged_renders_not_logged():
+    """DOG-2h: a block with no make rate logged stores None — the complete
+    endpoint's log line and the outcome card must not format it as a number."""
+    from feedback import _compute_phase_verdict
+    verdict = _compute_phase_verdict("accumulation", 83.0, None, 0.4)
+    with patch("web.queries.program.get_program", return_value=_program(status="active")):
+        with patch("web.queries.program.complete_program",
+                   return_value=_outcome(avg_make_rate=None, make_rate_by_lift={}, phase_verdict=verdict)):
+            r = _client.post("/program/1/complete")
+    assert r.status_code == 200, f"Expected 200, got {r.status_code}"
+    assert "Program Outcome" in r.text and "not logged" in r.text
+    assert "↑ Advanced" in r.text                      # the missing make rate did not hold the phase
+
+
 def test_complete_response_keeps_export_controls_alive():
     """FE-H2: the complete response used to replace #program-actions wholesale,
     taking the Export CSV / Export PDF controls with it. It must now fill
@@ -1236,6 +1250,34 @@ def test_setup_stores_multi_value_equipment_and_faults():
     assert captured["technical_faults"] == ["slow_turnover"], \
         f"a slug outside FAULT_OPTIONS stops matching retrieve.py, got {captured['technical_faults']}"
     assert captured["strength_limiters"] == ["squat_limited"]
+
+
+def test_setup_stores_a_valid_timezone_and_rejects_an_unknown_one():
+    """DOG-2k: setup collects the timezone like profile does — validated with
+    the same helper and handed to create_athlete."""
+    captured = {}
+
+    async def _create(conn, data, pw_hash):
+        captured.update(data)
+        return 7
+
+    client = TestClient(app, follow_redirects=False)       # a success logs this client in
+    with patch("web.queries.setup.username_taken", return_value=False), \
+         patch("web.queries.setup.create_athlete", side_effect=_create), \
+         patch("web.queries.setup.create_maxes", return_value=None), \
+         patch("web.queries.setup.create_goal", return_value=None):
+        r = client.post("/setup", data=_setup_form(timezone=" America/Chicago "))
+    assert r.status_code == 303, f"Expected 303, got {r.status_code}"
+    assert captured["timezone"] == "America/Chicago"
+
+    with patch("web.queries.setup.username_taken", return_value=False), \
+         patch("web.queries.setup.create_athlete", return_value=1) as mock_create:
+        r = _client.post("/setup", data=_setup_form(timezone="Mars/Olympus_Mons"))
+    assert r.status_code == 422 and not mock_create.called
+    assert "Unknown timezone" in r.text
+    assert 'value="Mars/Olympus_Mons"' in r.text                # the typo is echoed back to fix
+    page = _client.get("/setup").text
+    assert 'name="timezone"' in page and "resolvedOptions().timeZone" in page
 
 
 def test_setup_error_rerender_rechecks_every_multi_value_field():

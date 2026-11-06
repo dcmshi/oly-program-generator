@@ -86,7 +86,8 @@ def run(
             per-program cost) and the draft's rationale says it is partial.
         week_concurrency: Weeks 2..N generated at once (AUD-4); None =
             GENERATION_WEEK_CONCURRENCY, 1 = sequential. Week 1 always runs
-            first and alone.
+            first and alone, as does the first week after a mid-block deload
+            (it starts a new wave — DOG-2e).
         new_macrocycle: Plan a macrocycle (PLAN-3e) — the block sequence to the
             goal's competition date, else `macrocycle_weeks` total — store it
             and generate its first block. `duration_weeks` is ignored.
@@ -207,6 +208,8 @@ def run(
             effective_maxes=effective_maxes, exercise_lookup=exercise_lookup,
             llm_client=llm_client, vector_loader=vector_loader, deadline=deadline,
             cost_limit=cost_limit, spend=_SpendGuard(cost_limit), saved_sessions=saved_sessions,
+            anchor_scheme=(_snapshot_anchor_scheme(resume["plan"]) if resume is not None
+                           else ANCHOR_SCHEME_WAVES),
         )
         if resume is not None:
             g.spend.preload(prior_spend, len(saved_sessions))
@@ -220,6 +223,7 @@ def run(
 
         all_sessions_data: list[dict] = [s for o in outcomes for s in o.sessions]
         failed_sessions: list[str] = [f for o in outcomes for f in o.failed]
+        flagged_sessions: list[str] = [f for o in outcomes for f in o.flagged]
         cumulative_cost = g.spend.spent
 
         reason = _abort_reason(outcomes, len(all_sessions_data), total_planned, cost_limit, cumulative_cost)
@@ -259,6 +263,7 @@ def run(
         rationale, cumulative_cost = _explain_program(g, all_sessions_data, cumulative_cost)
         rationale = _prefix_rationale_warnings(
             rationale, max_sessions if capped else None, len(all_sessions_data), total_planned, failed_sessions,
+            flagged_sessions,
         )
         execute(
             conn,
@@ -352,6 +357,10 @@ def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContex
 # ── Resume (RESUME-1) ──────────────────────────────────────────
 
 MAX_TEST_LABEL = "Max Testing — Snatch & Clean & Jerk"
+# Week anchoring (AUD-4 / DOG-2e), recorded in the resume snapshot so a resume
+# keeps the scheme the draft's saved weeks were generated under
+ANCHOR_SCHEME_WAVES = "waves"            # a mid-block deload starts a new wave (DOG-2e)
+ANCHOR_SCHEME_FIRST_WEEK = "first_week"  # every week on the first (pre-DOG-2e drafts)
 _PLAN_SNAPSHOT_FIELDS = ("phase", "duration_weeks", "sessions_per_week", "deload_week",
                          "intensity_ceiling_override", "max_complexity")
 
@@ -363,12 +372,22 @@ class ResumeError(ValueError):
 
 def _plan_snapshot(program_plan: ProgramPlan) -> dict:
     """The plan's shape — everything generation reads except the principle and
-    chunk lists, which a resume reloads."""
+    chunk lists, which a resume reloads — plus the week-anchoring scheme the
+    draft was generated under."""
     return {
         **{f: getattr(program_plan, f) for f in _PLAN_SNAPSHOT_FIELDS},
         "weekly_targets": [asdict(w) for w in program_plan.weekly_targets],
         "session_templates": [asdict(t) for t in program_plan.session_templates],
+        "anchor_scheme": ANCHOR_SCHEME_WAVES,
     }
+
+
+def _snapshot_anchor_scheme(snap: dict) -> str:
+    """The anchoring a resumed draft was generated under. A snapshot without the
+    key predates DOG-2e, when every week was anchored on the first — resuming
+    it under waves would anchor the weeks after a mid-block deload on a
+    different week than the ones already saved."""
+    return snap.get("anchor_scheme") or ANCHOR_SCHEME_FIRST_WEEK
 
 
 def _apply_plan_snapshot(program_plan: ProgramPlan, snap: dict) -> ProgramPlan:
@@ -399,7 +418,7 @@ def _load_resume(conn, program_id: int, athlete_id: int) -> dict:
 def _reopen_draft(conn, program_id: int) -> tuple[dict, dict | None, float]:
     """(saved sessions by (week, day), the max-test session or None, spend so
     far). Sessions stored empty (generation failed) are deleted so they are
-    generated again."""
+    generated again; a training log on one is detached first (DOG-2j)."""
     sessions = fetch_all(conn, "SELECT id, week_number, day_number, session_label FROM program_sessions "
                                "WHERE program_id = %s ORDER BY week_number, day_number, id", (program_id,))
     exercises = fetch_all(conn, """
@@ -422,8 +441,13 @@ def _reopen_draft(conn, program_id: int) -> tuple[dict, dict | None, float]:
         else:
             saved[(s["week_number"], s["day_number"])] = row
     if empty:
-        execute(conn, "DELETE FROM program_sessions WHERE id = ANY(%s) AND NOT EXISTS "
-                      "(SELECT 1 FROM training_logs tl WHERE tl.session_id = program_sessions.id)", (empty,))
+        # Every empty session is regenerated, so every one must go: a kept row
+        # would collide with the regenerated one on UNIQUE(program_id, week,
+        # day). A training log on one is kept and detached, as delete_program
+        # does (training_logs.session_id has no ON DELETE CASCADE); an empty
+        # session has no session_exercises, so no log exercise points into it.
+        execute(conn, "UPDATE training_logs SET session_id = NULL WHERE session_id = ANY(%s)", (empty,))
+        execute(conn, "DELETE FROM program_sessions WHERE id = ANY(%s)", (empty,))
     spent = fetch_all(conn, "SELECT COALESCE(SUM(estimated_cost_usd), 0) AS spent FROM generation_log "
                             "WHERE program_id = %s", (program_id,))[0]["spent"]
     execute(conn, "UPDATE generated_programs SET generation_params = generation_params || "
@@ -540,14 +564,23 @@ def _billed(result) -> float | None:
 
 
 def _prefix_rationale_warnings(rationale: str, session_cap: int | None, n_sessions: int,
-                               total_planned: int, failed_sessions: list[str]) -> str:
-    """Prepend the partial-program (session cap) and failed-session warnings."""
+                               total_planned: int, failed_sessions: list[str],
+                               flagged_sessions: list[str] | None = None) -> str:
+    """Prepend the partial-program (session cap), flagged-session and
+    failed-session warnings."""
     if session_cap is not None:
         rationale = (
             f"# Partial Program — Session Cap\n"
             f"Generation was capped at {session_cap} session(s) for a model baseline run; "
             f"{n_sessions} of {total_planned} planned sessions exist. "
             f"Do not activate this program.\n\n" + rationale
+        )
+    if flagged_sessions:
+        rationale = (
+            f"# Review Before Activating\n"
+            f"{len(flagged_sessions)} session(s) ran out of retries and were saved with unresolved "
+            f"validation errors (see the generation log): {', '.join(flagged_sessions)}. Check them "
+            f"before activating this program.\n\n" + rationale
         )
     if failed_sessions:
         rationale = (
@@ -637,6 +670,7 @@ class _WeekOutcome:
     sessions: list[dict] = field(default_factory=list)   # all_sessions_data rows, day order
     templates: list = field(default_factory=list)        # SessionTemplate per row (deferred save)
     failed: list[str] = field(default_factory=list)
+    flagged: list[str] = field(default_factory=list)     # saved with unresolved validation errors
     abort: tuple[str, int, int] | None = None            # ("deadline" | "cost", week, day)
 
 
@@ -673,13 +707,63 @@ def summarize_block_template(exercises: list[dict], max_chars: int = BLOCK_TEMPL
 
 
 def _block_templates_from(week: _WeekOutcome) -> dict[int, str]:
-    """{day_number: summary} of a generated week — week 1's, for weeks 2..N."""
+    """{day_number: summary} of a generated (or replayed) week — a wave's
+    anchor week, for the rest of its wave and the next wave's first week."""
     out: dict[int, str] = {}
     for s in week.sessions:
         summary = summarize_block_template(s["exercises"])
         if summary:
             out[s["day"]] = summary
     return out
+
+
+@dataclass(frozen=True)
+class _BlockAnchor:
+    """What one week's prompts are anchored on (AUD-4, DOG-2e): the anchor
+    week's same-day summaries, and whether this week opens a new wave (shown
+    the previous wave's anchor, asked to rotate variants). The default — no
+    templates — is week 1's."""
+    week: int = 1
+    templates: dict[int, str] = field(default_factory=dict)
+    new_wave: bool = False
+
+    def prompt_kwargs(self, day_number: int) -> dict:
+        """build_session_prompt's block-template arguments for this day."""
+        return {"block_template": self.templates.get(day_number),
+                "block_anchor_week": self.week, "new_wave": self.new_wave}
+
+
+def _wave_anchor_weeks(weekly_targets: list) -> dict[int, int]:
+    """{week_number: the week that anchors it} (DOG-2e).
+
+    A block is one wave anchored on its first week, unless it has a deload
+    before its last week: the first non-deload week after a deload then
+    starts a new wave and anchors the weeks up to the next one. A deload
+    week belongs to the wave it closes. 8 weeks, deloads 4 and 8 →
+    weeks 1–4 on 1, 5–8 on 5; no mid-block deload → every week on the first.
+    """
+    anchors: dict[int, int] = {}
+    anchor, after_deload = None, False
+    for wt in weekly_targets:
+        if anchor is None or (after_deload and not wt.is_deload):
+            anchor, after_deload = wt.week_number, False
+        anchors[wt.week_number] = anchor
+        after_deload = after_deload or bool(wt.is_deload)
+    return anchors
+
+
+def _waves(scheduled: list[tuple], anchors: dict[int, int]) -> list[list[tuple]]:
+    """`scheduled` split into consecutive waves; each wave's first entry is
+    its anchor week (scheduled is a (week, day)-ordered prefix of the plan)."""
+    waves: list[list[tuple]] = []
+    current = None
+    for wt, limit in scheduled:
+        anchor = anchors.get(wt.week_number, current)
+        if not waves or anchor != current:
+            waves.append([])
+            current = anchor
+        waves[-1].append((wt, limit))
+    return waves
 
 
 # ── Generation state + per-session steps (AUD-6 split of run) ──
@@ -707,6 +791,7 @@ class _GenerationRun:
     # RESUME-1: {(week, day): {"session_id", "label", "exercises"}} already saved
     # in the draft being resumed — replayed, never regenerated
     saved_sessions: dict[tuple[int, int], dict] = field(default_factory=dict)
+    anchor_scheme: str = ANCHOR_SCHEME_WAVES     # a resumed pre-DOG-2e draft: ANCHOR_SCHEME_FIRST_WEEK
     available_exercise_names: list[str] = field(init=False)
     fault_exercise_names: list[str] | None = field(init=False)
 
@@ -753,26 +838,42 @@ def _run_weeks(g: _GenerationRun, conn, scheduled: list[tuple], concurrency: int
     warms the prompt cache before the concurrent calls. The anchor is
     passed at every concurrency, so prompts (and the rows they produce)
     do not depend on the setting; 1 reproduces the sequential run.
+
+    Waves (DOG-2e): a mid-block deload ends a wave, and the week after it
+    is the next wave's anchor (`_wave_anchor_weeks`) — generated alone
+    once every earlier week is done, shown the previous anchor's same-day
+    session with a rotate-the-variants instruction; the rest of its wave
+    then runs concurrently anchored on it. Without a mid-block deload there
+    is one wave and this is exactly the week-1 scheme above. A resumed
+    draft's saved anchor-week sessions are replayed into its outcome, so
+    they anchor the wave with no LLM call (RESUME-1). A resumed draft made
+    before DOG-2e (`g.anchor_scheme` first_week) stays one wave on its first
+    week, so its remaining weeks match the ones already saved.
     """
     outcomes: list[_WeekOutcome] = []
-    block_templates: dict[int, str] = {}
-    if scheduled:
-        first_week, first_limit = scheduled[0]
-        outcomes.append(_generate_week(g, first_week, conn, first_limit, block_templates))
-        block_templates = _block_templates_from(outcomes[0])
-    rest = scheduled[1:]
-    if rest and not g.spend.stopped():
-        if concurrency == 1 or len(rest) == 1:
-            for wt, limit in rest:
-                outcomes.append(_generate_week(g, wt, conn, limit, block_templates))
-                if g.spend.stopped():
-                    break
-        else:
-            outcomes += _run_weeks_concurrently(g, conn, rest, block_templates, concurrency)
+    head_anchor = _BlockAnchor()        # wave 1's first week has no template
+    targets = g.program_plan.weekly_targets
+    anchors = (_wave_anchor_weeks(targets) if g.anchor_scheme == ANCHOR_SCHEME_WAVES
+               else {wt.week_number: targets[0].week_number for wt in targets})
+    for wave in _waves(scheduled, anchors):
+        if outcomes and g.spend.stopped():
+            break
+        (head, head_limit), rest = wave[0], wave[1:]
+        outcomes.append(_generate_week(g, head, conn, head_limit, head_anchor))
+        anchor = _BlockAnchor(head.week_number, _block_templates_from(outcomes[-1]))
+        if rest and not g.spend.stopped():
+            if concurrency == 1 or len(rest) == 1:
+                for wt, limit in rest:
+                    outcomes.append(_generate_week(g, wt, conn, limit, anchor))
+                    if g.spend.stopped():
+                        break
+            else:
+                outcomes += _run_weeks_concurrently(g, conn, rest, anchor, concurrency)
+        head_anchor = dataclasses.replace(anchor, new_wave=True)
     return outcomes
 
 
-def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], block_templates: dict[int, str],
+def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], anchor: _BlockAnchor,
                             concurrency: int) -> list["_WeekOutcome"]:
     """Weeks 2..N on a thread pool; sessions are saved here, on the main
     thread's connection, in (week, day) order. Re-raises the first worker error
@@ -792,7 +893,7 @@ def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], block_te
     with ThreadPoolExecutor(
         max_workers=min(concurrency, len(rest)), thread_name_prefix="gen-week",
     ) as pool:
-        futures = [pool.submit(_week_worker, g, wt, limit, block_templates, prefetched[wt.week_number])
+        futures = [pool.submit(_week_worker, g, wt, limit, anchor, prefetched[wt.week_number])
                    for wt, limit in rest]
         try:
             for fut in futures:  # week order: rows are inserted by (week, day)
@@ -825,14 +926,14 @@ def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], block_te
     return outcomes
 
 
-def _week_worker(g: _GenerationRun, week_target, day_limit: int, block_templates: dict[int, str],
+def _week_worker(g: _GenerationRun, week_target, day_limit: int, anchor: _BlockAnchor,
                  prefetched: dict[int, list[dict]]) -> "_WeekOutcome":
     # Own psycopg2 connection per worker — never share one
     # across threads. It carries only generation_log writes.
     worker_conn = get_connection(g.settings.database_url)
     try:
         out = _generate_week(
-            g, week_target, worker_conn, day_limit, block_templates,
+            g, week_target, worker_conn, day_limit, anchor,
             prefetched=prefetched, save=False,
         )
         worker_conn.commit()
@@ -845,7 +946,7 @@ def _week_worker(g: _GenerationRun, week_target, day_limit: int, block_templates
         worker_conn.close()
 
 
-def _generate_week(g: _GenerationRun, week_target, conn, day_limit: int, block_templates: dict[int, str],
+def _generate_week(g: _GenerationRun, week_target, conn, day_limit: int, anchor: _BlockAnchor,
                    prefetched: dict[int, list[dict]] | None = None, save: bool = True) -> "_WeekOutcome":
     """Generate one week's sessions in day order on `conn`.
 
@@ -871,7 +972,7 @@ def _generate_week(g: _GenerationRun, week_target, conn, day_limit: int, block_t
             )
             prefetched_chunks = prefetched[session_template.day_number] if prefetched is not None else None
             if not _generate_session(g, conn, week_target, session_template, week, outcome,
-                                     block_templates.get(session_template.day_number), prefetched_chunks, save):
+                                     anchor, prefetched_chunks, save):
                 break
     except BaseException as e:
         try:
@@ -1004,7 +1105,7 @@ def _resolve_session_exercises(g: _GenerationRun, exercises: list[dict], week_nu
 
 
 def _generate_session(g: _GenerationRun, conn, week_target, session_template, week: _WeekState,
-                      outcome: "_WeekOutcome", block_template: str | None,
+                      outcome: "_WeekOutcome", anchor: _BlockAnchor,
                       prefetched_chunks: list[dict] | None, save: bool) -> bool:
     """Prompt → guards → generate/validate → resolve → save one session.
 
@@ -1048,7 +1149,7 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
         sessions_per_week=g.program_plan.sessions_per_week,
         active_principles=session_principles,
         context_chunks=session_chunks,
-        block_template=block_template,
+        **anchor.prompt_kwargs(day_number),
     )
 
     if not _admit_session(g, outcome, week_number, day_number):
@@ -1072,6 +1173,7 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
             retrieval_set=_retrieval_set(session_chunks),
             week_already_prescribed=week.already_prescribed,
             available_complexes=getattr(g.retrieval_context, "available_complexes", None),
+            session_rep_target=session_rep_target,
         )
     except BaseException:
         g.spend.abandon()
@@ -1093,6 +1195,8 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
         exercises = []
     else:
         exercises = result.exercises
+        if result.status == "flagged":
+            outcome.flagged.append(f"W{week_number}D{day_number}")
     exercises = _resolve_session_exercises(g, exercises, week_number, day_number, session_chunks)
 
     # Accumulate volume for next session's context

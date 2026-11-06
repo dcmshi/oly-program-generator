@@ -38,9 +38,13 @@
     <div>
       {% set mr = outcome.avg_make_rate %}
       {% set lift_labels = {"snatch": "SN", "clean_and_jerk": "C&J", "clean": "Clean"} %}
+      {% if mr is none %}
+      <p class="text-2xl font-bold text-ink-faint">—</p>
+      {% else %}
       <p class="text-2xl font-bold {{ 'text-red-600' if mr < 0.75 else 'text-blue-900' }}">
         {{ (mr * 100) | round | int }}%
       </p>
+      {% endif %}
       <p class="text-xs text-blue-600 mt-0.5">Make rate</p>
       {% if outcome.make_rate_by_lift %}
       <div class="flex flex-wrap justify-center gap-x-2 mt-1">
@@ -50,6 +54,8 @@
         </span>
         {% endfor %}
       </div>
+      {% elif mr is none %}
+      <p class="text-xs text-ink-faint">not logged</p>
       {% else %}
       <p class="text-xs text-ink-faint">competition lifts</p>
       {% endif %}
@@ -111,6 +117,11 @@
     <div class="space-y-1 mb-3">
       {% for c in pv.checks %}
       <div class="flex items-center gap-2 text-xs">
+        {% if c.skipped %}
+        <span class="text-ink-faint">–</span>
+        <span class="text-blue-700 w-28">{{ c.metric }}</span>
+        <span class="font-medium text-ink-faint">{{ c.display }}</span>
+        {% else %}
         <span class="{{ 'text-green-600' if c.passed else 'text-red-500' }}">
           {{ '✓' if c.passed else '✗' }}
         </span>
@@ -118,6 +129,7 @@
         <span class="font-medium {{ 'text-green-700' if c.passed else 'text-red-600' }}">
           {{ c.display }}
         </span>
+        {% endif %}
         <span class="text-blue-400">(need {{ c.threshold }})</span>
       </div>
       {% endfor %}

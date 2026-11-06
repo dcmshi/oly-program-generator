@@ -107,7 +107,7 @@ def test_prompt_handles_null_exercise_preferences():
     athlete = _make_athlete()
     athlete.athlete["exercise_preferences"] = None  # simulate SQL NULL
     prompt = _make_prompt(athlete)  # must not raise
-    assert "## Exercises to Avoid\nnone" in prompt
+    assert "## Exercises to Avoid" not in prompt    # DOG-2n: an empty section is omitted
 
 
 def test_remaining_budget_is_weekly_not_session():
@@ -382,15 +382,17 @@ def test_validate_empty_list():
 # ── build_session_prompt: recent_logs ────────────────────────
 
 def test_recent_logs_section_present():
-    """## Recent Training section always appears in the prompt."""
-    prompt = _make_prompt()
+    """## Recent Training appears when the athlete has logs."""
+    logs = [{"log_date": date(2026, 3, 15), "exercise_name": "Snatch",
+             "weight_kg": 88.0, "sets_completed": 5, "rpe": 8.0, "make_rate": 0.9}]
+    prompt = _make_prompt(_make_athlete(recent_logs=logs))
     assert "## Recent Training" in prompt
 
 
-def test_recent_logs_empty_shows_fallback():
-    """No logs → fallback message, not a crash or blank section."""
+def test_recent_logs_empty_omits_the_section():
+    """No logs → no section (DOG-2n), and no crash."""
     prompt = _make_prompt(_make_athlete(recent_logs=[]))
-    assert "No recent sessions logged" in prompt
+    assert "## Recent Training" not in prompt
 
 
 def test_recent_logs_entries_formatted():
@@ -434,16 +436,10 @@ def test_recent_logs_capped_at_max():
 
 # ── build_session_prompt: template_references ─────────────────
 
-def test_template_references_section_present():
-    """## Similar Program Templates section always appears in the prompt."""
-    prompt = _make_prompt()
-    assert "## Similar Program Templates" in prompt
-
-
-def test_template_references_empty_shows_fallback():
-    """No templates → fallback message, not blank."""
+def test_template_references_empty_omits_the_section():
+    """No templates → no section (DOG-2n)."""
     prompt = _make_prompt(retrieval=_make_retrieval(template_references=[]))
-    assert "none matched" in prompt
+    assert "## Similar Program Templates" not in prompt
 
 
 def test_template_references_shows_name_and_notes():
@@ -645,10 +641,25 @@ def test_fault_block_exercise_not_shown_under_wrong_fault():
 
 
 def test_fault_block_header_updated():
-    """Fault section uses the prescriptive header, not the old 'Exercises to Emphasize' label."""
-    prompt = _make_prompt()
+    """Fault section uses the prescriptive header, not the old 'Exercises to Emphasize' label,
+    and is omitted for an athlete with no faults (DOG-2n)."""
+    prompt = _make_prompt(_make_athlete(faults=["slow_turnover"]))
     assert "Fault Correction Exercises" in prompt
     assert "Exercises to Emphasize" not in prompt
+    assert "Fault Correction Exercises" not in _make_prompt(_make_athlete(faults=[]))
+
+
+def test_fault_section_names_every_matching_exercise():
+    """DOG-2n: the catalogue lines lost their `for:` tags, so the fault section
+    names every exercise for the fault: three with their purpose, the rest by name."""
+    from generate import _fault_correction_section
+
+    exs = [{"name": f"Drill {i}", "primary_purpose": f"Purpose {i}. More.", "faults_addressed": ["slow_turnover"]}
+           for i in range(5)]
+    block = _fault_correction_section(["slow_turnover"], {"snatch": exs})
+    assert ("  'slow_turnover': Drill 0 (Purpose 0), Drill 1 (Purpose 1), Drill 2 (Purpose 2); "
+            "also Drill 3, Drill 4") in block
+    assert _fault_correction_section([], {"snatch": exs}) == ""
 
 
 # ── build_session_prompt: lift ratios (Group C) ───────────────
@@ -704,16 +715,30 @@ def test_lift_ratios_missing_max_skipped():
     # Only snatch recorded, no C&J or squat
     athlete = _make_athlete_with_maxes({"snatch": 100.0})
     prompt = _make_prompt(athlete)
-    # Section should exist but Sn/C&J line should not appear
-    assert "Lift Ratios" in prompt
+    # no ratio can be computed → the whole section is omitted (DOG-2n)
+    assert "Lift Ratios" not in prompt
     assert "Sn/C&J" not in prompt
 
 
-def test_lift_ratios_fallback_when_no_maxes():
-    """When no maxes are recorded at all, fallback text is shown."""
+def test_lift_ratios_omitted_when_no_maxes():
+    """When no maxes are recorded at all, the section is omitted (DOG-2n)."""
     athlete = _make_athlete_with_maxes({})
     prompt = _make_prompt(athlete)
-    assert "insufficient maxes" in prompt
+    assert "Lift Ratios" not in prompt and "insufficient maxes" not in prompt
+
+
+def test_olympic_lifting_experience_line_only_when_set():
+    athlete = _make_athlete_with_maxes({"snatch": 100.0})
+    assert "Olympic lifting experience" not in _make_prompt(athlete)
+    athlete.athlete["olympic_lifting_experience"] = True
+    assert "Olympic lifting experience: has already trained" in _make_prompt(athlete)
+
+
+def test_no_maxes_asks_for_percent_and_rpe():
+    """A percentage-only athlete: the maxes section says so instead of a bare heading."""
+    prompt = _make_prompt(_make_athlete_with_maxes({}))
+    section = prompt.split("## Current Maxes", 1)[1].split("##", 1)[0]
+    assert "none on record" in section and "rpe_target" in section
 
 
 # ── T4: parse_llm_response fallback branches (lines 69-70, 75-80) ─────────────
@@ -953,13 +978,12 @@ TESTS = [
     ("prompt: remaining budget is weekly not session (A-H2)", test_remaining_budget_is_weekly_not_session),
     # build_session_prompt: recent_logs
     ("prompt recent_logs: section present", test_recent_logs_section_present),
-    ("prompt recent_logs: empty → fallback message", test_recent_logs_empty_shows_fallback),
+    ("prompt recent_logs: empty → section omitted", test_recent_logs_empty_omits_the_section),
     ("prompt recent_logs: entries formatted correctly", test_recent_logs_entries_formatted),
     ("prompt recent_logs: null RPE/make_rate no crash", test_recent_logs_missing_rpe_and_make_rate_ok),
     ("prompt recent_logs: capped at MAX_RECENT_LOGS_IN_PROMPT", test_recent_logs_capped_at_max),
     # build_session_prompt: template_references
-    ("prompt templates: section present", test_template_references_section_present),
-    ("prompt templates: empty → fallback message", test_template_references_empty_shows_fallback),
+    ("prompt templates: empty → section omitted", test_template_references_empty_omits_the_section),
     ("prompt templates: name + notes shown, structure excluded", test_template_references_shows_name_and_notes),
     ("prompt templates: capped at 2", test_template_references_capped_at_two),
     # build_session_prompt: make_rate_by_lift directive
@@ -984,7 +1008,7 @@ TESTS = [
     ("prompt ratios: Sn/C&J computed and formatted", test_lift_ratios_computed_correctly),
     ("prompt ratios: below target flags structural work", test_lift_ratios_below_target_flags_structural_work),
     ("prompt ratios: missing max → ratio omitted", test_lift_ratios_missing_max_skipped),
-    ("prompt ratios: no maxes → fallback text", test_lift_ratios_fallback_when_no_maxes),
+    ("prompt ratios: no maxes → section omitted", test_lift_ratios_omitted_when_no_maxes),
     # T4: parse_llm_response fallback branches
     ("parse: object after prose → object branch (lines 75-78)", test_parse_object_after_prose_hits_object_branch),
     ("parse: invalid array falls through to object branch (line 70)", test_parse_invalid_array_falls_through_to_object_branch),
@@ -1446,7 +1470,7 @@ def test_generate_with_retries_threads_retrieval_set_into_every_log_row():
 
 # ── DOG-1h: compact exercise lines ───────────────────────────────────────────
 
-def test_exercise_line_is_compact_and_lists_only_the_athletes_faults():
+def test_exercise_line_is_compact():
     from decimal import Decimal
 
     from generate import _exercise_line
@@ -1455,14 +1479,14 @@ def test_exercise_line_is_compact_and_lists_only_the_athletes_faults():
          "typical_sets_low": 3, "typical_sets_high": 5, "typical_reps_low": 2, "typical_reps_high": 5,
          "typical_intensity_low": Decimal("85.00"), "typical_intensity_high": Decimal("110.00"),
          "faults_addressed": ["hips_rising_fast", "early_arm_bend", "lost_back_tightness"]}
-    assert _exercise_line(e, {"early_arm_bend"}) == "  Snatch Pull [snatch, c1] 3-5x2-5 @85-110% | for: early_arm_bend"
-    assert _exercise_line(e, set()) == "  Snatch Pull [snatch, c1] 3-5x2-5 @85-110%"
+    # DOG-2n: no "@ %" range (dosing sets loads) and no fault tags (the fault section has them)
+    assert _exercise_line(e) == "  Snatch Pull [snatch, c1] 3-5x2-5"
     bare = {"name": "Deadlift", "movement_family": "pull", "complexity_level": 1, "faults_addressed": []}
-    assert _exercise_line(bare, {"x"}) == "  Deadlift [pull, c1]"
+    assert _exercise_line(bare) == "  Deadlift [pull, c1]"
     single = {"name": "Box Jump", "movement_family": "plyometric", "complexity_level": 1,
               "typical_sets_low": 3, "typical_sets_high": 3, "typical_reps_low": 5, "typical_reps_high": 5,
               "typical_intensity_low": None, "typical_intensity_high": None, "faults_addressed": None}
-    assert _exercise_line(single, set()) == "  Box Jump [plyometric, c1] 3x5"
+    assert _exercise_line(single) == "  Box Jump [plyometric, c1] 3x5"
 
 
 def test_available_exercises_block_uses_the_compact_lines():
@@ -1474,8 +1498,8 @@ def test_available_exercises_block_uses_the_compact_lines():
     ]
     prompt = _make_prompt(_make_athlete(faults=["slow_turnover"]), retrieval)
     block = prompt.split("## Available Exercises")[1].split("## ")[0]
-    assert "  Snatch [snatch, c1] 4-6x1-3 @70-100% | for: slow_turnover" in block
-    assert "typical:" not in block and "(complexity" not in block
+    assert "  Snatch [snatch, c1] 4-6x1-3\n" in block + "\n"
+    assert "typical:" not in block and "(complexity" not in block and "for:" not in block and "@" not in block
 
 
 # ── RAG-L3: static-first prompt + cached prefix ──────────────────────────────
@@ -1486,10 +1510,10 @@ def test_prompt_is_static_first_and_splits_at_program_plan():
     prompt = _make_prompt()
     static, dynamic = split_prompt_for_caching(prompt)
     assert static + dynamic == prompt
-    for section in ("## Athlete Profile", "## Available Exercises", "## Exercises to Avoid", "## Injury Substitutions"):
+    for section in ("## Athlete Profile", "## Available Exercises"):
         assert section in static and section not in dynamic, section
     for section in ("## Program Plan", "## Session Template", "## Already Prescribed This Week",
-                    "## Active Principles", "## Programming Context", "## Instructions"):
+                    "## Programming Context", "## Instructions"):
         assert section in dynamic and section not in static, section
     # the week-dependent rules moved out of the static rules block
     assert "Exceed the intensity ceiling of" not in static
@@ -1622,7 +1646,8 @@ def _golden_rich_prompt():
                                 "avg_rpe_deviation": 0.4, "rpe_trend": "ascending",
                                 "make_rate_trend": "stable", "maxes_delta": {"snatch": 2.5},
                                 "athlete_feedback": "Knees ached in week 3."},
-            "structure": {"cycles": [{"label": "Volume", "weeks": [1, 3]}, {"label": "Deload", "weeks": [5, 5]}],
+            "structure": {"cycles": [{"label": "Volume", "weeks": [1, 3]}, {"label": "Week 4", "weeks": [4, 4]},
+                                     {"label": "Deload", "weeks": [5, 5]}],
                           "most_used": [{"exercise_name": "Snatch", "sessions": 9}],
                           "last_week_top_sets": [{"exercise_name": "Snatch", "intensity_pct": 80,
                                                   "absolute_weight_kg": 88}]},
@@ -1664,7 +1689,7 @@ def _golden_rich_prompt():
         ],
     )
     principles = [
-        {"id": 11, "principle_name": "Volume first", "recommendation": {"volume": "high"},
+        {"id": 11, "principle_name": "Volume first", "recommendation": {"volume": "high", "total_reps_max": 40},
          "rationale": "Accumulation builds work capacity " * 20, "source_title": "Golden Book"},
         {"id": 12, "principle_name": "Text rule", "recommendation": "keep it simple"},
     ]
@@ -1680,7 +1705,8 @@ def _golden_rich_prompt():
     ] + [{"day_number": 2, "exercise_name": "Snatch", "sets": 5, "reps": 2, "intensity_pct": 75}]
     return build_session_prompt(
         athlete, WeekTarget(5, 0.6, 65.0, 73.0, 30, [2, 3], True),
-        SessionTemplate(3, "Snatch Variations", "snatch", ["pull", "squat"], 0.2, notes="light day"),
+        SessionTemplate(3, "Snatch Variations", "snatch", ["pull", "squat"], 0.2, notes="light day",
+                        accessory_families=["press", "core"]),
         retrieval, week_number=5, duration_weeks=5, already_prescribed=already,
         session_rep_target=8, cumulative_comp_reps=10,
         effective_maxes={"snatch": 115.0, "clean_and_jerk": 140.0, "back_squat": 190.0, "clean_pull": 160.0},
@@ -1772,7 +1798,8 @@ def test_log_generation_stores_warnings_beside_the_parsed_exercises():
                     validation_warnings=["Estimated duration 95 min exceeds available 90 min"])
     params = cursor.execute.call_args.args[1]
     assert json.loads(params[7]) == {"exercises": exercises,
-                                     "_validation_warnings": ["Estimated duration 95 min exceeds available 90 min"]}
+                                     "_validation_warnings": ["Estimated duration 95 min exceeds available 90 min"],
+                                     "_dosing_edits": None}
     assert params[12] is None                       # validation_errors untouched
     _log_generation(conn, 1, 1, 1, 1, "m", "p", "r", exercises, 10, 5, "validation_error", validation_errors=["x"])
     assert json.loads(cursor.execute.call_args.args[1][7])["_validation_warnings"] is None   # Step 5 didn't run
@@ -1806,6 +1833,94 @@ def test_generate_logs_each_attempts_cache_tokens_and_warnings():
     rows = [(c.args[11], c.kwargs["cache_read_tokens"], c.kwargs["cache_creation_tokens"],
              c.kwargs.get("validation_warnings")) for c in log.call_args_list]
     assert rows == [("validation_error", 0, 4_000, ["w1"]), ("success", 4_000, 0, ["w2"])]
+
+
+_SNATCH_REPLY = ('{"exercises": [{"exercise_name": "Snatch", "exercise_order": 1, "sets": 3, "reps": 2, '
+                 '"intensity_pct": 75, "intensity_reference": "snatch", "rest_seconds": 120, '
+                 '"rpe_target": 7.5, "selection_rationale": "x", "source_principle_ids": []}]}')
+
+
+def _client_with(n_replies: int):
+    client = MagicMock()
+    client.messages.create.return_value = MagicMock(
+        content=[MagicMock(text=_SNATCH_REPLY)], stop_reason="end_turn",
+        usage=SimpleNamespace(input_tokens=1, output_tokens=1, cache_read_input_tokens=0,
+                              cache_creation_input_tokens=0))
+    return client
+
+
+def test_a_validation_retry_repairs_the_previous_attempt():
+    """The retry shows the model its previous exercises and asks for a repair."""
+    from unittest.mock import patch
+
+    client = _client_with(2)
+    settings = MagicMock(max_generation_retries=2, max_parse_retries=0, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    invalid = MagicMock(is_valid=False, errors=["Snatch at 75% exceeds week ceiling 69%"], warnings=[])
+    valid = MagicMock(is_valid=True, errors=[], warnings=[])
+    with patch("generate._log_generation"), patch("generate.validate_session", side_effect=[invalid, valid]):
+        generate_session_with_retries("PROMPT", client, settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1, MagicMock())
+    retry_prompt = client.messages.create.call_args_list[1].kwargs["messages"][0]["content"]
+    text = retry_prompt if isinstance(retry_prompt, str) else "".join(b["text"] for b in retry_prompt)
+    assert "exceeds week ceiling" in text and "Your previous exercises were:" in text
+    assert '"exercise_name": "Snatch"' in text and "change only what the errors require" in text
+
+
+def test_exhausted_retries_save_the_best_storable_candidate_flagged():
+    from unittest.mock import patch
+
+    client = _client_with(2)
+    settings = MagicMock(max_generation_retries=2, max_parse_retries=0, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    two = MagicMock(is_valid=False, errors=["a", "b"], warnings=[])
+    one = MagicMock(is_valid=False, errors=["a"], warnings=[])
+    with patch("generate._log_generation"), patch("generate.validate_session", side_effect=[two, one]):
+        result = generate_session_with_retries("p", client, settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1, MagicMock())
+    assert result.status == "flagged" and result.exercises[0]["exercise_name"] == "Snatch"
+    assert "['a']" in result.error_message
+
+
+def test_an_unstorable_candidate_is_never_saved():
+    """An avoid-list exercise keeps the session out of the DB: failed, stored empty."""
+    from unittest.mock import patch
+
+    client = _client_with(1)
+    settings = MagicMock(max_generation_retries=1, max_parse_retries=0, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    bad = MagicMock(is_valid=False, errors=["Snatch is in athlete's avoid list"], warnings=[])
+    athlete = {"exercise_preferences": {"avoid": ["Snatch"]}}
+    with patch("generate._log_generation"), patch("generate.validate_session", return_value=bad):
+        result = generate_session_with_retries("p", client, settings, ["Snatch"], {}, athlete, [], {}, 1, 1, 1,
+                                               MagicMock())
+    assert result.status == "failed" and result.exercises is None
+
+
+def test_dosing_runs_before_validation_and_is_logged():
+    from unittest.mock import patch
+
+    client = _client_with(1)
+    settings = MagicMock(max_generation_retries=1, max_parse_retries=0, retry_delay_seconds=0,
+                         generation_model="m", generation_max_tokens=100, generation_temperature=0.3)
+    week = {"intensity_floor": 60, "intensity_ceiling": 70, "reps_per_set_range": [3, 5]}
+    seen = {}
+
+    def _validate(**kw):
+        seen["pct"] = kw["session_exercises"][0]["intensity_pct"]
+        return MagicMock(is_valid=True, errors=[], warnings=[])
+    with patch("generate._log_generation") as log, patch("generate.validate_session", side_effect=_validate):
+        generate_session_with_retries("p", client, settings, ["Snatch"], week, {}, [], {}, 1, 1, 1, MagicMock())
+    assert seen["pct"] == 70                      # 75 % brought down to the ceiling before Step 5
+    assert "week ceiling 70%" in log.call_args.kwargs["dosing_edits"][0]
+
+
+def test_program_plan_shows_the_classic_lift_range_when_set():
+    from generate import _reps_per_set_line
+    from models import WeekTarget
+    wt = WeekTarget(week_number=1, volume_modifier=1.0, intensity_floor=61, intensity_ceiling=69,
+                    total_competition_lift_reps=55, reps_per_set_range=[4, 6], is_deload=False)
+    assert _reps_per_set_line(wt) == "Reps per set (comp lifts): 4–6"
+    wt.classic_reps_per_set_range = [2, 3]
+    assert _reps_per_set_line(wt).startswith("Reps per set: 2–3 on the snatch, clean and jerk (clean & jerk ≤ 2)")
 
 
 def test_generate_api_error_row_has_no_cache_tokens():
@@ -1873,3 +1988,15 @@ def test_generate_logs_and_returns_the_openrouter_bill():
         result = generate_session_with_retries("p", MagicMock(), settings, ["Snatch"], {}, {}, [], {}, 1, 1, 1,
                                                MagicMock())
     assert log.call_args.kwargs["billed_usd"] is None and result.billed_cost_usd is None
+
+
+def test_previous_program_structure_skips_bare_week_labels():
+    """DOG-2n: an imported program without named cycles printed
+    'Structure: Week 1 (wk 1) → Week 2 (wk 2) → …'. Bare week labels are left
+    out; named cycles stay."""
+    from generate import previous_program_structure_lines
+
+    weeks_only = {"cycles": [{"label": f"Week {i}", "weeks": (i, i)} for i in range(1, 9)]}
+    assert previous_program_structure_lines(weeks_only) == []
+    mixed = {"cycles": [{"label": "Week 1", "weeks": (1, 1)}, {"label": "Velocity Cycle", "weeks": (2, 4)}]}
+    assert previous_program_structure_lines(mixed) == ["  Structure: Velocity Cycle (wk 2-4)"]

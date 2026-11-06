@@ -477,6 +477,19 @@ def _check_strength_curve(session_exercises: list[dict], week_target: dict, warn
                 f"{band['floor']}–{band['ceiling']}%"
             )
 
+def storable_errors(session_exercises: list[dict], athlete: dict) -> list[str]:
+    """The errors that keep a session out of the database however its other
+    checks went: a DB-constraint violation (the INSERT would fail) or an
+    exercise on the athlete's avoid list. A failed candidate without them can be
+    saved flagged when retries run out (generate_session_with_retries)."""
+    errors: list[str] = []
+    if not session_exercises:
+        return ["Session has no exercises"]
+    _check_db_constraints(session_exercises, errors)
+    _check_avoid_list(session_exercises, athlete, errors)
+    return errors
+
+
 def validate_session(
     session_exercises: list[dict],
     week_target: dict,

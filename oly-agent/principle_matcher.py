@@ -41,9 +41,20 @@ import logging
 import operator
 import re
 
-from shared.constants import INJURY_PRINCIPLE_TERMS, MAX_PRINCIPLES_PER_CATEGORY, PRINCIPLE_RELEVANCE_WEIGHT
+from shared.constants import (
+    COMP_LIFT_AVOID_NAMES,
+    INJURY_PRINCIPLE_TERMS,
+    MAX_PRINCIPLES_PER_CATEGORY,
+    NOVICE_LEVELS,
+    PRINCIPLE_RELEVANCE_WEIGHT,
+    PROMPT_HIDDEN_RECOMMENDATION_KEYS,
+    YOUTH_PRINCIPLE_AGE_BANDS,
+    YOUTH_PRINCIPLE_NAME_PATTERNS,
+)
 
 logger = logging.getLogger(__name__)
+
+_YOUTH_NAME_RE = re.compile("|".join(YOUTH_PRINCIPLE_NAME_PATTERNS), re.I)
 
 KNOWN_CONDITION_KEYS: frozenset[str] = frozenset({
     "phase", "athlete_level", "weeks_out_from_competition", "training_age_years",
@@ -139,8 +150,11 @@ def build_session_state(athlete_context, plan, week_number: int, session_templat
         "movement_family": session_template.primary_movement,
         "recent_make_rate": make_rate,
         "rpe_average_last_week": (sum(rpes) / len(rpes)) if rpes else None,
-        # not a condition key — gates injury / rehab principles in select_principles
+        # not condition keys — they gate injury / youth / novice-foundation
+        # principles in select_principles
         "has_injuries": bool(athlete_context.injuries),
+        "is_youth": getattr(athlete_context, "age_band", None) in YOUTH_PRINCIPLE_AGE_BANDS,
+        "olympic_lifting_experience": bool(athlete_context.athlete.get("olympic_lifting_experience")),
     }
 
 
@@ -149,6 +163,55 @@ def is_injury_specific(principle: dict) -> bool:
     (INJURY_PRINCIPLE_TERMS) — rules the condition vocabulary can't gate."""
     text = f"{principle.get('principle_name') or ''} {principle.get('rationale') or ''}".lower()
     return any(term in text for term in INJURY_PRINCIPLE_TERMS)
+
+
+def is_youth_specific(principle: dict) -> bool:
+    """True when the principle's name is about youth / junior athletes
+    (YOUTH_PRINCIPLE_NAME_PATTERNS) — the condition vocabulary has no age key."""
+    return bool(_YOUTH_NAME_RE.search(principle.get("principle_name") or ""))
+
+
+_EMPTY_VALUES = (None, "", [], {})
+
+
+def prompt_recommendation(principle: dict):
+    """The recommendation as the session prompt shows it: without
+    PROMPT_HIDDEN_RECOMMENDATION_KEYS (DOG-2l). A non-dict recommendation is
+    returned unchanged."""
+    rec = principle.get("recommendation")
+    if not isinstance(rec, dict):
+        return rec
+    return {k: v for k, v in rec.items() if k not in PROMPT_HIDDEN_RECOMMENDATION_KEYS}
+
+
+def only_hidden_recommendation(principle: dict) -> bool:
+    """True when every actionable value in the recommendation is under a
+    PROMPT_HIDDEN_RECOMMENDATION_KEYS key, e.g. `{"total_reps_max": 10}` alone.
+    Such a rule would reach the prompt with nothing to recommend, so it is
+    not selected (DOG-2l). `plan._load_principles` has already dropped rules
+    with nothing actionable at all."""
+    rec = principle.get("recommendation")
+    if not isinstance(rec, dict):
+        return False
+    hidden = any(rec.get(k) not in _EMPTY_VALUES for k in PROMPT_HIDDEN_RECOMMENDATION_KEYS)
+    return hidden and all(v in _EMPTY_VALUES for v in prompt_recommendation(principle).values())
+
+
+def is_novice_lift_ban(principle: dict) -> bool:
+    """A "learn the basics first" rule: it recommends avoiding a competition
+    lift and its condition is a novice gate (beginner / novice level or a
+    training-age bound). Irrelevant to an athlete who has already trained the
+    lifts; phase-, injury- or movement-gated bans don't qualify."""
+    rec = principle.get("recommendation")
+    avoid = rec.get("avoid_exercises") if isinstance(rec, dict) else None
+    if not isinstance(avoid, list) or not any(str(v).strip().lower() in COMP_LIFT_AVOID_NAMES for v in avoid):
+        return False
+    cond = principle.get("condition")
+    if not isinstance(cond, dict):
+        return False
+    levels = cond.get("athlete_level")
+    levels = [levels] if isinstance(levels, str) else (levels or [])
+    return "training_age_years" in cond or any(str(lv).lower() in NOVICE_LEVELS for lv in levels)
 
 
 # Words from `retrieve.build_session_query`'s template and plain English that
@@ -213,9 +276,14 @@ def select_principles(
     uncapped), then ``limit``.
     """
     terms = query_terms(query)
-    kept = [p for p in candidates if condition_matches(p.get("condition"), state)]
+    kept = [p for p in candidates
+            if condition_matches(p.get("condition"), state) and not only_hidden_recommendation(p)]
     if state.get("has_injuries") is False:           # absent (older callers) → no filter
         kept = [p for p in kept if not is_injury_specific(p)]
+    if state.get("is_youth") is False:               # unknown age counts as adult
+        kept = [p for p in kept if not is_youth_specific(p)]
+    if state.get("olympic_lifting_experience"):
+        kept = [p for p in kept if not is_novice_lift_ban(p)]
 
     def score(p: dict) -> float:
         return (p.get("priority") or 0) + PRINCIPLE_RELEVANCE_WEIGHT * relevance_overlap(p, terms)

@@ -875,3 +875,24 @@ def test_default_reranker_build_failure_disables_rerank():
         cache = {}
         assert r.default_reranker(cache, settings=MagicMock()) is None
         assert cache[r.RERANKER_KEY] is None, "the failure is remembered for the program"
+
+
+# ── DOG-2n: from-blocks lifts leave the catalogue without blocks ─────────────
+
+def test_block_lifts_dropped_for_an_athlete_without_blocks():
+    def ex(name):
+        return {"id": 1, "name": name, "movement_family": "snatch", "category": "variation",
+                "complexity_level": 1, "faults_addressed": ["slow_turnover"], "primary_purpose": "x"}
+    rows = [ex("Snatch"), ex("Block Snatch (knee)"), ex("Power Snatch from Blocks (knee)")]
+
+    # fetch_all calls: snatch/clean/jerk/squat fault exercises, template_references, available_exercises
+    with patch("retrieve.fetch_all", side_effect=[list(rows), [], [], [], [], list(rows)]):
+        result = retrieve(_ctx(faults=["slow_turnover"]), _plan(), conn=None, vector_loader=None)
+    assert [e["name"] for e in result.available_exercises] == ["Snatch"]
+    assert [e["name"] for e in result.fault_exercises["snatch"]] == ["Snatch"]
+
+    with_blocks = _ctx(faults=["slow_turnover"])
+    with_blocks.athlete["available_equipment"] = ["barbell", "blocks"]
+    with patch("retrieve.fetch_all", side_effect=[list(rows), [], [], [], [], list(rows)]):
+        result = retrieve(with_blocks, _plan(), conn=None, vector_loader=None)
+    assert len(result.available_exercises) == 3 and len(result.fault_exercises["snatch"]) == 3

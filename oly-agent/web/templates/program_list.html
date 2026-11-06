@@ -53,6 +53,8 @@
                 {{ lift_labels.get(ref, ref) }} {{ (rate * 100) | round | int }}%
               </span>
               {% endfor %}
+              {% elif o.avg_make_rate is none %}
+              <span class="text-ink-faint">makes not logged</span>
               {% else %}
               <span class="font-medium {{ 'text-green-600' if o.avg_make_rate >= 0.75 else 'text-red-500' }}">
                 {{ (o.avg_make_rate * 100) | round | int }}% makes
