@@ -764,11 +764,15 @@ Deload week: {deload_rule}{_strength_curve_lines(week_target)}"""
 
 def _reps_per_set_line(week_target: WeekTarget) -> str:
     """The comp-lift reps-per-set line; the full classic lifts get their own
-    range when the plan set one (CLASSIC_LIFT_REPS_PER_SET)."""
+    range when the plan set one (CLASSIC_LIFT_REPS_PER_SET), and their
+    variants theirs (VARIANT_LIFT_REPS_PER_SET, DOSE-1a)."""
     lo, hi = week_target.reps_per_set_range[0], week_target.reps_per_set_range[1]
     classic = getattr(week_target, "classic_reps_per_set_range", None)
     if not classic:
         return f"Reps per set (comp lifts): {lo}–{hi}"
+    variant = getattr(week_target, "variant_reps_per_set_range", None)
+    if variant:
+        lo, hi = variant[0], variant[1]
     return (f"Reps per set: {classic[0]}–{classic[1]} on the snatch, clean and jerk "
             f"(clean & jerk ≤ {min(classic[1], CLEAN_AND_JERK_MAX_REPS)}); {lo}–{hi} on their power, hang, "
             f"muscle and pause variants")

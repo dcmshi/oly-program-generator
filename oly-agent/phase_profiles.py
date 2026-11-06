@@ -11,7 +11,7 @@ absolute percentages resolved via intensity_reference.
 
 import math
 
-from shared.constants import BLOCK_WAVE_STEP_PCT, CLASSIC_LIFT_REPS_PER_SET
+from shared.constants import BLOCK_WAVE_STEP_PCT, CLASSIC_LIFT_REPS_PER_SET, VARIANT_LIFT_REPS_PER_SET
 
 PHASE_PROFILES = {
     "accumulation": {
@@ -118,16 +118,30 @@ LEVEL_PHASE_OVERRIDES: dict[str, dict[str, dict]] = {
 }
 
 
-def classic_reps_range(phase: str, week_range: list[int], athlete_level: str,
-                       olympic_lifting_experience: bool) -> list[int] | None:
-    """Reps per set on the full classic lifts for one week (CLASSIC_LIFT_REPS_PER_SET),
-    never above the week's own range; None for a beginner still learning the
-    lifts, who keeps the week's range on them too."""
+def _lift_reps_range(table: dict[str, tuple[int, int]], phase: str, week_range: list[int],
+                     athlete_level: str, olympic_lifting_experience: bool) -> list[int] | None:
+    """One week's reps per set from a per-phase table, never above the week's
+    own range; None for a beginner still learning the lifts, who keeps the
+    week's range."""
     if athlete_level == "beginner" and not olympic_lifting_experience:
         return None
-    lo, hi = CLASSIC_LIFT_REPS_PER_SET.get(phase, (1, 3))
+    lo, hi = table.get(phase, (1, 3))
     hi = min(hi, week_range[1])
     return [min(lo, hi), hi]
+
+
+def classic_reps_range(phase: str, week_range: list[int], athlete_level: str,
+                       olympic_lifting_experience: bool) -> list[int] | None:
+    """Reps per set on the full classic lifts (CLASSIC_LIFT_REPS_PER_SET)."""
+    return _lift_reps_range(CLASSIC_LIFT_REPS_PER_SET, phase, week_range, athlete_level,
+                            olympic_lifting_experience)
+
+
+def variant_reps_range(phase: str, week_range: list[int], athlete_level: str,
+                       olympic_lifting_experience: bool) -> list[int] | None:
+    """Reps per set on the competition-lift variants (VARIANT_LIFT_REPS_PER_SET, DOSE-1a)."""
+    return _lift_reps_range(VARIANT_LIFT_REPS_PER_SET, phase, week_range, athlete_level,
+                            olympic_lifting_experience)
 
 
 def _round_half_up(x: float) -> int:

@@ -413,6 +413,7 @@ oly-program-generator/
     │   │                            # Golden set → golden.json, gated run vs baseline.json
     │   ├── judge_agreement.py · judge_adjudicate.py   # Judge selection (JUDGE-1) + per-judge golden_*.json
     │   ├── model_baseline.py        # Generation-model baseline runs (model_baseline_*.json)
+    │   ├── dosing_report.py         # What DOSE-1 dosing did to generated programs (from generation_log)
     │   ├── program_diff.py          # Side-by-side program comparison
     │   └── program_export.py        # Standalone HTML / PDF export of a program
     ├── migrations/                  # Alembic env + versions/ (0000 → 0017; `alembic history` for the chain)
