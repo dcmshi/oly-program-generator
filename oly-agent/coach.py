@@ -24,15 +24,15 @@ from datetime import date
 
 from models import AthleteContext
 
+from shared.constants import COACH_NOTE_MAX_CHARS, COACH_SESSIONS_PER_WEEK_RANGE, INTENSITY_CAP_RANGE
+
 # Phases a coach may force. The others in the training_phase enum (transmutation,
 # competition, deload, transition) have no phase profile to build weeks from.
 COACH_PHASES: tuple[str, ...] = ("general_prep", "accumulation", "intensification", "realization")
 LIFT_EMPHASES: tuple[str, ...] = ("balanced", "snatch_biased", "cj_biased")
-COACH_NOTE_MAX_CHARS = 1500
-SESSIONS_PER_WEEK_RANGE = (1, 7)
-# Highest % of max a coach may cap the competition lifts at. Below 60 the
-# whole block would sit in the deload zone (Prilepin starts at 55).
-INTENSITY_CAP_RANGE = (60, 100)
+# The numeric limits live in shared/constants.py (CLEAN-7); re-exported here
+# for web/coach_form.py and the generate router.
+SESSIONS_PER_WEEK_RANGE = COACH_SESSIONS_PER_WEEK_RANGE
 
 
 class CoachConstraintError(ValueError):

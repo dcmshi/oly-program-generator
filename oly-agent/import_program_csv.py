@@ -55,12 +55,13 @@ sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from shared.config import Settings
+from shared.constants import STORABLE_INTENSITY_PCT_MAX
 from shared.db import execute, execute_returning, fetch_all, fetch_one, get_connection
 from shared.exercise_mapping import COMP_LIFT_REFS
 
 logger = logging.getLogger(__name__)
 
-INTENSITY_PCT_CEILING = 120.0      # session_exercises CHECK (intensity_pct <= 120)
+INTENSITY_PCT_CEILING = STORABLE_INTENSITY_PCT_MAX   # session_exercises CHECK (intensity_pct <= 120)
 DEFAULT_PHASE = "general_prep"
 DEFAULT_NAME = "General Strength — 3 Block / 11W (imported)"
 

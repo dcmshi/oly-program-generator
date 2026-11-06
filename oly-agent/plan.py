@@ -25,7 +25,13 @@ from shared.constants import (
     BLOCK_WEEKS_DEFAULT_BY_LEVEL,
     BLOCK_WEEKS_MAX_BY_LEVEL,
     BLOCK_WEEKS_MIN,
+    COLD_START_CEILING_BEGINNER_PCT,
+    COLD_START_CEILING_PCT,
+    COLD_START_MAX_COMPLEXITY,
+    COLD_START_MAX_COMPLEXITY_BEGINNER,
+    COLD_START_MAX_WEEKS,
     DELOAD_EVERY_WEEKS_OPTIONS,
+    EXERCISE_COMPLEXITY_MAX,
     MAX_PRINCIPLE_CANDIDATES,
     PROMPT_PRINCIPLE_CATEGORIES,
     TRAINING_PREFERENCE_DEFAULTS,
@@ -91,19 +97,20 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
 
     # ── Cold-start overrides ──────────────────────────────────
     intensity_ceiling_override = None
-    max_complexity = 5
+    max_complexity = EXERCISE_COMPLEXITY_MAX
     if athlete_context.previous_program is None:
         # Recently tested maxes make the loads trustworthy: skip the ceiling
         # cap, keep the duration / complexity caps (PLAN-3b, assumption 3.3).
         tested = getattr(athlete_context, "recent_tested_maxes", False)
-        ceiling_cap = 100.0 if tested else (80.0 if athlete_context.level != "beginner" else 75.0)
-        intensity_ceiling_override = None if tested else ceiling_cap
+        beginner = athlete_context.level == "beginner"
+        ceiling_cap = None if tested else (COLD_START_CEILING_BEGINNER_PCT if beginner else COLD_START_CEILING_PCT)
+        intensity_ceiling_override = ceiling_cap
         # Cap the duration, then REBUILD from the profile so its own shortening
         # convention applies (drop early ramp-up weeks, KEEP peak + deload).
         # Slicing raw_targets[:duration_weeks] kept the early ramp and discarded
         # the deload tail, so a beginner's first program ended on its heaviest
         # week with no deload (A-M9).
-        duration_weeks = min(duration_weeks, 4)
+        duration_weeks = min(duration_weeks, COLD_START_MAX_WEEKS)
         raw_targets = build_weekly_targets(phase, duration_weeks, athlete_context.level,
                                            deload_every_weeks=prefs.get("deload_every_weeks"),
                                            deload_style=prefs["deload_style"])
@@ -111,13 +118,14 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
         # floor 85, so capping only the ceiling emitted a contradictory
         # "85%–80%" range in the prompt (AGT-M1; mirrors plan.py's
         # outcome-adjustment clamp).
-        raw_targets = [
-            {**t,
-             "intensity_ceiling": min(t["intensity_ceiling"], ceiling_cap),
-             "intensity_floor": min(t["intensity_floor"], ceiling_cap)}
-            for t in raw_targets
-        ]
-        max_complexity = 2 if athlete_context.level == "beginner" else 3
+        if ceiling_cap is not None:
+            raw_targets = [
+                {**t,
+                 "intensity_ceiling": min(t["intensity_ceiling"], ceiling_cap),
+                 "intensity_floor": min(t["intensity_floor"], ceiling_cap)}
+                for t in raw_targets
+            ]
+        max_complexity = COLD_START_MAX_COMPLEXITY_BEGINNER if beginner else COLD_START_MAX_COMPLEXITY
         logger.info(
             f"Cold start: intensity cap={'none (recently tested maxes)' if tested else f'{ceiling_cap}%'}, "
             f"duration={duration_weeks} wks, max_complexity={max_complexity}"

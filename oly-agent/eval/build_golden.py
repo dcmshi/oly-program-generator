@@ -33,7 +33,7 @@ for p in (str(_REPO), str(_AGENT), str(_REPO / "oly-ingestion")):
     if p not in sys.path:
         sys.path.insert(0, p)
 
-from shared.constants import VECTOR_SEARCH_MIN_SIMILARITY
+from shared.constants import GOLDEN_GRADER_MAX_TOKENS, VECTOR_SEARCH_MIN_SIMILARITY
 from shared.llm import (
     create_llm_client,
     create_message_with_retries,
@@ -153,7 +153,7 @@ def grade_candidates(client, model: str, query: str, candidates: list[dict]) -> 
         for attempt in (1, 2):
             try:
                 message = create_message_with_retries(
-                    client, model=model, max_tokens=512,
+                    client, model=model, max_tokens=GOLDEN_GRADER_MAX_TOKENS,
                     messages=[{"role": "user", "content": prompt}],
                     **json_schema_kwargs(GRADING_SCHEMA, thinking_kwargs(model, "disabled")),
                 )
