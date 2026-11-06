@@ -1309,3 +1309,26 @@ def test_flagged_sessions_head_the_rationale():
     assert out.startswith("# Review Before Activating\n1 session(s) ran out of retries")
     assert "W3D2" in out and out.endswith("# Overview\nbody")
     assert _prefix_rationale_warnings("x", None, 24, 24, []) == "x"
+
+
+# ── AGENT-0a: the audit runs before EXPLAIN, is stored, and reaches the rationale ──
+
+def test_program_audit_is_stored_and_passed_to_explain():
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        run(1, _settings())
+    audit = mocks["explain"].call_args.kwargs["audit"]
+    assert set(audit) >= {"counts", "findings", "weeks", "citations"}
+    # fetch_all is mocked to [] here, so the stored program reads as empty: every slot is an error
+    assert audit["counts"]["error"] >= 1
+    stored = [c for c in mocks["execute"].call_args_list if "'audit'" in str(c.args[1])]
+    assert len(stored) == 1
+
+
+def test_a_failing_audit_never_fails_the_program():
+    with ExitStack() as stack:
+        mocks = _full_mock_stack(stack)
+        stack.enter_context(patch("orchestrator.audit_program", side_effect=RuntimeError("boom")))
+        result = run(1, _settings())
+    assert result == 42
+    assert mocks["explain"].call_args.kwargs["audit"] is None

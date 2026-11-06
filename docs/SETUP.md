@@ -403,6 +403,7 @@ oly-program-generator/
     ├── assess.py / plan.py / retrieve.py / generate.py / validate.py / explain.py
     ├── principle_matcher.py         # Evaluates principle conditions against one session
     ├── weight_resolver.py           # LLM output → DB-ready values, [Cn] citations → source_chunk_ids
+    ├── program_audit.py             # Whole-program audit before EXPLAIN → generation_params.audit (AGENT-0a)
     ├── models.py · schemas.py       # Pipeline dataclasses · Pydantic models for JSONB columns
     ├── phase_profiles.py · phase_progression.py · session_templates.py
     ├── feedback.py · log.py         # Outcome summary + max promotion · training-log CLI
@@ -415,6 +416,7 @@ oly-program-generator/
     │   ├── judge_agreement.py · judge_adjudicate.py   # Judge selection (JUDGE-1) + per-judge golden_*.json
     │   ├── model_baseline.py        # Generation-model baseline runs (model_baseline_*.json)
     │   ├── dosing_report.py         # What DOSE-1 dosing did to generated programs (from generation_log)
+    │   ├── program_audit.py         # AGENT-0a audit of stored programs (plan read back from the prompts)
     │   ├── program_diff.py          # Side-by-side program comparison
     │   └── program_export.py        # Standalone HTML / PDF export of a program
     ├── migrations/                  # Alembic env + versions/ (0000 → 0017; `alembic history` for the chain)

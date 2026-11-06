@@ -348,3 +348,13 @@ if __name__ == "__main__":
         detail = f"  → {r[2]}" if len(r) > 2 else ""
         print(f"  {r[0]}  {r[1]}{detail}")
     print(f"\n{passed} passed, {failed} failed")
+
+
+def test_explain_prompt_carries_the_audit_summary():
+    report = {"counts": {"error": 1, "warning": 0, "info": 0},
+              "findings": [{"severity": "error", "check": "block_shape", "week": 4, "day": None,
+                            "exercise": None, "message": "deload has 60 comp-lift reps, not fewer than week 3's 55"}]}
+    prompt = _build_explain_prompt(_ctx(), _plan(), _sessions(), report)
+    assert "## Program Audit" in prompt
+    assert "error [block_shape] W4 deload has 60 comp-lift reps" in prompt
+    assert "## Program Audit" not in _build_explain_prompt(_ctx(), _plan(), _sessions())

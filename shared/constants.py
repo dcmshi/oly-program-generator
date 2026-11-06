@@ -168,6 +168,17 @@ DOSING_VOLUME_TOLERANCE: float = 0.15     # session comp reps within ±15 % of t
 DOSING_MAX_SETS: int = 8                  # sets added to reach the target stop here (catalogue max for the lifts)
 DOSING_RPE_PER_PCT: float = 0.1           # RPE moves 0.1 per % of load the dosing pass changes
 
+# ── Whole-program audit (AGENT-0a, oly-agent/program_audit.py) ──
+# Weekly comp-lift reps further than DOSING_VOLUME_TOLERANCE from the summed
+# session targets are a warning; further than this, an error.
+AUDIT_VOLUME_ERROR_FRACTION: float = 0.40
+AUDIT_CEILING_SLACK_PCT: float = 0.5      # rounding slack before a set counts as over the ceiling
+# A week whose plan raises the ceiling but whose top comp-lift set falls by
+# more than this (or the reverse on volume, by DOSING_VOLUME_TOLERANCE) is a
+# block-shape warning.
+AUDIT_INTENSITY_SLACK_PCT: float = 2.5
+AUDIT_SUMMARY_MAX_FINDINGS: int = 8       # errors / warnings listed in the EXPLAIN prompt
+
 # ── Phase advancement & outcome adjustments ─────────────────────
 # Used by plan._advance_phase / plan._apply_outcome_adjustments and mirrored
 # by feedback._compute_phase_verdict — keep both reading from here.

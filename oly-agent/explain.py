@@ -16,6 +16,7 @@ from coach import coach_prompt_section
 from complexes import prescription_label
 from generate import _setting_str
 from models import AthleteContext, ProgramPlan
+from program_audit import audit_summary
 
 from shared.config import Settings
 from shared.constants import (
@@ -44,6 +45,7 @@ def explain(
     program_sessions: list[dict],
     llm_client,
     settings,
+    audit: dict | None = None,
 ) -> tuple[str, int, int, float]:
     """Generate a plain-language rationale for the program.
 
@@ -53,6 +55,7 @@ def explain(
         program_sessions: All generated sessions with their exercises
         llm_client: Anthropic client
         settings: AgentSettings
+        audit: the AGENT-0a report (program_audit.audit_program), or None
 
     Returns:
         (rationale_text, input_tokens, output_tokens, cost_usd) — the cost
@@ -60,7 +63,7 @@ def explain(
         orchestrator's per-program cost tracking, which previously excluded the
         explain call's spend entirely (AGT-L7).
     """
-    prompt = _build_explain_prompt(athlete_context, plan, program_sessions)
+    prompt = _build_explain_prompt(athlete_context, plan, program_sessions, audit)
     request_kwargs = {
         # Sonnet 5 / Opus 5 reject `temperature`; 4.x ignore an omitted `thinking`
         **sampling_kwargs(settings.explanation_model, settings.explanation_temperature),
@@ -186,6 +189,16 @@ def _previous_block_summary(prev: dict | None) -> str:
     return "; ".join(parts)
 
 
+def _audit_block(audit: dict | None) -> str:
+    """AGENT-0a: the audit's counts and findings, so the rationale doesn't
+    claim a progression the sessions don't have; "" without a report."""
+    summary = audit_summary(audit)
+    if not summary:
+        return ""
+    return ("\n## Program Audit (automatic checks of the sessions above)\n" + summary
+            + "\nWhere a finding contradicts the plan, describe what the sessions do, not what was planned.\n")
+
+
 def _coach_block(athlete_context: AthleteContext) -> str:
     """COACH-1: the coach's brief, so the rationale says which choices were the
     coach's; "" on a normal run (the prompt is then unchanged)."""
@@ -201,6 +214,7 @@ def _build_explain_prompt(
     athlete_context: AthleteContext,
     plan: ProgramPlan,
     program_sessions: list[dict],
+    audit: dict | None = None,
 ) -> str:
     """Assemble the prompt for the program rationale call."""
     faults = ", ".join(athlete_context.technical_faults) or "none identified"
@@ -219,6 +233,7 @@ def _build_explain_prompt(
     weeks_summary = "\n".join(week_lines)
 
     program_view = program_view_lines(program_sessions)
+    audit_block = _audit_block(audit)
 
     # weeks_to_comp == 0 (meet within a week) is the most time-critical case, so
     # it must NOT be treated as "no date" — only None means unset (A-M8).
@@ -251,7 +266,7 @@ Weekly progression:
 
 ## Sessions (every session, warm-up sets left out; sets×reps @ % of max)
 {program_view}
-{coach}
+{audit_block}{coach}
 ## Write an explanation covering:
 1. Why this training phase was selected for this athlete's goal and timeline
 2. How volume and intensity progress across the weeks (and why) — describe only what the sessions above show
