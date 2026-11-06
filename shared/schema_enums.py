@@ -22,6 +22,10 @@ PRINCIPLE_CATEGORIES: tuple[str, ...] = (
     "volume", "intensity", "frequency", "exercise_selection", "periodization",
     "peaking", "recovery", "technique", "load_progression", "deload",
 )
+# Principle conditions that mean "a novice": the enum's `beginner` plus the
+# free-text levels the extractor also writes (`novice`, `youth`), which are not
+# athlete_level enum values. Moved from shared/constants.py (CLEAN-1).
+NOVICE_LEVELS: frozenset[str] = frozenset({"beginner", "novice", "youth"})
 RULE_TYPES: tuple[str, ...] = ("hard_constraint", "guideline", "heuristic")
 CHUNK_TYPES: tuple[str, ...] = (
     "concept", "methodology", "periodization", "programming_rationale",

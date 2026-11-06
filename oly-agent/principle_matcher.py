@@ -42,15 +42,15 @@ import operator
 import re
 
 from shared.constants import (
-    COMP_LIFT_AVOID_NAMES,
     INJURY_PRINCIPLE_TERMS,
     MAX_PRINCIPLES_PER_CATEGORY,
-    NOVICE_LEVELS,
     PRINCIPLE_RELEVANCE_WEIGHT,
     PROMPT_HIDDEN_RECOMMENDATION_KEYS,
     YOUTH_PRINCIPLE_AGE_BANDS,
     YOUTH_PRINCIPLE_NAME_PATTERNS,
 )
+from shared.exercise_mapping import COMP_LIFT_AVOID_NAMES
+from shared.schema_enums import NOVICE_LEVELS
 
 logger = logging.getLogger(__name__)
 

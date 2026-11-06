@@ -311,16 +311,6 @@ YOUTH_PRINCIPLE_NAME_PATTERNS: tuple[str, ...] = (
     r"\bage \d+ and under",
 )
 YOUTH_PRINCIPLE_AGE_BANDS: tuple[str, ...] = ("youth", "junior")
-# With athletes.olympic_lifting_experience set, a principle that recommends
-# avoiding a competition lift *and* is gated on novice level or training age
-# (the "learn the basics first" rules: 5073, 5074, 5079, 1829 …) is skipped.
-# Bans gated on phase, injury or movement (transition months, knee rehab)
-# still apply.
-COMP_LIFT_AVOID_NAMES: frozenset[str] = frozenset({
-    "snatch", "clean_and_jerk", "clean and jerk", "clean & jerk", "clean", "jerk",
-    "full snatch", "full clean", "olympic lifts", "competition lifts", "classic lifts",
-})
-NOVICE_LEVELS: frozenset[str] = frozenset({"beginner", "novice", "youth"})
 PRINCIPLE_RATIONALE_PROMPT_CHARS: int = 150  # rationale shown per principle line
 # DOG-2l: recommendation keys never shown in the session prompt. The extractor
 # records `total_reps_max` with no scope, and the corpus uses it per set (447: 4),

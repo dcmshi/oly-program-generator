@@ -348,7 +348,8 @@ oly-program-generator/
 │   ├── db.py                        # psycopg2 fetch_one / fetch_all / execute helpers
 │   ├── llm.py                       # LLM client (Anthropic SDK → Anthropic or OpenRouter), request helpers, batches, cost
 │   ├── schema_enums.py              # Enum values for the structured-output schemas (mirrored against the migrations)
-│   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS
+│   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS, movement families
+│   ├── exercise_aliases.py          # Coach-sheet / note names → catalogue rows and max references (CLEAN-1)
 │   ├── formulas.py · timeutil.py    # Derived metrics · timezone-aware "today"
 │   ├── prilepin.py                  # Zone lookup + per-session rep targets
 │   ├── program_sql.py               # Program delete / activate SQL, once for asyncpg and psycopg2 (CLEAN-3)

@@ -25,6 +25,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from shared.config import Settings  # noqa: E402
+from shared.constants import WARMUP_INTENSITY_CUTOFF_PCT  # noqa: E402
 from shared.db import fetch_all, fetch_one, get_connection  # noqa: E402
 from shared.exercise_mapping import is_competition_lift, is_warmup_set  # noqa: E402
 
@@ -122,13 +123,12 @@ def render(program: dict, athlete: dict, sessions: list[dict], exercises: dict[i
             out.append("</table></div>")
 
     # weekly wave summary
-    out.append("<h2>Weekly loading</h2><table class='wave'><tr><th>Week</th><th>Comp-lift reps ≥ 65%</th><th>Top comp-lift %</th><th>Sets</th></tr>")
-    comp_refs = {"snatch", "clean_and_jerk", "clean", "jerk"}
+    out.append(f"<h2>Weekly loading</h2><table class='wave'><tr><th>Week</th><th>Comp-lift reps &gt; {WARMUP_INTENSITY_CUTOFF_PCT:g}%</th><th>Top comp-lift %</th><th>Sets</th></tr>")
     for week in sorted(by_week):
         rows = [ex for s in by_week[week] for ex in exercises.get(s["id"], [])]
-        comp = [ex for ex in rows if ex["intensity_reference"] in comp_refs and ex["intensity_pct"] is not None
-                and not any(m in ex["exercise_name"].lower() for m in ("pull", "deadlift", "extension"))]
-        reps = sum(ex["sets"] * ex["reps"] for ex in comp if float(ex["intensity_pct"]) >= 65)
+        comp = [ex for ex in rows if ex["intensity_pct"] is not None
+                and is_competition_lift(ex["exercise_name"], ex["intensity_reference"])]
+        reps = sum(ex["sets"] * ex["reps"] for ex in comp if float(ex["intensity_pct"]) > WARMUP_INTENSITY_CUTOFF_PCT)
         top = max((float(ex["intensity_pct"]) for ex in comp), default=0)
         deload = " <span class='deload'>deload</span>" if any(s.get("session_label", "") and "deload" in (s.get("notes") or "").lower() for s in by_week[week]) else ""
         out.append(f"<tr><td>Week {week}{deload}</td><td>{reps}</td><td>{top:g}%</td><td>{sum(ex['sets'] for ex in rows)}</td></tr>")

@@ -73,7 +73,7 @@ Content is **routed before chunking** — the classifier sends each section down
 ### Module boundaries
 
 - **The agent pipeline must never import from `web/`.** `orchestrator.py` and everything it imports run standalone without FastAPI installed. The single coupling point is `web/worker.py`, which imports `orchestrator` — keep it unidirectional.
-- **`COMP_LIFT_REFS` and `EXERCISE_NAME_TO_INTENSITY_REF` live in `shared/exercise_mapping.py`.** Import them; never redefine inline.
+- **`COMP_LIFT_REFS` and `EXERCISE_NAME_TO_INTENSITY_REF` live in `shared/exercise_mapping.py`.** Import them; never redefine inline. The same goes for `CLEAN_MAX_REFS` and `COMP_LIFT_AVOID_NAMES`, and for `NOVICE_LEVELS` (in `shared/schema_enums.py`). The import vocabulary lives in `shared/exercise_aliases.py` (CLEAN-1): the CSV `EXACT_ALIASES` / `SUBSTRING_ALIASES` / `hang_variant_for`, the Markdown `MD_*` tables and `intensity_reference_for`. Add a coach's spelling there. `test_every_alias_target_is_a_catalogue_row` (INTEGRATION_TESTS=1) catches a renamed catalogue row.
 - **Numeric constants live in `shared/constants.py`.** Prilepin cap multiplier, session duration, `top_k`, snippet length, rounding increment, similarity threshold, phase-advancement thresholds — import, don't hardcode.
 
 ### Database

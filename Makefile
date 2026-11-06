@@ -90,6 +90,7 @@ AGENT_TESTS := \
 	tests/test_explain.py \
 	tests/test_program_audit.py \
 	tests/test_program_sql.py \
+	tests/test_exercise_aliases.py \
 	tests/test_orchestrator.py \
 	tests/test_web_routers.py \
 	tests/test_web_queries.py \
