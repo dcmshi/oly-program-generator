@@ -69,13 +69,13 @@ Architecture review completed 2026-03-16. All 12 items resolved.
 |---|-------|------|--------|
 | S3 | Static files served by the app — ties up the app process; should be handled by the reverse proxy | `oly-agent/web/app.py` | ⬜ Open — and now larger: since the CDN assets were vendored (audit 7 / FE-L3) `/static` also serves htmx, Chart.js, `tailwind.css` and 8 woff2 files (~470 KB). All immutable and safe for the proxy to serve directly with a long `Cache-Control`; a public CDN is *not* wanted here, since removing that third-party dependency was the point |
 | S4 | DB connection pool vs Postgres `max_connections=100` — 10 web instances exhausts the limit | `oly-agent/web/async_db.py` | ✅ Done (PgBouncer transaction pooling on :5432; Postgres direct on :5433; `statement_cache_size=0` in asyncpg) |
-| S5 | pgvector full table scan on every retrieval without HNSW/IVFFlat index | `schema.sql` | ✅ Done (HNSW index `idx_chunks_embedding` — `m=16, ef_construction=64`, `vector_cosine_ops`). Note: at the current row count the planner still seq-scans (exact); once it switches to the index, filtered queries depend on `hnsw.iterative_scan` + `ef_search`, which `VectorLoader.similarity_search` sets per transaction (RAG-H5) |
+| S5 | pgvector full table scan on every retrieval without HNSW/IVFFlat index | `0000_ingestion_schema` | ✅ Done (HNSW index `idx_chunks_embedding` — `m=16, ef_construction=64`, `vector_cosine_ops`). Note: at the current row count the planner still seq-scans (exact); once it switches to the index, filtered queries depend on `hnsw.iterative_scan` + `ef_search`, which `VectorLoader.similarity_search` sets per transaction (RAG-H5) |
 
 ### Operational Gaps
 
 | # | Issue | File | Status |
 |---|-------|------|--------|
-| S6 | No database migration tooling — schema changes applied as raw SQL | `schema.sql` | ✅ Done (Alembic in `oly-agent/migrations/`; `ALEMBIC_DATABASE_URL` override for direct Postgres port) |
+| S6 | No database migration tooling — schema changes applied as raw SQL | (pre-Alembic `schema.sql`, deleted) | ✅ Done (Alembic in `oly-agent/migrations/`; `ALEMBIC_DATABASE_URL` override for direct Postgres port) |
 | S7 | Unstructured logging — plain text logs don't integrate with aggregation tools | `oly-agent/web/logging_config.py` | ✅ Done (`LOG_FORMAT=json` for prod; `text` default for dev) |
 | S8 | No request ID / tracing — can't correlate requests across web server + ARQ worker | `oly-agent/web/app.py` | ✅ Done (`RequestIDMiddleware`; contextvar propagates to ARQ worker jobs) |
 | S9 | No backup strategy — `pgdata` Docker volume has no backup config | `oly-ingestion/docker-compose.yml` | ✅ Done (local `pg_dump -Fc` procedure documented below) |

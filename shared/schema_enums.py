@@ -1,8 +1,8 @@
 """Postgres enum values that prompts and JSON-schema constraints reference (STRUCT-1).
 
-These mirror `CREATE TYPE … AS ENUM` in `schema.sql` (ingestion) and the
-athlete_level enum in the agent's baseline migration; `test_schema_enums.py`
-parses `schema.sql` and asserts each tuple matches, so the two can't drift.
+These mirror the `CREATE TYPE … AS ENUM` statements in the Alembic migrations
+(`oly-agent/migrations/versions/`); `test_schema_enums.py` reads the
+migrations and asserts each tuple matches, so the two can't drift.
 Ingestion uses them to constrain LLM output (`output_config.format`), which
 is what stops the model padding a condition with `"novice"` or `"peaking"`
 (values the matcher can't evaluate) or inventing a `principle_category`

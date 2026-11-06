@@ -323,8 +323,6 @@ oly-program-generator/
 ├── TODO.md                          # Current audit findings and their status
 ├── TODO-audit-2026-07-03.md         # Older audit + roadmap #17–#23
 ├── ruff.toml                        # Lint config (ruff version pinned in the Makefile)
-├── schema.sql · athlete_schema.sql · auth_migration.sql
-│                                    # Pre-Alembic DDL, reference only — the migrations are the source of truth
 ├── .github/workflows/ci.yml         # CI: lint + the no-key test suites
 ├── .claude/skills/kobo-import/      # Claude Code skill wrapping kobo_import.py
 ├── screenshots/                     # README screenshots
@@ -377,7 +375,6 @@ oly-program-generator/
 │   ├── eval_refs/                   # template_parse_reference.json (counts + spot facts; text stays in sources/eval/)
 │   ├── ocr_audit.py                 # Re-runs the OCR-QA checks on cached OCR output
 │   ├── eval_queries.py              # Original hand-written retrieval queries
-│   ├── schema.sql                   # Pre-Alembic ingestion DDL (reference only)
 │   ├── extractors/                  # pdf_extractor (PyMuPDF → pdfplumber → vision OCR) · epub_extractor ·
 │   │                                # html_extractor · jats_extractor (Europe PMC) · ocr_cache · page_text
 │   ├── processors/
