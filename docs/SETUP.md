@@ -351,6 +351,7 @@ oly-program-generator/
 │   ├── exercise_mapping.py          # EXERCISE_NAME_TO_INTENSITY_REF + COMP_LIFT_REFS
 │   ├── formulas.py · timeutil.py    # Derived metrics · timezone-aware "today"
 │   ├── prilepin.py                  # Zone lookup + per-session rep targets
+│   ├── program_sql.py               # Program delete / activate SQL, once for asyncpg and psycopg2 (CLEAN-3)
 │   └── volume_tables.py             # Selectable comp-lift volume tables: Prilepin / Medvedev (PLAN-3d)
 │
 ├── oly-ingestion/                   # Ingestion pipeline (CLI only)

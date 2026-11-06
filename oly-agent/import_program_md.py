@@ -62,6 +62,7 @@ from import_program_csv import (
 
 from shared.config import Settings
 from shared.db import execute, fetch_all, get_connection
+from shared.program_sql import ACTIVATE_DRAFT, SUPERSEDE_OTHER_ACTIVE, psycopg, psycopg_params
 
 logger = logging.getLogger(__name__)
 
@@ -284,10 +285,9 @@ def activate(conn, program_id: int, athlete_id: int) -> list[int]:
     superseded = [r["id"] for r in fetch_all(
         conn, "SELECT id FROM generated_programs WHERE athlete_id = %s AND status = 'active' AND id != %s",
         (athlete_id, program_id))]
-    execute(conn, "UPDATE generated_programs SET status = 'superseded', updated_at = NOW() "
-                  "WHERE athlete_id = %s AND status = 'active' AND id != %s", (athlete_id, program_id))
-    execute(conn, "UPDATE generated_programs SET status = 'active', updated_at = NOW() "
-                  "WHERE id = %s AND athlete_id = %s AND status = 'draft'", (program_id, athlete_id))
+    params = psycopg_params(athlete_id, program_id)
+    execute(conn, psycopg(SUPERSEDE_OTHER_ACTIVE), params)      # one SQL text with the web app (CLEAN-3)
+    execute(conn, psycopg(ACTIVATE_DRAFT), params)
     conn.commit()
     return superseded
 

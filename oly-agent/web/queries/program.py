@@ -284,44 +284,12 @@ async def delete_program(conn, program_id: int, athlete_id: int):
     Training log entries themselves are preserved (just unlinked from the program).
     """
     from web.async_db import async_execute
-    # Both unlink UPDATEs are scoped by athlete via generated_programs so a
-    # caller can never detach another athlete's logs, even if the router-level
-    # ownership check is bypassed.
-    # Unlink training_log_exercises from session_exercises being deleted
-    await async_execute(
-        conn,
-        """
-        UPDATE training_log_exercises
-        SET session_exercise_id = NULL
-        WHERE session_exercise_id IN (
-            SELECT se.id FROM session_exercises se
-            JOIN program_sessions ps ON ps.id = se.session_id
-            JOIN generated_programs gp ON gp.id = ps.program_id
-            WHERE ps.program_id = $1 AND gp.athlete_id = $2
-        )
-        """,
-        program_id, athlete_id,
-    )
-    # Unlink training_logs from sessions being deleted
-    await async_execute(
-        conn,
-        """
-        UPDATE training_logs
-        SET session_id = NULL
-        WHERE session_id IN (
-            SELECT ps.id FROM program_sessions ps
-            JOIN generated_programs gp ON gp.id = ps.program_id
-            WHERE ps.program_id = $1 AND gp.athlete_id = $2
-        )
-        """,
-        program_id, athlete_id,
-    )
-    # Delete the program — cascades to program_sessions, session_exercises, generation_log
-    await async_execute(
-        conn,
-        "DELETE FROM generated_programs WHERE id = $1 AND athlete_id = $2",
-        program_id, athlete_id,
-    )
+
+    from shared.program_sql import DELETE_STATEMENTS
+    # One SQL text with eval/model_baseline (CLEAN-3); every statement is
+    # scoped to this athlete's programs.
+    for sql in DELETE_STATEMENTS:
+        await async_execute(conn, sql, [program_id], athlete_id)
 
 
 async def abandon_program(conn, program_id: int, athlete_id: int):
@@ -460,21 +428,12 @@ async def upsert_athlete_max(
 
 
 async def activate_program(conn, program_id: int, athlete_id: int):
+    """Supersede the athlete's active program, then activate this one — only
+    if it is a draft: defense-in-depth behind the router's 409 so a concurrent
+    transition can't flip a non-draft program to active (audit5 web-L1). One
+    SQL text with import_program_md.activate (CLEAN-3)."""
     from web.async_db import async_execute
-    # Supersede any currently active program
-    await async_execute(
-        conn,
-        """
-        UPDATE generated_programs SET status = 'superseded', updated_at = NOW()
-        WHERE athlete_id = $1 AND status = 'active' AND id != $2
-        """,
-        athlete_id, program_id,
-    )
-    # status = 'draft' guard: defense-in-depth behind the router's 409 so a
-    # concurrent transition can't flip a non-draft program to active (audit5 web-L1)
-    await async_execute(
-        conn,
-        "UPDATE generated_programs SET status = 'active', updated_at = NOW() "
-        "WHERE id = $1 AND athlete_id = $2 AND status = 'draft'",
-        program_id, athlete_id,
-    )
+
+    from shared.program_sql import ACTIVATE_DRAFT, SUPERSEDE_OTHER_ACTIVE
+    await async_execute(conn, SUPERSEDE_OTHER_ACTIVE, athlete_id, program_id)
+    await async_execute(conn, ACTIVATE_DRAFT, athlete_id, program_id)
