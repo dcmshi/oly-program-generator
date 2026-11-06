@@ -71,6 +71,20 @@ def test_principles_are_queued_in_batch_mode():
     assert stats["principles"] == 0
 
 
+def test_fraction_notation_is_rewritten_before_every_path():
+    """DOG-2r: chunks and principles get `W kg (P%) × R reps × S sets`; the
+    caller's section keeps its text."""
+    text = _BODY + "\n\nFor Beginners:\n\n32.5 (55)\n——— 1\n4\n\n40 (65)\n——— 1\n4"
+    section = _section(ContentType.MIXED, text)
+    proc, stats, queued = _processor(), new_section_stats(), []
+    proc.process(section, _target(), stats, queue_principles=queued.append)
+    plain = "32.5 kg (55%) × 4 reps × 1 set; 40 kg (65%) × 4 reps × 1 set"
+    assert plain in queued[0]
+    chunks = proc.vector_loader.load_chunks.call_args.args[0]
+    assert any(plain in c.raw_content for c in chunks) and not any("———" in c.raw_content for c in chunks)
+    assert section.content == text
+
+
 def test_structured_without_handler_falls_back_to_prose():
     """Web path: no structured loaders, so TABLE / PROGRAM / EXERCISE text is
     chunked rather than dropped (I-M2)."""

@@ -132,6 +132,7 @@ INGESTION_TESTS := \
 	tests/test_template_model_compare.py \
 	tests/test_ocr_model_compare.py \
 	tests/test_section_processor.py \
+	tests/test_rep_notation.py \
 	tests/test_principle_audit.py \
 	tests/test_llm_helpers.py \
 	tests/test_vector_loader_units.py \

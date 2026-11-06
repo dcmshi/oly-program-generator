@@ -52,7 +52,16 @@ Athlete 4 (Rich, coach-managed under `dshi`): beginner, 35, ~80 kg, no tested ma
   - non-deload comp reps vs target: the model's |Δ| 4.6 / 4.2 reps, 6/18 within tolerance in both; dosed |Δ| 1.3 and 18/18 in both; 0/6 deload sessions over target in both.
 
   So the model still misses the session target two times out of three, and dosing closes it. RETRY-1 didn't fire: no session needed a retry.
-- [ ] **DOG-2r — Soviet fraction-notation tables reach the prompt unreadable.**
+- [x] ✅ 2026-11-06 **DOG-2r — Soviet fraction-notation tables reach the prompt unreadable.** Fixed by rewriting the notation, using the book's own footnote: numerator = weight (% of max), denominator = reps, the number beside the bar = sets, the far-right parenthesis = the exercise max.
+  - **Converter:** `processors/rep_notation.normalize_fraction_notation` turns "32.5 (55) / ——— 1 / 4" into "32.5 kg (55%) × 4 reps × 1 set", joins a run of sets with "; ", and writes the closing max as "(max 60 kg)". It handles three extraction layouts:
+    - vertical (pp. 47–50);
+    - side-by-side columns, with or without the bar line (pp. 50, 59–61);
+    - stacked, where the bar was lost (p. 59). There the reps come first, which the book's "140 (70) / 2+2 / 1" complex settles. Stacked numbers are only converted in text that also has a barred fraction.
+  - **Ingest:** `SectionProcessor.process` normalises every section first, so chunks, principles and template parses all get the plain form.
+  - **Stored rows:** `normalize_rep_notation.py --apply` rewrote the 6 Roman chunks (12830–12833, 12844, 12845), recomputed their hashes and re-embedded them; the old values are in `logs/rep_notation_backup.jsonl`. A dry run over every chunk with a "W (P)" pair changed exactly those 6. 13529 (*Weightlifting, Olympic Style*) only uses dashes as warm-up separators and is untouched.
+  - **Left as is:** two fragments of 12844 with a field missing ("120 / 2 / 1" has no %, "105 (75) / 4, 2, 6, 1, 5" has no sets line).
+  - **Retrieval eval:** passes. The session family, where these chunks are graded 2, went 0.908 → 0.919 nDCG@5, and the 6 chunks now sit in the top 5 of all 16 session queries. The overall drop vs the frozen baseline is DOG-2s.
+  - Was:
   - **What happens:** chunk 12831 (Roman, *The Training of the Weightlifter*, `programming_rationale`) was in 16 of program 58's 24 session prompts. It renders as "32.5 (55) / ——— 1 / 4": weight (% of max) over reps, then sets, with the max in parentheses at the end. Each number sits on its own line and about half the chunk is digits, dashes and whitespace.
   - **Why it gets through:** the chunk explains its own notation. Its Jev junk score is 0.09, so quarantine rightly keeps it, but the model gets a 1.5k-char excerpt it can barely use.
   - **Scope:** 7 unquarantined chunks contain the `———` fraction bar, 6 of 150 in Roman's book and 1 of 230 in *Weightlifting, Olympic Style*.
@@ -61,6 +70,10 @@ Athlete 4 (Rich, coach-managed under `dshi`): beginner, 35, ~80 kg, no tested ma
     - or have `focused_excerpt` drop fraction-bar lines.
 
     Rewriting keeps the information. Re-run `build_golden --extend` if they're re-embedded.
+- [ ] **DOG-2s — the golden set predates the 2026-10-19 ingest.** `run_eval` passes but sits close to the gate:
+  - Overall nDCG@5 is 0.780 and normalised recall@5 0.625, against a baseline of 0.795 / 0.640 and a tolerance of 0.02. The fault family accounts for most of the gap: 0.756 → 0.693.
+  - Cause: the *Snatch Error Correction Manual* chunks (13710–13724, ingested 2026-10-19) now fill fault queries' top 5, but `golden.json` was built on 2026-10-12, so they're ungraded and score 0. DOG-2r's rewrite isn't the cause: none of its 6 chunks reaches a fault query's top 5.
+  - Fix: run `eval/build_golden --extend` (paid; light judge, ungraded candidates only), then `run_eval`. Re-freeze the baseline (`--update-baseline`) only if the gap closes.
 - [x] ✅ 2026-11-06 **DOSE-1d — deload session targets can't be reached.** On a deload week the Session Template now says "Competition lift reps this session: at most N (deload week — fewer is fine; never add sets to reach it)". That matches what dosing does since DOSE-1b, which only ever trims a deload. The number is unchanged, so the validator's upper bound and the weekly budget are too. `eval/dosing_report` reads both wordings. The deload golden prompts (minimal, rich) changed by that one line.
   Was: Program 58's deload sessions were given targets of 11–18 comp reps but dosed to 0–9, because the deload prompt caps comp lifts at 3 sets and rows at or below the warm-up band (`WARMUP_VOLUME_EXCLUSION_PCT`, 60 %) don't count. Since DOSE-1b the target is only a ceiling on deloads, but the prompt still states it as a target. Either compute deload targets from the rows that count, or word it as a maximum on deload weeks.
 

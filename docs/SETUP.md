@@ -362,6 +362,7 @@ oly-program-generator/
 │   ├── retag_chunks.py              # Re-tag stored chunks after KEYWORD_TO_TOPIC changes
 │   ├── relabel_chunk_types.py       # Re-label chunk_type with the light model or Jev
 │   ├── reembed.py                   # Re-embed chunks under a new embedding model (RAG-M8 / EMBED-1)
+│   ├── normalize_rep_notation.py    # Rewrite Roman's fraction-notation sets in stored chunks + re-embed (DOG-2r)
 │   ├── quarantine_chunks.py         # Jev junk pass — marks non-content chunks quarantined
 │   ├── dedupe_principles.py         # Marks restated principles duplicate_of their canonical twin
 │   ├── mine_accessories.py          # DOG-2g — accessory exercises named in prose → exercises (report, --apply)
