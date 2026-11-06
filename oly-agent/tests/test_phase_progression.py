@@ -3,7 +3,7 @@
 Tests for phase_progression.py — the single source of truth shared by
 plan._advance_phase and feedback._compute_phase_verdict (R5).
 
-Run: python tests/test_phase_progression.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_phase_progression.py
 """
 
 import sys
@@ -13,19 +13,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from phase_progression import PHASE_SEQUENCE, compute_load_adjustments, decide_next_phase
-
-RESULTS = []
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
-
 
 # ── decide_next_phase ─────────────────────────────────────────────────────────
 
@@ -91,16 +78,3 @@ def test_high_rpe_reduces_volume():
 
 def test_excellent_boosts_intensity():
     assert any("excellent performance" in a for a in compute_load_adjustments(95, 0.90, 0.2))
-
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")
-    sys.exit(1 if failed else 0)

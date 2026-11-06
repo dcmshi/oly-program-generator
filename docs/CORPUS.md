@@ -317,6 +317,7 @@ each article dynamically with `for_web_article(word_count)` and never reads
 
 Chunks are retrieved by pgvector cosine similarity with
 `VECTOR_SEARCH_MIN_SIMILARITY = 0.45` (`shared/constants.py`), filtered in SQL
-before `top_k` is applied. Baseline scores for the 22 evaluation queries live in
-[RETRIEVAL_EVAL.md](RETRIEVAL_EVAL.md) — re-run `test_retrieval_eval.py` and
-update that table after any corpus or retrieval change.
+before `top_k` is applied. The graded, gated retrieval eval is `oly-agent/eval/`
+(`build_golden --extend`, then `run_eval` against `baseline.json`); see
+[RETRIEVAL_EVAL.md](RETRIEVAL_EVAL.md) and re-run it after any corpus or
+retrieval change.

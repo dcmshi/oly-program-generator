@@ -2,7 +2,7 @@
 """
 Tests for pure helpers in log.py (no DB or interactive input needed).
 
-Run: python tests/test_log.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_log.py
 """
 
 import sys
@@ -12,19 +12,6 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from log import _validate_session_link
-
-RESULTS = []
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
-
 
 _SESSIONS = [{"id": 41, "day_number": 1}, {"id": 42, "day_number": 2}]
 
@@ -160,16 +147,3 @@ def test_session_and_status_pick_the_active_program():
             f"{fn.__name__} must select the program the same way cmd_show does"
         assert "ORDER BY created_at DESC" not in src, \
             f"{fn.__name__} still has its own status-blind program query"
-
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {failed} failed")
-    sys.exit(1 if failed else 0)

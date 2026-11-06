@@ -4,7 +4,7 @@ Unit tests for IngestionPipeline._parse_program_template.
 
 Mocks the Anthropic client so no API key or DB is needed.
 
-Run: PYTHONUTF8=1 uv run python tests/test_pipeline_unit.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_pipeline_unit.py
 """
 
 import json
@@ -56,19 +56,6 @@ def _call(pipeline, section, source=None, source_id=1):
     return IngestionPipeline._parse_program_template(
         pipeline, section, source or _make_source(), source_id
     )
-
-
-RESULTS = []
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, str(e)))
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -377,36 +364,6 @@ def test_template_parse_disables_thinking_and_grows_on_truncation():
     calls = mock_client.messages.create.call_args_list
     assert [c.kwargs["max_tokens"] for c in calls] == [4096, 8192]
     assert all(c.kwargs["thinking"] == {"type": "disabled"} for c in calls)
-
-
-if __name__ == "__main__":
-    tests = [
-        ("Explicit-null weeks no crash (audit4)", test_explicit_null_weeks_no_crash),
-        ("Explicit-null dims rescued by inference (audit3-L1)", test_explicit_null_dims_rescued_by_inference),
-        ("First-window null week_number no crash (audit3-L2)", test_first_window_null_week_number_no_crash),
-        ("Empty first window: continuation still scans (ING-L4)", test_first_window_empty_continuation_still_scans),
-        ("Continuation week without week_number dropped, not crash (audit2-L2)", test_continuation_week_without_week_number_no_crash),
-        ("Short section: single LLM call", test_short_section_single_llm_call),
-        ("Long section: continuation triggered", test_long_section_triggers_continuation),
-        ("Continuation: deduplicates seen weeks", test_continuation_deduplicates_seen_weeks),
-        ("Week split across windows keeps its later days (ING-EVAL-1)", test_week_split_across_windows_keeps_its_later_days),
-        ("duration_weeks=0: inferred from len(weeks)", test_duration_weeks_inferred_from_weeks_count),
-        ("sessions_per_week=0: inferred from first week", test_sessions_per_week_inferred_from_first_week),
-        ("LLM failure: returns safe empty structure", test_llm_failure_returns_empty_structure),
-    ]
-    passed = failed = 0
-    for name, fn in tests:
-        try:
-            fn()
-            print(f"  PASS  {name}")
-            passed += 1
-        except Exception as e:
-            print(f"  FAIL  {name}: {e}")
-            import traceback
-
-            traceback.print_exc()
-            failed += 1
-    print(f"\n{passed} passed, {failed} failed")
 
 
 def test_flush_principle_batch_loads_per_section_and_counts():

@@ -3,7 +3,7 @@
 Tests for pipeline._parse_exercise() heuristic extraction.
 
 No DB or API keys needed — tests the pure heuristic logic only.
-Run: python tests/test_parse_exercise.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_parse_exercise.py
 """
 
 import sys
@@ -58,17 +58,6 @@ def _section(title: str, content: str) -> ClassifiedSection:
 # ---------------------------------------------------------------------------
 # Tests
 # ---------------------------------------------------------------------------
-
-RESULTS = []
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, str(e)))
 
 
 pipeline = _make_pipeline()
@@ -188,17 +177,3 @@ def test_chapter_headings_are_not_exercises():
     assert pipeline._parse_exercise(_section("The Snatch", "The snatch is the first lift."), 1)["name"] == "Snatch"
     assert pipeline._parse_exercise(_section("", "The Clean\n\nThe clean is the first half of the second lift."), 1)["name"] == "Clean"
     assert pipeline._parse_exercise(_section("Deadlift", "The deadlift builds the pull."), 1)["name"] == "Deadlift"
-
-
-if __name__ == "__main__":
-    for fn_name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(fn_name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        status = r[0]
-        name = r[1]
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {status}  {name}{detail}")
-    print(f"\n{passed} passed, {failed} failed")

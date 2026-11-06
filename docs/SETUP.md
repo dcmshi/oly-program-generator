@@ -248,9 +248,9 @@ Tests that need a live DB or API keys are not included in `make test` — run th
 cd oly-agent     && uv run pytest tests/test_feedback.py
 cd oly-ingestion && uv run pytest tests/test_structured_loader.py
 cd oly-ingestion && uv run pytest tests/test_vector_loader.py       # OPENAI_API_KEY
-cd oly-ingestion && uv run pytest tests/test_principle_extractor.py # ANTHROPIC_API_KEY
+cd oly-ingestion && uv run pytest tests/test_principle_extractor.py # the LLM provider's key
 cd oly-ingestion && uv run pytest tests/test_pipeline.py            # both keys, e2e
-cd oly-ingestion && uv run pytest tests/test_retrieval_eval.py      # both keys, quality baseline
+# retrieval quality: oly-agent/eval/ (run_eval vs baseline.json) — docs/RETRIEVAL_EVAL.md
 ```
 
 A few tests inside otherwise-mocked files need real API calls or a live DB.

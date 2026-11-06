@@ -6,8 +6,8 @@ Pure-logic tests (_split_page_responses) need no dependencies.
 Fallback-chain tests mock fitz and pdfplumber — no real PDF needed.
 Vision OCR tests require INTEGRATION_TESTS=1 and a real Anthropic key.
 
-Run: python tests/test_pdf_extractor.py
-     INTEGRATION_TESTS=1 python tests/test_pdf_extractor.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_pdf_extractor.py
+     INTEGRATION_TESTS=1 PYTHONUTF8=1 uv run pytest tests/test_pdf_extractor.py
 """
 
 import os
@@ -17,24 +17,11 @@ from unittest.mock import MagicMock, patch
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-RESULTS = []
 _INTEGRATION = os.getenv("INTEGRATION_TESTS", "").lower() in ("1", "true")
 
 
 class _Skip(Exception):
     pass
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except _Skip as e:
-        RESULTS.append(("SKIP", name, str(e)))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
 
 
 def _integration_only():
@@ -346,19 +333,6 @@ def test_vision_ocr_requires_anthropic_client():
 
 
 # ── Runner ────────────────────────────────────────────────────────────────────
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    skipped = sum(1 for r in RESULTS if r[0] == "SKIP")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {skipped} skipped, {failed} failed")
-
 
 def test_vision_uses_the_page_cache_and_only_transcribes_missing_groups(tmp_path):
     """ING-M5: pages cached for this file + model are reused; only groups with a

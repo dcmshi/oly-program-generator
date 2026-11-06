@@ -5,7 +5,7 @@ Tests for the orchestrator's run() pipeline.
 All steps (assess, plan, retrieve, generate, validate, explain) are mocked.
 No live DB, LLM, or API keys required.
 
-Run: python tests/test_orchestrator.py
+Run: PYTHONUTF8=1 uv run pytest tests/test_orchestrator.py
 """
 
 import json
@@ -18,24 +18,11 @@ from unittest.mock import MagicMock, patch
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
-RESULTS = []
 _INTEGRATION = os.getenv("INTEGRATION_TESTS", "").lower() in ("1", "true")
 
 
 class _Skip(Exception):
     pass
-
-
-def _test(name, fn):
-    try:
-        fn()
-        RESULTS.append(("PASS", name))
-    except _Skip as e:
-        RESULTS.append(("SKIP", name, str(e)))
-    except AssertionError as e:
-        RESULTS.append(("FAIL", name, str(e)))
-    except Exception as e:
-        RESULTS.append(("ERROR", name, f"{type(e).__name__}: {e}"))
 
 
 def _integration_only():
@@ -598,19 +585,6 @@ def test_generation_params_record_thinking_and_effort():
     assert generation_params["model"] == "claude-sonnet-5"
     assert (generation_params["thinking"], generation_params["effort"]) == ("disabled", "low")
     assert "max_sessions" not in generation_params
-
-
-if __name__ == "__main__":
-    for name, fn in [(n, f) for n, f in globals().items() if n.startswith("test_")]:
-        _test(name, fn)
-
-    passed = sum(1 for r in RESULTS if r[0] == "PASS")
-    skipped = sum(1 for r in RESULTS if r[0] == "SKIP")
-    failed = sum(1 for r in RESULTS if r[0] in ("FAIL", "ERROR"))
-    for r in RESULTS:
-        detail = f"  → {r[2]}" if len(r) > 2 else ""
-        print(f"  {r[0]}  {r[1]}{detail}")
-    print(f"\n{passed} passed, {skipped} skipped, {failed} failed")
 
 
 # ── RAG-H3: principles are selected per session ──────────────────────────────
