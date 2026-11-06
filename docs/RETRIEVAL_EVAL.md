@@ -29,7 +29,25 @@ grades over dense ∪ hybrid candidate pools) and `baseline.json` were built on 
 copy on 2026-09-16 after the full re-ingest — see the section below. Grades are tied to
 chunk ids, so rebuild both after any corpus change.
 
-## AUD-3 part 2 — 2026-09-22: dense-only production, rerank measured (off), composed-context diversity (current `baseline.json`)
+## 2026-11-06: golden set extended over the 2026-10-19 ingest, baseline re-frozen (current `baseline.json`)
+
+`run_eval` had drifted to nDCG@5 0.780 / nrecall@5 0.625, against the 2026-09-22 gate of 0.795 / 0.640 (tolerance 0.02). Chunks ingested on 2026-10-19 — the *Snatch Error Correction Manual* (13710–13737) and *Better Snatch Overhead Stability* (13738–13739) — now fill fault queries' top 5, but `golden.json` was last extended on 2026-10-12. Ungraded chunks score 0, so fault nDCG@5 fell to 0.693 (TODO DOG-2s).
+
+The same day, DOG-2r rewrote 6 of Roman's fraction-notation chunks as plain rep schemes and re-embedded them. Their ids didn't change, so their grades stand.
+
+`build_golden --extend` graded the 40 new candidates across 20 queries with the GLM judge: 17 rated 2, 19 rated 1, 4 rated 0, skimmed against the snippets.
+
+| family | nDCG@5 (2026-09-22 gate) | nDCG@5 now | nrecall@5 now |
+|---|---|---|---|
+| fault (13) | 0.756 | **0.767** | 0.623 |
+| legacy (22) | 0.743 | 0.743 | 0.559 |
+| limiter (6) | 0.773 | 0.773 | 0.533 |
+| session (16) | 0.908 | **0.919** | 0.825 |
+| **all (57)** | 0.795 | **0.801** | **0.646** |
+
+Every family is at or above the old gate, so `baseline.json` is re-frozen at **nDCG@5 0.801 · nrecall@5 0.646**. The session gain is DOG-2r: the 6 rewritten chunks now rank in the top 5 of all 16 session queries.
+
+## AUD-3 part 2 — 2026-09-22: dense-only production, rerank measured (off), composed-context diversity
 
 Same golden set (57 queries, GLM grades, union pool) and embeddings (`-large`) as the
 freeze below. Gate = nDCG@5 + grade-2 nrecall@5; run-to-run noise ≈ ±0.005 nDCG for the
