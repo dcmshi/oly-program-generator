@@ -1949,7 +1949,7 @@ def test_large_prompt_warns(caplog):
     from generate import _warn_if_prompt_large
 
     from shared.constants import PROMPT_LENGTH_WARN_CHARS
-    with caplog.at_level(logging.WARNING, logger="generate"):
+    with caplog.at_level(logging.WARNING, logger="session_prompt"):   # CLEAN-4: the builder moved
         _warn_if_prompt_large("x" * PROMPT_LENGTH_WARN_CHARS, 1, 1)
         assert not caplog.records
         _warn_if_prompt_large("x" * (PROMPT_LENGTH_WARN_CHARS + 1), 1, 1)

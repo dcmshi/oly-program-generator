@@ -408,6 +408,7 @@ oly-program-generator/
     ├── pyproject.toml · uv.lock · alembic.ini
     ├── orchestrator.py              # Main pipeline runner (CLI entry point)
     ├── assess.py / plan.py / retrieve.py / generate.py / validate.py / explain.py
+    ├── session_prompt.py            # The session prompt: one _*_section helper per section (golden-pinned)
     ├── principle_matcher.py         # Evaluates principle conditions against one session
     ├── dosing.py                    # Code sets the numbers: loads, reps per set, sets toward the target (DOSE-1)
     ├── complexes.py                 # Exercise complexes: annotation, component counting, display (PLAN-3a)
