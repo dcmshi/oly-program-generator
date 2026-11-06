@@ -29,8 +29,6 @@ from pathlib import Path
 
 import httpx
 
-sys.path.insert(0, str(Path(__file__).resolve().parents[2]))  # repo root for shared.*
-
 from shared.config import Settings  # noqa: E402
 
 ENDPOINTS_URL = "https://openrouter.ai/api/v1/models/{model}/endpoints"

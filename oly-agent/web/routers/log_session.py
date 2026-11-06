@@ -1,7 +1,5 @@
 # web/routers/log_session.py
 import logging
-import sys
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import HTMLResponse
@@ -11,7 +9,6 @@ from web.formparse import parse_float
 from web.queries import log_session as q
 from web.queries.dashboard import get_athlete_timezone
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from shared.timeutil import today_in_tz
 
 logger = logging.getLogger(__name__)

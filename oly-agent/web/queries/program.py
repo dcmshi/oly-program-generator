@@ -7,7 +7,6 @@ from pathlib import Path
 # Module scope, not per-call — request-path sys.path.insert grew sys.path
 # unboundedly in the long-lived process (audit5-L4)
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from shared.exercise_mapping import is_competition_lift, is_warmup_set
 

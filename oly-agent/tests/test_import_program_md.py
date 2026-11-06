@@ -3,7 +3,6 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from import_program_md import catalogue_name, md_session_label, parse_program_md, parse_scheme
 

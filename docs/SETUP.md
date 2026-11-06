@@ -28,10 +28,16 @@ Edit `.env` and fill in real values — at minimum `POSTGRES_PASSWORD`, `SECRET_
 ### 2. Install dependencies + start infrastructure
 
 ```bash
-make sync     # uv sync for both subsystems
+make sync     # uv sync for both subsystems (shared/ comes along as an editable path dependency)
 make up       # docker compose up -d (Postgres + PgBouncer + Redis)
 make migrate  # alembic upgrade head (creates all tables + seed data)
 ```
+
+> **Packaging (CLEAN-5):** `shared/` has its own `pyproject.toml` and both
+> subsystems install it editable (`[tool.uv.sources]`), so `import shared…`
+> needs no `sys.path` line. The local embedder's `sentence-transformers` (and
+> torch) is an optional extra: `uv sync --extra local-embed` in the subsystem
+> that runs `EMBEDDING_PROVIDER=local`.
 
 > **Migrations against a non-local database:** `make migrate` rewrites
 > `localhost:5432` → `:5433` to bypass the local PgBouncer (transaction pooling

@@ -4,7 +4,6 @@ from pathlib import Path
 from types import SimpleNamespace
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from extractors.spreads import find_gutter, is_landscape, spread_gutters
 

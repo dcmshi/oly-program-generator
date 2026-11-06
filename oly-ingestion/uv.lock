@@ -1262,6 +1262,7 @@ dependencies = [
     { name = "beautifulsoup4" },
     { name = "ebooklib" },
     { name = "lxml" },
+    { name = "oly-shared" },
     { name = "openai" },
     { name = "pdfplumber" },
     { name = "pgvector" },
@@ -1269,7 +1270,6 @@ dependencies = [
     { name = "pymupdf" },
     { name = "python-dotenv" },
     { name = "requests" },
-    { name = "sentence-transformers" },
     { name = "tiktoken" },
     { name = "typesafe-sdk" },
 ]
@@ -1279,6 +1279,9 @@ dev = [
     { name = "coverage" },
     { name = "pytest" },
 ]
+local-embed = [
+    { name = "sentence-transformers" },
+]
 
 [package.metadata]
 requires-dist = [
@@ -1287,6 +1290,7 @@ requires-dist = [
     { name = "coverage", marker = "extra == 'dev'", specifier = ">=7.4.0" },
     { name = "ebooklib", specifier = ">=0.20,<1" },
     { name = "lxml", specifier = ">=5.0.0,<7" },
+    { name = "oly-shared", editable = "../shared" },
     { name = "openai", specifier = ">=2.0.0,<3" },
     { name = "pdfplumber", specifier = ">=0.10.0,<1" },
     { name = "pgvector", specifier = ">=0.2.4,<1" },
@@ -1295,11 +1299,16 @@ requires-dist = [
     { name = "pytest", marker = "extra == 'dev'", specifier = ">=8.0.0" },
     { name = "python-dotenv", specifier = ">=1.0.0,<2" },
     { name = "requests", specifier = ">=2.32.5,<3" },
-    { name = "sentence-transformers", specifier = ">=6.1.0" },
+    { name = "sentence-transformers", marker = "extra == 'local-embed'", specifier = ">=6.1.0" },
     { name = "tiktoken", specifier = ">=0.14.0" },
     { name = "typesafe-sdk", specifier = ">=0.7.0" },
 ]
-provides-extras = ["dev"]
+provides-extras = ["local-embed", "dev"]
+
+[[package]]
+name = "oly-shared"
+version = "0.1.0"
+source = { editable = "../shared" }
 
 [[package]]
 name = "openai"

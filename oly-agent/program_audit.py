@@ -43,12 +43,8 @@ the plan snapshot (RESUME-1) can be audited too.
 """
 
 import re
-import sys
 from collections import defaultdict
 from dataclasses import asdict, dataclass
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from complexes import comp_reps_per_set, counts_as_competition_lift
 from dosing import _counts_for_volume

@@ -28,10 +28,6 @@ wrote them. Every edit is returned as a readable line for generation_log.
 """
 
 import math
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from complexes import comp_reps_per_set, counts_as_competition_lift
 from validate import strength_category

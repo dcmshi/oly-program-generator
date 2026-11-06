@@ -16,10 +16,7 @@ import base64
 import json
 import logging
 import re
-import sys
 from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from shared.constants import (
     OCR_CONCURRENCY,

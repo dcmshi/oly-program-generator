@@ -19,11 +19,7 @@ Checks, one function each, run in this order by validate_session (AUD-6):
   13. Squat / pull load vs the week's strength curve (PLAN-3c)    warning
 """
 
-import sys
 from collections import Counter
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from complexes import comp_reps_per_set, counts_as_competition_lift, reps_for_prilepin
 from models import ValidationResult

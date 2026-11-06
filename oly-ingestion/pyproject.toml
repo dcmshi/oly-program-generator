@@ -22,10 +22,16 @@ dependencies = [
     "requests>=2.32.5,<3",
     "tiktoken>=0.14.0",
     "typesafe-sdk>=0.7.0",
-    "sentence-transformers>=6.1.0",
+    # shared/ as an editable path dependency (CLEAN-5) — no sys.path hacks for `import shared`
+    "oly-shared",
 ]
 
 [project.optional-dependencies]
+# EMBEDDING_PROVIDER=local only (loaders/local_embedder.py imports it lazily); it
+# pulls in torch, so it is not a core dependency (CLEAN-5): uv sync --extra local-embed
+local-embed = [
+    "sentence-transformers>=6.1.0",
+]
 dev = [
     "pytest>=8.0.0",
     "coverage>=7.4.0",
@@ -58,6 +64,9 @@ exclude_lines = [
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+oly-shared = { path = "../shared", editable = true }
 
 [build-system]
 requires = ["hatchling"]

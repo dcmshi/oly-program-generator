@@ -13,11 +13,7 @@ One LLM call per session. Each call receives:
 import json
 import logging
 import re
-import sys
 import time
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from complexes import annotate_complexes
 from dosing import dose_session

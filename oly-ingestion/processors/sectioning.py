@@ -22,10 +22,7 @@ with a ``part`` index when a section is split).
 """
 
 import re
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.constants import CLASSIFY_SECTION_MAX_CHARS, MIN_SECTION_CHARS
 
 Section = tuple[str, str, dict]

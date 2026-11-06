@@ -1,8 +1,6 @@
 # web/routers/dashboard.py
 import logging
-import sys
 from datetime import date
-from pathlib import Path
 
 from fastapi import APIRouter, Depends, Request
 from fastapi.responses import HTMLResponse
@@ -11,7 +9,6 @@ from web.deps import get_db
 from web.queries import dashboard as q
 from web.queries import program as pq
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 from shared.timeutil import today_in_tz
 
 logger = logging.getLogger(__name__)

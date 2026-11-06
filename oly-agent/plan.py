@@ -9,10 +9,6 @@ and session structure. All deterministic — no LLM involved at this step.
 import dataclasses
 import json
 import logging
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan, SessionTemplate, WeekTarget
 from phase_profiles import build_weekly_targets, classic_reps_range, strength_targets, variant_reps_range

@@ -9,7 +9,6 @@ Run: PYTHONUTF8=1 uv run pytest tests/test_phase_progression.py
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from phase_progression import PHASE_SEQUENCE, compute_load_adjustments, decide_next_phase

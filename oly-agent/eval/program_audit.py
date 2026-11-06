@@ -25,7 +25,7 @@ from pathlib import Path
 _HERE = Path(__file__).resolve().parent
 _AGENT = _HERE.parent
 _REPO = _AGENT.parent
-for p in (str(_REPO), str(_AGENT)):
+for p in (str(_AGENT),):     # shared/ is installed (CLEAN-5)
     if p not in sys.path:
         sys.path.insert(0, p)
 

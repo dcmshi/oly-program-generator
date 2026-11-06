@@ -10,10 +10,6 @@ These functions bridge that gap.
 
 import logging
 import re
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.constants import MAX_SOURCE_CHUNKS_PER_EXERCISE
 from shared.exercise_mapping import EXERCISE_NAME_TO_INTENSITY_REF, to_intensity_ref

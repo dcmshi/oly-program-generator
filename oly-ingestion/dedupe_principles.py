@@ -38,7 +38,6 @@ from pathlib import Path
 import psycopg2
 
 sys.path.insert(0, str(Path(__file__).parent))
-sys.path.insert(0, str(Path(__file__).parent.parent))  # repo root for shared.*
 from config import Settings
 from loaders.vector_loader import VectorLoader
 

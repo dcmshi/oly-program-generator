@@ -16,11 +16,7 @@ prompt change is intended (AUD-6).
 import json
 import logging
 import re
-import sys
 from collections import Counter
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from coach import coach_prompt_section
 from complexes import complex_line

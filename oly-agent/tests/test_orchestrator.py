@@ -15,7 +15,6 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import MagicMock, patch
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 _INTEGRATION = os.getenv("INTEGRATION_TESTS", "").lower() in ("1", "true")

@@ -7,13 +7,9 @@ and recent training logs to build an AthleteContext object.
 """
 
 import logging
-import sys
 from datetime import date, timedelta
-from pathlib import Path
 
 # Make shared/ importable when running from oly-agent/ or the repo root
-sys.path.insert(0, str(Path(__file__).parent.parent))
-
 from demographics import age_band, age_from_dob
 from models import AthleteContext
 from weight_resolver import build_maxes_dict

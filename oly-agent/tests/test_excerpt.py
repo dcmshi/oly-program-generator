@@ -7,7 +7,6 @@ prompt's knowledge-context block. No DB or API keys needed.
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent))   # the prompt helpers in test_generate_utils
 

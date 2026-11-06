@@ -20,7 +20,6 @@ import json
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent))
 from extractors.ocr_cache import file_sha256  # noqa: E402
 from processors.ocr_quality import assess_pages, summarize  # noqa: E402
 

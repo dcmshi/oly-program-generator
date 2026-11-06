@@ -11,11 +11,7 @@ Usage:
 """
 
 import argparse
-import sys
 from datetime import date, datetime, timedelta
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.config import Settings
 from shared.db import execute, execute_returning, fetch_all, fetch_one, get_connection

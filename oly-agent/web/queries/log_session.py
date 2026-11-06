@@ -1,11 +1,7 @@
 # web/queries/log_session.py
 """DB queries for session logging."""
 
-import sys
 from datetime import date, timedelta
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
 from web.formparse import parse_float as _float  # noqa: F401 (WEB-L4)
 from web.formparse import parse_int as _int

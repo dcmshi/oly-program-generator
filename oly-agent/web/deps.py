@@ -2,10 +2,6 @@
 """FastAPI shared dependencies."""
 
 import logging
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from fastapi import HTTPException, Request
 from slowapi import Limiter

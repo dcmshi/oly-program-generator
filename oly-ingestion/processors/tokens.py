@@ -16,10 +16,7 @@ pipeline and tests still run offline.
 """
 
 import logging
-import sys
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from shared.constants import TOKENS_PER_WORD_FALLBACK
 
 logger = logging.getLogger(__name__)

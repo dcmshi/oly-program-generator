@@ -7,10 +7,6 @@ explanation stored in generated_programs.rationale.
 """
 
 import logging
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from coach import coach_prompt_section
 from complexes import prescription_label

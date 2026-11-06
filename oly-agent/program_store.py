@@ -15,11 +15,7 @@ is what tests patch.
 """
 
 import json
-import sys
 from datetime import date
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from shared.constants import MIN_SESSION_DURATION_MINUTES
 from shared.db import execute_returning, fetch_all

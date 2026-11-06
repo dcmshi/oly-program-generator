@@ -7,10 +7,6 @@ that informs the next program's planning decisions.
 """
 
 import logging
-import sys
-from pathlib import Path
-
-sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import ProgramOutcome
 from phase_progression import compute_load_adjustments, decide_next_phase

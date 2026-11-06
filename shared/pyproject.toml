@@ -1,0 +1,20 @@
+# shared/ as an installable package (CLEAN-5): both subsystems depend on it as
+# an editable path dependency (`[tool.uv.sources]` in their pyproject.toml), so
+# `import shared.…` works without `sys.path.insert(<repo root>)` in every module.
+# The runtime dependencies (psycopg2, anthropic, python-dotenv, …) are declared
+# by the subsystems that use them; this package adds none of its own.
+[project]
+name = "oly-shared"
+version = "0.1.0"
+description = "Config, DB helpers, LLM client, Prilepin math and constants shared by oly-agent and oly-ingestion"
+requires-python = ">=3.11"
+dependencies = []
+
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools]
+# the project directory *is* the package
+package-dir = { "shared" = "." }
+packages = ["shared"]

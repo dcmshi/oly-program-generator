@@ -26,7 +26,6 @@ from collections import Counter
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from eval.build_golden import grade_candidates  # noqa: E402
 from eval.judge_agreement import weighted_kappa  # noqa: E402

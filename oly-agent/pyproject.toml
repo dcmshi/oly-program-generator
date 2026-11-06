@@ -23,10 +23,16 @@ dependencies = [
     # this the per-athlete timezone feature silently falls back to UTC (INF-M1).
     # Harmless no-op wheel on Linux.
     "tzdata>=2024.1",
-    "sentence-transformers>=6.1.0",
+    # shared/ as an editable path dependency (CLEAN-5) — no sys.path hacks for `import shared`
+    "oly-shared",
 ]
 
 [project.optional-dependencies]
+# EMBEDDING_PROVIDER=local only (loaders/local_embedder.py imports it lazily); it
+# pulls in torch, so it is not a core dependency (CLEAN-5): uv sync --extra local-embed
+local-embed = [
+    "sentence-transformers>=6.1.0",
+]
 web = [
     "fastapi>=0.110.0,<1",
     "uvicorn[standard]>=0.27.0,<1",
@@ -71,3 +77,6 @@ exclude_lines = [
 
 [tool.uv]
 package = false
+
+[tool.uv.sources]
+oly-shared = { path = "../shared", editable = true }

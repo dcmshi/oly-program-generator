@@ -11,11 +11,8 @@ Key design decisions:
 """
 
 import re
-import sys
 from dataclasses import dataclass, field
-from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent))  # repo root for shared.*
 from processors.sectioning import MARKDOWN_HEADING_RE_SRC
 from processors.source_profiles import CHUNK_PROFILES, SOURCE_PROFILE_MAP, SourceProfile  # noqa: F401 — re-exported
 from processors.topic_tags import (  # noqa: F401 — re-exported: chunker was their home
