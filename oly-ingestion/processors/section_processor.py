@@ -18,6 +18,10 @@ through `SectionProcessor`:
                                     with no parsed rows) → prose path, so the
                                     text is never dropped (I-M2)
 
+Every path gets the section text with Roman's fraction notation rewritten as
+`W kg (P%) × R reps × S sets` (`processors.rep_notation`, DOG-2r), so chunks,
+principles and template parses all read the plain form.
+
 Error policy stays with the caller: `process` raises, the caller logs, calls
 `rollback()` and moves on to the next section.
 """
@@ -25,11 +29,12 @@ Error policy stays with the caller: `process` raises, the caller logs, calls
 import logging
 import re
 from collections.abc import Callable
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 
 from processors.chunker import SemanticChunker, validate_chunk
 from processors.classifier import ClassifiedSection, ContentType
 from processors.progress import Stage
+from processors.rep_notation import normalize_fraction_notation
 from shared.constants import CHUNK_TYPE_PROBE_CHARS
 
 logger = logging.getLogger(__name__)
@@ -152,6 +157,9 @@ class SectionProcessor:
                 queue_principles: Callable[[str], None] | None = None) -> dict:
         """Route one classified section. `queue_principles`, when given, receives
         the section text instead of extracting synchronously (COST-1 batch mode)."""
+        normalized = normalize_fraction_notation(section.content)
+        if normalized != section.content:
+            section = replace(section, content=normalized)      # a copy: the caller's section is untouched
         ctype = section.content_type
 
         if ctype in STRUCTURED_TYPES:
