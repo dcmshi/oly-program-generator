@@ -414,6 +414,7 @@ oly-program-generator/
     ├── rerank.py                    # Listwise reranker (built, off — RERANK_ENABLED)
     ├── weight_resolver.py           # LLM output → DB-ready values, [Cn] citations → source_chunk_ids
     ├── program_audit.py             # Whole-program audit before EXPLAIN → generation_params.audit (AGENT-0a)
+    ├── program_store.py             # The psycopg2 program writer shared by the orchestrator and importers
     ├── models.py · schemas.py       # Pipeline dataclasses · Pydantic models for JSONB columns
     ├── phase_profiles.py · phase_progression.py · session_templates.py
     ├── feedback.py · log.py         # Outcome summary + max promotion · training-log CLI

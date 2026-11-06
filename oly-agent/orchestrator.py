@@ -22,6 +22,7 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
+import program_store
 from assess import assess
 from coach import CoachConstraints, apply_constraints
 from explain import explain
@@ -44,10 +45,9 @@ from shared.constants import (
     GENERATION_WEEK_CONCURRENCY,
     MAX_CONTEXT_CHUNKS,
     MAX_PRINCIPLES_IN_PROMPT,
-    MIN_SESSION_DURATION_MINUTES,
 )
-from shared.db import execute, execute_returning, fetch_all, get_connection
-from shared.formulas import estimate_session_minutes, round_kg
+from shared.db import execute, fetch_all, get_connection
+from shared.formulas import round_kg
 from shared.llm import FlexUnavailable, create_llm_client, estimate_cost
 
 logging.basicConfig(
@@ -115,8 +115,7 @@ def run(
     vector_loader = _make_vector_loader(settings)
 
     # ── Build exercise lookup (name -> id) ────────────────────
-    exercise_rows = fetch_all(conn, "SELECT id, name FROM exercises")
-    exercise_lookup = {r["name"].lower(): r["id"] for r in exercise_rows}
+    exercise_lookup = program_store.exercise_lookup(conn)
 
     try:
         resume = None
@@ -317,42 +316,30 @@ def _create_program_record(conn, athlete_id: int, athlete_context: AthleteContex
     # recorded-only, not the estimation-merged dict: else a later real max
     # replacing an estimate reads as "strength progress" (audit5-L3)
     maxes_snapshot = athlete_context.recorded_maxes or athlete_context.maxes
-    athlete_snapshot = _build_athlete_snapshot(athlete_context.athlete)
-
-    program_id = execute_returning(
+    program_id = program_store.insert_program(
         conn,
-        """
-        INSERT INTO generated_programs
-            (athlete_id, name, status, phase, duration_weeks,
-             sessions_per_week, start_date,
-             athlete_snapshot, maxes_snapshot, generation_params,
-             macrocycle_id, macrocycle_block_index)
-        VALUES (%s, %s, 'draft', %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        (
-            athlete_id,
-            f"{program_plan.phase.replace('_', ' ').title()} Block"
-            + (f" {macrocycle[1] + 1} of macrocycle" if macrocycle else "") + f" — {date.today()}",
-            program_plan.phase,
-            program_plan.duration_weeks,
-            program_plan.sessions_per_week,
-            date.today(),
-            json.dumps(athlete_snapshot, default=str),
-            json.dumps(maxes_snapshot),
-            json.dumps({
-                "model": settings.generation_model,
-                "temperature": settings.generation_temperature,
-                "top_k": settings.vector_search_top_k,
-                "thinking": settings.generation_thinking or None,
-                "effort": settings.generation_effort or None,
-                **({"coach": _coach_record(athlete_context)} if _coach_record(athlete_context) else {}),
-                **({"max_sessions": max_sessions} if max_sessions is not None else {}),
-                **({"resume": resume_record} if resume_record is not None else {}),
-            }, default=str),
-            macrocycle[0] if macrocycle else None,
-            macrocycle[1] if macrocycle else None,
-        ),
+        athlete_id=athlete_id,
+        name=(f"{program_plan.phase.replace('_', ' ').title()} Block"
+              + (f" {macrocycle[1] + 1} of macrocycle" if macrocycle else "") + f" — {date.today()}"),
+        status="draft",
+        phase=program_plan.phase,
+        duration_weeks=program_plan.duration_weeks,
+        sessions_per_week=program_plan.sessions_per_week,
+        start_date=date.today(),
+        athlete=athlete_context.athlete,
+        maxes_snapshot=maxes_snapshot,
+        generation_params={
+            "model": settings.generation_model,
+            "temperature": settings.generation_temperature,
+            "top_k": settings.vector_search_top_k,
+            "thinking": settings.generation_thinking or None,
+            "effort": settings.generation_effort or None,
+            **({"coach": _coach_record(athlete_context)} if _coach_record(athlete_context) else {}),
+            **({"max_sessions": max_sessions} if max_sessions is not None else {}),
+            **({"resume": resume_record} if resume_record is not None else {}),
+        },
+        macrocycle_id=macrocycle[0] if macrocycle else None,
+        macrocycle_block_index=macrocycle[1] if macrocycle else None,
     )
     conn.commit()
     logger.info(f"Created program record: id={program_id}", extra={"program_id": program_id})
@@ -1262,15 +1249,6 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
 # copying password_hash/username/is_admin into a second table retained old
 # hashes past password changes and exposed them to any program-page/export
 # view (audit5-M1).
-_SNAPSHOT_EXCLUDE = frozenset({
-    "created_at", "updated_at", "password_hash", "username", "is_admin",
-})
-
-
-def _build_athlete_snapshot(athlete: dict) -> dict:
-    return {k: v for k, v in athlete.items() if k not in _SNAPSHOT_EXCLUDE}
-
-
 def compute_peak_week(weekly_targets):
     """The last non-deload week's number, or None when every week is a deload.
 
@@ -1385,64 +1363,13 @@ def _build_max_test_session(
 def _save_session(
     conn, program_id, week_number, day_number, session_template, exercises
 ) -> int:
-    """Persist a program session + its exercises to the DB."""
-    session_id = execute_returning(
-        conn,
-        """
-        INSERT INTO program_sessions
-            (program_id, week_number, day_number, session_label,
-             estimated_duration_minutes, focus_area)
-        VALUES (%s, %s, %s, %s, %s, %s)
-        RETURNING id
-        """,
-        (
-            program_id, week_number, day_number,
-            session_template.label,
-            _estimate_duration(exercises),
-            session_template.primary_movement,
-        ),
+    """Persist a program session + its exercises (program_store, CLEAN-2) and commit."""
+    session_id, _ = program_store.insert_session(
+        conn, program_id, week_number, day_number,
+        label=session_template.label, focus_area=session_template.primary_movement, exercises=exercises,
     )
-
-    for ex in exercises:
-        execute(
-            conn,
-            """
-            INSERT INTO session_exercises
-                (session_id, exercise_order, exercise_id, exercise_name,
-                 sets, reps, intensity_pct, intensity_reference, absolute_weight_kg,
-                 rpe_target, rest_seconds, is_max_attempt,
-                 selection_rationale, source_principle_ids, source_chunk_ids,
-                 complex_id, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-            """,
-            (
-                session_id,
-                ex.get("exercise_order"),
-                ex.get("exercise_id"),
-                ex.get("exercise_name"),
-                ex.get("sets"),
-                ex.get("reps"),
-                ex.get("intensity_pct"),
-                ex.get("intensity_reference"),
-                ex.get("absolute_weight_kg"),
-                ex.get("rpe_target"),
-                ex.get("rest_seconds"),
-                ex.get("is_max_attempt", False),
-                ex.get("selection_rationale"),
-                ex.get("source_principle_ids") or [],
-                ex.get("source_chunk_ids") or [],
-                ex.get("complex_id"),
-                ex.get("notes"),
-            ),
-        )
-
     conn.commit()
     return session_id
-
-
-def _estimate_duration(exercises: list[dict]) -> int:
-    """Rough session duration estimate in minutes (floored at the minimum)."""
-    return max(MIN_SESSION_DURATION_MINUTES, round(estimate_session_minutes(exercises)))
 
 
 def _mark_program_draft(conn, program_id: int, reason: str | None = None):

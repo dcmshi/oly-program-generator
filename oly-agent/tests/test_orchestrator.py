@@ -148,7 +148,7 @@ _PATCHES = {
     "get_connection":               "orchestrator.get_connection",
     "make_vector_loader":           "orchestrator._make_vector_loader",
     "fetch_all":                    "orchestrator.fetch_all",
-    "execute_returning":            "orchestrator.execute_returning",
+    "execute_returning":            "program_store.execute_returning",   # the writer (CLEAN-2)
     "execute":                      "orchestrator.execute",
     "assess":                       "orchestrator.assess",
     "plan":                         "orchestrator.plan",
@@ -211,10 +211,19 @@ def _full_mock_stack(stack: ExitStack, overrides: dict = None) -> dict:
             m = stack.enter_context(patch(target, return_value=rv))
         mocks[key] = m
 
+    # CLEAN-2: program_store reads the exercise catalogue with its own fetch_all;
+    # share the mock so the call order and routing stay as before
+    stack.enter_context(patch("program_store.fetch_all", mocks["fetch_all"]))
     # get_connection returns the conn object directly
     mocks["get_connection"].return_value = mock_conn
     mocks["conn"] = mock_conn
     return mocks
+
+
+def _row_inserts(mocks) -> int:
+    """generated_programs + program_sessions INSERTs (program_store also returns
+    each session_exercises id, CLEAN-2 — those aren't counted here)."""
+    return sum("session_exercises" not in c.args[1] for c in mocks["execute_returning"].call_args_list)
 
 
 # ── Tests ─────────────────────────────────────────────────────────────────────
@@ -429,7 +438,7 @@ def test_no_max_test_for_accumulation():
         run(1, _settings())
     # execute_returning called once for the program INSERT, once for the session INSERT
     # (no extra max_test session)
-    assert mocks["execute_returning"].call_count == 2  # program + 1 session
+    assert _row_inserts(mocks) == 2  # program + 1 session
 
 
 def test_multi_week_program_generates_correct_session_count():
@@ -456,7 +465,7 @@ def test_multi_week_program_generates_correct_session_count():
 # ── audit5 agent-M1: athlete_snapshot must not persist credentials ────────────
 
 def test_athlete_snapshot_excludes_credentials():
-    from orchestrator import _build_athlete_snapshot
+    from program_store import athlete_snapshot as _build_athlete_snapshot
     athlete = {
         "id": 1, "name": "Test", "level": "intermediate",
         "password_hash": "$2b$12$secret", "username": "test",
@@ -558,7 +567,7 @@ def test_max_sessions_caps_generation_and_labels_the_partial_draft():
     assert mocks["generate"].call_count == 2
     assert mocks["explain"].call_count == 1
     # program row + 2 sessions, no max-test session
-    assert mocks["execute_returning"].call_count == 3
+    assert _row_inserts(mocks) == 3
     rationale_writes = [
         c for c in mocks["execute"].call_args_list
         if len(c.args) >= 3 and "rationale" in c.args[1]
@@ -569,8 +578,8 @@ def test_max_sessions_caps_generation_and_labels_the_partial_draft():
     assert "2 of 4 planned sessions" in stored
     assert "Test rationale text." in stored     # EXPLAIN output kept below the banner
 
-    params = mocks["execute_returning"].call_args_list[0].args[2]
-    generation_params = json.loads(params[-3])   # then macrocycle_id, block index
+    params = next(c for c in mocks["execute_returning"].call_args_list if "generated_programs" in c.args[1]).args[2]
+    generation_params = json.loads(params[10])   # program_store.insert_program order
     assert generation_params["max_sessions"] == 2
     assert generation_params["thinking"] == "disabled" and generation_params["effort"] is None   # production default
 
@@ -580,8 +589,8 @@ def test_generation_params_record_thinking_and_effort():
         mocks = _full_mock_stack(stack)
         run(1, Settings(cost_limit_per_program=1.0, generation_model="claude-sonnet-5",
                         generation_thinking="disabled", generation_effort="low"))
-    params = mocks["execute_returning"].call_args_list[0].args[2]
-    generation_params = json.loads(params[-3])   # then macrocycle_id, block index
+    params = next(c for c in mocks["execute_returning"].call_args_list if "generated_programs" in c.args[1]).args[2]
+    generation_params = json.loads(params[10])   # program_store.insert_program order
     assert generation_params["model"] == "claude-sonnet-5"
     assert (generation_params["thinking"], generation_params["effort"]) == ("disabled", "low")
     assert "max_sessions" not in generation_params
@@ -972,7 +981,7 @@ def test_new_programs_store_the_resume_record():
         mocks = _full_mock_stack(stack, overrides={"plan": _multi_week_plan(2, 2)})
         assert run(1, _settings(), week_concurrency=1) == 42
     insert = next(c for c in mocks["execute_returning"].call_args_list if "generated_programs" in c.args[1])
-    params = json.loads(insert.args[2][8])
+    params = json.loads(insert.args[2][10])    # program_store.insert_program order
     assert params["resume"]["plan"]["duration_weeks"] == 2
     assert len(params["resume"]["plan"]["weekly_targets"]) == 2
     assert params["resume"]["effective_maxes"] == {"snatch": 100.0, "clean_and_jerk": 125.0}

@@ -45,6 +45,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
+import program_store
 from import_program_csv import (
     Day,
     ParsedProgram,
@@ -312,7 +313,7 @@ def main(argv: list[str] | None = None) -> int:
     name = args.name or f"{args.file.stem} (Paul, imported)"
     conn = get_connection(Settings().database_url)
     try:
-        lookup = {r["name"].lower(): r["id"] for r in fetch_all(conn, "SELECT id, name FROM exercises")}
+        lookup = program_store.exercise_lookup(conn)
         if args.dry_run:
             unmapped = resolve_ids(program, lookup)
             print_dry_run(program, None)

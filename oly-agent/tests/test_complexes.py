@@ -158,9 +158,9 @@ def test_save_session_stores_complex_id_and_scheme():
     from orchestrator import _save_session
     ex = annotate_complexes([_rx("Snatch + Overhead Squat", sets=4)], CATALOGUE)[0]
     tmpl = SimpleNamespace(label="Snatch day", primary_movement="snatch")
-    with patch("orchestrator.execute_returning", return_value=77), patch("orchestrator.execute") as ins:
+    with patch("program_store.execute_returning", return_value=77) as ins:
         assert _save_session(MagicMock(), 1, 1, 1, tmpl, [ex]) == 77
-    sql, params = ins.call_args.args[1], ins.call_args.args[2]
+    sql, params = ins.call_args.args[1], ins.call_args.args[2]       # the session_exercises row (CLEAN-2)
     assert "complex_id, notes" in sql and params[-2:] == (2, "complex 1+2") and params[5] == 3
 
 

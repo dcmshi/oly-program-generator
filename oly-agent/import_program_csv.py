@@ -43,7 +43,6 @@ prescription (as performed: same sets/reps/weight, ``make_rate`` =
 
 import argparse
 import csv
-import json
 import logging
 import re
 import sys
@@ -53,6 +52,8 @@ from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent))
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+
+import program_store
 
 from shared.config import Settings
 from shared.constants import STORABLE_INTENSITY_PCT_MAX
@@ -532,7 +533,6 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
     """Write the parsed program; `status` / `source` / `label_fn` / `rationale` /
     `resolve_fn` (name → catalogue id) let the Markdown importer (import_program_md.py) reuse it for a program
     that is about to be trained rather than a completed one."""
-    from orchestrator import _build_athlete_snapshot, _estimate_duration
     from weight_resolver import build_maxes_dict, resolve_weights
 
     athlete = fetch_one(conn, "SELECT * FROM athletes WHERE id = %s", (athlete_id,))
@@ -544,27 +544,21 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
         WHERE am.athlete_id = %s AND am.max_type = 'current'
     """, (athlete_id,))
     maxes = build_maxes_dict(max_rows)
-    exercise_lookup = {r["name"].lower(): r["id"] for r in fetch_all(conn, "SELECT id, name FROM exercises")}
+    exercise_lookup = program_store.exercise_lookup(conn)
     unmapped = (resolve_fn or resolve_catalogue_ids)(program, exercise_lookup)
     if unmapped:
         logger.info(f"{len(unmapped)} sheet name(s) have no catalogue match (stored with NULL exercise_id): {unmapped}")
 
     weeks = len(program.weeks)
     end_date = start_date + timedelta(days=7 * weeks - 1)
-    program_id = execute_returning(conn, """
-        INSERT INTO generated_programs
-            (athlete_id, name, status, phase, duration_weeks, sessions_per_week,
-             start_date, end_date, athlete_snapshot, maxes_snapshot, generation_params, rationale)
-        VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s)
-        RETURNING id
-    """, (
-        athlete_id, name, status, phase, weeks, program.sessions_per_week, start_date, end_date,
-        json.dumps(_build_athlete_snapshot(athlete), default=str),
-        json.dumps(maxes),
-        json.dumps({"source": source, "file": source_name, "model": None,
-                    "imported_on": date.today().isoformat()}),
-        rationale if rationale is not None else rationale_text(program, source_name),
-    ))
+    program_id = program_store.insert_program(
+        conn, athlete_id=athlete_id, name=name, status=status, phase=phase, duration_weeks=weeks,
+        sessions_per_week=program.sessions_per_week, start_date=start_date, end_date=end_date,
+        athlete=athlete, maxes_snapshot=maxes,
+        generation_params={"source": source, "file": source_name, "model": None,
+                           "imported_on": date.today().isoformat()},
+        rationale=rationale if rationale is not None else rationale_text(program, source_name),
+    )
 
     for week, day in program.sessions:
         exercises = [{
@@ -581,22 +575,9 @@ def write_program(conn, athlete_id: int, program: ParsedProgram, *, name: str, p
                 notes += f", avg {day.avg_intensity:g}%"
             if day.volume is not None:
                 notes += f", volume {day.volume}"
-        session_id = execute_returning(conn, """
-            INSERT INTO program_sessions
-                (program_id, week_number, day_number, session_label, estimated_duration_minutes, focus_area, notes)
-            VALUES (%s, %s, %s, %s, %s, %s, %s) RETURNING id
-        """, (program_id, week.number, day.number, (label_fn or session_label)(week, day),
-              _estimate_duration(exercises), focus_area(day), notes))
-        se_ids = []
-        for ex in exercises:
-            se_ids.append(execute_returning(conn, """
-                INSERT INTO session_exercises
-                    (session_id, exercise_order, exercise_id, exercise_name, sets, reps,
-                     intensity_pct, intensity_reference, absolute_weight_kg, is_max_attempt, notes)
-                VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, %s, %s) RETURNING id
-            """, (session_id, ex["exercise_order"], ex["exercise_id"], ex["exercise_name"], ex["sets"],
-                  ex["reps"], ex["intensity_pct"], ex["intensity_reference"], ex["absolute_weight_kg"],
-                  ex["is_max_attempt"], ex["notes"])))
+        session_id, se_ids = program_store.insert_session(
+            conn, program_id, week.number, day.number, label=(label_fn or session_label)(week, day),
+            focus_area=focus_area(day), exercises=exercises, notes=notes)
         if log_as_completed:
             log_id = execute_returning(conn, """
                 INSERT INTO training_logs (athlete_id, session_id, log_date)
@@ -668,7 +649,7 @@ def main(argv: list[str] | None = None) -> int:
     conn = get_connection(settings.database_url)
     try:
         if args.dry_run:
-            lookup = {r["name"].lower(): r["id"] for r in fetch_all(conn, "SELECT id, name FROM exercises")}
+            lookup = program_store.exercise_lookup(conn)
             print_dry_run(program, lookup)
             previous = find_previous_import(conn, args.athlete_id, source_name)
             if previous:
