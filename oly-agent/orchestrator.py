@@ -29,7 +29,7 @@ from explain import explain
 from generate import build_session_prompt, generate_session_with_retries
 from macrocycle import create_macrocycle, load_macrocycle, next_block_index, plan_blocks
 from macrocycle import macrocycle_weeks as macrocycle_weeks_for
-from models import AthleteContext, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
+from models import AthleteContext, BlockAnchor, ProgramPlan, RetrievalContext, SessionTemplate, WeekTarget
 from phase_profiles import PHASE_PROFILES
 from phase_profiles import wave_anchor_weeks as _wave_anchor_weeks
 from plan import plan
@@ -745,22 +745,6 @@ def _block_templates_from(week: _WeekOutcome) -> dict[int, str]:
     return out
 
 
-@dataclass(frozen=True)
-class _BlockAnchor:
-    """What one week's prompts are anchored on (AUD-4, DOG-2e): the anchor
-    week's same-day summaries, and whether this week opens a new wave (shown
-    the previous wave's anchor, asked to rotate variants). The default — no
-    templates — is week 1's."""
-    week: int = 1
-    templates: dict[int, str] = field(default_factory=dict)
-    new_wave: bool = False
-
-    def prompt_kwargs(self, day_number: int) -> dict:
-        """build_session_prompt's block-template arguments for this day."""
-        return {"block_template": self.templates.get(day_number),
-                "block_anchor_week": self.week, "new_wave": self.new_wave}
-
-
 def _waves(scheduled: list[tuple], anchors: dict[int, int]) -> list[list[tuple]]:
     """`scheduled` split into consecutive waves; each wave's first entry is
     its anchor week (scheduled is a (week, day)-ordered prefix of the plan)."""
@@ -860,7 +844,7 @@ def _run_weeks(g: _GenerationRun, conn, scheduled: list[tuple], concurrency: int
     week, so its remaining weeks match the ones already saved.
     """
     outcomes: list[_WeekOutcome] = []
-    head_anchor = _BlockAnchor()        # wave 1's first week has no template
+    head_anchor = BlockAnchor()        # wave 1's first week has no template
     targets = g.program_plan.weekly_targets
     anchors = (_wave_anchor_weeks(targets) if g.anchor_scheme == ANCHOR_SCHEME_WAVES
                else {wt.week_number: targets[0].week_number for wt in targets})
@@ -869,7 +853,7 @@ def _run_weeks(g: _GenerationRun, conn, scheduled: list[tuple], concurrency: int
             break
         (head, head_limit), rest = wave[0], wave[1:]
         outcomes.append(_generate_week(g, head, conn, head_limit, head_anchor))
-        anchor = _BlockAnchor(head.week_number, _block_templates_from(outcomes[-1]))
+        anchor = BlockAnchor(head.week_number, _block_templates_from(outcomes[-1]))
         if rest and not g.spend.stopped():
             if concurrency == 1 or len(rest) == 1:
                 for wt, limit in rest:
@@ -882,7 +866,7 @@ def _run_weeks(g: _GenerationRun, conn, scheduled: list[tuple], concurrency: int
     return outcomes
 
 
-def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], anchor: _BlockAnchor,
+def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], anchor: BlockAnchor,
                             concurrency: int) -> list["_WeekOutcome"]:
     """Weeks 2..N on a thread pool; sessions are saved here, on the main
     thread's connection, in (week, day) order. Re-raises the first worker error
@@ -935,7 +919,7 @@ def _run_weeks_concurrently(g: _GenerationRun, conn, rest: list[tuple], anchor: 
     return outcomes
 
 
-def _week_worker(g: _GenerationRun, week_target, day_limit: int, anchor: _BlockAnchor,
+def _week_worker(g: _GenerationRun, week_target, day_limit: int, anchor: BlockAnchor,
                  prefetched: dict[int, list[dict]]) -> "_WeekOutcome":
     # Own psycopg2 connection per worker — never share one
     # across threads. It carries only generation_log writes.
@@ -955,7 +939,7 @@ def _week_worker(g: _GenerationRun, week_target, day_limit: int, anchor: _BlockA
         worker_conn.close()
 
 
-def _generate_week(g: _GenerationRun, week_target, conn, day_limit: int, anchor: _BlockAnchor,
+def _generate_week(g: _GenerationRun, week_target, conn, day_limit: int, anchor: BlockAnchor,
                    prefetched: dict[int, list[dict]] | None = None, save: bool = True) -> "_WeekOutcome":
     """Generate one week's sessions in day order on `conn`.
 
@@ -1114,7 +1098,7 @@ def _resolve_session_exercises(g: _GenerationRun, exercises: list[dict], week_nu
 
 
 def _generate_session(g: _GenerationRun, conn, week_target, session_template, week: _WeekState,
-                      outcome: "_WeekOutcome", anchor: _BlockAnchor,
+                      outcome: "_WeekOutcome", anchor: BlockAnchor,
                       prefetched_chunks: list[dict] | None, save: bool) -> bool:
     """Prompt → guards → generate/validate → resolve → save one session.
 
@@ -1158,7 +1142,7 @@ def _generate_session(g: _GenerationRun, conn, week_target, session_template, we
         sessions_per_week=g.program_plan.sessions_per_week,
         active_principles=session_principles,
         context_chunks=session_chunks,
-        **anchor.prompt_kwargs(day_number),
+        block_anchor=anchor,
     )
 
     if not _admit_session(g, outcome, week_number, day_number):

@@ -26,6 +26,7 @@ from coach import coach_prompt_section
 from complexes import complex_line
 from models import (
     AthleteContext,
+    BlockAnchor,
     RetrievalContext,
     SessionTemplate,
     WeekTarget,
@@ -780,9 +781,7 @@ def build_session_prompt(
     sessions_per_week: int | None = None,
     active_principles: list[dict] | None = None,
     context_chunks: list[dict] | None = None,
-    block_template: str | None = None,
-    block_anchor_week: int = 1,
-    new_wave: bool = False,
+    block_anchor: BlockAnchor | None = None,
 ) -> str:
     """Assemble the full prompt for one session generation call.
 
@@ -790,14 +789,15 @@ def build_session_prompt(
     program) + PROMPT_STATIC_DYNAMIC_MARKER + the week/session sections, each
     built by its own `_*_section` helper and joined by a blank line (RAG-L3).
 
-    block_template is week 1's same-day session in compact form
-    (``orchestrator.summarize_block_template``), passed for weeks 2..N so
-    exercise selection stays consistent across the block (AUD-4). It is
-    week/session-level text, so it renders below PROMPT_STATIC_DYNAMIC_MARKER;
-    None (week 1) omits the section. block_anchor_week names the week it came
-    from — 1, or the first week after a mid-block deload for the rest of that
-    wave — and new_wave marks a post-deload wave's first week, which is shown
-    the previous anchor and asked to rotate variants (DOG-2e).
+    block_anchor (models.BlockAnchor) carries the anchor week's same-day
+    sessions in compact form (``orchestrator.summarize_block_template``),
+    passed for weeks 2..N so exercise selection stays consistent across the
+    block (AUD-4). It is week/session-level text, so it renders below
+    PROMPT_STATIC_DYNAMIC_MARKER; no anchor, or no template for this day,
+    omits the section. `week` names the week it came from — 1, or the first
+    week after a mid-block deload for the rest of that wave — and `new_wave`
+    marks a post-deload wave's first week, which is shown the previous anchor
+    and asked to rotate variants (DOG-2e).
 
     sessions_per_week is the PLAN's actual day count — the template
     distribution may have fallen back to a different frequency than the
@@ -836,8 +836,9 @@ def build_session_prompt(
         coach_prompt_section(getattr(athlete_context, "coach_note", None),
                              getattr(athlete_context, "coach_constraints", None)),
     ] if s)
-    block_section = _block_template_section(block_template, session_template.day_number,
-                                            block_anchor_week, new_wave).strip("\n")
+    anchor = block_anchor or BlockAnchor()
+    block_section = _block_template_section(anchor.templates.get(session_template.day_number),
+                                            session_template.day_number, anchor.week, anchor.new_wave).strip("\n")
     dynamic = "\n\n".join(s for s in [
         _program_plan_body(phase, week_number, duration_weeks, week_target,
                            _deload_rule(week_target, prefs["deload_style"])),
