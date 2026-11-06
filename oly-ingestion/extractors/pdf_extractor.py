@@ -318,47 +318,46 @@ class PDFExtractor:
         # The second-view calls are single synchronous requests, so the gate
         # runs for --batch documents too.
         self.last_ocr_report = None
-        if True:
-            from processors.ocr_quality import assess_pages, choose_view, garbled_ratio, resolve_views, summarize
-            texts = [pages.get(i, "") for i in range(n_pages)]
-            ink = [self._page_has_ink(doc, i) for i in range(n_pages)]
-            qualities = assess_pages(texts, ink)
-            suspects = [q for q in qualities if q.suspect]
-            if suspects:
-                logger.warning(f"Vision OCR: {len(suspects)} suspect page(s) after the group pass — "
-                               f"second view at {OCR_SECOND_VIEW_DPI} DPI: "
-                               f"{[(q.index + 1, q.reasons[0]) for q in suspects][:12]}")
-            verdicts: dict[int, str] = {}
-            for q in suspects:
-                second = self._gate_view(doc, cache, q.index, 1)
-                text, agreement, verdict = choose_view(texts[q.index], second)
-                if verdict == "disagree":
-                    # tie-break with a third independent view: keep the pair that agrees
-                    third = self._gate_view(doc, cache, q.index, 2)
-                    text, agreement, verdict = resolve_views([texts[q.index], second, third])
-                if verdict != "disagree" and self._ocr_postcorrect and garbled_ratio(text) > OCR_GARBLED_RATIO_MAX:
-                    text = self._postcorrect(text, q.index) or text
-                verdicts[q.index + 1] = f"{verdict} ({agreement:.2f})"
-                if text != texts[q.index]:
-                    pages[q.index] = text
-                    fresh.append((q.index, text))
-                    if cache is not None:
-                        cache.put(q.index, text)
-            report = summarize(qualities)
-            report["verdicts"] = verdicts
-            report["pages_refused"] = sorted(self.refused_pages)
-            report["pages_unresolved"] = sorted(
-                p for p, v in verdicts.items() if v.startswith("disagree") or not pages.get(p - 1, "").strip()
-            )
-            self.last_ocr_report = report
-            if cache is not None:                       # sits beside the page cache for ocr_audit.py
-                report_path = cache.path.with_suffix(".report.json")
-                report_path.write_text(json.dumps(report, indent=1), encoding="utf-8")
-            if report["pages_unresolved"]:
-                logger.error(f"Vision OCR: {len(report['pages_unresolved'])} page(s) unresolved after the second view "
-                             f"(blank or the views disagree) — check these in the scan: {report['pages_unresolved']}")
-            elif suspects:
-                logger.info(f"  Vision OCR: all {len(suspects)} suspect page(s) resolved by the second view")
+        from processors.ocr_quality import assess_pages, choose_view, garbled_ratio, resolve_views, summarize
+        texts = [pages.get(i, "") for i in range(n_pages)]
+        ink = [self._page_has_ink(doc, i) for i in range(n_pages)]
+        qualities = assess_pages(texts, ink)
+        suspects = [q for q in qualities if q.suspect]
+        if suspects:
+            logger.warning(f"Vision OCR: {len(suspects)} suspect page(s) after the group pass — "
+                           f"second view at {OCR_SECOND_VIEW_DPI} DPI: "
+                           f"{[(q.index + 1, q.reasons[0]) for q in suspects][:12]}")
+        verdicts: dict[int, str] = {}
+        for q in suspects:
+            second = self._gate_view(doc, cache, q.index, 1)
+            text, agreement, verdict = choose_view(texts[q.index], second)
+            if verdict == "disagree":
+                # tie-break with a third independent view: keep the pair that agrees
+                third = self._gate_view(doc, cache, q.index, 2)
+                text, agreement, verdict = resolve_views([texts[q.index], second, third])
+            if verdict != "disagree" and self._ocr_postcorrect and garbled_ratio(text) > OCR_GARBLED_RATIO_MAX:
+                text = self._postcorrect(text, q.index) or text
+            verdicts[q.index + 1] = f"{verdict} ({agreement:.2f})"
+            if text != texts[q.index]:
+                pages[q.index] = text
+                fresh.append((q.index, text))
+                if cache is not None:
+                    cache.put(q.index, text)
+        report = summarize(qualities)
+        report["verdicts"] = verdicts
+        report["pages_refused"] = sorted(self.refused_pages)
+        report["pages_unresolved"] = sorted(
+            p for p, v in verdicts.items() if v.startswith("disagree") or not pages.get(p - 1, "").strip()
+        )
+        self.last_ocr_report = report
+        if cache is not None:                       # sits beside the page cache for ocr_audit.py
+            report_path = cache.path.with_suffix(".report.json")
+            report_path.write_text(json.dumps(report, indent=1), encoding="utf-8")
+        if report["pages_unresolved"]:
+            logger.error(f"Vision OCR: {len(report['pages_unresolved'])} page(s) unresolved after the second view "
+                         f"(blank or the views disagree) — check these in the scan: {report['pages_unresolved']}")
+        elif suspects:
+            logger.info(f"  Vision OCR: all {len(suspects)} suspect page(s) resolved by the second view")
         if cache is not None and fresh:
             cache.save()
             logger.info(f"  OCR cache: {len(cache)} page(s) stored at {cache.path}")

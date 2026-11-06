@@ -35,19 +35,6 @@ def _prompt(label: str, default=None, cast=str) -> str | None:
         return default
 
 
-def _prompt_required(label: str, cast=str):
-    """Prompt user until a non-empty value is entered."""
-    while True:
-        raw = input(f"  {label}: ").strip()
-        if raw:
-            try:
-                return cast(raw)
-            except (ValueError, TypeError):
-                print("    Invalid input, try again.")
-        else:
-            print("    This field is required.")
-
-
 def _fmt_date(d) -> str:
     if isinstance(d, (date, datetime)):
         return d.strftime("%Y-%m-%d")
