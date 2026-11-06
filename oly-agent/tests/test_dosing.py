@@ -7,7 +7,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from dosing import dose_session
-from phase_profiles import classic_reps_range
+from phase_profiles import classic_reps_range, variant_reps_range
 
 
 def _week(**kw):
@@ -63,11 +63,11 @@ def test_warm_ups_below_the_floor_are_left_alone():
     assert (exs[0]["sets"], exs[0]["reps"]) == (2, 5) and edits == []
 
 
-def test_sets_grow_to_the_session_target_on_the_primary_lift_first():
+def test_sets_grow_to_the_session_target_primary_lift_first_on_ties():
     exs = [_ex("Snatch", 2, 3, 65, order=1), _ex("Power Snatch", 2, 3, 65, order=2)]
     _, edits = dose_session(exs, _week(), session_rep_target=24)
     total = sum(e["sets"] * e["reps"] for e in exs)
-    assert 21 <= total <= 27 and exs[0]["sets"] > exs[1]["sets"]
+    assert 21 <= total <= 27 and exs[0]["sets"] >= exs[1]["sets"] and exs[0]["sets"] > 2
     assert any("sets (session target 24" in e for e in edits)
 
 
@@ -104,3 +104,39 @@ def test_classic_reps_range_by_athlete():
     assert classic_reps_range("general_prep", [4, 6], "beginner", True) == [2, 3]
     assert classic_reps_range("realization", [1, 2], "advanced", False) == [1, 2]
     assert classic_reps_range("accumulation", [1, 2], "intermediate", False) == [2, 2]   # never above the week
+
+
+def test_variants_take_their_own_range_and_are_not_raised_to_the_weeks():
+    """DOSE-1a: program 57 raised Hang Power Snatch / Push Jerk 2–3 to 4 (the
+    week's 4–6); variants now have VARIANT_LIFT_REPS_PER_SET."""
+    exs = [_ex("Hang Power Snatch", 4, 2, 65, order=1), _ex("Push Jerk", 4, 3, 65, ref="clean_and_jerk", order=2),
+           _ex("Power Clean", 3, 5, 65, ref="clean", order=3)]
+    _, edits = dose_session(exs, _week(variant_reps_per_set_range=[2, 3]), session_rep_target=None)
+    assert [e["reps"] for e in exs] == [2, 3, 3]
+    assert edits[0] == "Power Clean: 3×5 @ 65% → 3×3 @ 65% (variant range 2–3)"
+
+
+def test_variant_reps_range_by_athlete_and_phase():
+    assert variant_reps_range("general_prep", [4, 6], "beginner", False) is None    # learning: the week's range
+    assert variant_reps_range("general_prep", [4, 6], "intermediate", False) == [2, 3]
+    assert variant_reps_range("intensification", [1, 3], "advanced", False) == [1, 3]
+    assert variant_reps_range("realization", [1, 2], "advanced", False) == [1, 2]
+
+
+def test_added_sets_spread_across_the_sessions_lifts():
+    """DOSE-1b: growth used to pile every added set onto the first row."""
+    exs = [_ex("Clean & Jerk", 3, 2, 65, ref="clean_and_jerk", order=1),
+           _ex("Power Clean", 3, 2, 65, ref="clean", order=2)]
+    dose_session(exs, _week(variant_reps_per_set_range=[2, 3]), session_rep_target=24)
+    assert [e["sets"] for e in exs] == [6, 5] or [e["sets"] for e in exs] == [6, 6]
+    assert abs(exs[0]["sets"] - exs[1]["sets"]) <= 1
+
+
+def test_deload_sessions_are_never_filled_up_to_the_target():
+    """DOSE-1b: program 57's deload days became Clean & Jerk 3 → 8 sets."""
+    exs = [_ex("Clean & Jerk", 3, 2, 65, ref="clean_and_jerk")]
+    _, edits = dose_session(exs, _week(is_deload=True, intensity_floor=55), session_rep_target=16)
+    assert exs[0]["sets"] == 3 and edits == []
+    over = [_ex("Snatch", 9, 2, 65)]
+    dose_session(over, _week(is_deload=True, intensity_floor=55), session_rep_target=10)
+    assert over[0]["sets"] * 2 <= 11                      # still trimmed down to the target

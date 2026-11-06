@@ -61,6 +61,10 @@ class WeekTarget:
     # Reps per set on the full classic lifts (CLASSIC_LIFT_NAMES); None = the
     # week's range applies to them too (a beginner learning the lifts).
     classic_reps_per_set_range: list[int] | None = None
+    # Reps per set on their power / hang / block / muscle / pause variants
+    # (VARIANT_LIFT_REPS_PER_SET, DOSE-1a); None = the week's range applies
+    # (a beginner learning the lifts, or a snapshot from before DOSE-1a).
+    variant_reps_per_set_range: list[int] | None = None
 
 
 @dataclass

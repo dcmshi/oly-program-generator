@@ -10,13 +10,14 @@ only what breaks the plan, so a session that already fits comes back unchanged:
      intensity ceiling come down to it.
   2. Working sets (at or above the week's floor) get reps per set inside the
      range — the full classic lifts use `classic_reps_per_set_range` (C&J
-     ≤ CLEAN_AND_JERK_MAX_REPS), variants the week's range — and inside
+     ≤ CLEAN_AND_JERK_MAX_REPS), their variants `variant_reps_per_set_range`
+     (DOSE-1a; the week's range when the plan set none) — and inside
      Prilepin's per-set limit for the load's zone. Complexes keep their scheme.
   3. Sets are scaled so the session's competition-lift reps land within
      DOSING_VOLUME_TOLERANCE of the session target (removed from the rows with
-     the most sets first, added to the first working row first, never past
-     DOSING_MAX_SETS), then trimmed until no Prilepin zone exceeds its range
-     (Prilepin table only).
+     the most sets first, added to the rows with the fewest sets first, never
+     past DOSING_MAX_SETS, never added on a deload week — DOSE-1b), then
+     trimmed until no Prilepin zone exceeds its range (Prilepin table only).
   4. Squats and pulls above the warm-up cutoff move into the week's
      strength-curve band (load and reps).
   5. Any load change moves the RPE by DOSING_RPE_PER_PCT per % (half-point
@@ -104,6 +105,7 @@ def dose_session(exercises: list[dict], week_target: dict, session_rep_target: i
     floor = week_target.get("intensity_floor") or 0
     week_reps = week_target.get("reps_per_set_range") or [1, 6]
     classic_reps = week_target.get("classic_reps_per_set_range") or week_reps
+    variant_reps = week_target.get("variant_reps_per_set_range") or week_reps
 
     for ex in exercises:
         name = ex.get("exercise_name") or "exercise"
@@ -120,7 +122,7 @@ def dose_session(exercises: list[dict], week_target: dict, session_rep_target: i
             # 2. reps per set on working sets (complexes keep their scheme)
             if pct is not None and pct >= floor and not ex.get("complex"):
                 classic = is_classic_lift(name)
-                lo, hi = classic_reps if classic else week_reps
+                lo, hi = classic_reps if classic else variant_reps
                 if classic and name.strip().lower() == "clean & jerk":
                     hi = min(hi, CLEAN_AND_JERK_MAX_REPS)
                 cap = _prilepin_rep_cap(pct)
@@ -131,7 +133,7 @@ def dose_session(exercises: list[dict], week_target: dict, session_rep_target: i
                 fitted = min(max(reps, lo), hi)
                 if fitted != reps:
                     ex["reps"] = fitted
-                    reasons.append(f"{'classic-lift' if classic else 'reps'} range {lo}–{hi}")
+                    reasons.append(f"{'classic-lift' if classic else 'variant'} range {lo}–{hi}")
         else:
             # 4. squats and pulls into the strength band
             cat = strength_category(ex)
@@ -176,18 +178,18 @@ def _fit_session_volume(exercises: list[dict], week_target: dict, target: int | 
             # most sets first; among equals the latest row, so the primary lift keeps its work
             pick = max(cands, key=lambda ex: (_int(ex.get("sets"), 1), exercises.index(ex)))
             pick["sets"] = _int(pick.get("sets"), 1) - 1
-        while total() < lo:
-            grew = False
-            for ex in adjustable:          # session order: the first working row is the primary lift
-                if _int(ex.get("sets"), 1) >= DOSING_MAX_SETS:
-                    continue
-                if total() + comp_reps_per_set(ex) > hi:
-                    continue
-                ex["sets"] = _int(ex.get("sets"), 1) + 1
-                grew = True
+        # A deload is never filled up to its target (DOSE-1b): a short deload
+        # session is still a deload, and growing one row to reach the target
+        # turned a deload C&J 3×2 into 8×2.
+        while not week_target.get("is_deload") and total() < lo:
+            cands = [ex for ex in adjustable
+                     if _int(ex.get("sets"), 1) < DOSING_MAX_SETS and total() + comp_reps_per_set(ex) <= hi]
+            if not cands:
                 break
-            if not grew:
-                break
+            # fewest sets first, so added sets spread across the session's lifts
+            # (DOSE-1b); among equals the earliest row, the primary lift
+            pick = min(cands, key=lambda ex: (_int(ex.get("sets"), 1), exercises.index(ex)))
+            pick["sets"] = _int(pick.get("sets"), 1) + 1
 
     if (week_target.get("volume_table") or "prilepin") == "prilepin":
         zones: dict[str, list[dict]] = {}

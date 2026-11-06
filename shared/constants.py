@@ -140,7 +140,21 @@ BLOCK_WAVE_STEP_PCT: int = 2
 CLASSIC_LIFT_REPS_PER_SET: dict[str, tuple[int, int]] = {
     "general_prep": (2, 3), "accumulation": (2, 3), "intensification": (1, 3), "realization": (1, 2),
 }
-CLEAN_AND_JERK_MAX_REPS: int = 2          # a C&J rep is a clean plus a jerk; the catalogue row is 1–2
+# Reps per set on the competition-lift variants (power, hang, block, riser,
+# muscle, pause — everything counts_as_competition_lift that is not a classic
+# lift), DOSE-1a. Everett: power snatch / clean / jerk, hang snatch / clean,
+# block power snatch / clean, riser lifts and squat jerk "1-3 reps" (chunks
+# 4684 / 4738 / 4752 / 4680 / 4733 / 4698 / 4720 / 4759, principles [369] /
+# [380]), "generally 2-3 reps at submaximal weights … as it's more of a
+# technical exercise" (4685 / 4738) → 2–3 in the submaximal phases, 1–3 when
+# maximal singles are in play. Tapering for Olympic Weightlifting Competition
+# (7893 / 7894, [1997]): power variants as singles in the taper → 1–2 in
+# realization. Same numbers as the classic table, separate sources; a
+# beginner without olympic_lifting_experience keeps the week's range here too.
+VARIANT_LIFT_REPS_PER_SET: dict[str, tuple[int, int]] = {
+    "general_prep": (2, 3), "accumulation": (2, 3), "intensification": (1, 3), "realization": (1, 2),
+}
+CLEAN_AND_JERK_MAX_REPS: int = 2         # a C&J rep is a clean plus a jerk; the catalogue row is 1–2
 DOSING_VOLUME_TOLERANCE: float = 0.15     # session comp reps within ±15 % of the target are left alone
 DOSING_MAX_SETS: int = 8                  # sets added to reach the target stop here (catalogue max for the lifts)
 DOSING_RPE_PER_PCT: float = 0.1           # RPE moves 0.1 per % of load the dosing pass changes
