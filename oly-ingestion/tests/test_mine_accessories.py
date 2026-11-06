@@ -19,10 +19,12 @@ from mine_accessories import (
     aggregate,
     build_prompt,
     category_for,
+    confirm_with_library,
     display_name,
     insertable,
     named_in_text,
     normalize_name,
+    parse_library_page,
     parse_reply,
 )
 
@@ -195,3 +197,48 @@ def test_full_run_review_findings():
     report = {"mentions": {"1": one[1]}, "chunk_sources": {"1": [7]}}
     (cand,) = reaggregate(report, ["Split Squat"])
     assert cand["in_catalogue"] and cand["primary_source_id"] == 7
+
+
+def test_straight_legged_deadlift_is_the_stiff_leg_twin():
+    assert normalize_name("Straight-legged Deadlift") == normalize_name("Stiff-Leg Deadlift")
+
+
+def test_parse_library_page_reads_names_from_link_slugs():
+    html = ('<a href="/exercise/515/Farmer-Carry/"><img src="x.jpg"></a>'
+            '<a href="/exercise/515/Farmer-Carry/">again</a>'
+            '<a href="/exercise/888/Single-Arm-Dumbbell-Overhead-Carry/"><img></a>'
+            '<a href="/exercises/section/19/Carries/">Carries</a>')
+    assert parse_library_page(html) == ["Farmer Carry", "Single Arm Dumbbell Overhead Carry"]
+
+
+def _cand(name, family, sources=6):
+    return {"key": normalize_name(name), "name": name, "movement_family": family, "sources": sources,
+            "in_catalogue": False, "counts_as_lift": False, "needs_machine": False}
+
+
+def test_confirm_with_library_matches_renames_and_fixes_families():
+    library = {normalize_name(n): {"name": n, "section": s} for n, s in (
+        ("Lunge", "Accessory-LowerWhole-Body"), ("Barbell Upright Row", "Accessory-Upper-Body"),
+        ("Dumbbell Press", "Accessory-Upper-Body"), ("Back Squat Jump", "Jumping-Plyometrics"),
+        ("Dumbbell Curl", "Accessory-Upper-Body"), ("Hamstring Curl", "Accessory-LowerWhole-Body"),
+    )}
+    cands = {c["key"]: c for c in confirm_with_library([
+        _cand("Lunge", "squat"), _cand("Upright Row", "row"), _cand("DB Press", "press"),
+        _cand("Back Squat Jump", "squat"), _cand("Dumbbell Curl", "pull"),
+        _cand("Hamstring Curl", "hinge"), _cand("Seated Press", "press"),
+    ], library)}
+    lunge = cands["lunge"]
+    assert (lunge["library_name"], lunge["name"], lunge["movement_family"]) == ("Lunge", "Lunge", "squat")
+    assert cands["upright row"]["name"] == "Barbell Upright Row"           # only the barbell variant is listed
+    assert cands["dumbbell press"]["name"] == "Dumbbell Press"             # "DB" spelled out
+    assert cands["back squat jump"]["movement_family"] == "plyometric"     # not squat strength work
+    assert cands["dumbbell curl"]["movement_family"] == "row"              # upper-body accessory, not a pull
+    assert cands["hamstring curl"]["movement_family"] == "hinge"
+    assert cands["seated press"]["library_name"] is None
+
+
+def test_insertable_after_a_library_check_needs_the_library():
+    listed = {**_cand("Nordic Curl", "hinge", sources=2), "library_name": "Nordic Curl"}
+    unlisted = {**_cand("Seated Press", "press", sources=9), "library_name": None}
+    assert insertable([listed, unlisted], min_sources=2, library_checked=True) == [listed]
+    assert insertable([listed, unlisted], min_sources=2) == [listed, unlisted]

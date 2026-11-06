@@ -457,6 +457,11 @@ RELABEL_MAX_TOKENS: int = 1024
 # only when this many distinct sources name it, the same bar migration 0023
 # used for its hand-picked rows.
 ACCESSORY_MINE_MIN_SOURCES: int = 6
+# With `--catalyst` a candidate must also be in Catalyst Athletics' exercise
+# library, which stands in for the hand review, so two corpus sources are
+# enough (2026-11-05: Reverse Hyper, Nordic Curl, Kettlebell Swing … are
+# named in 2–5 sources).
+ACCESSORY_MINE_MIN_SOURCES_CONFIRMED: int = 2
 ACCESSORY_MINE_MIN_PRESCRIPTIONS: int = 2      # mentions with sets/reps before a typical value is set
 ACCESSORY_MINE_PASSAGES_PER_CALL: int = 5     # amortises the ≈2.4k-token schema overhead
 ACCESSORY_MINE_PASSAGE_CHARS: int = 4000      # chunk median ≈ 3.8k chars

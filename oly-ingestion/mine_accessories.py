@@ -31,8 +31,17 @@ back". This script reads that prose:
    Inserted ids are written to the report, along with the raw mentions, so
    `--from-report` can re-aggregate under changed rules without new calls.
 
+6. `--catalyst`: Catalyst Athletics' exercise library stands in for the hand
+   review. Its 7 accessory sections are read through the polite fetcher's
+   page cache. Only candidates the library lists are inserted, and
+   `--min-sources` then defaults to ACCESSORY_MINE_MIN_SOURCES_CONFIRMED (2).
+   A name listed only as "Barbell <name>" or abbreviated ("DB Press") takes
+   the library's name. The library section corrects the family: jumps →
+   plyometric, carries → carry, upper-body pulls (curls) → row. That keeps
+   "Back Squat Jump" out of squat strength work.
+
 New sources then reach the generator with no migration: re-run after an ingest
-with `--resume` off and `--apply`.
+with `--resume` off and `--apply --catalyst`.
 
 The extraction pays per call and is resumable (RESUME-1): finished batches go
 to `<out>.partial.jsonl`; `--resume` skips them.
@@ -45,6 +54,8 @@ Usage (from oly-ingestion/):
                                                                           # re-aggregate under the current rules
     PYTHONUTF8=1 uv run python mine_accessories.py --from-report logs/accessory_candidates.json --apply
                                                                           # …and insert; no LLM calls either way
+    PYTHONUTF8=1 uv run python mine_accessories.py --from-report logs/accessory_candidates.json --catalyst --apply
+                                                                          # the 2026-11-05 run: ≥ 2 sources + in Catalyst's library
 Cost (2026-11-05): ~1,950 prefiltered chunks / 5 per call ≈ 390 calls; under
 $1 on deepseek/deepseek-v4.1-flash.
 """
@@ -69,6 +80,7 @@ from shared.constants import (  # noqa: E402
     ACCESSORY_MINE_MAX_TOKENS,
     ACCESSORY_MINE_MIN_PRESCRIPTIONS,
     ACCESSORY_MINE_MIN_SOURCES,
+    ACCESSORY_MINE_MIN_SOURCES_CONFIRMED,
     ACCESSORY_MINE_PASSAGE_CHARS,
     ACCESSORY_MINE_PASSAGES_PER_CALL,
 )
@@ -180,7 +192,7 @@ _SYNONYMS: tuple[tuple[str, str], ...] = (
     (r"\b(military|overhead|standing) press\b", "strict press"),
     (r"\bbtn\b", "behind the neck"),
     (r"\bpress(es)? behind (the )?neck\b", "behind the neck press"),
-    (r"\bstiff legged\b", "stiff leg"),
+    (r"\b(stiff|straight) legged\b", "stiff leg"),
     (r"\bbent (over )?rows?\b", "barbell row"),
     (r"\bincline bench press\b", "incline press"),
     (r"\bdead lifts?\b", "deadlift"),
@@ -391,12 +403,88 @@ def aggregate(mentions_by_chunk: dict[int, list[dict]], chunk_sources: dict[int,
     return candidates
 
 
-def insertable(candidates: list[dict], min_sources: int = ACCESSORY_MINE_MIN_SOURCES) -> list[dict]:
+def insertable(candidates: list[dict], min_sources: int = ACCESSORY_MINE_MIN_SOURCES,
+               library_checked: bool = False) -> list[dict]:
     """Candidates `--apply` inserts: enough sources, not in the catalogue, not
-    a lift, no machine."""
+    a lift, no machine. After a library check (`confirm_with_library`) a
+    candidate must also be in Catalyst's library, whatever its source count."""
     return [c for c in candidates
             if c["sources"] >= min_sources and not c["in_catalogue"] and not c["counts_as_lift"]
-            and not c.get("needs_machine")]
+            and not c.get("needs_machine") and (not library_checked or c.get("library_name"))]
+
+
+# ── Catalyst exercise library (the `--catalyst` check) ────────────────────────
+
+CATALYST_LIBRARY_URL = "https://www.catalystathletics.com/exercises/section/{id}/{slug}/"
+# The accessory sections; Snatch / Clean / Jerk Exercises (8–10) are the lifts.
+CATALYST_ACCESSORY_SECTIONS: dict[int, str] = {
+    11: "General-Exercises", 12: "Trunk-Ab-Back", 13: "Accessory-LowerWhole-Body",
+    16: "Jumping-Plyometrics", 17: "Accessory-Upper-Body", 18: "Accessory-Prep-Prehab",
+    19: "Carries",
+}
+# Catalyst's section overrides the voted family where the vote would put an
+# accessory in a lift-support family: "Back Squat Jump" voted squat (dosing
+# and the strength curve treat squats as strength work), "Dumbbell Curl"
+# voted pull.
+_SECTION_FAMILY = {"Jumping-Plyometrics": "plyometric", "Carries": "carry"}
+_UPPER_BODY_PULL_FAMILY = "row"
+_EXERCISE_LINK_RE = re.compile(r"/exercise/\d+/([^/\"'?#]+)/")
+_ABBREVIATION_RE = re.compile(r"\b(db|bb|kb)\b", re.I)
+
+
+def parse_library_page(html: str) -> list[str]:
+    """Exercise names on one library section page, from the link slugs (the
+    links wrap thumbnails, so they have no text)."""
+    names = []
+    for slug in _EXERCISE_LINK_RE.findall(html):
+        name = slug.replace("-", " ").strip()
+        if name and name not in names:
+            names.append(name)
+    return names
+
+
+def fetch_catalyst_library() -> dict[str, dict]:
+    """{normalised key: {"name", "section"}} over the accessory sections, read
+    through the polite fetcher's page cache (WEB-POLITE: robots.txt, ≥ 3 s per
+    host, one request per page ever). Any section that fails stops the run, so
+    a partial library never decides an insert."""
+    import ingest_web
+
+    ingest_web.configure_web_fetching()
+    library: dict[str, dict] = {}
+    for sid, slug in CATALYST_ACCESSORY_SECTIONS.items():
+        url = CATALYST_LIBRARY_URL.format(id=sid, slug=slug)
+        resp, _permanent = ingest_web._get_with_retry(url, cache=True)
+        if resp is None:
+            raise SystemExit(f"Catalyst library section {slug} could not be read — not applying")
+        for name in parse_library_page(resp.text):
+            library.setdefault(normalize_name(name), {"name": name, "section": slug})
+    logger.info(f"Catalyst library: {len(library)} accessory exercises")
+    return library
+
+
+def confirm_with_library(candidates: list[dict], library: dict[str, dict]) -> list[dict]:
+    """Mark each candidate the library lists (`library_name`, `library_section`).
+    A name the library only has as "Barbell <name>" matches that row and takes
+    its name, as does an abbreviated name ("DB Press" → "Dumbbell Press");
+    the section corrects the family (`_SECTION_FAMILY`, upper-body pulls → row)."""
+    for c in candidates:
+        hit = library.get(c["key"])
+        renamed = False
+        if hit is None and (hit := library.get(f"barbell {c['key']}")):
+            renamed = True
+        c["library_name"] = hit["name"] if hit else None
+        c["library_section"] = hit["section"] if hit else None
+        if not hit:
+            continue
+        if renamed or _ABBREVIATION_RE.search(c["name"]):
+            c["name"] = hit["name"]
+        family = _SECTION_FAMILY.get(hit["section"])
+        if family is None and hit["section"] == "Accessory-Upper-Body" and c["movement_family"] == "pull":
+            family = _UPPER_BODY_PULL_FAMILY
+        if family:
+            c["movement_family"] = family
+    return candidates
 
 
 def category_for(family: str) -> str:
@@ -458,10 +546,10 @@ def _extract_batch(client, model: str, batch: list[tuple]) -> tuple[dict[int, li
     return {batch[i - 1][0]: mentions for i, mentions in by_index.items()}, cost
 
 
-def _apply(conn, candidates: list[dict], min_sources: int) -> list[dict]:
+def _apply(conn, candidates: list[dict], min_sources: int, library_checked: bool = False) -> list[dict]:
     inserted = []
     with conn.cursor() as cur:
-        for c in insertable(candidates, min_sources):
+        for c in insertable(candidates, min_sources, library_checked):
             (sets_lo, sets_hi), (reps_lo, reps_hi) = c["sets"], c["reps"]
             cur.execute(
                 """
@@ -484,7 +572,7 @@ def _apply(conn, candidates: list[dict], min_sources: int) -> list[dict]:
 
 
 def mine(*, out: Path, model: str | None, source_id: int | None, limit: int, resume: bool,
-         concurrency: int, apply: bool, min_sources: int) -> dict:
+         concurrency: int, apply: bool, min_sources: int, catalyst: bool = False) -> dict:
     import psycopg2
     from config import Settings
 
@@ -534,10 +622,13 @@ def mine(*, out: Path, model: str | None, source_id: int | None, limit: int, res
                 mentions_by_chunk[int(cid)] = ms
         chunk_sources = {cid: srcs for cid, _t, srcs in chunks}
         candidates = aggregate(mentions_by_chunk, chunk_sources, _catalogue_names(conn))
+        if catalyst:
+            confirm_with_library(candidates, fetch_catalyst_library())
         report = {
             "generated_at": datetime.now(UTC).isoformat(timespec="seconds"),
             "model": model, "chunks": len(chunks), "calls": len(batches), "failed_calls": failed,
             "cost_usd": round(cost, 4), "min_sources": min_sources, "candidates": candidates,
+            "library_checked": catalyst,
             # kept so `--from-report` re-aggregates under the current rules without new calls
             "mentions": {str(k): v for k, v in mentions_by_chunk.items()},
             "chunk_sources": {str(k): v for k, v in chunk_sources.items()},
@@ -545,7 +636,7 @@ def mine(*, out: Path, model: str | None, source_id: int | None, limit: int, res
         if failed:
             logger.warning(f"{failed} call(s) failed — re-run with --resume before applying")
         elif apply:
-            report["inserted"] = _apply(conn, candidates, min_sources)
+            report["inserted"] = _apply(conn, candidates, min_sources, catalyst)
         _write_report(out, report)
         if not failed:
             checkpoint.finish()
@@ -557,10 +648,12 @@ def mine(*, out: Path, model: str | None, source_id: int | None, limit: int, res
 def _write_report(out: Path, report: dict) -> None:
     out.parent.mkdir(parents=True, exist_ok=True)
     out.write_text(json.dumps(report, indent=2, ensure_ascii=False), encoding="utf-8")
-    new = insertable(report["candidates"], report["min_sources"])
+    checked = report.get("library_checked", False)
+    new = insertable(report["candidates"], report["min_sources"], checked)
     print(f"\n{len(report['candidates'])} candidates from {report['chunks']} chunks "
           f"({report['calls']} calls, ${report['cost_usd']:.2f}) → {out}")
-    print(f"Named in ≥ {report['min_sources']} sources and not in the catalogue ({len(new)}):")
+    print(f"Named in ≥ {report['min_sources']} sources, not in the catalogue"
+          f"{', in the Catalyst library' if checked else ''} ({len(new)}):")
     for c in new:
         print(f"  {c['name']:32s} {c['movement_family']:10s} {c['sources']:3d} sources  "
               f"sets {c['sets']} reps {c['reps']}")
@@ -568,20 +661,25 @@ def _write_report(out: Path, report: dict) -> None:
         print(f"Inserted {len(report['inserted'])}: {[r['name'] for r in report['inserted']]}")
 
 
-def apply_report(path: Path, min_sources: int | None, apply: bool = True) -> dict:
+def apply_report(path: Path, min_sources: int | None, apply: bool = True, catalyst: bool = False) -> dict:
     import psycopg2
     from config import Settings
 
     report = json.loads(path.read_text(encoding="utf-8"))
     if min_sources is not None:
         report["min_sources"] = min_sources
+    elif catalyst:
+        report["min_sources"] = ACCESSORY_MINE_MIN_SOURCES_CONFIRMED
+    report["library_checked"] = catalyst
     conn = psycopg2.connect(Settings().database_url)
     try:
         # Re-aggregate from the stored mentions under the current rules and the
         # current catalogue (it may have grown since the report).
         report["candidates"] = reaggregate(report, _catalogue_names(conn))
+        if catalyst:
+            confirm_with_library(report["candidates"], fetch_catalyst_library())
         if apply:
-            report["inserted"] = _apply(conn, report["candidates"], report["min_sources"])
+            report["inserted"] = _apply(conn, report["candidates"], report["min_sources"], catalyst)
     finally:
         conn.close()
     _write_report(path, report)
@@ -613,10 +711,15 @@ if __name__ == "__main__":
     parser.add_argument("--from-report", type=Path,
                         help="Re-aggregate an existing report under the current rules (no LLM calls); "
                              "with --apply, insert")
+    parser.add_argument("--catalyst", action="store_true",
+                        help="Insert only candidates Catalyst's exercise library also lists (7 cached pages); "
+                             f"--min-sources then defaults to {ACCESSORY_MINE_MIN_SOURCES_CONFIRMED}")
     args = parser.parse_args()
     if args.from_report:
-        apply_report(args.from_report, args.min_sources, apply=args.apply)
+        apply_report(args.from_report, args.min_sources, apply=args.apply, catalyst=args.catalyst)
     else:
         mine(out=args.out, model=args.model, source_id=args.source_id, limit=args.limit, resume=args.resume,
              concurrency=args.concurrency, apply=args.apply,
-             min_sources=args.min_sources or ACCESSORY_MINE_MIN_SOURCES)
+             min_sources=args.min_sources or (ACCESSORY_MINE_MIN_SOURCES_CONFIRMED if args.catalyst
+                                              else ACCESSORY_MINE_MIN_SOURCES),
+             catalyst=args.catalyst)
