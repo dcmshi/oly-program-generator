@@ -52,6 +52,15 @@ Athlete 4 (Rich, coach-managed under `dshi`): beginner, 35, ~80 kg, no tested ma
   - non-deload comp reps vs target: the model's |Δ| 4.6 / 4.2 reps, 6/18 within tolerance in both; dosed |Δ| 1.3 and 18/18 in both; 0/6 deload sessions over target in both.
 
   So the model still misses the session target two times out of three, and dosing closes it. RETRY-1 didn't fire: no session needed a retry.
+- [ ] **DOG-2r — Soviet fraction-notation tables reach the prompt unreadable.**
+  - **What happens:** chunk 12831 (Roman, *The Training of the Weightlifter*, `programming_rationale`) was in 16 of program 58's 24 session prompts. It renders as "32.5 (55) / ——— 1 / 4": weight (% of max) over reps, then sets, with the max in parentheses at the end. Each number sits on its own line and about half the chunk is digits, dashes and whitespace.
+  - **Why it gets through:** the chunk explains its own notation. Its Jev junk score is 0.09, so quarantine rightly keeps it, but the model gets a 1.5k-char excerpt it can barely use.
+  - **Scope:** 7 unquarantined chunks contain the `———` fraction bar, 6 of 150 in Roman's book and 1 of 230 in *Weightlifting, Olympic Style*.
+  - **Options:**
+    - rewrite the notation as "32.5 kg (55 %) × 1 rep × 4 sets" at ingest and re-embed those chunks (a `processors/` normaliser, run once over the 7);
+    - or have `focused_excerpt` drop fraction-bar lines.
+
+    Rewriting keeps the information. Re-run `build_golden --extend` if they're re-embedded.
 - [x] ✅ 2026-11-06 **DOSE-1d — deload session targets can't be reached.** On a deload week the Session Template now says "Competition lift reps this session: at most N (deload week — fewer is fine; never add sets to reach it)". That matches what dosing does since DOSE-1b, which only ever trims a deload. The number is unchanged, so the validator's upper bound and the weekly budget are too. `eval/dosing_report` reads both wordings. The deload golden prompts (minimal, rich) changed by that one line.
   Was: Program 58's deload sessions were given targets of 11–18 comp reps but dosed to 0–9, because the deload prompt caps comp lifts at 3 sets and rows at or below the warm-up band (`WARMUP_VOLUME_EXCLUSION_PCT`, 60 %) don't count. Since DOSE-1b the target is only a ceiling on deloads, but the prompt still states it as a target. Either compute deload targets from the rows that count, or word it as a maximum on deload weeks.
 
