@@ -384,7 +384,9 @@ oly-program-generator/
 │   │   ├── classifier.py            # Heuristic (+ LLM / Jev) section routing
 │   │   ├── sectioning.py            # Section splitting, capping and fragment merging before classification
 │   │   ├── section_processor.py     # Per-section routing shared by both entry points
-│   │   ├── chunker.py               # Profile-aware chunking, SOURCE_PROFILE_MAP, topic tagging
+│   │   ├── chunker.py               # Profile-aware chunking, keep-together patterns, validate_chunk
+│   │   ├── source_profiles.py       # Chunk-size profiles + SOURCE_PROFILE_MAP (title → profile)
+│   │   ├── topic_tags.py            # KEYWORD_TO_TOPIC + keyword_tag (re-run retag_chunks.py after edits)
 │   │   ├── tokens.py                # tiktoken token counting
 │   │   ├── rep_notation.py          # Roman's fraction notation → `W kg (P%) × R reps × S sets` (DOG-2r)
 │   │   ├── contextualizer.py        # --contextualize retrieval-context prefixes

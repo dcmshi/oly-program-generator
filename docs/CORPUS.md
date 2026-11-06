@@ -29,7 +29,7 @@ a `context_prefix`.
 ## Ingested Sources
 
 Listed in ingestion order. `source_id` is the row in `sources`; the profile is
-the `SOURCE_PROFILE_MAP` entry in `processors/chunker.py` that controls chunk
+the `SOURCE_PROFILE_MAP` entry in `processors/source_profiles.py` that controls chunk
 size.
 
 | # | Source | Format | `source_id` | Profile | Chunks | Principles |
@@ -303,7 +303,7 @@ under-counted numeric notation ~5×, so re-ingested sources will report differen
 chunk counts even before the RAG-H1 page-join effect.
 
 **Always add a new source title to `SOURCE_PROFILE_MAP` in
-`oly-ingestion/processors/chunker.py` before ingesting it.** Matching is by
+`oly-ingestion/processors/source_profiles.py` before ingesting it.** Matching is by
 substring against the source title; an unrecognised title silently falls back to
 the `programming` profile (900 tokens).
 

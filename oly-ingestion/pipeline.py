@@ -55,7 +55,7 @@ logger = logging.getLogger(__name__)
 # Maps chunk_type enum values to keyword signals used to infer them from section content.
 # Checked in order — first match wins. Extend this dict when adding new sources or
 # noticing systematic mis-classification in the retrieval eval.
-# Mirrors the pattern of KEYWORD_TO_TOPIC in processors/chunker.py.
+# Mirrors the pattern of KEYWORD_TO_TOPIC in processors/topic_tags.py.
 # Movement family inference for exercise descriptions is
 # shared.exercise_mapping.infer_movement_family (MOVEMENT_FAMILY_PATTERNS):
 # the accessory families (hinge / row / core / carry / plyometric, DOG-2g)
