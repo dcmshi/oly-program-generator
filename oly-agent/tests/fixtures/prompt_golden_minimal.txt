@@ -50,7 +50,7 @@ Deload week: YES — reduce all loads; do NOT exceed 3 sets or 3 reps per set on
 ## Session Template
 Day 1: Snatch + Squat
 Primary movement: snatch
-Target competition lift reps this session: 4
+Competition lift reps this session: at most 4 (deload week — fewer is fine; never add sets to reach it)
 
 ## Prilepin's Chart Reference
   (standard Prilepin guidelines apply)

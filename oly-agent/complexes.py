@@ -27,12 +27,21 @@ def complex_scheme(components: list[dict]) -> str:
 
 
 def complex_line(cx: dict) -> str:
-    """One prompt line: `name = A ×1 + B ×2 [ref, cN] lo–hi % | reps = total`."""
-    parts = " + ".join(f"{c['exercise_name']} ×{int(c.get('reps') or 1)}" for c in cx["exercises_ordered"])
+    """One prompt line: `A + B (1+2) [ref, cN] lo–hi % | reps = total`.
+
+    When the name is just the components joined by " + " (14 of the 15 offered
+    to program 58), the scheme in parentheses says the rest; spelling the
+    components out again took a quarter of the section (DOG-2q). Any other
+    name ("Clean + 2 Jerks") keeps `name = A ×1 + B ×2`."""
+    comps = cx["exercises_ordered"]
+    if cx["name"].strip().lower() == " + ".join(c["exercise_name"] for c in comps).lower():
+        head = f"{cx['name']} ({complex_scheme(comps)})"
+    else:
+        head = cx["name"] + " = " + " + ".join(f"{c['exercise_name']} ×{int(c.get('reps') or 1)}" for c in comps)
     band = ""
     if cx.get("typical_intensity_low") is not None and cx.get("typical_intensity_high") is not None:
         band = f" {float(cx['typical_intensity_low']):.0f}–{float(cx['typical_intensity_high']):.0f}%"
-    return (f"  {cx['name']} = {parts} [{cx.get('intensity_reference') or '?'}, "
+    return (f"  {head} [{cx.get('intensity_reference') or '?'}, "
             f"c{cx.get('complexity_level', '?')}]{band} | reps = {cx['total_reps_per_set']}")
 
 

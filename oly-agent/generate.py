@@ -689,9 +689,10 @@ def _available_complexes_section(complexes: list[dict] | None) -> str:
     if not complexes:
         return ""
     lines = [
-        "  A complex is several lifts done back to back as ONE set. Prescribe it like an exercise:",
-        "  exercise_name = the complex name exactly, sets = number of complexes, reps = the complex's",
-        "  total (listed), intensity_pct = % of the listed max, loaded for the hardest component.",
+        "  A complex is several lifts done back to back as ONE set; (1+2) = reps of each lift in order.",
+        "  Prescribe it like an exercise: exercise_name = the complex name exactly,",
+        "  sets = number of complexes, reps = the listed total, intensity_pct = % of the listed max,",
+        "  loaded for the hardest lift.",
     ] + [complex_line(c) for c in complexes]
     return "## Available Complexes\n" + "\n".join(lines)
 
@@ -789,10 +790,13 @@ def _strength_curve_lines(week_target: WeekTarget) -> str:
     return ("\n" + "\n".join(lines)) if lines else ""
 
 
-def _session_template_section(session_template: SessionTemplate, session_rep_target: int) -> str:
+def _session_template_section(session_template: SessionTemplate, session_rep_target: int,
+                              is_deload: bool = False) -> str:
     """The day's shape. Empty lines are left out (DOG-2n). The accessory line
     (DOG-2m) names the families this day covers. Before it, nothing asked for
-    hinge / core / carry work."""
+    hinge / core / carry work. On a deload week the rep target is a maximum:
+    dosing only trims a deload (DOSE-1b), and the 3-set cap plus the warm-up
+    band put the target out of reach (DOSE-1d)."""
     lines = [
         "## Session Template",
         f"Day {session_template.day_number}: {session_template.label}",
@@ -805,7 +809,11 @@ def _session_template_section(session_template: SessionTemplate, session_rep_tar
         lines.append(f"Accessories (after the main work, one exercise per family): {', '.join(families)}")
     if session_template.notes:
         lines.append(f"Session note: {session_template.notes}")
-    lines.append(f"Target competition lift reps this session: {session_rep_target}")
+    if is_deload:
+        lines.append(f"Competition lift reps this session: at most {session_rep_target} "
+                     f"(deload week — fewer is fine; never add sets to reach it)")
+    else:
+        lines.append(f"Target competition lift reps this session: {session_rep_target}")
     return "\n".join(lines)
 
 
@@ -1033,7 +1041,7 @@ def build_session_prompt(
     dynamic = "\n\n".join(s for s in [
         _program_plan_body(phase, week_number, duration_weeks, week_target,
                            _deload_rule(week_target, prefs["deload_style"])),
-        _session_template_section(session_template, session_rep_target),
+        _session_template_section(session_template, session_rep_target, bool(week_target.is_deload)),
         block_section,
         _volume_table_section(week_target, phase, retrieval_context.prilepin_targets),
         _already_prescribed_section(already_prescribed, week_target, cumulative_comp_reps),

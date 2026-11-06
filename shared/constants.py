@@ -42,7 +42,11 @@ MAX_RECENT_LOGS_IN_PROMPT: int = 10  # recent training entries shown in prompt
 # summarised from the completed program's session_exercises rows.
 MAX_PREVIOUS_PROGRAM_EXERCISES: int = 8
 MAX_PREVIOUS_PROGRAM_TOP_SETS: int = 5
-PROMPT_LENGTH_WARN_CHARS: int = 20_000  # log warning if prompt exceeds this (~5k tokens)
+# Log a warning above this many chars. Re-based 2026-11-06 (DOG-2q): program 58
+# measured 22.5-23.6k with the content added since the 20k budget (complexes,
+# coach brief, accessory catalogue, fault names) and went 24/24 first-try, so
+# 20k warned on every session. It now flags growth past today's prompt.
+PROMPT_LENGTH_WARN_CHARS: int = 24_000
 # When a call stops on `max_tokens`, the next attempt doubles its budget up to
 # this ceiling. On Sonnet 5 / Opus 5 adaptive thinking counts against
 # max_tokens, so a 4,096 budget can be spent before any text is emitted;
