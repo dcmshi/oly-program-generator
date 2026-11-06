@@ -164,6 +164,13 @@
           <option value="international" {% if athlete.competition_experience == 'international' %}selected{% endif %}>International / elite</option>
         </select>
       </div>
+      <div class="flex items-end">
+        <label class="flex items-center gap-2 text-sm text-ink-700">
+          <input type="checkbox" name="olympic_lifting_experience" {% if athlete.olympic_lifting_experience %}checked{% endif %}
+                 class="rounded border-line-dark text-ink">
+          Has done Olympic lifting before <span class="text-ink-faint text-xs">(trained the snatch and clean &amp; jerk)</span>
+        </label>
+      </div>
     </div>
 
     <!-- Training preferences (PLAN-2) -->

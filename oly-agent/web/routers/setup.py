@@ -20,6 +20,7 @@ from web.options import (  # noqa: F401  (re-export)
     VALID_GOALS,
     VALID_SEXES,
     parse_list_text,
+    timezone_error,
 )
 
 
@@ -92,6 +93,13 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
     if goal_choice and goal_choice not in VALID_GOALS:
         errors.append("Please select a valid training goal.")
 
+    # Dates the athlete's age and every "today" — validated like profile's
+    # (DOG-2k: setup used to leave it at the column default)
+    timezone = form.get("timezone", "").strip() or "UTC"
+    tz_error = timezone_error(timezone)
+    if tz_error:
+        errors.append(tz_error)
+
     if errors:
         # Multi-select fields collapse to their last value in dict(raw_form);
         # the template needs the full list to re-check every selected box, and
@@ -131,6 +139,8 @@ async def setup_submit(request: Request, conn=Depends(get_db)):
         "lift_emphasis": form.get("lift_emphasis") or "balanced",
         "strength_limiters": raw_form.getlist("strength_limiters"),
         "competition_experience": form.get("competition_experience") or "none",
+        "olympic_lifting_experience": form.get("olympic_lifting_experience") == "on",
+        "timezone": timezone,
     }
 
     athlete_id = await q.create_athlete(conn, athlete_data, hash_password(password))

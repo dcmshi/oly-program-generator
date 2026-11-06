@@ -951,14 +951,14 @@ def test_add_max_test_session_saves_on_the_peak_week_after_the_last_day():
 def test_concurrent_save_failure_stops_every_week():
     """A failed INSERT on the main thread must set the stop flag before the pool
     joins its workers, then propagate."""
-    from orchestrator import _run_weeks_concurrently, _WeekOutcome
+    from orchestrator import _BlockAnchor, _run_weeks_concurrently, _WeekOutcome
     g = _generation_run()
     out = _WeekOutcome(2, sessions=[{"week": 2, "day": 1, "exercises": []}], templates=[_session_template(1)])
     with patch("orchestrator.retrieve_session_context", return_value=[]), \
          patch("orchestrator._week_worker", return_value=out), \
          patch("orchestrator._save_session", side_effect=RuntimeError("insert failed")):
         try:
-            _run_weeks_concurrently(g, MagicMock(), [(_week_target(2), 2), (_week_target(3), 2)], {}, 2)
+            _run_weeks_concurrently(g, MagicMock(), [(_week_target(2), 2), (_week_target(3), 2)], _BlockAnchor(), 2)
         except RuntimeError as e:
             assert "insert failed" in str(e)
         else:
@@ -1078,3 +1078,234 @@ def test_an_aborted_concurrent_run_keeps_every_finished_session():
         mocks["generate"].side_effect = _fake
         assert run(1, _settings(), week_concurrency=4) is None
     assert sorted(_session_insert_slots(mocks)) == [(1, 1), (1, 2), (2, 1), (2, 2), (3, 1), (4, 1), (4, 2)]
+
+
+# ── DOG-2e: a mid-block deload starts a new wave ─────────────────────────────
+
+def _deload_plan(weeks=8, days=2, deloads=(4, 8)):
+    import dataclasses
+    p = _multi_week_plan(weeks, days)
+    p.weekly_targets = [dataclasses.replace(wt, is_deload=wt.week_number in deloads) for wt in p.weekly_targets]
+    return p
+
+
+def _named_gen_side_effect(record):
+    """generate stand-in whose exercise is named after its week ("Lift W5"),
+    so a block template shows which week it was summarised from."""
+    lock = threading.Lock()
+
+    def _fake(**kw):
+        with lock:
+            record.append((kw["week_number"], kw["day_number"]))
+        ex = {**_generation_result().exercises[0], "exercise_name": f"Lift W{kw['week_number']}"}
+        return _generation_result(exercises=[ex])
+    return _fake
+
+
+def test_wave_anchor_weeks_restart_after_a_mid_block_deload():
+    from orchestrator import _wave_anchor_weeks
+    wts = _deload_plan(8, 1, deloads=(4, 8)).weekly_targets
+    assert _wave_anchor_weeks(wts) == {1: 1, 2: 1, 3: 1, 4: 1, 5: 5, 6: 5, 7: 5, 8: 5}
+    # no mid-block deload (none, or only the last week): one wave on week 1
+    assert set(_wave_anchor_weeks(_deload_plan(6, 1, deloads=()).weekly_targets).values()) == {1}
+    assert set(_wave_anchor_weeks(_deload_plan(4, 1, deloads=(4,)).weekly_targets).values()) == {1}
+    # deload every 3 weeks in 9
+    every3 = _wave_anchor_weeks(_deload_plan(9, 1, deloads=(3, 6, 9)).weekly_targets)
+    assert every3 == {1: 1, 2: 1, 3: 1, 4: 4, 5: 4, 6: 4, 7: 7, 8: 7, 9: 7}
+    # back-to-back deloads stay in the wave they close
+    assert _wave_anchor_weeks(_deload_plan(6, 1, deloads=(3, 4)).weekly_targets) == {
+        1: 1, 2: 1, 3: 1, 4: 1, 5: 5, 6: 5}
+    assert _wave_anchor_weeks([]) == {}
+
+
+def test_waves_split_the_schedule_at_each_anchor():
+    from orchestrator import _schedule_weeks, _wave_anchor_weeks, _waves
+    p = _deload_plan(8, 2, deloads=(4, 8))
+    anchors = _wave_anchor_weeks(p.weekly_targets)
+    waves = _waves(_schedule_weeks(p, None), anchors)
+    assert [[wt.week_number for wt, _ in w] for w in waves] == [[1, 2, 3, 4], [5, 6, 7, 8]]
+    # a session cap that stops inside wave 1 leaves one wave
+    assert [[wt.week_number for wt, _ in w] for w in _waves(_schedule_weeks(p, 5), anchors)] == [[1, 2, 3]]
+
+
+def test_block_template_rotation_wording_only_on_a_new_wave():
+    from generate import _block_template_section, build_session_prompt
+    retrieval = _retrieval_context()
+    retrieval.available_exercises = [{"name": "Snatch", "id": 1, "movement_family": "snatch"}]
+    kwargs = dict(
+        athlete_context=_athlete_context(), week_target=_week_target(5),
+        session_template=_session_template(1), retrieval_context=retrieval,
+        week_number=5, duration_weeks=8, already_prescribed=[], session_rep_target=15,
+        cumulative_comp_reps=0, context_chunks=[], block_template="Snatch 4x3 @ 75%",
+    )
+    default = build_session_prompt(**kwargs)
+    # the defaults are the pre-DOG-2e prompt, byte for byte
+    assert build_session_prompt(**kwargs, block_anchor_week=1, new_wave=False) == default
+    assert _block_template_section("X", 2) == _block_template_section("X", 2, 1, False)
+    assert "rotate variants" not in default
+
+    rotate = build_session_prompt(**kwargs, block_anchor_week=1, new_wave=True)
+    assert "## Block Template (Week 1, Day 1) — new wave: rotate variants\n" in rotate
+    assert "Week 1 prescribed this day as: Snatch 4x3 @ 75%" in rotate
+    assert "rotate variants: swap the competition-lift variants and the accessories" in rotate
+    assert "keep the same exercise selection" not in rotate
+
+    later = build_session_prompt(**kwargs, block_anchor_week=5)
+    assert "## Block Template (Week 5, Day 1)\nWeek 5 prescribed this day as: Snatch 4x3 @ 75%" in later
+    assert "keep the same exercise selection and order" in later and "rotate variants" not in later
+
+
+def test_mid_block_deload_regenerates_the_anchor_after_it():
+    """8 weeks, deloads 4 and 8: weeks 1-4 anchored on week 1; week 5 runs
+    alone after every week <= 4, shown week 1 with the rotation instruction;
+    weeks 6-8 anchored on week 5. Retrieval stays on the main thread in
+    (week, day) order and rows are inserted in (week, day) order."""
+    slots = [(w, d) for w in range(1, 9) for d in (1, 2)]
+    for concurrency in (1, 4):
+        calls, retrieved = [], []
+
+        def _retrieve(*args, _out=retrieved, **kw):
+            _out.append((args[4].week_number, args[3].day_number, threading.get_ident()))
+            return []
+
+        with ExitStack() as stack:
+            mocks = _full_mock_stack(stack, overrides={"plan": _deload_plan(8, 2, deloads=(4, 8))})
+            mocks["generate"].side_effect = _named_gen_side_effect(calls)
+            stack.enter_context(patch("orchestrator.retrieve_session_context", side_effect=_retrieve))
+            assert run(1, _settings(), week_concurrency=concurrency) == 42
+
+        assert sorted(calls) == slots
+        pos = {slot: i for i, slot in enumerate(calls)}
+        assert max(pos[(w, d)] for w in range(1, 5) for d in (1, 2)) < min(pos[(5, 1)], pos[(5, 2)])
+        assert max(pos[(5, 1)], pos[(5, 2)]) < min(pos[(w, d)] for w in range(6, 9) for d in (1, 2))
+        assert [(w, d) for w, d, _ in retrieved] == slots, concurrency
+        assert {t for _, _, t in retrieved} == {threading.get_ident()}
+        assert _session_insert_slots(mocks) == slots
+
+        by_slot = {
+            (c.kwargs["week_number"], c.kwargs["session_template"].day_number):
+                (c.kwargs.get("block_template"), c.kwargs.get("block_anchor_week"), c.kwargs.get("new_wave"))
+            for c in mocks["build_session_prompt"].call_args_list
+        }
+        for d in (1, 2):
+            assert by_slot[(1, d)] == (None, 1, False)
+            for w in (2, 3, 4):                                   # the deload closes wave 1
+                assert by_slot[(w, d)] == ("Lift W1 4x3 @ 75%", 1, False)
+            assert by_slot[(5, d)] == ("Lift W1 4x3 @ 75%", 1, True)
+            for w in (6, 7, 8):
+                assert by_slot[(w, d)] == ("Lift W5 4x3 @ 75%", 5, False)
+
+
+def test_no_mid_block_deload_keeps_every_week_on_week_1():
+    """A deload only in the last week: one wave, today's behaviour."""
+    for concurrency in (1, 4):
+        calls = []
+        with ExitStack() as stack:
+            mocks = _full_mock_stack(stack, overrides={"plan": _deload_plan(4, 2, deloads=(4,))})
+            mocks["generate"].side_effect = _named_gen_side_effect(calls)
+            assert run(1, _settings(), week_concurrency=concurrency) == 42
+        later = [c for c in mocks["build_session_prompt"].call_args_list if c.kwargs["week_number"] > 1]
+        assert len(later) == 6
+        for c in later:
+            assert (c.kwargs["block_template"], c.kwargs["block_anchor_week"], c.kwargs["new_wave"]) == (
+                "Lift W1 4x3 @ 75%", 1, False)
+
+
+def test_resume_anchors_the_new_wave_on_a_saved_week_without_an_llm_call():
+    """Weeks 1-5 are saved; week 5 (the post-deload anchor) is replayed and its
+    sessions anchor weeks 6-8 — no generate call for week 5."""
+    plan_ = _deload_plan(8, 2, deloads=(4, 8))
+    saved = {}
+    for w in range(1, 6):
+        for d in (1, 2):
+            row = _saved(w, d, 100 + w * 10 + d)
+            row["exercises"] = [{**row["exercises"][0], "exercise_name": f"Saved W{w}"}]
+            saved[(w, d)] = row
+    for concurrency in (1, 4):
+        calls = []
+        with ExitStack() as stack:
+            mocks = _full_mock_stack(stack, overrides={"plan": _program_plan()})
+            mocks["generate"].side_effect = _named_gen_side_effect(calls)
+            stack.enter_context(patch("orchestrator._load_resume", return_value=_resume_record(plan_)))
+            stack.enter_context(patch("orchestrator._reopen_draft", return_value=(dict(saved), None, 0.1)))
+            assert run(1, _settings(), resume_program_id=55, week_concurrency=concurrency) == 55
+        assert sorted(calls) == [(w, d) for w in (6, 7, 8) for d in (1, 2)]
+        prompts = mocks["build_session_prompt"].call_args_list
+        assert len(prompts) == 6
+        for c in prompts:
+            assert c.kwargs["week_number"] >= 6
+            assert (c.kwargs["block_template"], c.kwargs["block_anchor_week"], c.kwargs["new_wave"]) == (
+                "Saved W5 4x3 @ 75%", 5, False)
+
+
+def test_resume_of_a_pre_dog2e_draft_keeps_every_week_on_the_first():
+    """DOG-2i: a draft made before DOG-2e was generated with every week
+    anchored on week 1, mid-block deload or not. Its snapshot has no
+    anchor_scheme; resuming it must not start a new wave after the deload —
+    weeks 6-8 stay anchored on the saved week 1, like weeks 2-5 were."""
+    from orchestrator import ANCHOR_SCHEME_WAVES, _plan_snapshot
+    plan_ = _deload_plan(8, 2, deloads=(4, 8))
+    assert _plan_snapshot(plan_)["anchor_scheme"] == ANCHOR_SCHEME_WAVES      # new drafts record it
+    record = _resume_record(plan_)
+    del record["plan"]["anchor_scheme"]
+    saved = {}
+    for w in range(1, 6):
+        for d in (1, 2):
+            row = _saved(w, d, 100 + w * 10 + d)
+            row["exercises"] = [{**row["exercises"][0], "exercise_name": f"Saved W{w}"}]
+            saved[(w, d)] = row
+    for concurrency in (1, 4):
+        calls = []
+        with ExitStack() as stack:
+            mocks = _full_mock_stack(stack, overrides={"plan": _program_plan()})
+            mocks["generate"].side_effect = _named_gen_side_effect(calls)
+            stack.enter_context(patch("orchestrator._load_resume", return_value=record))
+            stack.enter_context(patch("orchestrator._reopen_draft", return_value=(dict(saved), None, 0.1)))
+            assert run(1, _settings(), resume_program_id=55, week_concurrency=concurrency) == 55
+        assert sorted(calls) == [(w, d) for w in (6, 7, 8) for d in (1, 2)]
+        prompts = mocks["build_session_prompt"].call_args_list
+        assert len(prompts) == 6
+        for c in prompts:
+            assert (c.kwargs["block_template"], c.kwargs["block_anchor_week"], c.kwargs["new_wave"]) == (
+                "Saved W1 4x3 @ 75%", 1, False)
+
+
+def test_reopen_draft_detaches_a_log_from_an_empty_session_and_deletes_it():
+    """DOG-2j: an empty session with a training log used to survive the DELETE
+    yet be left out of `saved`, so its regeneration hit UNIQUE(program_id,
+    week, day) and every resume failed. The log is now detached (kept, as with
+    program deletion) and the session deleted, so it is regenerated."""
+    from orchestrator import _reopen_draft
+    sessions = [{"id": 1, "week_number": 1, "day_number": 1, "session_label": "Snatch"},
+                {"id": 2, "week_number": 1, "day_number": 2, "session_label": "Clean"}]
+    exercises = [{"id": 10, "session_id": 1, "created_at": None, "exercise_name": "Snatch", "sets": 4}]
+
+    def _fetch_all(conn, sql, params=None):
+        if "FROM program_sessions" in sql:
+            return sessions
+        if "FROM session_exercises" in sql:
+            return exercises
+        if "generation_log" in sql:
+            return [{"spent": 0.02}]
+        raise AssertionError(sql)
+
+    conn = MagicMock()
+    with patch("orchestrator.fetch_all", side_effect=_fetch_all), patch("orchestrator.execute") as execute:
+        saved, max_test, spent = _reopen_draft(conn, 55)
+    assert list(saved) == [(1, 1)] and max_test is None and spent == 0.02
+    sqls = [(c.args[1], c.args[2]) for c in execute.call_args_list]
+    detach = next(i for i, (sql, _) in enumerate(sqls) if "UPDATE training_logs SET session_id = NULL" in sql)
+    delete = next(i for i, (sql, _) in enumerate(sqls) if sql.startswith("DELETE FROM program_sessions"))
+    assert detach < delete                                   # detach before the FK would block the delete
+    assert sqls[detach][1] == ([2],) and sqls[delete][1] == ([2],)
+    assert "NOT EXISTS" not in sqls[delete][0]               # no empty session is left behind
+    conn.commit.assert_called_once()
+
+
+def test_flagged_sessions_head_the_rationale():
+    """A session saved with unresolved validation errors is named in the rationale."""
+    from orchestrator import _prefix_rationale_warnings
+    out = _prefix_rationale_warnings("# Overview\nbody", None, 24, 24, [], ["W3D2"])
+    assert out.startswith("# Review Before Activating\n1 session(s) ran out of retries")
+    assert "W3D2" in out and out.endswith("# Overview\nbody")
+    assert _prefix_rationale_warnings("x", None, 24, 24, []) == "x"

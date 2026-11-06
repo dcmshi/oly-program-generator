@@ -143,6 +143,7 @@ def test_state_decrements_weeks_out_per_week_and_reads_outcome_and_logs():
         "weeks_out_from_competition": 4, "training_age_years": 2.5,
         "week_of_block": 3, "movement_family": "clean",
         "recent_make_rate": 0.72, "rpe_average_last_week": 8.5, "has_injuries": False,
+        "is_youth": False, "olympic_lifting_experience": False,
     }
 
 
@@ -256,3 +257,88 @@ def test_build_session_state_carries_has_injuries():
     tmpl = SimpleNamespace(primary_movement="snatch")
     assert build_session_state(ctx([]), plan, 1, tmpl)["has_injuries"] is False
     assert build_session_state(ctx(["left knee"]), plan, 1, tmpl)["has_injuries"] is True
+
+
+def _rule(pid, name, condition=None, recommendation=None, priority=5):
+    return {"id": pid, "principle_name": name, "priority": priority, "rationale": "",
+            "category": None, "condition": condition or {}, "recommendation": recommendation or {}}
+
+
+def test_youth_principles_only_reach_youth_and_junior_athletes():
+    """Program 53: '[1376] Youth Volume and Intensity Moderation' is stored as
+    {"athlete_level": ["beginner"]} and reached a 35-year-old beginner."""
+    from principle_matcher import is_youth_specific, select_principles
+
+    youth = _rule(1376, "Youth Volume and Intensity Moderation", {"athlete_level": ["beginner"]})
+    young = _rule(3824, "Reduced Max Strength Phase for Young Athletes")
+    plates = _rule(1419, "Protect Growth Plates in Young Athletes from Elbow Overload")
+    under = _rule(961, "Age 7 and Under - Bodyweight Only")
+    junior = _rule(4244, "Junior strength training intensity cap")
+    adult = _rule(1, "Dynamic Warm-Up Requirement")
+    fifteen = _rule(2, "Fifteen-Minute Warm-Up")          # 'teen' inside a word is not a youth term
+    rules = [youth, young, plates, under, junior, adult, fifteen]
+    assert all(is_youth_specific(r) for r in (youth, young, plates, under, junior))
+    assert not is_youth_specific(adult) and not is_youth_specific(fifteen)
+    base = {"athlete_level": "beginner"}
+    assert {p["id"] for p in select_principles(rules, {**base, "is_youth": False})} == {1, 2}
+    assert len(select_principles(rules, {**base, "is_youth": True})) == len(rules)
+    assert len(select_principles(rules, base)) == len(rules)                      # no flag → unfiltered
+
+
+def test_novice_lift_bans_skipped_for_athletes_who_have_done_the_lifts():
+    """Program 53: 'Beginner Foundation Phase' (avoid snatch / C&J, beginner,
+    training age 0–0.25) stripped every full lift from a beginner who had just
+    finished a 9-week Olympic-lifting program."""
+    from principle_matcher import is_novice_lift_ban, select_principles
+
+    foundation = _rule(5073, "Beginner Foundation Phase",
+                       {"athlete_level": ["beginner"], "training_age_years": {"between": [0, 0.25]}},
+                       {"avoid_exercises": ["snatch", "clean_and_jerk", "clean", "jerk"]})
+    post = _rule(5074, "Post-Foundation Progression", {"training_age_years": {"between": [0.25, 1]}},
+                 {"avoid_exercises": ["snatch", "clean_and_jerk"]})
+    transition = _rule(4660, "Schedule active rest month at end of annual plan", {"phase": "transition"},
+                       {"avoid_exercises": ["snatch", "clean and jerk"]})
+    accessory = _rule(1, "Beginner accessory choice", {"athlete_level": ["beginner"]},
+                      {"avoid_exercises": ["leg extension"]})
+    assert is_novice_lift_ban(foundation) and is_novice_lift_ban(post)
+    assert not is_novice_lift_ban(transition) and not is_novice_lift_ban(accessory)
+    rules = [foundation, post, transition, accessory]
+    base = {"athlete_level": "beginner", "training_age_years": 0.25, "phase": "transition"}   # every condition holds
+    assert len(select_principles(rules, base)) == 4
+    assert {p["id"] for p in select_principles(rules, {**base, "olympic_lifting_experience": True})} == {4660, 1}
+
+
+def test_build_session_state_carries_youth_and_lifting_experience():
+    from principle_matcher import build_session_state
+
+    def ctx(band, experienced):
+        return SimpleNamespace(weeks_to_competition=None, previous_program=None, recent_logs=[],
+                               level="beginner", athlete={"olympic_lifting_experience": experienced},
+                               injuries=[], age_band=band)
+    plan, tmpl = SimpleNamespace(phase="general_prep"), SimpleNamespace(primary_movement="snatch")
+    assert build_session_state(ctx("youth", False), plan, 1, tmpl)["is_youth"] is True
+    assert build_session_state(ctx("junior", False), plan, 1, tmpl)["is_youth"] is True
+    assert build_session_state(ctx("masters", False), plan, 1, tmpl)["is_youth"] is False
+    assert build_session_state(ctx(None, False), plan, 1, tmpl)["is_youth"] is False
+    assert build_session_state(ctx(None, True), plan, 1, tmpl)["olympic_lifting_experience"] is True
+
+
+def test_scope_less_rep_caps_never_reach_the_prompt():
+    """DOG-2l: '[700] Avoid Extreme Volume That Risks Rhabdomyolysis'
+    ({"total_reps_max": 50}, empty condition) was read as a 50-rep session cap.
+    `total_reps_max` has no recorded scope, so it is hidden from the prompt
+    line. A rule with nothing else to recommend is not selected."""
+    from generate import format_principle_line
+    from principle_matcher import only_hidden_recommendation, prompt_recommendation
+
+    rhabdo = _rule(700, "Avoid Extreme Volume That Risks Rhabdomyolysis", {},
+                   {"total_reps_max": 50, "avoid_exercises": ["100-rep squat sets"]}, priority=10)
+    bare_cap = _rule(2151, "Optimal Reps at 90% Per Session", {}, {"total_reps_max": 10}, priority=8)
+    ceiling = _rule(3, "Ceiling rule", {}, {"intensity_ceiling": 85})
+    assert prompt_recommendation(rhabdo) == {"avoid_exercises": ["100-rep squat sets"]}
+    assert only_hidden_recommendation(bare_cap) and not only_hidden_recommendation(rhabdo)
+    assert not only_hidden_recommendation(ceiling)
+    assert not only_hidden_recommendation(_rule(4, "No recommendation"))   # SQL's job, not this filter's
+    assert [p["id"] for p in select_principles([rhabdo, bare_cap, ceiling], {})] == [700, 3]
+    line = format_principle_line(rhabdo)
+    assert "total_reps_max" not in line and "50" not in line and "100-rep squat sets" in line

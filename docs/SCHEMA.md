@@ -1,6 +1,6 @@
 # Database Schema Documentation
 
-Postgres 16 + pgvector. **23 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0021_coach_athletes` (0018 moves the `knowledge_chunks.embedding_model` default to `text-embedding-3-large`; 0019 dedupes `exercise_complexes`, adds `UNIQUE(name)`, `movement_family`, `complexity_level` and seeds 9 complexes; 0020 adds `macrocycles` and `generated_programs.macrocycle_id` / `macrocycle_block_index`; 0021 adds `coach_athletes`).
+Postgres 16 + pgvector. **23 tables** (plus Alembic's own `alembic_version`), all created by the Alembic chain in `oly-agent/migrations/versions/` — head `0023_seed_accessories` (0018 moves the `knowledge_chunks.embedding_model` default to `text-embedding-3-large`; 0019 dedupes `exercise_complexes`, adds `UNIQUE(name)`, `movement_family`, `complexity_level` and seeds 9 complexes; 0020 adds `macrocycles` and `generated_programs.macrocycle_id` / `macrocycle_block_index`; 0021 adds `coach_athletes`; 0022 adds `athletes.olympic_lifting_experience`; 0023 seeds 24 accessory exercises — presses, upper back, hinge, single-leg, core, carries).
 
 **The Alembic migrations are the source of truth.** This page summarises them; where it and a migration disagree, the migration wins (`cd oly-agent && uv run alembic history`). The root-level `schema.sql`, `athlete_schema.sql`, `auth_migration.sql` and `oly-ingestion/schema.sql` predate Alembic and are not applied by `make migrate`.
 
@@ -351,7 +351,7 @@ erDiagram
 
 | Table | Description |
 |-------|-------------|
-| `athletes` | Athlete profile. Technical faults and injuries drive exercise selection and substitutions. |
+| `athletes` | Athlete profile. Technical faults and injuries drive exercise selection and substitutions; `olympic_lifting_experience` (0022) lifts the novice "avoid the competition lifts" principles off a beginner who has already trained them. |
 | `athlete_maxes` | One `current` max per athlete per exercise (partial unique index). Historical and estimated maxes also stored. |
 | `athlete_goals` | Active goal drives phase selection in PLAN step. Stores competition date, target totals, and faults to address. |
 | `generated_programs` | Mesocycle output. Snapshots athlete state at generation time. `outcome_summary` JSONB populated after program completion via `feedback.py`. `macrocycle_id` / `macrocycle_block_index` (migration 0020) say which macrocycle block it realises. |

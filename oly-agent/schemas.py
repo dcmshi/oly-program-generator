@@ -20,10 +20,11 @@ TrendLiteral = Literal["ascending", "stable", "descending"]
 
 class PhaseCheck(BaseModel):
     metric: str
-    value: float
+    value: float | None          # required; None = nothing logged for this metric
     display: str
     threshold: str
     passed: bool
+    skipped: bool = False        # no data — the check was not applied (DOG-2h)
 
 
 class PhaseVerdict(BaseModel):
@@ -46,11 +47,15 @@ class OutcomeSummary(BaseModel):
     Defaults are "permissive" (assume good performance when a field is absent)
     to match the existing .get() fallback behaviour in plan.py — avoids spurious
     volume/intensity cuts on old records that pre-date this schema.
+
+    ``avg_make_rate`` is None when the block logged no make rate on a
+    competition lift: phase_progression skips the make-rate test and nudge then
+    (DOG-2h). An absent key still defaults to 1.0 (old records).
     """
 
     adherence_pct: float = 100.0
     avg_rpe_deviation: float = 0.0
-    avg_make_rate: float = 1.0
+    avg_make_rate: float | None = 1.0
     make_rate_by_lift: dict[str, float] = Field(default_factory=dict)
     avg_weekly_reps: float = 0.0
     rpe_trend: TrendLiteral = "stable"

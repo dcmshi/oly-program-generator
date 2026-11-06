@@ -53,6 +53,7 @@ from import_program_csv import (
     catalogue_name_for,
     clamp_intensity,
     find_previous_import,
+    hang_variant_for,
     intensity_reference_for,
     parse_reps_cell,
     print_dry_run,
@@ -87,7 +88,8 @@ _ABBREVIATIONS = [
 # None = deliberately no catalogue match (the CSV map's "clean" substring
 # would otherwise file an RDL "(% of Clean)" under Clean).
 _MD_ALIASES: list[tuple[str, str | None]] = [
-    ("rdl", None),
+    ("snatch grip rdl", "Snatch Grip Romanian Deadlift"),
+    ("rdl", "Romanian Deadlift"),          # seeded by migration 0023
     ("no foot snatch", "No Feet Snatch"),
     ("no foot clean", "Clean & Jerk"),
     ("deficit snatch extension", "Snatch Pull from Deficit"),
@@ -131,6 +133,9 @@ def reference_for(name: str, of: str | None) -> str | None:
 
 def catalogue_name(name: str) -> str | None:
     n = name.lower()
+    hang = hang_variant_for(n)          # before "hang snatch" below, which ignores the height
+    if hang:
+        return hang
     for needle, target in _MD_ALIASES:
         if re.search(rf"\b{re.escape(needle)}", n):          # leading boundary only: "row" matches "Rows"
             return target

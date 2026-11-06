@@ -335,3 +335,151 @@ def test_level_phase_overrides_cap_beginners_and_floor_advanced():
     mid = build_weekly_targets("intensification", 4, "intermediate")
     assert [w["intensity_ceiling"] for w in mid] == [83, 86, 90, 93]                        # unchanged profile
     assert build_weekly_targets("accumulation", 4, "unknown_level") == build_weekly_targets("accumulation", 4, "intermediate")
+
+
+# ── DOG-2d: long blocks progress in waves instead of plateauing ──────────────
+
+def _band(targets):
+    return [(w["intensity_floor"], w["intensity_ceiling"]) for w in targets]
+
+
+def test_stretched_block_ceilings_never_drop():
+    """Longer than the profile, no deload cadence: the working weeks are the
+    profile stretched by interpolation — ceilings (and floors) never go down
+    across the working weeks, the profile's deload is the last week."""
+    for phase in ("accumulation", "general_prep", "realization", "intensification"):
+        base = len(PHASE_PROFILES[phase]["weeks"])
+        for duration in range(base + 1, base + 9):
+            for level in ("beginner", "intermediate", "advanced", "elite"):
+                targets = build_weekly_targets(phase, duration, level)
+                assert len(targets) == duration
+                has_deload = PHASE_PROFILES[phase]["deload_week"] is not None
+                working = targets[:-1] if has_deload else targets
+                assert not any(w["is_deload"] for w in working), (phase, duration, level)
+                assert targets[-1]["is_deload"] == has_deload                    # A-L7: none fabricated
+                ceilings = [w["intensity_ceiling"] for w in working]
+                floors = [w["intensity_floor"] for w in working]
+                assert ceilings == sorted(ceilings), (phase, duration, level, ceilings)
+                assert floors == sorted(floors), (phase, duration, level, floors)
+
+
+def test_stretched_block_spans_the_profile_ramp():
+    """The stretched ramp starts at profile week 1 and ends at the last working
+    week — 8-week accumulation used to repeat weeks 2–3 three times."""
+    targets = build_weekly_targets("accumulation", 8, "intermediate")
+    assert _band(targets) == [(70, 76), (70, 77), (70, 77), (70, 78), (71, 79), (71, 79), (72, 80), (65, 73)]
+    assert [w["volume_modifier"] for w in targets[:4]] == [0.85, 0.9, 0.95, 1.0]
+    assert [w["week_number"] for w in targets if w["is_deload"]] == [8]
+
+
+def test_general_prep_beginner_8_weeks_deload_every_4_runs_in_waves():
+    """DOG-2d dogfood case (athlete 4, program 53): deloads at weeks 4 and 8,
+    each wave a ramp, wave 2 resuming at or above wave 1 — not the old
+    61-69 / 63-71 / 64-72 / deload / 64-72 / 66-72 / 64-72 saw-tooth."""
+    targets = build_weekly_targets("general_prep", 8, "beginner", deload_every_weeks=4)
+    assert [w["week_number"] for w in targets if w["is_deload"]] == [4, 8]
+    wave1, wave2 = targets[0:3], targets[4:7]
+    for wave in (wave1, wave2):
+        assert [w["intensity_ceiling"] for w in wave] == sorted(w["intensity_ceiling"] for w in wave)
+        assert [w["intensity_floor"] for w in wave] == sorted(w["intensity_floor"] for w in wave)
+    assert wave2[0]["intensity_floor"] >= wave1[0]["intensity_floor"]
+    assert wave2[0]["intensity_ceiling"] >= wave1[0]["intensity_ceiling"]
+    assert all(w["intensity_ceiling"] <= 72 for w in targets)                   # beginner general_prep cap still applies
+    assert _band(targets) == [(61, 69), (64, 72), (66, 72), (59, 66), (63, 71), (66, 72), (68, 72), (59, 66)]
+
+
+def test_waves_step_up_by_the_constant():
+    """Wave k sits k × BLOCK_WAVE_STEP_PCT above wave 1 where no cap bites;
+    deloads copy the profile's deload week."""
+    from shared.constants import BLOCK_WAVE_STEP_PCT
+    targets = build_weekly_targets("accumulation", 12, "intermediate", deload_every_weeks=4)
+    assert [w["week_number"] for w in targets if w["is_deload"]] == [4, 8, 12]
+    waves = [targets[0:3], targets[4:7], targets[8:11]]
+    for k, wave in enumerate(waves):
+        for w, first in zip(wave, waves[0], strict=True):
+            assert w["intensity_ceiling"] == first["intensity_ceiling"] + k * BLOCK_WAVE_STEP_PCT
+    assert {_band([targets[i]])[0] for i in (3, 7, 11)} == {(65, 73)}
+
+
+def test_wave_blocks_end_on_a_deload_and_never_double_one():
+    """Every long block with a deload cadence has the right length, ends on a
+    deload, and never puts two deloads back to back (a trailing wave with no
+    loading week folds into the previous one); a trailing partial wave is
+    interpolated like the others."""
+    from shared.constants import DELOAD_EVERY_WEEKS_OPTIONS
+    for phase in ("accumulation", "general_prep", "realization"):
+        base = len(PHASE_PROFILES[phase]["weeks"])
+        for duration in range(base + 1, 17):
+            for every in DELOAD_EVERY_WEEKS_OPTIONS:
+                targets = build_weekly_targets(phase, duration, "intermediate", deload_every_weeks=every)
+                flags = [w["is_deload"] for w in targets]
+                assert len(targets) == duration and flags[-1], (phase, duration, every)
+                assert not any(a and b for a, b in zip(flags, flags[1:], strict=False)), (phase, duration, every, flags)
+    partial = build_weekly_targets("accumulation", 7, "intermediate", deload_every_weeks=3)
+    assert [w["week_number"] for w in partial if w["is_deload"]] == [3, 7]      # 7 ≡ 1 mod 3: no deload at 6
+    assert _band(partial)[3:6] == [(70, 78), (72, 80), (74, 82)]
+
+
+def test_extended_no_deload_phase_ignores_the_cadence():
+    """A-L7 with a cadence: intensification has no deload week to copy, so a
+    long block stays deload-free and keeps climbing."""
+    targets = build_weekly_targets("intensification", 8, "intermediate", deload_every_weeks=4)
+    assert not any(w["is_deload"] for w in targets)
+    assert targets[-1]["intensity_ceiling"] == 93
+
+
+def test_short_and_equal_blocks_are_unchanged():
+    """DOG-2d only touches blocks longer than the profile."""
+    acc = build_weekly_targets("accumulation", 4, "intermediate")
+    assert [(w["intensity_floor"], w["intensity_ceiling"], w["volume_modifier"], w["is_deload"]) for w in acc] == [
+        (70, 76, 0.85, False), (70, 78, 1.0, False), (72, 80, 1.0, False), (65, 73, 0.6, True)]
+    trimmed = build_weekly_targets("general_prep", 3, "intermediate")
+    assert [(w["intensity_floor"], w["intensity_ceiling"], w["is_deload"]) for w in trimmed] == [
+        (68, 77, False), (70, 78, False), (63, 70, True)]
+    cadence = build_weekly_targets("general_prep", 5, "intermediate", deload_every_weeks=3)
+    assert [(w["intensity_floor"], w["intensity_ceiling"], w["is_deload"]) for w in cadence] == [
+        (65, 73, False), (67, 75, False), (63, 70, True), (70, 78, False), (63, 70, True)]
+
+
+def test_deload_style_none_on_long_blocks():
+    """deload_style="none" drops the last week's deload flag (its loads stay the
+    profile's deload week, as at the profile length); mid-block deloads keep
+    theirs."""
+    plain = build_weekly_targets("accumulation", 8, "intermediate", deload_style="none")
+    assert len(plain) == 8 and not any(w["is_deload"] for w in plain)
+    waves = build_weekly_targets("accumulation", 8, "intermediate", deload_every_weeks=4, deload_style="none")
+    assert [w["week_number"] for w in waves if w["is_deload"]] == [4]
+    assert not waves[-1]["is_deload"]
+    assert waves[-1]["intensity_ceiling"] == 73
+
+
+# ── DOG-2m: every day names its accessory families ───────────────────────────
+
+def test_every_template_day_has_accessory_families_covering_the_week():
+    allowed = {"hinge", "row", "press", "core", "carry"}
+    for freq, dist in SESSION_DISTRIBUTIONS.items():
+        week = set()
+        for s in dist["sessions"]:
+            fams = s["accessory_families"]
+            assert fams and set(fams) <= allowed, (freq, s["day_number"])
+            assert len(fams) == len(set(fams)) <= 2, (freq, s["day_number"])
+            week |= set(fams)
+        expected = {"hinge", "row", "press", "core"} | ({"carry"} if freq >= 3 else set())
+        assert week == expected, freq
+    # the emphasis flip replaces a day's accessories too
+    flipped = {s["day_number"]: s for s in get_session_templates(4, "snatch_biased")}
+    assert flipped[4]["accessory_families"] == ["press", "core"]
+
+
+def test_session_template_section_names_the_accessories():
+    from generate import _session_template_section
+    from models import SessionTemplate
+
+    tmpl = SessionTemplate(1, "Snatch + Squat", "snatch", ["squat"], 0.3, notes="",
+                           accessory_families=["hinge", "core"])
+    section = _session_template_section(tmpl, 12)
+    assert "Accessories (after the main work, one exercise per family): hinge, core" in section
+    assert "Session note:" not in section                                   # DOG-2n: empty line omitted
+    old = SessionTemplate(1, "Snatch + Squat", "snatch", [], 0.3)          # a pre-DOG-2m resume snapshot
+    section = _session_template_section(old, 12)
+    assert "Accessories" not in section and "Supporting work" not in section

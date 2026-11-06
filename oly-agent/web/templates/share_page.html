@@ -170,8 +170,6 @@ button { font: inherit; color: inherit; }
 .cite b { font-weight: 600; color: var(--ink-sec); }
 .warmup .ex-name { font-weight: 500; color: var(--ink-sec); }
 
-footer { margin-top: 36px; color: var(--ink-faint); font-size: 13px; display: grid; gap: 6px; max-width: 80ch; }
-footer b { color: var(--ink-sec); font-weight: 600; }
 @media (prefers-reduced-motion: no-preference) { .tab, .wk { transition: background-color .15s, color .15s; } }
 </style>
 </head>
@@ -207,10 +205,6 @@ footer b { color: var(--ink-sec); font-weight: 600; }
 
   <section class="program" id="program" aria-live="polite"></section>
 
-  <footer>
-    <p><b>How these were made.</b> Each session was written by a language model{% if model %} ({{ model }}){% endif %} from a prompt holding the athlete profile, the block plan for that week, competition-lift volume targets and passages retrieved for that session from an ingested library of weightlifting books, papers and coaching articles. A validator checks every session (rep counts per intensity zone, intensity ceilings, the avoid list, complexes) before it is saved; failed sessions are regenerated with the errors attached.</p>
-    <p><b>Sources.</b> The “why” under each exercise lists the passages it cited. Loads are percentages of the athlete's recorded maxes, rounded to the nearest kilo; the lb view converts those to the nearest 5 lb.</p>
-  </footer>
 </main>
 
 <script type="application/json" id="data">{{ data | tojson }}</script>

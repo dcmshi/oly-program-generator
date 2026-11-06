@@ -30,7 +30,7 @@ async def get_athlete(conn, athlete_id: int) -> dict | None:
                bodyweight_kg, height_cm, date_of_birth, weight_class,
                training_age_years, sessions_per_week, session_duration_minutes,
                available_equipment, technical_faults, injuries, notes,
-               lift_emphasis, strength_limiters, competition_experience, timezone,
+               lift_emphasis, strength_limiters, competition_experience, olympic_lifting_experience, timezone,
                COALESCE(exercise_preferences, '{}'::jsonb) AS exercise_preferences
         FROM athletes
         WHERE id = $1
@@ -133,6 +133,7 @@ async def update_profile(conn, athlete_id: int, data: dict):
             lift_emphasis           = $16,
             strength_limiters       = $17,
             competition_experience  = $18,
+            olympic_lifting_experience = $22,
             timezone                = $19,
             exercise_preferences    = COALESCE(exercise_preferences, '{}'::jsonb) || jsonb_build_object('prefs', $21::jsonb),
             updated_at              = NOW()
@@ -167,6 +168,7 @@ async def update_profile(conn, athlete_id: int, data: dict):
         # json.dumps(...): the pool's JSONB codec encodes it, and a pre-encoded
         # string was stored as a JSON *string* that crashed the profile page.
         data.get("prefs") or {},
+        bool(data.get("olympic_lifting_experience")),
     )
 
 

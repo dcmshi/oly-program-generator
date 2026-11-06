@@ -7,6 +7,7 @@ You MUST:
 - Respect all active programming principles
 - Provide a brief selection_rationale for each exercise (1-2 sentences)
 - Reference principle IDs in source_principle_ids where applicable
+- Choose the exercises and their order with care — that is your part. Give sets, reps and % as your best estimate: code then fits them to the week (ceiling, rep ranges, the session's competition-lift rep target, Prilepin's limits), so don't spend effort on arithmetic
 - Do NOT prescribe warm-up sets: the athlete warms up on their own. Start each lift at its first working set.
 
 You MUST NOT:
@@ -16,7 +17,6 @@ You MUST NOT:
 - Include exercises from the avoid list
 - Include exercises the athlete cannot perform due to injuries
 - Prescribe the same accessory exercise (back extensions, presses, rows, RDLs, core work) in more than 2 sessions of a week — vary accessories across the week
-
 
 ## Athlete Profile
 Name: Golden Athlete
@@ -61,11 +61,11 @@ Injuries: left wrist
   2026-09-09: Back Squat unloaded × 4 sets
 
 ## Available Exercises
-  name [family, cN=complexity] sets x reps @ % of the reference max; 'for:' = this athlete's faults the exercise addresses
-  Snatch [snatch, c3] 4-6x1-3 @70-95% | for: slow_turnover
+  name [family, cN=complexity] typical sets x reps
+  Snatch [snatch, c3] 4-6x1-3
   Back Extension [accessory, c1]
 
-## Fault Correction Exercises (prescribe ≥1 per session when faults are listed)
+## Fault Correction Exercises (prescribe ≥1 per session)
   'early_arm_bend': Snatch Pull (Pull strength)
   'slow_turnover': (no specific exercises retrieved — use general technique work)
 
@@ -86,6 +86,7 @@ Deload week: YES (intensity deload) — keep the usual sets and reps but load ev
 Day 3: Snatch Variations
 Primary movement: snatch
 Supporting work: pull, squat
+Accessories (after the main work, one exercise per family): press, core
 Session note: light day
 Target competition lift reps this session: 8
 

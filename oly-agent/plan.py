@@ -15,7 +15,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from models import AthleteContext, ProgramPlan, SessionTemplate, WeekTarget
-from phase_profiles import build_weekly_targets, strength_targets
+from phase_profiles import build_weekly_targets, classic_reps_range, strength_targets
 from phase_progression import compute_load_deltas, decide_next_phase
 from pydantic import ValidationError
 from schemas import OutcomeSummary
@@ -150,6 +150,7 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
             secondary_movements=t["secondary_movements"],
             session_volume_share=t["session_volume_share"],
             notes=t.get("notes", ""),
+            accessory_families=list(t.get("accessory_families") or []),
         )
         for t in session_tmpl_dicts
     ]
@@ -184,6 +185,9 @@ def plan(athlete_context: AthleteContext, conn, settings, duration_weeks: int | 
             is_deload=t["is_deload"],
             strength_targets=strength_targets(phase, t["is_deload"]),
             volume_table=prefs["volume_table"],
+            classic_reps_per_set_range=classic_reps_range(
+                phase, t["reps_per_set_range"], athlete_context.level,
+                bool(athlete_context.athlete.get("olympic_lifting_experience"))),
         ))
 
     # ── Load relevant programming principles ──────────────────

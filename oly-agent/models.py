@@ -58,6 +58,9 @@ class WeekTarget:
     # PLAN-3c: {"squat": {floor, ceiling, reps, sources}, "pull": {...}} for this week
     strength_targets: dict | None = None
     volume_table: str = "prilepin"      # PLAN-3d: which table sized this week's comp-lift reps
+    # Reps per set on the full classic lifts (CLASSIC_LIFT_NAMES); None = the
+    # week's range applies to them too (a beginner learning the lifts).
+    classic_reps_per_set_range: list[int] | None = None
 
 
 @dataclass
@@ -69,6 +72,10 @@ class SessionTemplate:
     secondary_movements: list[str]      # supporting work families
     session_volume_share: float         # fraction of weekly volume (e.g. 0.30)
     notes: str = ""
+    # DOG-2m: accessory families for this day (hinge, row, press, core, carry).
+    # Kept out of secondary_movements, so the retrieval query and golden set
+    # are unchanged. Snapshots from before DOG-2m have none.
+    accessory_families: list[str] = field(default_factory=list)
 
 
 @dataclass
@@ -146,7 +153,7 @@ class ProgramOutcome:
     adherence_pct: float
 
     avg_rpe_deviation: float            # positive = harder than intended
-    avg_make_rate: float                # across competition lifts (0.0-1.0)
+    avg_make_rate: float | None         # across competition lifts (0.0-1.0); None = none logged
     make_rate_by_lift: dict[str, float] = field(default_factory=dict)  # per intensity_reference
     phase_verdict: dict = field(default_factory=dict)  # phase progression explanation
 

@@ -197,6 +197,25 @@ def test_create_athlete_garbage_dob_becomes_none():
     assert captured["params"][6] is None
 
 
+def test_create_athlete_stores_timezone():
+    """DOG-2k: setup left timezone at the column default, so a self-registered
+    athlete's age was dated in UTC until they edited their profile."""
+    import re
+
+    from web.queries import setup as setup_q
+    captured, fake = _capture_async()
+    data = {"name": "A", "level": "beginner", "username": "u", "timezone": "Europe/Berlin"}
+    with patch("web.async_db.async_execute_returning", fake):
+        asyncio.run(setup_q.create_athlete(MagicMock(), data, "hash"))
+    cols = [c.strip() for c in re.search(r"INSERT INTO athletes \((.*?)\)", captured["sql"], re.S).group(1).split(",")]
+    assert len(cols) == len(captured["params"])
+    assert captured["params"][cols.index("timezone")] == "Europe/Berlin"
+    del data["timezone"]
+    with patch("web.async_db.async_execute_returning", fake):
+        asyncio.run(setup_q.create_athlete(MagicMock(), data, "hash"))
+    assert captured["params"][cols.index("timezone")] == "UTC"
+
+
 def test_update_profile_dob_string_becomes_date():
     from web.queries import profile as profile_q
     captured, fake = _capture_async()

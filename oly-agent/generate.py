@@ -22,6 +22,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from coach import coach_prompt_section
 from complexes import annotate_complexes, complex_line
+from dosing import dose_session
 from models import (
     AthleteContext,
     GenerationResult,
@@ -29,11 +30,13 @@ from models import (
     SessionTemplate,
     WeekTarget,
 )
+from principle_matcher import prompt_recommendation
 from pydantic import ValidationError
 from schemas import OutcomeSummary
-from validate import validate_session
+from validate import storable_errors, validate_session
 
 from shared.constants import (
+    CLEAN_AND_JERK_MAX_REPS,
     DEFAULT_SESSION_DURATION_MINUTES,
     LLM_MAX_TOKENS_CEILING,
     MAX_ACCESSORY_SESSIONS_PER_WEEK,
@@ -317,14 +320,21 @@ def render_template_reference(template: dict, week_number: int,
 
 # ── Prompt builder ─────────────────────────────────────────────
 
+_BARE_WEEK_LABEL_RE = re.compile(r"^\s*(week|wk)\s*\d+\s*$", re.I)
+
+
 def previous_program_structure_lines(structure: dict | None) -> list[str]:
     """Prompt lines describing what the previous block contained (DOG-1e):
-    its cycles in week order, the most-prescribed exercises, and the last
-    week's heaviest competition-lift / squat sets. Empty when unknown."""
+    its named cycles in week order, the most-prescribed exercises, and the
+    last week's heaviest competition-lift / squat sets. Empty when unknown.
+    Cycles labelled only "Week N" are left out (DOG-2n). An imported program
+    without named cycles printed "Week 1 (wk 1) → Week 2 (wk 2) → …", which
+    is noise."""
     if not structure:
         return []
     lines = []
-    cycles = structure.get("cycles") or []
+    cycles = [c for c in (structure.get("cycles") or [])
+              if not _BARE_WEEK_LABEL_RE.match(str(c.get("label") or ""))]
     if cycles:
         parts = []
         for c in cycles:
@@ -413,19 +423,17 @@ def _range(low, high, suffix: str = "") -> str | None:
     return f"{lo}-{hi}{suffix}"
 
 
-def _exercise_line(e: dict, athlete_faults: set) -> str:
-    """``  Snatch Pull [snatch, c1] 3-5x2-5 @85-110% | for: early_arm_bend``."""
+def _exercise_line(e: dict) -> str:
+    """``  Snatch Pull [snatch, c1] 3-5x2-5``.
+
+    DOG-2n removed two parts. The "@ %" range went because dosing fits the
+    loads (DOSE-1). The ``| for: <fault>`` tag went because the Fault
+    Correction section names every exercise for each of the athlete's faults."""
     line = f"  {e['name']} [{e['movement_family']}, c{e.get('complexity_level', '?')}]"
     sets = _range(e.get("typical_sets_low"), e.get("typical_sets_high"))
     reps = _range(e.get("typical_reps_low"), e.get("typical_reps_high"))
-    pct = _range(e.get("typical_intensity_low"), e.get("typical_intensity_high"), "%")
     if sets and reps:
         line += f" {sets}x{reps}"
-    if pct:
-        line += f" @{pct}"
-    relevant = [f for f in (e.get("faults_addressed") or []) if f in athlete_faults]
-    if relevant:
-        line += f" | for: {', '.join(relevant)}"
     return line
 
 
@@ -443,9 +451,10 @@ def format_principle_line(p: dict) -> str:
     """`[id] name — <recommendation json> — <rationale, cut at a word> (<source>)` (AUD-1).
 
     The rationale says why the rule holds and the source says whose rule it is;
-    the bare `[id] name: {json}` line gave the model neither.
+    the bare `[id] name: {json}` line gave the model neither. Keys whose scope
+    the extractor never recorded (`total_reps_max`) are left out (DOG-2l).
     """
-    rec = p.get("recommendation") or {}
+    rec = prompt_recommendation(p) or {}
     rec_str = json.dumps(rec) if isinstance(rec, dict) else str(rec)
     line = f"  [{p['id']}] {p['principle_name']} — {rec_str}"
     rationale = (p.get("rationale") or "").strip()
@@ -457,16 +466,32 @@ def format_principle_line(p: dict) -> str:
     return line
 
 
-def _block_template_section(block_template: str | None, day_number: int) -> str:
-    """The "week 1, this day" continuity section (AUD-4), or "" when absent.
+def _block_template_section(block_template: str | None, day_number: int,
+                            anchor_week: int = 1, new_wave: bool = False) -> str:
+    """The "anchor week, this day" continuity section (AUD-4), or "" when absent.
 
     Week N is generated without week N−1 (weeks run concurrently), so the
-    anchor is week 1 — see orchestrator.run for the trade-off."""
+    anchor is the first week of its wave — week 1, or the week after a
+    mid-block deload (DOG-2e); see orchestrator._run_weeks for the trade-off.
+    `new_wave` marks that post-deload week itself: it sees the previous
+    wave's anchor and is told to keep the structure but rotate the variants.
+    With the defaults the text is exactly the pre-DOG-2e section."""
     if not block_template:
         return ""
+    if new_wave:
+        return (
+            f"\n## Block Template (Week {anchor_week}, Day {day_number}) — new wave: rotate variants\n"
+            f"Week {anchor_week} prescribed this day as: {block_template}\n"
+            "This week starts a new wave after the deload. Keep the session's structure — primary "
+            "movement first, the same slot roles in the same order — but rotate variants: swap the "
+            "competition-lift variants and the accessories for alternatives from Available Exercises "
+            "where the catalogue offers them (e.g. a different row, press or hinge; hang vs block vs "
+            "power variant), and progress sets, reps and % to this week's targets. The rest of this "
+            "wave will repeat this week's selection.\n"
+        )
     return (
-        f"\n## Block Template (Week 1, Day {day_number})\n"
-        f"Week 1 prescribed this day as: {block_template}\n"
+        f"\n## Block Template (Week {anchor_week}, Day {day_number})\n"
+        f"Week {anchor_week} prescribed this day as: {block_template}\n"
         "This is the block's template for this day: keep the same exercise selection and order "
         "(same variants — do not swap e.g. Jerk for Push Jerk) and progress sets, reps and % to this "
         "week's targets. Change an exercise only when this week's Program Plan requires it "
@@ -488,13 +513,13 @@ _WARMUP_RULE_PRESCRIBED = (
 _WARMUP_RULE_OWN = "- Do NOT prescribe warm-up sets: the athlete warms up on their own. Start each lift at its first working set."
 
 
-def _rules_section(warmups: str, has_blocks: bool) -> str:
+def _rules_section(warmups: str) -> str:
     """The role line and the MUST / MUST NOT rules — static for the program;
     the week-dependent ceiling and deload rule live in the Program Plan (RAG-L3).
-    PLAN-2 §3.4: the warm-up rule follows the athlete's preference."""
+    PLAN-2 §3.4: the warm-up rule follows the athlete's preference. There is
+    no "no blocks" rule: since DOG-2n `retrieve` drops from-blocks rows for an
+    athlete without blocks, so name validation rejects them."""
     warmup_rule = _WARMUP_RULE_PRESCRIBED if warmups == "prescribed" else _WARMUP_RULE_OWN
-    blocks_rule = ("- Prescribe any exercise requiring lifting blocks (e.g. any from-blocks variation) — "
-                   "athlete does not have blocks available." if not has_blocks else "")
     return f"""You are an Olympic weightlifting programming assistant. Generate a training session as a JSON object.
 
 You MUST:
@@ -504,6 +529,7 @@ You MUST:
 - Respect all active programming principles
 - Provide a brief selection_rationale for each exercise (1-2 sentences)
 - Reference principle IDs in source_principle_ids where applicable
+- Choose the exercises and their order with care — that is your part. Give sets, reps and % as your best estimate: code then fits them to the week (ceiling, rep ranges, the session's competition-lift rep target, Prilepin's limits), so don't spend effort on arithmetic
 {warmup_rule}
 
 You MUST NOT:
@@ -512,8 +538,7 @@ You MUST NOT:
 (Pulls, deadlifts, squats and presses are not competition lifts: they may sit above the ceiling — up to ~120% of the referenced max — and take 3-5 reps per set; reference the lift's own max when one is listed, e.g. "clean_pull".)
 - Include exercises from the avoid list
 - Include exercises the athlete cannot perform due to injuries
-- Prescribe the same accessory exercise (back extensions, presses, rows, RDLs, core work) in more than {MAX_ACCESSORY_SESSIONS_PER_WEEK} sessions of a week — vary accessories across the week
-{blocks_rule}"""
+- Prescribe the same accessory exercise (back extensions, presses, rows, RDLs, core work) in more than {MAX_ACCESSORY_SESSIONS_PER_WEEK} sessions of a week — vary accessories across the week"""
 
 
 def _athlete_profile_section(athlete_context: AthleteContext, sessions_per_week: int | None) -> str:
@@ -529,6 +554,10 @@ def _athlete_profile_section(athlete_context: AthleteContext, sessions_per_week:
     from demographics import demographics_line
     demographics = demographics_line(athlete_context)
     demographics_line_str = f"\n{demographics}" if demographics else ""
+    # Only when set, so the golden prompts (and every athlete without it) are unchanged.
+    lifting_str = ("\nOlympic lifting experience: has already trained the snatch and clean & jerk — "
+                   "programme the full lifts, not an introduction to them"
+                   if athlete.get("olympic_lifting_experience") else "")
     return f"""## Athlete Profile
 Name: {athlete['name']}
 Level: {athlete_context.level}{demographics_line_str}
@@ -536,7 +565,7 @@ Sessions/week: {sessions_per_week or athlete_context.sessions_per_week}
 Session duration: {athlete.get('session_duration_minutes', DEFAULT_SESSION_DURATION_MINUTES)} min
 Lift emphasis: {lift_emphasis} (snatch_biased = more snatch volume/variants; cj_biased = more C&J volume/variants; balanced = equal)
 Strength limiters: {strength_limiters_str}
-Competition experience: {competition_experience}
+Competition experience: {competition_experience}{lifting_str}
 Equipment available: {equipment_str}
 Technical faults: {faults_str}
 Injuries: {injuries_str}"""
@@ -555,6 +584,11 @@ def _maxes_section(display_maxes: dict[str, float], projected_lifts: list[str]) 
         "Working Maxes (realization phase — snatch/C&J calculated off competition targets)"
         if projected_lifts else "Current Maxes"
     )
+    if not display_maxes:
+        # A percentage-only program: no kg resolve, the page falls back to the RPE.
+        return (f"## {header}\n  (none on record) — the athlete has no tested maxes. Prescribe every loaded "
+                "exercise as intensity_pct of its reference lift with an rpe_target that matches it; "
+                "the athlete chooses the load by feel from the RPE.")
     lines = "\n".join(
         f"  {ref}: {kg}kg{'  ← target' if ref in projected_lifts else ''}"
         for ref, kg in sorted(display_maxes.items())
@@ -585,8 +619,9 @@ def _ratios_section(display_maxes: dict[str, float]) -> str:
             else:
                 status = "✓ on target"
             ratio_lines.append(f"  {label}: {ratio:.0%} (target {target_range}) {status}")
-    block = "\n".join(ratio_lines) if ratio_lines else "  (insufficient maxes on record)"
-    return f"## Lift Ratios (structural balance indicators)\n{block}"
+    if not ratio_lines:
+        return ""                                       # DOG-2n: no empty section
+    return "## Lift Ratios (structural balance indicators)\n" + "\n".join(ratio_lines)
 
 
 def _previous_program_section(prev_prog: dict | None) -> str:
@@ -603,7 +638,8 @@ def _previous_program_section(prev_prog: dict | None) -> str:
         f"  Phase: {prev_prog.get('phase', 'unknown')} ({prev_prog.get('duration_weeks', '?')} weeks)",
         *previous_program_structure_lines(prev_prog.get("structure")),
         f"  Adherence: {outcome.adherence_pct}%",
-        f"  Avg make rate on competition lifts: {outcome.avg_make_rate}",
+        "  Avg make rate on competition lifts: "
+        f"{'not logged' if outcome.avg_make_rate is None else outcome.avg_make_rate}",
     ]
     if outcome.make_rate_by_lift:
         lift_parts = [f"{k.replace('_', ' ')} {v:.0%}" for k, v in outcome.make_rate_by_lift.items()]
@@ -629,22 +665,21 @@ def _previous_program_section(prev_prog: dict | None) -> str:
 
 def _recent_training_section(recent_logs) -> str:
     lines = summarize_recent_logs(recent_logs)
-    block = "\n".join(lines) if lines else "  No recent sessions logged."
-    return f"## Recent Training (last 14 days)\n{block}"
+    if not lines:
+        return ""                                       # DOG-2n: no empty section
+    return "## Recent Training (last 14 days)\n" + "\n".join(lines)
 
 
-def _available_exercises_section(available_exercises: list[dict], technical_faults) -> str:
-    """One compact line per exercise (~60 chars — DOG-1h): the old prose form
-    ("(complexity 1) — typical: 3-5 sets x 2-5 reps @ 85.00-110.00% | addresses:
-    every fault") ran ~135 chars and put the day-4 prompts over the 20k warning
-    on a 53-row catalogue. If the catalogue passes ~150 rows, cap it here with
+def _available_exercises_section(available_exercises: list[dict]) -> str:
+    """One compact line per exercise (~40 chars). DOG-1h replaced the old prose
+    form ("(complexity 1) — typical: 3-5 sets x 2-5 reps @ 85.00-110.00% |
+    addresses: every fault"), which ran ~135 chars and put the day-4 prompts
+    over the 20k warning on a 53-row catalogue. DOG-2n then dropped the % range
+    and the fault tags. Rows that need equipment the athlete lacks were already
+    removed in `retrieve`. If the catalogue passes ~150 rows, cap it here with
     MAX_EXERCISES_IN_PROMPT from shared/constants.py."""
-    athlete_faults = set(technical_faults or [])
-    ex_lines = [
-        "  name [family, cN=complexity] sets x reps @ % of the reference max; "
-        "'for:' = this athlete's faults the exercise addresses"
-    ]
-    ex_lines += [_exercise_line(e, athlete_faults) for e in available_exercises]
+    ex_lines = ["  name [family, cN=complexity] typical sets x reps"]
+    ex_lines += [_exercise_line(e) for e in available_exercises]
     return "## Available Exercises\n" + "\n".join(ex_lines)
 
 
@@ -664,28 +699,35 @@ def _available_complexes_section(complexes: list[dict] | None) -> str:
 def _fault_correction_section(technical_faults: list[str], fault_exercises: dict[str, list[dict]]) -> str:
     """Grouped by fault so the LLM sees explicit "For fault X: Exercise A, B"
     mappings rather than a flat list that requires inference."""
+    if not technical_faults:
+        return ""                                       # DOG-2n: no empty section
     fault_lines = []
-    if technical_faults and fault_exercises:
-        all_fault_exs: list[dict] = [ex for exs in fault_exercises.values() for ex in exs]
-        for fault in technical_faults:
-            matching = [e for e in all_fault_exs if fault in (e.get("faults_addressed") or [])]
-            if matching:
-                ex_names = ", ".join(
-                    f"{e['name']} ({e.get('primary_purpose', '').split('.')[0].strip()})"
-                    for e in matching[:3]
-                )
-                fault_lines.append(f"  '{fault}': {ex_names}")
-            else:
-                fault_lines.append(f"  '{fault}': (no specific exercises retrieved — use general technique work)")
-    block = "\n".join(fault_lines) if fault_lines else "  None"
-    return f"## Fault Correction Exercises (prescribe ≥1 per session when faults are listed)\n{block}"
+    all_fault_exs: list[dict] = [ex for exs in (fault_exercises or {}).values() for ex in exs]
+    for fault in technical_faults:
+        matching = [e for e in all_fault_exs if fault in (e.get("faults_addressed") or [])]
+        if matching:
+            ex_names = ", ".join(
+                f"{e['name']} ({e.get('primary_purpose', '').split('.')[0].strip()})"
+                for e in matching[:3]
+            )
+            # DOG-2n: the rest are named here because the catalogue lines no
+            # longer carry a `for: <fault>` tag
+            others = list(dict.fromkeys(e["name"] for e in matching[3:]))
+            if others:
+                ex_names += f"; also {', '.join(others)}"
+            fault_lines.append(f"  '{fault}': {ex_names}")
+        else:
+            fault_lines.append(f"  '{fault}': (no specific exercises retrieved — use general technique work)")
+    return ("## Fault Correction Exercises (prescribe ≥1 per session)\n" + "\n".join(fault_lines))
 
 
 def _avoid_section(athlete: dict) -> str:
     # exercise_preferences is JSONB with a DB default of '{}' but is nullable —
     # an explicit SQL NULL makes .get(...) return None, so coalesce before .get("avoid").
-    avoid = (athlete.get("exercise_preferences") or {}).get("avoid", [])
-    return f"## Exercises to Avoid\n{', '.join(avoid) or 'none'}"
+    avoid = (athlete.get("exercise_preferences") or {}).get("avoid") or []
+    if not avoid:
+        return ""                                       # DOG-2n: no empty section
+    return f"## Exercises to Avoid\n{', '.join(avoid)}"
 
 
 def _substitutions_section(available_substitutions: dict[str, list]) -> str:
@@ -693,8 +735,9 @@ def _substitutions_section(available_substitutions: dict[str, list]) -> str:
     for orig_name, subs in available_substitutions.items():
         for s in subs[:2]:
             sub_lines.append(f"  {orig_name} → {s['substitute_name']}: {s.get('notes', '')}".strip())
-    block = "\n".join(sub_lines) if sub_lines else "  None"
-    return f"## Injury Substitutions\n{block}"
+    if not sub_lines:
+        return ""                                       # DOG-2n: no empty section
+    return "## Injury Substitutions\n" + "\n".join(sub_lines)
 
 
 def _deload_rule(week_target: WeekTarget, deload_style: str) -> str:
@@ -715,8 +758,20 @@ def _program_plan_body(phase: str, week_number: int, duration_weeks: int,
 Intensity range: {week_target.intensity_floor}% – {week_target.intensity_ceiling}%
 Intensity ceiling (hard limit for competition lifts): {week_target.intensity_ceiling}%
 Volume modifier: {week_target.volume_modifier:.2f} (1.0 = baseline)
-Reps per set (comp lifts): {week_target.reps_per_set_range[0]}–{week_target.reps_per_set_range[1]}
+{_reps_per_set_line(week_target)}
 Deload week: {deload_rule}{_strength_curve_lines(week_target)}"""
+
+
+def _reps_per_set_line(week_target: WeekTarget) -> str:
+    """The comp-lift reps-per-set line; the full classic lifts get their own
+    range when the plan set one (CLASSIC_LIFT_REPS_PER_SET)."""
+    lo, hi = week_target.reps_per_set_range[0], week_target.reps_per_set_range[1]
+    classic = getattr(week_target, "classic_reps_per_set_range", None)
+    if not classic:
+        return f"Reps per set (comp lifts): {lo}–{hi}"
+    return (f"Reps per set: {classic[0]}–{classic[1]} on the snatch, clean and jerk "
+            f"(clean & jerk ≤ {min(classic[1], CLEAN_AND_JERK_MAX_REPS)}); {lo}–{hi} on their power, hang, "
+            f"muscle and pause variants")
 
 
 def _strength_curve_lines(week_target: WeekTarget) -> str:
@@ -731,12 +786,23 @@ def _strength_curve_lines(week_target: WeekTarget) -> str:
 
 
 def _session_template_section(session_template: SessionTemplate, session_rep_target: int) -> str:
-    return f"""## Session Template
-Day {session_template.day_number}: {session_template.label}
-Primary movement: {session_template.primary_movement}
-Supporting work: {', '.join(session_template.secondary_movements)}
-Session note: {session_template.notes}
-Target competition lift reps this session: {session_rep_target}"""
+    """The day's shape. Empty lines are left out (DOG-2n). The accessory line
+    (DOG-2m) names the families this day covers. Before it, nothing asked for
+    hinge / core / carry work."""
+    lines = [
+        "## Session Template",
+        f"Day {session_template.day_number}: {session_template.label}",
+        f"Primary movement: {session_template.primary_movement}",
+    ]
+    if session_template.secondary_movements:
+        lines.append(f"Supporting work: {', '.join(session_template.secondary_movements)}")
+    families = getattr(session_template, "accessory_families", None) or []
+    if families:
+        lines.append(f"Accessories (after the main work, one exercise per family): {', '.join(families)}")
+    if session_template.notes:
+        lines.append(f"Session note: {session_template.notes}")
+    lines.append(f"Target competition lift reps this session: {session_rep_target}")
+    return "\n".join(lines)
 
 
 def _volume_table_section(week_target: WeekTarget, phase: str, prilepin_targets: dict[str, dict]) -> str:
@@ -793,8 +859,9 @@ def _already_prescribed_section(already_prescribed: list[dict], week_target: Wee
 
 def _principles_section(active_principles: list[dict]) -> str:
     principle_lines = [format_principle_line(p) for p in active_principles[:MAX_PRINCIPLES_IN_PROMPT]]
-    block = "\n".join(principle_lines) if principle_lines else "  None"
-    return f"## Active Principles\n{block}"
+    if not principle_lines:
+        return ""                                       # DOG-2n: no empty section
+    return "## Active Principles\n" + "\n".join(principle_lines)
 
 
 def _select_context_chunks(athlete_context: AthleteContext, retrieval_context: RetrievalContext,
@@ -855,8 +922,9 @@ def _templates_section(template_references: list[dict], week_number: int) -> str
         f"  {render_template_reference(t, week_number)}"
         for t in template_references[:MAX_TEMPLATES_IN_PROMPT]
     ]
-    block = "\n".join(tmpl_lines) if tmpl_lines else "  (none matched for this phase/level/frequency)"
-    return f"## Similar Program Templates\n{block}"
+    if not tmpl_lines:
+        return ""                                       # DOG-2n: no empty section
+    return "## Similar Program Templates\n" + "\n".join(tmpl_lines)
 
 
 _INSTRUCTIONS_SECTION = """## Instructions
@@ -901,6 +969,8 @@ def build_session_prompt(
     active_principles: list[dict] | None = None,
     context_chunks: list[dict] | None = None,
     block_template: str | None = None,
+    block_anchor_week: int = 1,
+    new_wave: bool = False,
 ) -> str:
     """Assemble the full prompt for one session generation call.
 
@@ -912,7 +982,10 @@ def build_session_prompt(
     (``orchestrator.summarize_block_template``), passed for weeks 2..N so
     exercise selection stays consistent across the block (AUD-4). It is
     week/session-level text, so it renders below PROMPT_STATIC_DYNAMIC_MARKER;
-    None (week 1) omits the section.
+    None (week 1) omits the section. block_anchor_week names the week it came
+    from — 1, or the first week after a mid-block deload for the rest of that
+    wave — and new_wave marks a post-deload wave's first week, which is shown
+    the previous anchor and asked to rotate variants (DOG-2e).
 
     sessions_per_week is the PLAN's actual day count — the template
     distribution may have fallen back to a different frequency than the
@@ -933,17 +1006,16 @@ def build_session_prompt(
     # PLAN-2 §3.4 / §3.5: warm-up and deload rules follow the athlete's preferences.
     from plan import training_preferences
     prefs = training_preferences(athlete_context.athlete)
-    has_blocks = "blocks" in (athlete_context.athlete.get("available_equipment") or [])
     display_maxes = effective_maxes if effective_maxes is not None else athlete_context.maxes
 
     static = "\n\n".join(s for s in [
-        _rules_section(prefs["warmups"], has_blocks),
+        _rules_section(prefs["warmups"]),
         _athlete_profile_section(athlete_context, sessions_per_week),
         _maxes_section(display_maxes, _projected_lifts(athlete_context, effective_maxes)),
         _ratios_section(display_maxes),
         _previous_program_section(athlete_context.previous_program),
         _recent_training_section(athlete_context.recent_logs),
-        _available_exercises_section(retrieval_context.available_exercises, athlete_context.technical_faults),
+        _available_exercises_section(retrieval_context.available_exercises),
         _available_complexes_section(getattr(retrieval_context, "available_complexes", None)),
         _fault_correction_section(athlete_context.technical_faults, retrieval_context.fault_exercises),
         _avoid_section(athlete_context.athlete),
@@ -952,7 +1024,8 @@ def build_session_prompt(
         coach_prompt_section(getattr(athlete_context, "coach_note", None),
                              getattr(athlete_context, "coach_constraints", None)),
     ] if s)
-    block_section = _block_template_section(block_template, session_template.day_number).strip("\n")
+    block_section = _block_template_section(block_template, session_template.day_number,
+                                            block_anchor_week, new_wave).strip("\n")
     dynamic = "\n\n".join(s for s in [
         _program_plan_body(phase, week_number, duration_weeks, week_target,
                            _deload_rule(week_target, prefs["deload_style"])),
@@ -1005,6 +1078,18 @@ def prompt_content_blocks(prompt: str):
 
 # ── Session generation with retries ───────────────────────────
 
+def _repair_suffix(exercises: list[dict], problem: str, errors: list[str], instruction: str) -> str:
+    """The retry tail: the previous attempt's exercises and its errors, so the
+    model repairs that session instead of writing a new one blind (Self-Refine
+    with external feedback). Below the marker, so the cached prefix is kept."""
+    previous = [{k: ex.get(k) for k in ("exercise_order", "exercise_name", "sets", "reps", "intensity_pct",
+                                        "intensity_reference")} for ex in exercises]
+    return (f"\n\nIMPORTANT: Your previous response {problem}:\n"
+            + "\n".join(f"- {e}" for e in errors)
+            + "\nYour previous exercises were:\n" + json.dumps(previous, ensure_ascii=False, default=str)
+            + f"\n{instruction}")
+
+
 def generate_session_with_retries(
     prompt: str,
     llm_client,
@@ -1022,14 +1107,19 @@ def generate_session_with_retries(
     retrieval_set: list[dict] | None = None,
     week_already_prescribed: list[dict] | None = None,
     available_complexes: list[dict] | None = None,
+    session_rep_target: int | None = None,
 ) -> GenerationResult:
     """Generate one session with parse + validation retries.
 
     Retry flow:
     1. LLM call -> parse JSON -> validate names -> validate (Step 5)
     2. Parse error: retry with "respond only with valid JSON" appended
-    3. Validation error: retry with errors included in prompt
-    4. Max retries exhausted: return failed GenerationResult
+    3. Dosing: code fits sets × reps × % to the week (dosing.dose_session) —
+       the model chooses exercises, so number errors don't cost a retry
+    4. Validation error: retry with the previous exercises and the errors, asked
+       to change only what the errors require (a repair, not a new session)
+    5. Max retries exhausted: the storable candidate with the fewest errors is
+       returned flagged (status "flagged"), else a failed GenerationResult
 
     retrieval_set: the labelled knowledge chunks the prompt showed
     ([{"label": "C1", "id": …, "similarity": …}, …]); written to
@@ -1044,6 +1134,7 @@ def generate_session_with_retries(
     attempt_cache = {"read": 0, "creation": 0, "billed": None, "tier": None}
 
     def _log(*args, **kwargs):
+        kwargs.setdefault("dosing_edits", attempt_cache.get("dosing"))
         _log_generation(*args, retrieval_set=retrieval_set, cache_read_tokens=attempt_cache["read"],
                         cache_creation_tokens=attempt_cache["creation"], billed_usd=attempt_cache["billed"],
                         service_tier=attempt_cache["tier"], **kwargs)
@@ -1052,6 +1143,7 @@ def generate_session_with_retries(
     current_prompt = prompt
     last_raw = ""
     last_validation = None
+    best: tuple[int, list[dict], list[str], int] | None = None   # (n errors, exercises, errors, attempt)
     # Accumulate tokens across ALL attempts — each retry is a full paid LLM call,
     # and the returned totals feed the orchestrator's per-program cost guard.
     # Returning only the final attempt's tokens let the guard undercount by up to
@@ -1078,7 +1170,7 @@ def generate_session_with_retries(
 
     for attempt in range(1, max_attempts + 1):
         logger.info(f"  Generating W{week_number}D{day_number} (attempt {attempt}/{max_attempts})")
-        attempt_cache.update(read=0, creation=0, billed=None)
+        attempt_cache.update(read=0, creation=0, billed=None, dosing=None)
 
         # ── LLM call ─────────────────────────────────────────
         try:
@@ -1170,11 +1262,9 @@ def generate_session_with_retries(
                 input_tokens, output_tokens, "validation_error",
                 validation_errors=name_errors,
             )
-            current_prompt = prompt + (
-                "\n\nIMPORTANT: Your previous response contained invalid exercise names:\n"
-                + "\n".join(f"- {e}" for e in name_errors)
-                + "\nUse ONLY exercise names from the Available Exercises list exactly as written."
-            )
+            current_prompt = prompt + _repair_suffix(
+                exercises, "contained invalid exercise names", name_errors,
+                "Replace only those exercises, with names from the Available Exercises list exactly as written.")
             time.sleep(settings.retry_delay_seconds)
             continue
 
@@ -1182,6 +1272,10 @@ def generate_session_with_retries(
         # complex total, complex_id, scheme note — the validator judges them
         # by their competition-lift components.
         exercises = annotate_complexes(exercises, available_complexes)
+        exercises, dosing_edits = dose_session(exercises, week_target, session_rep_target)
+        attempt_cache["dosing"] = dosing_edits
+        if dosing_edits:
+            logger.info(f"  Dosing W{week_number}D{day_number}: {dosing_edits}")
 
         # ── Step 5 validation ─────────────────────────────────
         last_validation = validate_session(
@@ -1203,11 +1297,13 @@ def generate_session_with_retries(
                 validation_errors=last_validation.errors,
                 validation_warnings=last_validation.warnings,
             )
-            current_prompt = prompt + (
-                "\n\nIMPORTANT: Your previous response failed validation:\n"
-                + "\n".join(f"- {e}" for e in last_validation.errors)
-                + "\nFix these issues in your next response."
-            )
+            if not storable_errors(exercises, athlete):
+                n = len(last_validation.errors)
+                if best is None or n < best[0]:
+                    best = (n, exercises, list(last_validation.errors), attempt)
+            current_prompt = prompt + _repair_suffix(
+                exercises, "failed validation", last_validation.errors,
+                "Keep every exercise that is not named in an error; change only what the errors require.")
             time.sleep(settings.retry_delay_seconds)
             continue
 
@@ -1235,7 +1331,24 @@ def generate_session_with_retries(
             billed_cost_usd=total_billed,
         )
 
-    # All retries exhausted
+    # All retries exhausted: keep the best storable candidate, flagged, rather
+    # than an empty session the athlete can't train from
+    if best is not None:
+        n, exercises, errors, attempt = best
+        logger.error(f"  W{week_number}D{day_number}: retries exhausted — saving attempt {attempt} "
+                     f"with {n} unresolved validation error(s): {errors}")
+        return GenerationResult(
+            exercises=exercises,
+            raw_response=last_raw,
+            input_tokens=total_input_tokens,
+            output_tokens=total_output_tokens,
+            status="flagged",
+            error_message=f"Saved with unresolved validation errors: {errors}",
+            attempt_number=max_attempts,
+            cache_read_tokens=total_cache_read,
+            cache_creation_tokens=total_cache_creation,
+            billed_cost_usd=total_billed,
+        )
     last_errors = last_validation.errors if last_validation else ["parse failure"]
     logger.error(
         f"  Failed W{week_number}D{day_number} after {max_attempts} attempts: {last_errors}"
@@ -1266,13 +1379,13 @@ def _log_generation(
     input_tokens, output_tokens, status,
     validation_errors=None, error_message=None, retrieval_set=None,
     cache_read_tokens=0, cache_creation_tokens=0, validation_warnings=None, billed_usd=None,
-    service_tier=None,
+    service_tier=None, dosing_edits=None,
 ):
     """Insert a row into generation_log (incl. the labelled retrieval set — RAG-M5).
 
     estimated_cost_usd includes the attempt's prompt-cache reads / writes
     (billed at 0.1x / 1.25x input) — input_tokens is only the uncached part.
-    parsed_response is ``{"exercises": [...], "_validation_warnings": [...]}``:
+    parsed_response is ``{"exercises": [...], "_validation_warnings": [...], "_dosing_edits": [...]}``:
     the table has no warnings column, and folding warnings into
     validation_errors would inflate every error count (eval/model_baseline);
     ``_validation_warnings`` is null when Step 5 didn't run on the attempt.
@@ -1281,7 +1394,8 @@ def _log_generation(
                          cache_creation_tokens=cache_creation_tokens, billed_usd=billed_usd,
                          service_tier=service_tier)
     parsed_response = (
-        json.dumps({"exercises": parsed, "_validation_warnings": validation_warnings})
+        json.dumps({"exercises": parsed, "_validation_warnings": validation_warnings,
+                    "_dosing_edits": dosing_edits}, default=str)
         if parsed else None
     )
     with conn.cursor() as cursor:

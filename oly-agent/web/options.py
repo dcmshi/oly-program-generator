@@ -105,3 +105,15 @@ def parse_list_text(text: str | None, max_items: int = 20) -> list[str]:
         if item and item.lower() not in {o.lower() for o in out}:
             out.append(item)
     return out[:max_items]
+
+
+def timezone_error(tz: str) -> str | None:
+    """None when ``tz`` is a known IANA zone, else the message the setup and
+    profile forms show. A typo'd zone would be saved and silently ignored by
+    the UTC fallback forever (WEB-L1), so both forms reject it instead."""
+    from zoneinfo import ZoneInfo
+    try:
+        ZoneInfo(tz)
+    except Exception:
+        return f"Unknown timezone '{tz}'. Use an IANA name like America/New_York or Europe/Berlin."
+    return None

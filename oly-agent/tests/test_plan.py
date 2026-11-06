@@ -226,6 +226,14 @@ def test_phase_not_advanced_low_make_rate():
     phase, _ = _advance_phase("accumulation", _good_outcome(avg_make_rate=0.65), None)
     assert phase == "accumulation"
 
+def test_no_make_rate_logged_does_not_block_advancement():
+    # DOG-2h: a stored null make rate is "not logged", not 0 % — the make-rate
+    # test is skipped, the same rule feedback's verdict applies
+    phase, _ = _advance_phase("accumulation", _good_outcome(avg_make_rate=None), None)
+    assert phase == "intensification"
+    phase, _ = _advance_phase("accumulation", _good_outcome(avg_make_rate=None, adherence_pct=60.0), None)
+    assert phase == "accumulation"
+
 def test_phase_not_advanced_high_rpe_deviation():
     phase, _ = _advance_phase("accumulation", _good_outcome(avg_rpe_deviation=2.0), None)
     assert phase == "accumulation"
@@ -287,6 +295,14 @@ def test_excellent_performance_increases_intensity():
     for t in result:
         if not t["is_deload"]:
             assert t["intensity_ceiling"] > 80.0
+
+def test_no_make_rate_logged_leaves_intensity_alone():
+    # DOG-2h: no make data → no −3 ceiling cut and no "excellent" boost
+    targets = _dummy_targets()
+    for adherence in (80.0, 95.0):
+        result = _apply_outcome_adjustments(targets, {"outcome_summary": {"adherence_pct": adherence,
+                                                                          "avg_make_rate": None}})
+        assert [t["intensity_ceiling"] for t in result] == [80.0] * 4
 
 def test_deload_week_never_adjusted():
     targets = _dummy_targets()
@@ -400,6 +416,8 @@ def test_outcome_nudges_are_proportional_to_the_miss():
     assert vol == -0.15 and inten == -3.0                                  # −10 % −5 % / −3 pts caps
     assert labels == compute_load_adjustments(30.0, 0.40, 3.0)             # feedback shows the same strings
     assert compute_load_deltas(95.0, 0.9, 0.0)[1] == 2.0
+    assert compute_load_deltas(95.0, None, 0.0) == (0.0, 0.0, [])         # no make data: neutral (DOG-2h)
+    assert compute_load_deltas(30.0, None, 0.0)[1] == 0.0                   # adherence still cuts volume only
 
 
 # ── Runner ───────────────────────────────────────────────────────────────────

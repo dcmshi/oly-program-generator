@@ -97,7 +97,7 @@ def test_parse_scheme_edge_cases():
 
 
 def test_catalogue_names():
-    assert catalogue_name("RDL (% of Clean)") is None                 # not "Clean"
+    assert catalogue_name("RDL (% of Clean)") == "Romanian Deadlift"  # not "Clean"
     assert catalogue_name("Bent Over BB Rows") == "Barbell Row"
     assert catalogue_name("No Foot Snatch or No Touch Snatch") == "No Feet Snatch"
     assert catalogue_name("Power Snatch") == "Power Snatch"            # falls through to the CSV map

@@ -118,7 +118,7 @@ def test_pull_family():
     result = pipeline._parse_exercise(section, source_id=1)
     assert result["movement_family"] == "snatch", result
     # Pure pull (no competition lift prefix) → pull family + strength category
-    section2 = _section("Romanian Deadlift", "The RDL builds posterior chain strength.")
+    section2 = _section("Deadlift", "The deadlift builds pulling strength.")
     result2 = pipeline._parse_exercise(section2, source_id=1)
     assert result2["movement_family"] == "pull", result2
     assert result2["category"] == "strength", result2
@@ -153,6 +153,31 @@ def test_faults_addressed_default_empty():
     section = _section("Deficit Snatch", "A snatch pulled from a deficit plate.")
     result = pipeline._parse_exercise(section, source_id=1)
     assert result["faults_addressed"] == [], result
+
+def test_accessories_are_catalogued():
+    """DOG-2g: rows, planks, good mornings, carries and jumps named no lift
+    keyword and were dropped ("no movement keyword")."""
+    cases = {
+        "Romanian Deadlift": "hinge", "Snatch Grip RDL": "hinge", "Good Morning": "hinge",
+        "Back Extension": "hinge", "Glute-Ham Raise": "hinge",
+        "Pendlay Row": "row", "Pull-Up": "row", "Chin-ups": "row",
+        "Plank": "core", "Hanging Leg Raise": "core", "Sit-Up": "core",
+        "Farmer's Carry": "carry", "Box Jump": "plyometric", "Jumping Squat": "plyometric",
+        "Walking Lunge": "squat", "Shrug": "pull", "Dips": "press",
+    }
+    for title, family in cases.items():
+        result = pipeline._parse_exercise(_section(title, f"The {title.lower()} builds strength."), 1)
+        assert result.get("movement_family") == family, (title, result)
+        expected = "accessory" if family in ("hinge", "row", "core", "carry", "plyometric") else "strength"
+        assert result["category"] == expected, (title, result)
+    # lift families still win where no accessory word appears
+    assert pipeline._parse_exercise(_section("Snatch Pull", "x."), 1)["movement_family"] == "snatch"
+    assert pipeline._parse_exercise(_section("Clean Deadlift", "x."), 1)["movement_family"] == "clean"
+    # "rowing" is not a row, and bare family words are headings
+    assert pipeline._parse_exercise(_section("Rowing Machine Intervals", "x."), 1) == {}
+    for title in ("Rows", "Carries", "Jumps", "Core", "Accessories"):
+        assert pipeline._parse_exercise(_section(title, "This chapter covers several things."), 1) == {}, title
+
 
 def test_chapter_headings_are_not_exercises():
     # DOG-1: "The Pull" / "PULL" / "Squat" chapter titles reached the catalogue

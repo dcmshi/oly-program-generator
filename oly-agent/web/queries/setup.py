@@ -40,9 +40,10 @@ async def create_athlete(conn, data: dict, password_hash: str) -> int:
             training_age_years, sessions_per_week, session_duration_minutes,
             available_equipment, injuries, technical_faults,
             username, password_hash, notes,
-            lift_emphasis, strength_limiters, competition_experience
+            lift_emphasis, strength_limiters, competition_experience,
+            olympic_lifting_experience, timezone
         )
-        VALUES ($1,$2,$3,$4, $5,$6,$7,$8, $9,$10,$11, $12,$13,$14, $15,$16,$17, $18,$19,$20)
+        VALUES ($1,$2,$3,$4, $5,$6,$7,$8, $9,$10,$11, $12,$13,$14, $15,$16,$17, $18,$19,$20, $21,$22)
         RETURNING id
         """,
         data["name"],
@@ -70,6 +71,9 @@ async def create_athlete(conn, data: dict, password_hash: str) -> int:
         data.get("lift_emphasis") or "balanced",
         data.get("strength_limiters") or [],
         data.get("competition_experience") or "none",
+        bool(data.get("olympic_lifting_experience")),
+        # dates the athlete's age (AUD-5) and "today"; validated by the router
+        data.get("timezone") or "UTC",
     )
 
 
