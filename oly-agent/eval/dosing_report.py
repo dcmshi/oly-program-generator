@@ -46,7 +46,8 @@ from shared.constants import DOSING_VOLUME_TOLERANCE  # noqa: E402
 from shared.db import fetch_all, get_connection  # noqa: E402
 from shared.llm import parse_llm_json  # noqa: E402
 
-_TARGET_RE = re.compile(r"Target competition lift reps this session: (\d+)")
+_TARGET_RE = re.compile(      # "at most N" on deload weeks since DOSE-1d
+    r"(?:Target competition lift reps this session:|Competition lift reps this session: at most) (\d+)")
 _DELOAD_RE = re.compile(r"Deload week: (yes|true)", re.I)
 EDIT_KINDS = (
     ("ceiling", re.compile(r"week ceiling")),

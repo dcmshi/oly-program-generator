@@ -47,7 +47,9 @@ def _rx(name, sets=4, reps=1, pct=75.0, ref="snatch", order=1):
 def test_scheme_and_prompt_line():
     assert complex_scheme(SNATCH_OHS["exercises_ordered"]) == "1+2"
     line = complex_line(SNATCH_OHS)
-    assert line == "  Snatch + Overhead Squat = Snatch ×1 + Overhead Squat ×2 [snatch, c2] 60–80% | reps = 3"
+    assert line == "  Snatch + Overhead Squat (1+2) [snatch, c2] 60–80% | reps = 3"
+    renamed = complex_line({**SNATCH_OHS, "name": "Snatch Complex"})        # a name that isn't its parts
+    assert renamed.startswith("  Snatch Complex = Snatch ×1 + Overhead Squat ×2 [snatch, c2]")
     assert "%" not in complex_line({**SNATCH_OHS, "typical_intensity_low": None})
 
 
@@ -141,7 +143,7 @@ def test_prompt_section_only_when_complexes_are_offered():
     from generate import _available_complexes_section
     assert _available_complexes_section([]) == "" and _available_complexes_section(None) == ""
     text = _available_complexes_section([SNATCH_OHS])
-    assert text.startswith("## Available Complexes") and "Snatch + Overhead Squat = Snatch ×1" in text
+    assert text.startswith("## Available Complexes") and "Snatch + Overhead Squat (1+2)" in text
     assert "sets = number of complexes" in text
 
 
